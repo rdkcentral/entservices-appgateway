@@ -409,11 +409,11 @@ jobs:
           &&
           cmake --install build/mocks
 
-      - name: Build entservices-infra
+      - name: Build entservices-appgateway
         run: >
           cmake -G Ninja
-          -S "$GITHUB_WORKSPACE/entservices-infra"
-          -B build/entservices-infra
+          -S "$GITHUB_WORKSPACE/entservices-appgateway"
+          -B build/entservices-appgateway
           -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
           -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
           -DCMAKE_CXX_FLAGS="
@@ -713,12 +713,12 @@ jobs:
           &&
           lcov -c
           -o coverage.info
-          -d build/entservices-infra
+          -d build/entservices-appgateway
           &&
           lcov
           -r coverage.info
           '/usr/include/*'
-          '*/build/entservices-infra/_deps/*'
+          '*/build/entservices-appgateway/_deps/*'
           '*/install/usr/include/*'
           '*/Tests/headers/*'
           '*/Tests/mocks/*'
@@ -728,14 +728,14 @@ jobs:
           &&
           genhtml
           -o coverage
-          -t "entservices-infra coverage"
+          -t "entservices-appgateway coverage"
           filtered_coverage.info
 
       - name: Upload artifacts
         if: ${{ !env.ACT }}
         uses: actions/upload-artifact@v4
         with:
-          name: artifacts-L1-infra
+          name: artifacts-L1-appgateway
           path: |
             coverage/
             valgrind_log

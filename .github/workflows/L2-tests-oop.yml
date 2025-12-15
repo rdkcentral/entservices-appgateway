@@ -328,11 +328,11 @@ jobs:
           &&
           cmake --install build/mocks
 
-      - name: Build entservices-infra
+      - name: Build entservices-appgateway
         run: >
           cmake
-          -S "$GITHUB_WORKSPACE/entservices-infra"
-          -B build/entservices-infra
+          -S "$GITHUB_WORKSPACE/entservices-appgateway"
+          -B build/entservices-appgateway
           -DCMAKE_TOOLCHAIN_FILE="${{ env.TOOLCHAIN_FILE }}"
           -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
           -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
