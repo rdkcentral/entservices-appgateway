@@ -15,21 +15,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set(PLUGIN_NAME FbSettings)
+set(PLUGIN_NAME AppGatewayCommon)
 set(MODULE_NAME ${NAMESPACE}${PLUGIN_NAME})
 
 set(VERSION_MAJOR 1)
 set(VERSION_MINOR 0)
 set(VERSION_PATCH 0)
 
-add_compile_definitions(FBSETTINGS_MAJOR_VERSION=${VERSION_MAJOR})
-add_compile_definitions(FBSETTINGS_MINOR_VERSION=${VERSION_MINOR})
-add_compile_definitions(FBSETTINGS_PATCH_VERSION=${VERSION_PATCH})
+add_compile_definitions(APPGATEWAYCOMMON_MAJOR_VERSION=${VERSION_MAJOR})
+add_compile_definitions(APPGATEWAYCOMMON_MINOR_VERSION=${VERSION_MINOR})
+add_compile_definitions(APPGATEWAYCOMMON_PATCH_VERSION=${VERSION_PATCH})
 
 set(MODULE_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
 
-set(PLUGIN_FBSETTINGS_STARTUPORDER "" CACHE STRING "To configure startup order of FbSettings plugin")
-set(PLUGIN_FBSETTINGS_AUTOSTART "false" CACHE STRING "Automatically start FbSettings plugin")
+set(PLUGIN_APPGATEWAYCOMMON_STARTUPORDER "" CACHE STRING "To configure startup order of AppGatewayCommon plugin")
+set(PLUGIN_APPGATEWAYCOMMON_AUTOSTART "false" CACHE STRING "Automatically start AppGatewayCommon plugin")
 
 message("Setup ${MODULE_NAME} v${MODULE_VERSION}")
 
@@ -39,7 +39,7 @@ find_package(CompileSettingsDebug CONFIG REQUIRED)
 find_library(NMPROXY_LIB NAMES ${NAMESPACE}NetworkManagerProxy PATHS ${CMAKE_SYSROOT}/usr/lib/wpeframework/proxystubs)
 
 add_library(${MODULE_NAME} SHARED
-        FbSettings.cpp
+        AppGatewayCommon.cpp
         Module.cpp)
 
 

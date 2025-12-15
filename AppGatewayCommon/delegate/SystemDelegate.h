@@ -109,7 +109,7 @@ public:
     Core::hresult GetDeviceMake(std::string &make)
     {
         /** Retrieve the device make using org.rdk.System.getDeviceInfo */
-        LOGINFO("GetDeviceMake FbSettings Delegate");
+        LOGINFO("GetDeviceMake AppGatewayCommon Delegate");
         make.clear();
         auto link = AcquireLink(SYSTEM_CALLSIGN);
         if (!link)
@@ -424,11 +424,11 @@ public:
          * Get [w, h] screen resolution using DisplaySettings.getCurrentResolution.
          * Returns "[1920,1080]" as fallback when unavailable.
          */
-        LOGDBG("[FbSettings|GetScreenResolution] Invoked");
+        LOGDBG("[AppGatewayCommon|GetScreenResolution] Invoked");
         jsonArray = "[1920,1080]";
         auto link = AcquireLink(DISPLAYSETTINGS_CALLSIGN);
         if (!link) {
-            LOGERR("[FbSettings|GetScreenResolution] DisplaySettings link unavailable, returning default %s", jsonArray.c_str());
+            LOGERR("[AppGatewayCommon|GetScreenResolution] DisplaySettings link unavailable, returning default %s", jsonArray.c_str());
             return Core::ERROR_UNAVAILABLE;
         }
 
@@ -436,7 +436,7 @@ public:
         WPEFramework::Core::JSON::VariantContainer response;
         const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getCurrentResolution", params, response);
         if (rc != Core::ERROR_NONE) {
-            LOGERR("[FbSettings|GetScreenResolution] getCurrentResolution failed rc=%u, returning default %s", rc, jsonArray.c_str());
+            LOGERR("[AppGatewayCommon|GetScreenResolution] getCurrentResolution failed rc=%u, returning default %s", rc, jsonArray.c_str());
             return Core::ERROR_GENERAL;
         }
 
@@ -473,7 +473,7 @@ public:
         }
 
         jsonArray = "[" + std::to_string(w) + "," + std::to_string(h) + "]";
-        LOGDBG("[FbSettings|GetScreenResolution] Computed screenResolution: w=%d h=%d -> %s", w, h, jsonArray.c_str());
+        LOGDBG("[AppGatewayCommon|GetScreenResolution] Computed screenResolution: w=%d h=%d -> %s", w, h, jsonArray.c_str());
         return Core::ERROR_NONE;
     }
 
@@ -501,11 +501,11 @@ public:
                     } else {
                         w = 1920; h = 1080;
                     }
-                    LOGDBG("[FbSettings|GetVideoResolution] Transform screen(%d x %d) -> video(%d x %d)", sw, sh, w, h);
+                    LOGDBG("[AppGatewayCommon|GetVideoResolution] Transform screen(%d x %d) -> video(%d x %d)", sw, sh, w, h);
                 }
             } catch (...) {
                 // keep defaults
-                LOGDBG("[FbSettings|GetVideoResolution] Transform parse error for %s -> using defaults (%d x %d)", sr.c_str(), w, h);
+                LOGDBG("[AppGatewayCommon|GetVideoResolution] Transform parse error for %s -> using defaults (%d x %d)", sr.c_str(), w, h);
             }
         }
         jsonArray = "[" + std::to_string(w) + "," + std::to_string(h) + "]";
@@ -520,10 +520,10 @@ public:
          * Return {"hdcp1.4":bool,"hdcp2.2":bool} with sensible defaults.
          */
         jsonObject = "{\"hdcp1.4\":false,\"hdcp2.2\":false}";
-        LOGDBG("[FbSettings|GetHdcp] Invoked");
+        LOGDBG("[AppGatewayCommon|GetHdcp] Invoked");
         auto link = AcquireLink(HDCPPROFILE_CALLSIGN);
         if (!link) {
-            LOGERR("[FbSettings|GetHdcp] HdcpProfile link unavailable, returning default %s", jsonObject.c_str());
+            LOGERR("[AppGatewayCommon|GetHdcp] HdcpProfile link unavailable, returning default %s", jsonObject.c_str());
             return Core::ERROR_UNAVAILABLE;
         }
 
@@ -531,7 +531,7 @@ public:
         WPEFramework::Core::JSON::VariantContainer response;
         const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getHDCPStatus", params, response);
         if (rc != Core::ERROR_NONE) {
-            LOGERR("[FbSettings|GetHdcp] getHDCPStatus failed rc=%u, returning default %s", rc, jsonObject.c_str());
+            LOGERR("[AppGatewayCommon|GetHdcp] getHDCPStatus failed rc=%u, returning default %s", rc, jsonObject.c_str());
             return Core::ERROR_GENERAL;
         }
 
@@ -575,7 +575,7 @@ public:
 
         jsonObject = std::string("{\"hdcp1.4\":") + (hdcp14 ? "true" : "false")
                    + ",\"hdcp2.2\":" + (hdcp22 ? "true" : "false") + "}";
-        LOGDBG("[FbSettings|GetHdcp] Computed HDCP flags: hdcp1.4=%s hdcp2.2=%s -> %s",
+        LOGDBG("[AppGatewayCommon|GetHdcp] Computed HDCP flags: hdcp1.4=%s hdcp2.2=%s -> %s",
                hdcp14 ? "true" : "false", hdcp22 ? "true" : "false", jsonObject.c_str());
         return Core::ERROR_NONE;
     }
@@ -588,10 +588,10 @@ public:
          * Returns object with hdr10, dolbyVision, hlg, hdr10Plus flags (defaults false).
          */
         jsonObject = "{\"hdr10\":false,\"dolbyVision\":false,\"hlg\":false,\"hdr10Plus\":false}";
-        LOGDBG("[FbSettings|GetHdr] Invoked");
+        LOGDBG("[AppGatewayCommon|GetHdr] Invoked");
         auto link = AcquireLink(DISPLAYSETTINGS_CALLSIGN);
         if (!link) {
-            LOGERR("[FbSettings|GetHdr] DisplaySettings link unavailable, returning default %s", jsonObject.c_str());
+            LOGERR("[AppGatewayCommon|GetHdr] DisplaySettings link unavailable, returning default %s", jsonObject.c_str());
             return Core::ERROR_UNAVAILABLE;
         }
 
@@ -599,7 +599,7 @@ public:
         WPEFramework::Core::JSON::VariantContainer response;
         const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getTVHDRCapabilities", params, response);
         if (rc != Core::ERROR_NONE) {
-            LOGERR("[FbSettings|GetHdr] getTVHDRCapabilities failed rc=%u, returning default %s", rc, jsonObject.c_str());
+            LOGERR("[AppGatewayCommon|GetHdr] getTVHDRCapabilities failed rc=%u, returning default %s", rc, jsonObject.c_str());
             return Core::ERROR_GENERAL;
         }
 
@@ -623,7 +623,7 @@ public:
                 auto caps = vobj.Object().Get(_T("capabilities"));
                 if (caps.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER) {
                     capabilities = static_cast<uint32_t>(caps.Number());
-                    LOGDBG("[FbSettings|GetHdr] Got capabilities from object: 0x%x (%d)",
+                    LOGDBG("[AppGatewayCommon|GetHdr] Got capabilities from object: 0x%x (%d)",
                            capabilities, capabilities);
                 }
             }
@@ -633,7 +633,7 @@ public:
             hlg       = (capabilities & 0x02) != 0;  // HDRSTANDARD_HLG
             dv        = (capabilities & 0x04) != 0;  // HDRSTANDARD_DolbyVision
             hdr10plus = (capabilities & 0x10) != 0;  // HDRSTANDARD_HDR10PLUS
-            LOGDBG("[FbSettings|GetHdr] Parsed capabilities bitmask: 0x%x -> hdr10=%d hlg=%d dv=%d hdr10plus=%d",
+            LOGDBG("[AppGatewayCommon|GetHdr] Parsed capabilities bitmask: 0x%x -> hdr10=%d hlg=%d dv=%d hdr10plus=%d",
                    capabilities, hdr10, hlg, dv, hdr10plus);
         };
 
@@ -644,7 +644,7 @@ public:
                    + ",\"dolbyVision\":" + (dv ? "true" : "false")
                    + ",\"hlg\":" + (hlg ? "true" : "false")
                    + ",\"hdr10Plus\":" + (hdr10plus ? "true" : "false") + "}";
-        LOGDBG("[FbSettings|GetHdr] Computed HDR flags: hdr10=%s dolbyVision=%s hlg=%s hdr10Plus=%s -> %s",
+        LOGDBG("[AppGatewayCommon|GetHdr] Computed HDR flags: hdr10=%s dolbyVision=%s hlg=%s hdr10Plus=%s -> %s",
                hdr10 ? "true" : "false",
                dv ? "true" : "false",
                hlg ? "true" : "false",
@@ -672,7 +672,7 @@ public:
 
          auto link = AcquireLink(DISPLAYSETTINGS_CALLSIGN);
          if (!link) {
-             LOGERR("[FbSettings|GetAudio] DisplaySettings link unavailable, returning default audio flags");
+             LOGERR("[AppGatewayCommon|GetAudio] DisplaySettings link unavailable, returning default audio flags");
              jsonObject = "{\"stereo\":false,\"dolbyDigital5.1\":false,\"dolbyDigital5.1+\":false,\"dolbyAtmos\":false}";
              return Core::ERROR_UNAVAILABLE;
          }
@@ -770,13 +770,13 @@ public:
     {
         std::string payload;
         if (GetVideoResolution(payload) != Core::ERROR_NONE) {
-            LOGERR("[FbSettings|VideoResolutionChanged] handler=GetVideoResolution failed to compute payload");
+            LOGERR("[AppGatewayCommon|VideoResolutionChanged] handler=GetVideoResolution failed to compute payload");
             return false;
         }
         // Transform to rpcv2_event wrapper: { "videoResolution": $event_handler_response }
         const std::string wrapped = std::string("{\"videoResolution\":") + payload + "}";
-        LOGINFO("[FbSettings|VideoResolutionChanged] Final rpcv2_event payload=%s", wrapped.c_str());
-        LOGDBG("[FbSettings|VideoResolutionChanged] Emitting event: %s", EVENT_ON_VIDEO_RES_CHANGED);
+        LOGINFO("[AppGatewayCommon|VideoResolutionChanged] Final rpcv2_event payload=%s", wrapped.c_str());
+        LOGDBG("[AppGatewayCommon|VideoResolutionChanged] Emitting event: %s", EVENT_ON_VIDEO_RES_CHANGED);
         Dispatch(EVENT_ON_VIDEO_RES_CHANGED, wrapped);
             return true;
     }
@@ -786,13 +786,13 @@ public:
     {
         std::string payload;
         if (GetScreenResolution(payload) != Core::ERROR_NONE) {
-            LOGERR("[FbSettings|ScreenResolutionChanged] handler=GetScreenResolution failed to compute payload");
+            LOGERR("[AppGatewayCommon|ScreenResolutionChanged] handler=GetScreenResolution failed to compute payload");
             return false;
         }
         // Transform to rpcv2_event wrapper: { "screenResolution": $event }
         const std::string wrapped = std::string("{\"screenResolution\":") + payload + "}";
-        LOGINFO("[FbSettings|ScreenResolutionChanged] Final rpcv2_event payload=%s", wrapped.c_str());
-        LOGDBG("[FbSettings|ScreenResolutionChanged] Emitting event: %s", EVENT_ON_SCREEN_RES_CHANGED);
+        LOGINFO("[AppGatewayCommon|ScreenResolutionChanged] Final rpcv2_event payload=%s", wrapped.c_str());
+        LOGDBG("[AppGatewayCommon|ScreenResolutionChanged] Emitting event: %s", EVENT_ON_SCREEN_RES_CHANGED);
         Dispatch(EVENT_ON_SCREEN_RES_CHANGED, wrapped);
         return true;
 
@@ -803,11 +803,11 @@ public:
     {
         std::string payload;
         if (GetHdcp(payload) != Core::ERROR_NONE) {
-            LOGERR("[FbSettings|HdcpChanged] handler=GetHdcp failed to compute payload");
+            LOGERR("[AppGatewayCommon|HdcpChanged] handler=GetHdcp failed to compute payload");
             return false;
         }
-        LOGINFO("[FbSettings|HdcpChanged] Final rpcv2_event payload=%s", payload.c_str());
-        LOGDBG("[FbSettings|HdcpChanged] Emitting event: %s", EVENT_ON_HDCP_CHANGED);
+        LOGINFO("[AppGatewayCommon|HdcpChanged] Final rpcv2_event payload=%s", payload.c_str());
+        LOGDBG("[AppGatewayCommon|HdcpChanged] Emitting event: %s", EVENT_ON_HDCP_CHANGED);
         Dispatch(EVENT_ON_HDCP_CHANGED, payload);
         return true;
 
@@ -818,11 +818,11 @@ public:
     {
         std::string payload;
         if (GetHdr(payload) != Core::ERROR_NONE) {
-            LOGERR("[FbSettings|HdrChanged] handler=GetHdr failed to compute payload");
+            LOGERR("[AppGatewayCommon|HdrChanged] handler=GetHdr failed to compute payload");
             return false;
         }
-        LOGINFO("[FbSettings|HdrChanged] Final rpcv2_event payload=%s", payload.c_str());
-        LOGDBG("[FbSettings|HdrChanged] Emitting event: %s", EVENT_ON_HDR_CHANGED);
+        LOGINFO("[AppGatewayCommon|HdrChanged] Final rpcv2_event payload=%s", payload.c_str());
+        LOGDBG("[AppGatewayCommon|HdrChanged] Emitting event: %s", EVENT_ON_HDR_CHANGED);
         Dispatch(EVENT_ON_HDR_CHANGED, payload);
         return true;
 
@@ -833,13 +833,13 @@ public:
     {
         std::string payload;
         if (GetDeviceName(payload) != Core::ERROR_NONE) {
-            LOGERR("[FbSettings|NameChanged] handler=GetDeviceName failed to compute payload");
+            LOGERR("[AppGatewayCommon|NameChanged] handler=GetDeviceName failed to compute payload");
             return false;
         }
         // Transform to rpcv2_event wrapper: { "friendlyName": $event }
         const std::string wrapped = std::string("{\"friendlyName\":") + payload + "}";
-        LOGINFO("[FbSettings|NameChanged] Final rpcv2_event payload=%s", wrapped.c_str());
-        LOGDBG("[FbSettings|NameChanged] Emitting event: %s", EVENT_ON_NAME_CHANGED);
+        LOGINFO("[AppGatewayCommon|NameChanged] Final rpcv2_event payload=%s", wrapped.c_str());
+        LOGDBG("[AppGatewayCommon|NameChanged] Emitting event: %s", EVENT_ON_NAME_CHANGED);
         Dispatch(EVENT_ON_NAME_CHANGED, wrapped);
         return true;
     }
@@ -849,11 +849,11 @@ public:
     {
         std::string payload;
         if (GetAudio(payload) != Core::ERROR_NONE) {
-            LOGERR("[FbSettings|AudioChanged] handler=GetAudio failed to compute payload");
+            LOGERR("[AppGatewayCommon|AudioChanged] handler=GetAudio failed to compute payload");
             return false;
         }
-        LOGINFO("[FbSettings|AudioChanged] Final rpcv2_event payload=%s", payload.c_str());
-        LOGDBG("[FbSettings|AudioChanged] Emitting event: %s", EVENT_ON_AUDIO_CHANGED);
+        LOGINFO("[AppGatewayCommon|AudioChanged] Final rpcv2_event payload=%s", payload.c_str());
+        LOGDBG("[AppGatewayCommon|AudioChanged] Emitting event: %s", EVENT_ON_AUDIO_CHANGED);
         Dispatch(EVENT_ON_AUDIO_CHANGED, payload);
         return true;
     }
@@ -875,7 +875,7 @@ public:
             || evLower == "device.ondevicenamechanged"
             || evLower == "device.onnamechanged")
         {
-            LOGINFO("[FbSettings|EventRegistration] event=%s listen=%s", event.c_str(), listen ? "true" : "false");
+            LOGINFO("[AppGatewayCommon|EventRegistration] event=%s listen=%s", event.c_str(), listen ? "true" : "false");
             if (listen) {
                 AddNotification(event, cb);
                 // Ensure underlying Thunder subscriptions are active
@@ -1070,46 +1070,46 @@ private:
     void OnDisplaySettingsResolutionChanged(const WPEFramework::Core::JSON::VariantContainer& params)
     {
         (void)params;
-        LOGINFO("[FbSettings|DisplaySettings.resolutionChanged] Incoming alias=%s.%s, invoking handlers...",
+        LOGINFO("[AppGatewayCommon|DisplaySettings.resolutionChanged] Incoming alias=%s.%s, invoking handlers...",
                 DISPLAYSETTINGS_CALLSIGN, "resolutionChanged");
         // Re-query state and dispatch debounced events
         const bool screenEmitted = EmitOnScreenResolutionChanged();
         const bool videoEmitted = EmitOnVideoResolutionChanged();
-        LOGINFO("[FbSettings|DisplaySettings.resolutionChanged] Handler responses: onScreenResolutionChanged=%s onVideoResolutionChanged=%s",
+        LOGINFO("[AppGatewayCommon|DisplaySettings.resolutionChanged] Handler responses: onScreenResolutionChanged=%s onVideoResolutionChanged=%s",
                 screenEmitted ? "emitted" : "skipped", videoEmitted ? "emitted" : "skipped");
     }
 
     void OnHdcpProfileDisplayConnectionChanged(const WPEFramework::Core::JSON::VariantContainer& params)
     {
         (void)params;
-        LOGINFO("[FbSettings|HdcpProfile.onDisplayConnectionChanged] Incoming alias=%s.%s, invoking handlers...",
+        LOGINFO("[AppGatewayCommon|HdcpProfile.onDisplayConnectionChanged] Incoming alias=%s.%s, invoking handlers...",
                 HDCPPROFILE_CALLSIGN, "onDisplayConnectionChanged");
         // Re-query state and dispatch debounced events
         const bool hdcpEmitted = EmitOnHdcpChanged();
         const bool hdrEmitted = EmitOnHdrChanged();
-        LOGINFO("[FbSettings|HdcpProfile.onDisplayConnectionChanged] Handler responses: onHdcpChanged=%s onHdrChanged=%s",
+        LOGINFO("[AppGatewayCommon|HdcpProfile.onDisplayConnectionChanged] Handler responses: onHdcpChanged=%s onHdrChanged=%s",
                 hdcpEmitted ? "emitted" : "skipped", hdrEmitted ? "emitted" : "skipped");
     }
 
     void OnSystemFriendlyNameChanged(const WPEFramework::Core::JSON::VariantContainer& params)
     {
         (void)params;
-        LOGINFO("[FbSettings|System.onFriendlyNameChanged] Incoming alias=%s.%s, invoking handlers...",
+        LOGINFO("[AppGatewayCommon|System.onFriendlyNameChanged] Incoming alias=%s.%s, invoking handlers...",
                 SYSTEM_CALLSIGN, "onFriendlyNameChanged");
         // Re-query state and dispatch event
         const bool nameEmitted = EmitOnNameChanged();
-        LOGINFO("[FbSettings|System.onFriendlyNameChanged] Handler responses: onNameChanged=%s",
+        LOGINFO("[AppGatewayCommon|System.onFriendlyNameChanged] Handler responses: onNameChanged=%s",
                 nameEmitted ? "emitted" : "skipped");
     }
 
     void OnDisplaySettingsAudioFormatChanged(const WPEFramework::Core::JSON::VariantContainer& params)
     {
         (void)params;
-        LOGINFO("[FbSettings|DisplaySettings.audioFormatChanged] Incoming alias=%s.%s, invoking handlers...",
+        LOGINFO("[AppGatewayCommon|DisplaySettings.audioFormatChanged] Incoming alias=%s.%s, invoking handlers...",
                 DISPLAYSETTINGS_CALLSIGN, "audioFormatChanged");
         // Re-query state and dispatch event
         const bool audioEmitted = EmitOnAudioChanged();
-        LOGINFO("[FbSettings|DisplaySettings.audioFormatChanged] Handler responses: onAudioChanged=%s",
+        LOGINFO("[AppGatewayCommon|DisplaySettings.audioFormatChanged] Handler responses: onAudioChanged=%s",
                 audioEmitted ? "emitted" : "skipped");
     }
 

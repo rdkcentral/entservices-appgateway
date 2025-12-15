@@ -32,16 +32,16 @@ namespace WPEFramework {
     namespace Plugin {
 
 
-		class FbSettings : public PluginHost::IPlugin, Exchange::IAppGatewayRequestHandler, Exchange::IAppNotificationHandler{
+		class AppGatewayCommon : public PluginHost::IPlugin, Exchange::IAppGatewayRequestHandler, Exchange::IAppNotificationHandler{
         private:
             // We do not allow this plugin to be copied !!
-            FbSettings(const FbSettings&) = delete;
-            FbSettings& operator=(const FbSettings&) = delete;
+            AppGatewayCommon(const AppGatewayCommon&) = delete;
+            AppGatewayCommon& operator=(const AppGatewayCommon&) = delete;
 
             class EXTERNAL EventRegistrationJob : public Core::IDispatch
         {
             protected:
-                EventRegistrationJob(FbSettings *parent,
+                EventRegistrationJob(AppGatewayCommon *parent,
                 Exchange::IAppNotificationHandler::IEmitter *cb,
                 const string &event,
                 const bool listen): mParent(*parent), mCallback(cb), mEvent(event), mListen(listen) {
@@ -61,7 +61,7 @@ namespace WPEFramework {
                     }
                 }
 
-                static Core::ProxyType<Core::IDispatch> Create(FbSettings *parent,
+                static Core::ProxyType<Core::IDispatch> Create(AppGatewayCommon *parent,
                 Exchange::IAppNotificationHandler::IEmitter *cb, const string& event, const bool listen)
                 {
                     return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<EventRegistrationJob>::Create(parent, cb, event, listen)));
@@ -72,7 +72,7 @@ namespace WPEFramework {
                 }
 
             private:
-            FbSettings &mParent;
+            AppGatewayCommon &mParent;
             Exchange::IAppNotificationHandler::IEmitter *mCallback;
             const string mEvent;
             const bool mListen;
@@ -81,13 +81,13 @@ namespace WPEFramework {
 
 
         public:
-            FbSettings();
-            virtual ~FbSettings();
+            AppGatewayCommon();
+            virtual ~AppGatewayCommon();
             virtual const string Initialize(PluginHost::IShell* shell) override;
             virtual void Deinitialize(PluginHost::IShell* service) override;
             virtual string Information() const override { return {}; }
 
-            BEGIN_INTERFACE_MAP(FbSettings)
+            BEGIN_INTERFACE_MAP(AppGatewayCommon)
             INTERFACE_ENTRY(PluginHost::IPlugin)
             INTERFACE_ENTRY(Exchange::IAppGatewayRequestHandler)
             INTERFACE_ENTRY(Exchange::IAppNotificationHandler)

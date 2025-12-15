@@ -17,20 +17,20 @@
  * limitations under the License.
  */
 
-#include "FbSettings.h"
+#include "AppGatewayCommon.h"
 #include <interfaces/IConfiguration.h>
 #include "StringUtils.h"
 #include "UtilsFirebolt.h"
 
 
-#define API_VERSION_NUMBER_MAJOR    FBSETTINGS_MAJOR_VERSION
-#define API_VERSION_NUMBER_MINOR    FBSETTINGS_MINOR_VERSION
-#define API_VERSION_NUMBER_PATCH    FBSETTINGS_PATCH_VERSION
+#define API_VERSION_NUMBER_MAJOR    APPGATEWAYCOMMON_MAJOR_VERSION
+#define API_VERSION_NUMBER_MINOR    APPGATEWAYCOMMON_MINOR_VERSION
+#define API_VERSION_NUMBER_PATCH    APPGATEWAYCOMMON_PATCH_VERSION
 
 namespace WPEFramework {
 
 namespace {
-    static Plugin::Metadata<Plugin::FbSettings> metadata(
+    static Plugin::Metadata<Plugin::AppGatewayCommon> metadata(
         // Version (Major, Minor, Patch)
         API_VERSION_NUMBER_MAJOR, API_VERSION_NUMBER_MINOR, API_VERSION_NUMBER_PATCH,
         // Preconditions
@@ -43,23 +43,23 @@ namespace {
 }
 
 namespace Plugin {
-    SERVICE_REGISTRATION(FbSettings, API_VERSION_NUMBER_MAJOR, API_VERSION_NUMBER_MINOR, API_VERSION_NUMBER_PATCH);
+    SERVICE_REGISTRATION(AppGatewayCommon, API_VERSION_NUMBER_MAJOR, API_VERSION_NUMBER_MINOR, API_VERSION_NUMBER_PATCH);
 
-    FbSettings::FbSettings(): mShell(nullptr), mConnectionId(0)
+    AppGatewayCommon::AppGatewayCommon(): mShell(nullptr), mConnectionId(0)
     {
-        SYSLOG(Logging::Startup, (_T("FbSettings Constructor")));
+        SYSLOG(Logging::Startup, (_T("AppGatewayCommon Constructor")));
     }
 
-    FbSettings::~FbSettings()
+    AppGatewayCommon::~AppGatewayCommon()
     {
-        SYSLOG(Logging::Shutdown, (string(_T("FbSettings Destructor"))));
+        SYSLOG(Logging::Shutdown, (string(_T("AppGatewayCommon Destructor"))));
     }
 
-    /* virtual */ const string FbSettings::Initialize(PluginHost::IShell* service)
+    /* virtual */ const string AppGatewayCommon::Initialize(PluginHost::IShell* service)
     {
         ASSERT(service != nullptr);
 
-        SYSLOG(Logging::Startup, (_T("FbSettings::Initialize: PID=%u"), getpid()));
+        SYSLOG(Logging::Startup, (_T("AppGatewayCommon::Initialize: PID=%u"), getpid()));
 
         mShell = service;
         mShell->AddRef();
@@ -71,9 +71,9 @@ namespace Plugin {
         return EMPTY_STRING;
     }
 
-    /* virtual */ void FbSettings::Deinitialize(PluginHost::IShell* service)
+    /* virtual */ void AppGatewayCommon::Deinitialize(PluginHost::IShell* service)
     {
-        SYSLOG(Logging::Shutdown, (string(_T("FbSettings::Deinitialize"))));
+        SYSLOG(Logging::Shutdown, (string(_T("AppGatewayCommon::Deinitialize"))));
         ASSERT(service == mShell);
         mConnectionId = 0;
 
@@ -83,10 +83,10 @@ namespace Plugin {
 
         mShell->Release();
         mShell = nullptr;
-        SYSLOG(Logging::Shutdown, (string(_T("FbSettings de-initialised"))));
+        SYSLOG(Logging::Shutdown, (string(_T("AppGatewayCommon de-initialised"))));
     }
 
-    void FbSettings::Deactivated(RPC::IRemoteConnection* connection)
+    void AppGatewayCommon::Deactivated(RPC::IRemoteConnection* connection)
     {
         if (connection->Id() == mConnectionId) {
 
@@ -96,7 +96,7 @@ namespace Plugin {
         }
     }
 
-    Core::hresult FbSettings::HandleAppEventNotifier(Exchange::IAppNotificationHandler::IEmitter *cb, const string& event /* @in */,
+    Core::hresult AppGatewayCommon::HandleAppEventNotifier(Exchange::IAppNotificationHandler::IEmitter *cb, const string& event /* @in */,
                                     bool listen /* @in */,
                                     bool &status /* @out */) {
             LOGTRACE("HandleFireboltNotifier [event=%s listen=%s]",
@@ -106,7 +106,7 @@ namespace Plugin {
             return Core::ERROR_NONE;
     }
 
-    Core::hresult FbSettings::HandleAppGatewayRequest(const Exchange::GatewayContext &context /* @in */,
+    Core::hresult AppGatewayCommon::HandleAppGatewayRequest(const Exchange::GatewayContext &context /* @in */,
                                           const string& method /* @in */,
                                           const string &payload /* @in @opaque */,
                                           string& result /*@out @opaque */)
@@ -380,20 +380,20 @@ namespace Plugin {
             return Core::ERROR_UNKNOWN_KEY;
         }
     
-    Core::hresult FbSettings::SetName(const string &value /* @in */, string &result)
+    Core::hresult AppGatewayCommon::SetName(const string &value /* @in */, string &result)
         {
             result = "null"; // TBA
             return Core::ERROR_NONE;
         }
 
-        Core::hresult FbSettings::AddAdditionalInfo(const string &value /* @in @opaque */, string &result)
+        Core::hresult AppGatewayCommon::AddAdditionalInfo(const string &value /* @in @opaque */, string &result)
         {
             result = "null"; // TBA
             return Core::ERROR_NONE;
         }
         // Delegated alias methods
 
-        Core::hresult FbSettings::GetDeviceMake(string &make)
+        Core::hresult AppGatewayCommon::GetDeviceMake(string &make)
         {
             if (!mDelegate)
                 return Core::ERROR_UNAVAILABLE;
@@ -403,7 +403,7 @@ namespace Plugin {
             return systemDelegate->GetDeviceMake(make);
         }
 
-        Core::hresult FbSettings::GetDeviceName(string &name)
+        Core::hresult AppGatewayCommon::GetDeviceName(string &name)
         {
             if (!mDelegate)
                 return Core::ERROR_UNAVAILABLE;
@@ -413,7 +413,7 @@ namespace Plugin {
             return systemDelegate->GetDeviceName(name);
         }
 
-        Core::hresult FbSettings::SetDeviceName(const string name)
+        Core::hresult AppGatewayCommon::SetDeviceName(const string name)
         {
             if (!mDelegate)
                 return Core::ERROR_UNAVAILABLE;
@@ -423,7 +423,7 @@ namespace Plugin {
             return systemDelegate->SetDeviceName(name);
         }
 
-        Core::hresult FbSettings::GetDeviceSku(string &sku)
+        Core::hresult AppGatewayCommon::GetDeviceSku(string &sku)
         {
             if (!mDelegate)
                 return Core::ERROR_UNAVAILABLE;
@@ -433,7 +433,7 @@ namespace Plugin {
             return systemDelegate->GetDeviceSku(sku);
         }
 
-        Core::hresult FbSettings::GetCountryCode(string &countryCode)
+        Core::hresult AppGatewayCommon::GetCountryCode(string &countryCode)
         {
             if (!mDelegate)
                 return Core::ERROR_UNAVAILABLE;
@@ -443,7 +443,7 @@ namespace Plugin {
             return systemDelegate->GetCountryCode(countryCode);
         }
 
-        Core::hresult FbSettings::SetCountryCode(const string countryCode)
+        Core::hresult AppGatewayCommon::SetCountryCode(const string countryCode)
         {
             if (!mDelegate)
                 return Core::ERROR_UNAVAILABLE;
@@ -453,7 +453,7 @@ namespace Plugin {
             return systemDelegate->SetCountryCode(countryCode);
         }
 
-        Core::hresult FbSettings::GetTimeZone(string &timeZone)
+        Core::hresult AppGatewayCommon::GetTimeZone(string &timeZone)
         {
             if (!mDelegate)
                 return Core::ERROR_UNAVAILABLE;
@@ -463,7 +463,7 @@ namespace Plugin {
             return systemDelegate->GetTimeZone(timeZone);
         }
 
-        Core::hresult FbSettings::SetTimeZone(const string timeZone)
+        Core::hresult AppGatewayCommon::SetTimeZone(const string timeZone)
         {
             if (!mDelegate)
                 return Core::ERROR_UNAVAILABLE;
@@ -473,7 +473,7 @@ namespace Plugin {
             return systemDelegate->SetTimeZone(timeZone);
         }
 
-        Core::hresult FbSettings::GetSecondScreenFriendlyName(string &name)
+        Core::hresult AppGatewayCommon::GetSecondScreenFriendlyName(string &name)
         {
             if (!mDelegate)
                 return Core::ERROR_UNAVAILABLE;
@@ -484,7 +484,7 @@ namespace Plugin {
         }
 
         // UserSettings APIs
-        Core::hresult FbSettings::GetVoiceGuidance(string &result)
+        Core::hresult AppGatewayCommon::GetVoiceGuidance(string &result)
         {
             if (!mDelegate)
             {
@@ -502,7 +502,7 @@ namespace Plugin {
             return userSettingsDelegate->GetVoiceGuidance(result);
         }
 
-        Core::hresult FbSettings::GetAudioDescription(string &result)
+        Core::hresult AppGatewayCommon::GetAudioDescription(string &result)
         {
             if (!mDelegate)
             {
@@ -520,7 +520,7 @@ namespace Plugin {
             return userSettingsDelegate->GetAudioDescription(result);
         }
 
-        Core::hresult FbSettings::GetAudioDescriptionsEnabled(string &result)
+        Core::hresult AppGatewayCommon::GetAudioDescriptionsEnabled(string &result)
         {
             if (!mDelegate)
             {
@@ -538,7 +538,7 @@ namespace Plugin {
             return userSettingsDelegate->GetAudioDescriptionsEnabled(result);
         }
 
-        Core::hresult FbSettings::GetHighContrast(string &result)
+        Core::hresult AppGatewayCommon::GetHighContrast(string &result)
         {
             if (!mDelegate)
             {
@@ -556,7 +556,7 @@ namespace Plugin {
             return userSettingsDelegate->GetHighContrast(result);
         }
 
-        Core::hresult FbSettings::GetCaptions(string &result)
+        Core::hresult AppGatewayCommon::GetCaptions(string &result)
         {
             if (!mDelegate)
             {
@@ -574,7 +574,7 @@ namespace Plugin {
             return userSettingsDelegate->GetCaptions(result);
         }
 
-        Core::hresult FbSettings::GetPresentationLanguage(string &result)
+        Core::hresult AppGatewayCommon::GetPresentationLanguage(string &result)
         {
             if (!mDelegate)
             {
@@ -592,7 +592,7 @@ namespace Plugin {
             return userSettingsDelegate->GetPresentationLanguage(result);
         }
 
-        Core::hresult FbSettings::GetLocale(string &result)
+        Core::hresult AppGatewayCommon::GetLocale(string &result)
         {
             if (!mDelegate)
             {
@@ -610,7 +610,7 @@ namespace Plugin {
             return userSettingsDelegate->GetLocale(result);
         }
 
-        Core::hresult FbSettings::SetLocale(const string &locale)
+        Core::hresult AppGatewayCommon::SetLocale(const string &locale)
         {
             if (!mDelegate)
             {
@@ -626,7 +626,7 @@ namespace Plugin {
             return userSettingsDelegate->SetLocale(locale);
         }
 
-        Core::hresult FbSettings::GetPreferredAudioLanguages(string &result)
+        Core::hresult AppGatewayCommon::GetPreferredAudioLanguages(string &result)
         {
             if (!mDelegate)
             {
@@ -644,7 +644,7 @@ namespace Plugin {
             return userSettingsDelegate->GetPreferredAudioLanguages(result);
         }
 
-        Core::hresult FbSettings::GetPreferredCaptionsLanguages(string &result)
+        Core::hresult AppGatewayCommon::GetPreferredCaptionsLanguages(string &result)
         {
             if (!mDelegate)
             {
@@ -662,7 +662,7 @@ namespace Plugin {
             return userSettingsDelegate->GetPreferredCaptionsLanguages(result);
         }
 
-        Core::hresult FbSettings::SetPreferredAudioLanguages(const string &languages)
+        Core::hresult AppGatewayCommon::SetPreferredAudioLanguages(const string &languages)
         {
             if (!mDelegate)
             {
@@ -678,7 +678,7 @@ namespace Plugin {
             return userSettingsDelegate->SetPreferredAudioLanguages(languages);
         }
 
-        Core::hresult FbSettings::SetPreferredCaptionsLanguages(const string &preferredLanguages)
+        Core::hresult AppGatewayCommon::SetPreferredCaptionsLanguages(const string &preferredLanguages)
         {
             if (!mDelegate)
             {
@@ -694,7 +694,7 @@ namespace Plugin {
             return userSettingsDelegate->SetPreferredCaptionsLanguages(preferredLanguages);
         }
 
-        Core::hresult FbSettings::SetVoiceGuidance(const bool enabled)
+        Core::hresult AppGatewayCommon::SetVoiceGuidance(const bool enabled)
         {
             if (!mDelegate)
             {
@@ -710,7 +710,7 @@ namespace Plugin {
             return userSettingsDelegate->SetVoiceGuidance(enabled);
         }
 
-        Core::hresult FbSettings::SetAudioDescriptionsEnabled(const bool enabled)
+        Core::hresult AppGatewayCommon::SetAudioDescriptionsEnabled(const bool enabled)
         {
             if (!mDelegate)
             {
@@ -726,7 +726,7 @@ namespace Plugin {
             return userSettingsDelegate->SetAudioDescriptionsEnabled(enabled);
         }
 
-        Core::hresult FbSettings::SetCaptions(const bool enabled)
+        Core::hresult AppGatewayCommon::SetCaptions(const bool enabled)
         {
             if (!mDelegate)
             {
@@ -742,7 +742,7 @@ namespace Plugin {
             return userSettingsDelegate->SetCaptions(enabled);
         }
 
-        Core::hresult FbSettings::SetSpeed(const double speed)
+        Core::hresult AppGatewayCommon::SetSpeed(const double speed)
         {
             if (!mDelegate)
             {
@@ -784,7 +784,7 @@ namespace Plugin {
             return userSettingsDelegate->SetVoiceGuidanceRate(transformedRate);
         }
 
-        Core::hresult FbSettings::GetSpeed(double &speed)
+        Core::hresult AppGatewayCommon::GetSpeed(double &speed)
         {
             if (!mDelegate)
             {
@@ -834,7 +834,7 @@ namespace Plugin {
             return Core::ERROR_NONE;
         }
 
-        Core::hresult FbSettings::GetVoiceGuidanceHints(string &result)
+        Core::hresult AppGatewayCommon::GetVoiceGuidanceHints(string &result)
         {
             if (!mDelegate)
             {
@@ -852,7 +852,7 @@ namespace Plugin {
             return userSettingsDelegate->GetVoiceGuidanceHints(result);
         }
 
-        Core::hresult FbSettings::SetVoiceGuidanceHints(const bool enabled)
+        Core::hresult AppGatewayCommon::SetVoiceGuidanceHints(const bool enabled)
         {
             if (!mDelegate)
             {
@@ -868,7 +868,7 @@ namespace Plugin {
             return userSettingsDelegate->SetVoiceGuidanceHints(enabled);
         }
 
-        Core::hresult FbSettings::GetVoiceGuidanceSettings(string &result)
+        Core::hresult AppGatewayCommon::GetVoiceGuidanceSettings(string &result)
         {
             if (!mDelegate)
             {
@@ -923,7 +923,7 @@ namespace Plugin {
             return Core::ERROR_NONE;
         }
 
-        Core::hresult FbSettings::GetClosedCaptionsSettings(string &result)
+        Core::hresult AppGatewayCommon::GetClosedCaptionsSettings(string &result)
         {
             if (!mDelegate)
             {
@@ -968,7 +968,7 @@ namespace Plugin {
             return Core::ERROR_NONE;
         }
 
-        Core::hresult FbSettings::GetInternetConnectionStatus(string &result)
+        Core::hresult AppGatewayCommon::GetInternetConnectionStatus(string &result)
         {
             if (!mDelegate)
             {
@@ -986,7 +986,7 @@ namespace Plugin {
             return networkDelegate->GetInternetConnectionStatus(result);
         }
 
-        Core::hresult FbSettings::GetFirmwareVersion(string &result /* @out */)
+        Core::hresult AppGatewayCommon::GetFirmwareVersion(string &result /* @out */)
         {
             if (!mDelegate)
                 return Core::ERROR_UNAVAILABLE;
@@ -996,19 +996,19 @@ namespace Plugin {
             return systemDelegate->GetFirmwareVersion(result);
         }
 
-        // Core::hresult FbSettings::GetScreenResolution(string &result /* out */) {
+        // Core::hresult AppGatewayCommon::GetScreenResolution(string &result /* out */) {
         //     result = R"([1920,1080])";
         //     return Core::ERROR_NONE;
         // }
 
-        // Core::hresult FbSettings::GetVideoResolution(string &result /* out */) {
+        // Core::hresult AppGatewayCommon::GetVideoResolution(string &result /* out */) {
         //     result = R"([1920,1080])";
         //     return Core::ERROR_NONE;
         // }
 
-        Core::hresult FbSettings::GetScreenResolution(string &result)
+        Core::hresult AppGatewayCommon::GetScreenResolution(string &result)
         {
-            LOGINFO("GetScreenResolution FbSettings");
+            LOGINFO("GetScreenResolution AppGatewayCommon");
             if (!mDelegate) {
                 result = "[1920,1080]";
                 return Core::ERROR_UNAVAILABLE;
@@ -1021,9 +1021,9 @@ namespace Plugin {
             return systemDelegate->GetScreenResolution(result);
         }
 
-        Core::hresult FbSettings::GetVideoResolution(string &result)
+        Core::hresult AppGatewayCommon::GetVideoResolution(string &result)
         {
-            LOGINFO("GetVideoResolution FbSettings");
+            LOGINFO("GetVideoResolution AppGatewayCommon");
             if (!mDelegate) {
                 result = "[1920,1080]";
                 return Core::ERROR_UNAVAILABLE;
@@ -1036,9 +1036,9 @@ namespace Plugin {
             return systemDelegate->GetVideoResolution(result);
         }
 
-        Core::hresult FbSettings::GetHdcp(string &result)
+        Core::hresult AppGatewayCommon::GetHdcp(string &result)
         {
-            LOGINFO("GetHdcp FbSettings");
+            LOGINFO("GetHdcp AppGatewayCommon");
             if (!mDelegate) {
                 result = "{\"hdcp1.4\":false,\"hdcp2.2\":false}";
                 return Core::ERROR_UNAVAILABLE;
@@ -1051,9 +1051,9 @@ namespace Plugin {
             return systemDelegate->GetHdcp(result);
         }
 
-        Core::hresult FbSettings::GetHdr(string &result)
+        Core::hresult AppGatewayCommon::GetHdr(string &result)
         {
-            LOGINFO("GetHdr FbSettings");
+            LOGINFO("GetHdr AppGatewayCommon");
             if (!mDelegate) {
                 result = "{\"hdr10\":false,\"dolbyVision\":false,\"hlg\":false,\"hdr10Plus\":false}";
                 return Core::ERROR_UNAVAILABLE;
@@ -1066,9 +1066,9 @@ namespace Plugin {
             return systemDelegate->GetHdr(result);
         }
 
-        Core::hresult FbSettings::GetAudio(string &result)
+        Core::hresult AppGatewayCommon::GetAudio(string &result)
         {
-            LOGINFO("GetAudio FbSettings");
+            LOGINFO("GetAudio AppGatewayCommon");
             if (!mDelegate) {
                 result = "{\"stereo\":true,\"dolbyDigital5.1\":false,\"dolbyDigital5.1+\":false,\"dolbyAtmos\":false}";
                 return Core::ERROR_UNAVAILABLE;
