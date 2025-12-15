@@ -1,2 +1,2 @@
-# template
-Template repository with common workflows for future clone
+# entservices-appgateway
+This repo contains the firebolt gateway implementation as a thunder plugin. This deprecates the ripple gateway in RDK Apps Managers Framework.
