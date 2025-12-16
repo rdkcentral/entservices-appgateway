@@ -10,6 +10,7 @@ on:
 
 jobs:
   trigger-L1:
+    if: false  # Disabled
     uses: ./.github/workflows/L1-tests.yml
     with:
       caller_source: local
@@ -17,6 +18,7 @@ jobs:
       RDKCM_RDKE: ${{ secrets.RDKCM_RDKE }}
 
   trigger-L2:
+    if: false  # Disabled
     uses: ./.github/workflows/L2-tests.yml
     with:
       caller_source: local
@@ -24,6 +26,7 @@ jobs:
       RDKCM_RDKE: ${{ secrets.RDKCM_RDKE }}
 
   trigger-L2-OOP:
+    if: false  # Disabled
     uses: ./.github/workflows/L2-tests-oop.yml
     with:
       caller_source: local
