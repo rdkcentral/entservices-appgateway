@@ -64,6 +64,6 @@ cmake -G Ninja -S "$GITHUB_WORKSPACE" -B build/entservices-appgateway \
 -DHAS_RBUS -DDISABLE_SECURITY_TOKEN -DENABLE_DEVICE_MANUFACTURER_INFO -DUSE_THUNDER_R4=ON -DTHUNDER_VERSION=4 -DTHUNDER_VERSION_MAJOR=4 -DTHUNDER_VERSION_MINOR=4" \
 
 
-cmake --build build/entservices-infra --target install
+cmake --build build/entservices-appgateway --target install
 echo "======================================================================================"
 exit 0

@@ -88,18 +88,18 @@ jobs:
           path: ThunderTools
           ref: R4.4.3
 
-      - name: Checkout entservices-infra
+      - name: Checkout entservices-appgateway
         if: ${{ inputs.caller_source == 'local' }}
         uses: actions/checkout@v3
         with:
-          path: entservices-infra
+          path: entservices-appgateway
 
-      - name: Checkout entservices-infra-testframework
+      - name: Checkout entservices-appgateway-testframework
         if: ${{ inputs.caller_source == 'testframework' }}
         uses: actions/checkout@v3
         with:
-          repository: rdkcentral/entservices-infra
-          path: entservices-infra
+          repository: rdkcentral/entservices-appgateway
+          path: entservices-appgateway
           ref: develop
 
       - name: Checkout entservices-deviceanddisplay
@@ -134,8 +134,8 @@ jobs:
           git remote add origin https://code.rdkcentral.com/r/components/opensource/westeros
           git config core.sparseCheckout true
           git pull --depth=1 origin master
-          mkdir -p $GITHUB_WORKSPACE/entservices-infra/ResourceManager
-          cp essos/essos-resmgr.h $GITHUB_WORKSPACE/entservices-infra/ResourceManager/
+          mkdir -p $GITHUB_WORKSPACE/entservices-appgateway/ResourceManager
+          cp essos/essos-resmgr.h $GITHUB_WORKSPACE/entservices-appgateway/ResourceManager/
 
       - name: Apply patches ThunderTools
         run: |  
@@ -513,9 +513,9 @@ jobs:
           -DDS_FOUND=ON
           -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
           &&
-          cmake --build build/entservices-infra -j6
+          cmake --build build/entservices-appgateway -j6
           &&
-          cmake --install build/entservices-infra
+          cmake --install build/entservices-appgateway
 
       - name: Build entservices-testframework
         run: >
@@ -734,12 +734,12 @@ jobs:
           &&
           lcov -c
           -o coverage.info
-          -d build/entservices-infra
+          -d build/entservices-appgateway
           &&
           lcov
           -r coverage.info
           '/usr/include/*'
-          '*/build/entservices-infra/_deps/*'
+          '*/build/entservices-appgateway/_deps/*'
           '*/build/entservices-deviceanddisplay/_deps/*'
           '*/build/entservices-entservices-testframework/_deps/*'
           '*/install/usr/include/*'
@@ -754,7 +754,7 @@ jobs:
           &&
           genhtml
           -o coverage
-          -t "entservices-infra coverage"
+          -t "entservices-appgateway coverage"
           filtered_coverage.info
 
       - name: Upload artifacts
