@@ -74,7 +74,7 @@ public:
      * @brief        : Set value of given key.
      * @param1[in]   : <string> key
      * @param2[in]   : <string> value
-     * @return       : <bool> True if setvalue successfull, else False
+     * @return       : <bool> True if setvalue successful, else False
      */
     bool setValue(std::string key, std::string value)
     {
@@ -86,7 +86,7 @@ public:
      * @brief        : Set value of given key.
      * @param1[in]   : <string> key
      * @param2[in]   : <int> value
-     * @return       : <bool> True if setvalue successfull, else False
+     * @return       : <bool> True if setvalue successful, else False
      */
     bool setValue(std::string key, int value)
     {
@@ -98,7 +98,7 @@ public:
      * @brief        : Set value of given key.
      * @param1[in]   : <string> key
      * @param2[in]   : <bool> value
-     * @return       : <bool> True if setvalue successfull, else False
+     * @return       : <bool> True if setvalue successful, else False
      */
     bool setValue(std::string key, bool value)
     {
