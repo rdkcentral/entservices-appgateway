@@ -27,7 +27,7 @@
 
 #include "UtilsfileExists.h"
 
-using namespace std;
+
 
 class cSettings {
     std::string filename;
@@ -48,7 +48,7 @@ public:
             if (!fs.is_open()) {
                 std::cout << "Error:[ctor cSettings] unable to open configuration file." << std::endl;
             } else {
-                fs << flush;
+                fs << std::flush;
                 fs.close();
             }
         }
@@ -162,13 +162,13 @@ public:
         bool status = false;
 
         if (Utils::fileExists(filename.c_str())) {
-            ofstream ofile;
-            ofile.open(filename.c_str(), ios::out);
+            std::ofstream ofile;
+            ofile.open(filename.c_str(), std::ios::out);
             if (ofile) {
                 JsonObject::Iterator iterator = data.Variants();
                 while (iterator.Next()) {
                     if (!data[iterator.Label()].String().empty()) {
-                        ofile << iterator.Label() << "=" << data[iterator.Label()].String() << endl;
+                        ofile << iterator.Label() << "=" << data[iterator.Label()].String() << std::endl;
                     } else {
                         continue;
                     }
@@ -193,7 +193,7 @@ public:
         if (!Utils::fileExists(filename.c_str())) {
             return retStatus;
         }
-        fstream ifile(filename, ios::in);
+        std::fstream ifile(filename, std::ios::in);
         if (ifile) {
             while (!ifile.eof()) {
                 std::getline(ifile, content);
