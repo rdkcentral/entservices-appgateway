@@ -23,7 +23,6 @@
 #include <core/core.h>
 #include <string>
 #include <plugins/plugins.h>
-using namespace std;
 
 #define RDK_PROFILE "RDK_PROFILE="
 #define PROFILE_TV "TV"
