@@ -20,39 +20,39 @@
 #ifndef __STRINGUTILS_H__
 #define __STRINGUTILS_H__
 
+#include <string>
 #include <algorithm>
 #include <cctype>
 #include "UtilsLogging.h"
 
-using namespace std;
 class StringUtils {
     public:
-    static string toLower(const string& input) {
-        string result = input;
-        transform(result.begin(), result.end(), result.begin(),
-                  [](unsigned char c) { return tolower(c); });
+    static std::string toLower(const std::string& input) {
+        std::string result = input;
+        std::transform(result.begin(), result.end(), result.begin(),
+                  [](unsigned char c) { return std::tolower(c); });
         return result;
     }
 
-    static bool rfindInsensitive(const string& reference, const string& key) {
-        string lowerRef = toLower(reference);
-        string lowerKey = toLower(key);
-        return lowerRef.rfind(lowerKey) != string::npos;
+    static bool rfindInsensitive(const std::string& reference, const std::string& key) {
+        std::string lowerRef = toLower(reference);
+        std::string lowerKey = toLower(key);
+        return lowerRef.rfind(lowerKey) != std::string::npos;
     }
 
-    static bool checkStartsWithCaseInsensitive(const string& method, const string& key) {
-        string lowerRef = toLower(method);
-        string lowerKey = toLower(key);
+    static bool checkStartsWithCaseInsensitive(const std::string& method, const std::string& key) {
+        std::string lowerRef = toLower(method);
+        std::string lowerKey = toLower(key);
         return lowerRef.rfind(lowerKey) == 0;
     }
 
-    static string extractMethodName(const string& method) {
+    static std::string extractMethodName(const std::string& method) {
         size_t lastDot = method.rfind('.');
-        if (lastDot == string::npos || lastDot + 1 >= method.length()) {
+        if (lastDot == std::string::npos || lastDot + 1 >= method.length()) {
             LOGERR("Invalid method format, cannot extract appId: %s", method.c_str());
             return "";
         }
-        string extracted = method.substr(lastDot + 1);
+        std::string extracted = method.substr(lastDot + 1);
         return StringUtils::toLower(extracted);
     }
 };
