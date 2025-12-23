@@ -99,7 +99,7 @@ namespace Plugin {
         }
    
             
-        // On success return empty, to indicate there is no error text
+        // On success return empty, to indicate there is no error text.
         return ((mAppGateway != nullptr) && (mResponder != nullptr))
             ? EMPTY_STRING
             : _T("Could not retrieve the AppGateway interface.");
