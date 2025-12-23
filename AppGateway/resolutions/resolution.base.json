@@ -1,0 +1,270 @@
+{
+    "resolutions": {
+        "Localization.addAdditionalInfo": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.make": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.name": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.setName": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "localization.countryCode": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "localization.setCountryCode": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "localization.timeZone": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "localization.setTimeZone": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "localization.language": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "localization.locale": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "localization.setLocale": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "localization.preferredAudioLanguages": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "localization.setPreferredAudioLanguages": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "voiceguidance.setEnabled": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "voiceguidance.setSpeed": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "accessibility.audioDescriptionSettings": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "accessibility.closedCaptions": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "accessibility.closedCaptionsSettings": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "audiodescriptions.enabled": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "audiodescriptions.setEnabled": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "accessibility.highContrastUI": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "closedcaptions.enabled": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "closedcaptions.setEnabled": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "closedcaptions.preferredLanguages": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "closedcaptions.setPreferredLanguages": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "voiceguidance.navigationHints": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "voiceguidance.setNavigationHints": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "voiceguidance.rate": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "voiceguidance.setRate": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "voiceguidance.enabled": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "voiceguidance.speed": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "accessibility.voiceGuidanceSettings": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "accessibility.voiceGuidance": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.network": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "localization.onLanguageChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onPresentationLanguageChanged"
+        },
+        "localization.onLocaleChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onLocaleChanged"
+        },
+        "localization.onPreferredAudioLanguagesChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onPreferredAudioLanguagesChanged"
+        },
+        "accessibility.onAudioDescriptionSettingsChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onAudioDescriptionChanged"
+        },
+        "audiodescriptions.onEnabledChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onAudioDescriptionsChanged"
+        },
+        "accessibility.onHighContrastUIChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onHighContrastChanged"
+        },
+        "closedcaptions.onEnabledChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onCaptionsChanged"
+        },
+        "closedcaptions.onPreferredLanguagesChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onPreferredCaptionsLanguagesChanged"
+        },
+        "accessibility.onClosedCaptionsSettingsChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onCaptionsChanged"
+        },
+        "voiceguidance.onNavigationHintsChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onVoiceGuidanceHintsChanged"
+        },
+        "voiceguidance.onRateChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onVoiceGuidanceRateChanged"
+        },
+        "voiceguidance.onEnabledChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onVoiceGuidanceChanged"
+        },
+        "voiceguidance.onSpeedChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onVoiceGuidanceRateChanged"
+        },
+        "accessibility.onVoiceGuidanceSettingsChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onVoiceGuidanceChanged"
+        },
+        "device.onNetworkChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onInternetStatusChange"
+        },
+        "device.version": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "Localization.onCountryCodeChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onCountryCodeChanged"
+        },
+        "device.screenResolution": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.videoResolution": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.hdr": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.hdcp": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.audio": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.onhdrchanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onDisplayConnectionChanged"
+        },
+        "device.onhdcpchanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onDisplayConnectionChanged"
+        },
+        "device.onvideoresolutionchanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onScreenResolutionChanged"
+        },
+        "device.onscreenresolutionchanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.resolutionChanged"
+        },
+        "device.onaudiochanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.audioFormatChanged"
+        },
+        "device.ondevicenamechanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onFriendlyNameChanged"
+        },
+        "device.onnamechanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "org.rdk.AppGatewayCommon.onFriendlyNameChanged"
+        }
+    }
+}
+
+
