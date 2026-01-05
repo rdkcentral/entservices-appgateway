@@ -7,7 +7,7 @@ on:
 
 jobs:
   auto-tag:
-    runs-on: comcast-ubuntu-latest
+    runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
