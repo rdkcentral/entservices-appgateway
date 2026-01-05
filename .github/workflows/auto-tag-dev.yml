@@ -7,7 +7,7 @@ on:
 
 jobs:
   auto-tag:
-    runs-on: ubuntu-latest
+    runs-on: comcast-ubuntu-latest
     
     steps:
     - name: Checkout code
@@ -50,7 +50,9 @@ jobs:
           NEXT_INCREMENT=1
         else
           # Find the highest dev number and increment
-          HIGHEST_DEV=$(echo "$EXISTING_DEV_TAGS" | sed "s/${LATEST_RELEASE}-Dev//g" | sort -n | tail -1)
+          # Escape special characters in LATEST_RELEASE for use in sed
+          ESCAPED_LATEST_RELEASE=$(printf '%s\n' "$LATEST_RELEASE" | sed 's/[.\[\*^$+?{}|()]/\\&/g')
+          HIGHEST_DEV=$(echo "$EXISTING_DEV_TAGS" | sed "s/${ESCAPED_LATEST_RELEASE}-Dev//g" | sort -n | tail -1)
           NEXT_INCREMENT=$((HIGHEST_DEV + 1))
         fi
         
