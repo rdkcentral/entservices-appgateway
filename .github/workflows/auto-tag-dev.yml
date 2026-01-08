@@ -27,7 +27,7 @@ jobs:
       id: latest_release
       run: |
         # Get all release tags (excluding dev/pre-release tags) and find the latest
-        LATEST_RELEASE=$(git tag --sort=-version:refname | grep -v -E "-(Dev|dev|RC|rc|alpha|beta)[0-9]*$" | head -n 1)
+        LATEST_RELEASE=$(git tag --sort=-version:refname | grep -v -E "-(Dev|dev|RC|rc|alpha|beta)[0-9]+$" | head -n 1)
         
         # If no release tags exist, start with 0.1.0
         if [ -z "$LATEST_RELEASE" ]; then
@@ -51,10 +51,13 @@ jobs:
           # No dev tags exist for this release, start with Dev1
           NEXT_INCREMENT=1
         else
-          # Find the highest dev number and increment
-          ESCAPED_LATEST_RELEASE=$(printf '%s\n' "$LATEST_RELEASE" | sed 's/[.\[\*^$+?{}|()]/\\&/g')
-          HIGHEST_DEV=$(echo "$EXISTING_DEV_TAGS" | sed "s/${ESCAPED_LATEST_RELEASE}-Dev//g" | sort -n | tail -1)
-          NEXT_INCREMENT=$((HIGHEST_DEV + 1))
+          # Find the highest dev number from existing tags and increment
+          HIGHEST_DEV=$(echo "$EXISTING_DEV_TAGS" | grep -oP '(?<=-Dev)[0-9]+$' | sort -n | tail -1)
+          if [ -z "$HIGHEST_DEV" ]; then
+            NEXT_INCREMENT=1
+          else
+            NEXT_INCREMENT=$((HIGHEST_DEV + 1))
+          fi
         fi
         
         NEW_TAG="${LATEST_RELEASE}-Dev${NEXT_INCREMENT}"
