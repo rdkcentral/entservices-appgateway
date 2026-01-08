@@ -26,8 +26,8 @@ jobs:
     - name: Get latest release version
       id: latest_release
       run: |
-        # Get all release tags (excluding dev tags) and find the latest
-        LATEST_RELEASE=$(git tag --sort=-version:refname | grep -v -E "-(Dev|dev|RC|rc|alpha|beta)" | head -n 1)
+        # Get all release tags (excluding dev/pre-release tags) and find the latest
+        LATEST_RELEASE=$(git tag --sort=-version:refname | grep -v -E "-(Dev|dev|RC|rc|alpha|beta)[0-9]*$" | head -n 1)
         
         # If no release tags exist, start with 0.1.0
         if [ -z "$LATEST_RELEASE" ]; then
@@ -52,7 +52,6 @@ jobs:
           NEXT_INCREMENT=1
         else
           # Find the highest dev number and increment
-          # Escape special characters in LATEST_RELEASE for use in sed
           ESCAPED_LATEST_RELEASE=$(printf '%s\n' "$LATEST_RELEASE" | sed 's/[.\[\*^$+?{}|()]/\\&/g')
           HIGHEST_DEV=$(echo "$EXISTING_DEV_TAGS" | sed "s/${ESCAPED_LATEST_RELEASE}-Dev//g" | sort -n | tail -1)
           NEXT_INCREMENT=$((HIGHEST_DEV + 1))
@@ -66,7 +65,7 @@ jobs:
       id: tag_exists
       run: |
         NEW_TAG="${{ steps.dev_increment.outputs.tag }}"
-        if git tag -l | grep -q "^${NEW_TAG}$"; then
+        if [ -n "$(git tag -l "${NEW_TAG}")" ]; then
           echo "Tag $NEW_TAG already exists"
           echo "exists=true" >> $GITHUB_OUTPUT
         else
