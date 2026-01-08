@@ -18,8 +18,8 @@ jobs:
         env:
           PR_DESC: ${{ github.event.pull_request.body }}
         run: |
-          if ! echo "$PR_DESC" | grep -qiE 'version[[:space:]]*:[[:space:]]*(major|minor|patch)'; then
-            echo "ERROR: PR description must include a version field in the format 'version: major|minor|patch' (case-insensitive). Example: version: minor"
+          if ! echo "$PR_DESC" | grep -qiE 'version[[:space:]]*:[[:space:]]*(major|minor|subminor|patch)'; then
+            echo "ERROR: PR description must include a version field in the format 'version: major|minor|subminor|patch' (case-insensitive). Example: version: minor"
             exit 1
           fi
           echo "Validation passed: version field found."
