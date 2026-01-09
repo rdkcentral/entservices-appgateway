@@ -956,12 +956,29 @@ namespace Plugin {
                 return languagesStatus;
             }
 
+            // Get closed captions styles from TextTrack
+            auto textTrackDelegate = mDelegate->getTextTrackDelegate();
+            string stylesResult = "{}";
+            if (textTrackDelegate)
+            {
+                Core::hresult stylesStatus = textTrackDelegate->GetClosedCaptionsStyle(stylesResult);
+                if (stylesStatus != Core::ERROR_NONE)
+                {
+                    LOGWARN("Couldn't get closed captions styles, using empty object");
+                    stylesResult = "{}";
+                }
+            }
+            else
+            {
+                LOGWARN("TextTrack delegate not available, using empty styles object");
+            }
+
             // Construct the combined JSON response
-            // Format: {"enabled": <bool>, "preferredLanguages": <array>, "styles": {}}
+            // Format: {"enabled": <bool>, "preferredLanguages": <array>, "styles": {<style properties>}}
             std::ostringstream jsonStream;
             jsonStream << "{\"enabled\": " << enabledResult
                        << ", \"preferredLanguages\": " << languagesResult
-                       << ", \"styles\": {}}";
+                       << ", \"styles\": " << stylesResult << "}";
 
             result = jsonStream.str();
 

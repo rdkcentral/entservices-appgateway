@@ -35,7 +35,6 @@ static const std::set<string> VALID_USER_SETTINGS_EVENT = {
     "accessibility.onhighcontrastuichanged",
     "closedcaptions.onenabledchanged",
     "closedcaptions.onpreferredlanguageschanged",
-    "accessibility.onclosedcaptionssettingschanged",
     "accessibility.onvoiceguidancesettingschanged",
 };
 
@@ -816,7 +815,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
         }
 
         void OnCaptionsChanged(const bool enabled) {
-            mParent.Dispatch( "accessibility.onclosedcaptionssettingschanged", ObjectUtils::CreateBooleanJsonString("enabled", enabled));
+            mParent.Dispatch( "closedcaptions.onenabledchanged", ObjectUtils::BoolToJsonString(enabled));
         }
 
         void OnPreferredCaptionsLanguagesChanged(const string& preferredLanguages) {

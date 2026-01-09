@@ -23,6 +23,7 @@
 #include "UserSettingsDelegate.h"
 #include "SystemDelegate.h"
 #include "NetworkDelegate.h"
+#include "TextTrackDelegate.h"
 #include "UtilsLogging.h"
 #include <interfaces/IAppNotifications.h>
 
@@ -31,24 +32,25 @@ using namespace WPEFramework;
 
 class SettingsDelegate {
     public:
-        SettingsDelegate(): userSettings(nullptr), systemDelegate(nullptr), networkDelegate(nullptr) {}
+        SettingsDelegate(): userSettings(nullptr), systemDelegate(nullptr), networkDelegate(nullptr), textTrackDelegate(nullptr) {}
 
         ~SettingsDelegate() {
             userSettings = nullptr;
             systemDelegate = nullptr;
             networkDelegate = nullptr;
+            textTrackDelegate = nullptr;
         }
 
         void HandleAppEventNotifier(Exchange::IAppNotificationHandler::IEmitter *cb, const string event,
                                     const bool listen) {
             LOGDBG("Passing on HandleAppEventNotifier");
             bool registrationError;
-            if (userSettings==nullptr || systemDelegate==nullptr || networkDelegate==nullptr) {
+            if (userSettings==nullptr || systemDelegate==nullptr || networkDelegate==nullptr || textTrackDelegate==nullptr) {
                 LOGERR("Services not available");
                 return;
             }
 
-            std::vector<std::shared_ptr<BaseEventDelegate>> delegates = {userSettings, systemDelegate, networkDelegate};
+            std::vector<std::shared_ptr<BaseEventDelegate>> delegates = {userSettings, systemDelegate, networkDelegate, textTrackDelegate};
             bool handled = false;
 
             for (const auto& delegate : delegates) {
@@ -86,12 +88,17 @@ class SettingsDelegate {
             if (networkDelegate == nullptr) {
                 networkDelegate = std::make_shared<NetworkDelegate>(shell);
             }
+
+            if (textTrackDelegate == nullptr) {
+                textTrackDelegate = std::make_shared<TextTrackDelegate>(shell);
+            }
         }
 
         void Cleanup() {
             systemDelegate.reset();
             userSettings.reset();
             networkDelegate.reset();
+            textTrackDelegate.reset();
         }
 
 	std::shared_ptr<SystemDelegate> getSystemDelegate() const {
@@ -105,12 +112,16 @@ class SettingsDelegate {
         std::shared_ptr<NetworkDelegate> getNetworkDelegate() const {
             return networkDelegate;
         }
+
+        std::shared_ptr<TextTrackDelegate> getTextTrackDelegate() const {
+            return textTrackDelegate;
+        }
     private:
         std::shared_ptr<UserSettingsDelegate> userSettings;
         std::shared_ptr<SystemDelegate> systemDelegate;
         std::shared_ptr<NetworkDelegate> networkDelegate;
+        std::shared_ptr<TextTrackDelegate> textTrackDelegate;
 };
 
 #endif
-
 
