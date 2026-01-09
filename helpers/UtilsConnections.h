@@ -55,7 +55,7 @@ namespace WPEFramework
             size_t additional_param_key = query.find("&");
             if (additional_param_key != std::string::npos)
             {
-                std::string new_value = value.substr(additional_param_key);
+                std::string new_value = value.substr(0,additional_param_key);
                 if (new_value.empty()) {
                     LOGWARN("%s query params looks incorrect", value.c_str());
                     return value;
