@@ -133,7 +133,7 @@ namespace WPEFramework
                     if (Core::ERROR_NONE == mAuthenticator->Authenticate(sessionId,appId)) {
                         LOGTRACE("APP ID %s", appId.c_str());
                         mAppIdRegistry.Add(connectionId, appId);
-                        
+                        mCompliantJsonRpcRegistry.CheckAndAddCompliantJsonRpc(connectionId, token);
                         #ifdef ENABLE_APP_GATEWAY_AUTOMATION
                         // Check if this is the automation client
                         #ifdef AUTOMATION_APP_ID
@@ -165,6 +165,7 @@ namespace WPEFramework
                     }
                     
                     mAppIdRegistry.Remove(connectionId);
+                    
                     Exchange::IAppNotifications* appNotifications = mService->QueryInterfaceByCallsign<Exchange::IAppNotifications>(APP_NOTIFICATIONS_CALLSIGN);
                     if (appNotifications != nullptr) {
                         if (Core::ERROR_NONE != appNotifications->Cleanup(connectionId, APP_GATEWAY_CALLSIGN)) {
@@ -187,7 +188,13 @@ namespace WPEFramework
 
         Core::hresult AppGatewayResponderImplementation::Emit(const Context& context /* @in */, 
                 const string& method /* @in */, const string& payload /* @in @opaque */) {
-            Core::IWorkerPool::Instance().Submit(EmitJob::Create(this, context.connectionId, method, payload));
+            // check if the connection is compliant with JSON RPC
+            if (!mCompliantJsonRpcRegistry.IsCompliantJsonRpc(context.connectionId)) {
+                Core::IWorkerPool::Instance().Submit(EmitJob::Create(this, context.connectionId, method, payload));
+            }
+            else {
+                Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context.connectionId, context.requestId, payload));
+            }
             return Core::ERROR_NONE;
         }
 

@@ -290,6 +290,36 @@ namespace Plugin {
             std::mutex mAppIdMutex;
         };
 
+        // Create new Registry for JSON RPC compliant connections
+        class CompliantJsonRpcRegistry {
+        public:
+        void CheckAndAddCompliantJsonRpc(const uint32_t connectionId, const string& token) {
+            // if token contains the string RPCV2=true then add it to the compliant list
+            if (token.find("RPCV2=true") != string::npos) {
+                std::lock_guard<std::mutex> lock(mCompliantJsonRpcMutex);
+                mCompliantJsonRpcConnections.push_back(connectionId);
+            }
+        }
+
+        bool IsCompliantJsonRpc(const uint32_t connectionId) {
+            std::lock_guard<std::mutex> lock(mCompliantJsonRpcMutex);
+            return (std::find(mCompliantJsonRpcConnections.begin(), mCompliantJsonRpcConnections.end(), connectionId) != mCompliantJsonRpcConnections.end());
+        }
+
+        void CleanupConnectionId(const uint32_t connectionId) {
+            std::lock_guard<std::mutex> lock(mCompliantJsonRpcMutex);
+            auto it = std::find(mCompliantJsonRpcConnections.begin(), mCompliantJsonRpcConnections.end(), connectionId);
+            if (it != mCompliantJsonRpcConnections.end()) {
+                mCompliantJsonRpcConnections.erase(it);
+            }
+        }
+
+        private:
+            // vector of connection IDs which are compliant with JSON RPC
+            std::vector<uint32_t> mCompliantJsonRpcConnections;
+            std::mutex mCompliantJsonRpcMutex;
+        };
+
         void DispatchWsMsg(const std::string& method,
             const std::string& params,
             const uint32_t requestId,
@@ -315,6 +345,7 @@ namespace Plugin {
         mutable Core::CriticalSection mConnectionStatusImplLock;
         std::list<Exchange::IAppGatewayResponder::INotification*> mConnectionStatusNotification;
         bool mEnhancedLoggingEnabled;
+        CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
     };
 } // namespace Plugin
 } // namespace WPEFramework
