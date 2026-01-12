@@ -22,8 +22,15 @@
 #ifndef __UTILSCALLSIGN_H__
 #define __UTILSCALLSIGN_H__
 #define APP_GATEWAY_CALLSIGN "org.rdk.AppGateway"
-#define GATEWAY_AUTHENTICATOR_CALLSIGN "org.rdk.LaunchDelegate"
+
+#ifdef USE_APP_MANAGERS
+    #define GATEWAY_AUTHENTICATOR_CALLSIGN "org.rdk.AppGatewayCommon"
+#else
+    #define GATEWAY_AUTHENTICATOR_CALLSIGN "org.rdk.LaunchDelegate"
+#endif
+
 #define INTERNAL_GATEWAY_CALLSIGN "org.rdk.LaunchDelegate"
+
 #define APP_NOTIFICATIONS_CALLSIGN "org.rdk.AppNotifications"
 #define APP_TO_APP_PROVIDER_CALLSIGN "org.rdk.App2AppProvider"
 #define FB_PRIVACY_CALLSIGN "org.rdk.FbPrivacy"

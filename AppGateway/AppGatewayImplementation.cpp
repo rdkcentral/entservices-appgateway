@@ -563,7 +563,7 @@ namespace WPEFramework
 
         bool AppGatewayImplementation::SetupAppGatewayAuthenticator() {
             if ( mAuthenticator==nullptr ) {
-                mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(INTERNAL_GATEWAY_CALLSIGN);
+                mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
                 if (mAuthenticator == nullptr) {
                     LOGERR("AppGateway Authenticator not available");
                     return false;
