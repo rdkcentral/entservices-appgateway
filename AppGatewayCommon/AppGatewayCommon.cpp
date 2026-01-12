@@ -956,12 +956,21 @@ namespace Plugin {
                 return languagesStatus;
             }
 
+            // Get closed captions styles from UserSettings delegate
+            string stylesResult = "{}";
+            Core::hresult stylesStatus = userSettingsDelegate->GetClosedCaptionsStyle(stylesResult);
+            if (stylesStatus != Core::ERROR_NONE)
+            {
+                LOGWARN("Couldn't get closed captions styles, using empty object");
+                stylesResult = "{}";
+            }
+
             // Construct the combined JSON response
-            // Format: {"enabled": <bool>, "preferredLanguages": <array>, "styles": {}}
+            // Format: {"enabled": <bool>, "preferredLanguages": <array>, "styles": {<style properties>}}
             std::ostringstream jsonStream;
             jsonStream << "{\"enabled\": " << enabledResult
                        << ", \"preferredLanguages\": " << languagesResult
-                       << ", \"styles\": {}}";
+                       << ", \"styles\": " << stylesResult << "}";
 
             result = jsonStream.str();
 
