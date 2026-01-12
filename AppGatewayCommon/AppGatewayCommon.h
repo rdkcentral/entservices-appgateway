@@ -32,7 +32,7 @@ namespace WPEFramework {
     namespace Plugin {
 
 
-		class AppGatewayCommon : public PluginHost::IPlugin, Exchange::IAppGatewayRequestHandler, Exchange::IAppNotificationHandler{
+		class AppGatewayCommon : public PluginHost::IPlugin, Exchange::IAppGatewayRequestHandler, Exchange::IAppNotificationHandler, Exchange::IAppGatewayAuthenticator{
         private:
             // We do not allow this plugin to be copied !!
             AppGatewayCommon(const AppGatewayCommon&) = delete;
@@ -91,6 +91,7 @@ namespace WPEFramework {
             INTERFACE_ENTRY(PluginHost::IPlugin)
             INTERFACE_ENTRY(Exchange::IAppGatewayRequestHandler)
             INTERFACE_ENTRY(Exchange::IAppNotificationHandler)
+            INTERFACE_ENTRY(Exchange::IAppGatewayAuthenticator)
             END_INTERFACE_MAP
         
         public:
@@ -103,6 +104,13 @@ namespace WPEFramework {
                                           const string& method /* @in */,
                                           const string &payload /* @in @opaque */,
                                           string& result /*@out @opaque */) override;
+            
+            // IAppGatewayAuthenticator interface
+            virtual Core::hresult Authenticate(const string &sessionId /* @in */, string &appId /* @out */) override;
+            virtual Core::hresult GetSessionId(const string &appId /* @in */, string &sessionId /* @out */) override;
+            virtual Core::hresult CheckPermissionGroup(const string &appId /* @in */,
+                                               const string &permissionGroup /* @in */,
+                                               bool &allowed /* @out */) override;
 
         private:
             void Deactivated(RPC::IRemoteConnection* connection);
