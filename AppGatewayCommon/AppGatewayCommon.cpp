@@ -113,265 +113,243 @@ namespace Plugin {
         {
             LOGTRACE("HandleAppGatewayRequest: method=%s, payload=%s, appId=%s",
                     method.c_str(), payload.c_str(), context.appId.c_str());
+
             std::string lowerMethod = StringUtils::toLower(method);
-            // Route System/Device methods
-            if (lowerMethod == "device.make")
-            {
-                return GetDeviceMake(result);
-            }
-            else if (lowerMethod == "device.name")
-            {
-                return GetDeviceName(result);
-            }
-            else if (lowerMethod == "device.setname")
-            {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    string name = params.Get("value").String();
-                    return ResponseUtils::SetNullResponseForSuccess(SetDeviceName(name), result);
-                }
-                result = "{\"error\":\"Invalid payload\"}";
-                return Core::ERROR_BAD_REQUEST;
-            }
-            else if (lowerMethod == "device.sku")
-            {
-                return GetDeviceSku(result);
-            }
-            else if (lowerMethod == "localization.countrycode")
-            {
-                return GetCountryCode(result);
-            }
-            else if (lowerMethod == "localization.setcountrycode")
-            {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    string countryCode = params.Get("value").String();
-                    return ResponseUtils::SetNullResponseForSuccess(SetCountryCode(countryCode),result);
-                }
-                result = "{\"error\":\"Invalid payload\"}";
-                return Core::ERROR_BAD_REQUEST;
-            }
-            else if (lowerMethod == "localization.timezone")
-            {
-                return GetTimeZone(result);
-            }
-            else if (lowerMethod == "localization.settimezone")
-            {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    string timeZone = params.Get("value").String();
-                    return ResponseUtils::SetNullResponseForSuccess(SetTimeZone(timeZone),result);
-                }
-                result = "{\"error\":\"Invalid payload\"}";
-                return Core::ERROR_BAD_REQUEST;
-            }
-            else if (lowerMethod == "secondscreen.friendlyname")
-            {
-                return GetSecondScreenFriendlyName(result);
-            }
-            else if (lowerMethod == "localization.addadditionalinfo")
-            {
-                return ResponseUtils::SetNullResponseForSuccess(AddAdditionalInfo(payload, result), result);
-            }
 
-            // Route network-related methods
-            else if (lowerMethod == "device.network")
-            {
-                return GetInternetConnectionStatus(result);
-            }
+            // Map method names to handlers
+            using MethodHandler = std::function<Core::hresult(AppGatewayCommon*, const Exchange::GatewayContext&, const string&, string&)>;
+            static const std::unordered_map<string, MethodHandler> handlers = {
+                // Device methods
+                {"device.make", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetDeviceMake(r); 
+                }},
+                {"device.name", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetDeviceName(r); 
+                }},
+                {"device.setname", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string& p, string& r) -> Core::hresult {
+                    JsonObject params;
+                    if (params.FromString(p)) {
+                        string name = params.Get("value").String();
+                        return ResponseUtils::SetNullResponseForSuccess(self->SetDeviceName(name), r);
+                    }
+                    r = "{\"error\":\"Invalid payload\"}";
+                    return Core::ERROR_BAD_REQUEST;
+                }},
+                {"device.sku", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetDeviceSku(r); 
+                }},
+                {"device.network", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetInternetConnectionStatus(r); 
+                }},
+                {"device.version", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetFirmwareVersion(r); 
+                }},
+                {"device.screenresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetScreenResolution(r); 
+                }},
+                {"device.videoresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetVideoResolution(r); 
+                }},
+                {"device.hdcp", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetHdcp(r); 
+                }},
+                {"device.hdr", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetHdr(r); 
+                }},
+                {"device.audio", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetAudio(r); 
+                }},
 
-            // Route voice guidance methods
-            else if (lowerMethod == "voiceguidance.enabled")
-            {
-                return GetVoiceGuidance(result);
-            }
-            else if (lowerMethod == "voiceguidance.setenabled")
-            {
-                // Parse payload for boolean value
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    bool enabled = params.Get("value").Boolean();
-                    return ResponseUtils::SetNullResponseForSuccess(SetVoiceGuidance(enabled), result);
-                }
-                result = "{\"error\":\"Invalid payload\"}";
-                return Core::ERROR_BAD_REQUEST;
-            }
-            else if (lowerMethod == "voiceguidance.speed" || lowerMethod == "voiceguidance.rate")
-            {
-                double speed;
-                Core::hresult status = GetSpeed(speed);
-                if (status == Core::ERROR_NONE)
-                {
-                    std::ostringstream jsonStream;
-                    jsonStream << speed;
-                    result = jsonStream.str();
-                }
-                return status;
-            }
-            else if (lowerMethod == "voiceguidance.setspeed" || lowerMethod == "voiceguidance.setrate")
-            {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    double speed = params.Get("value").Number();
-                    return ResponseUtils::SetNullResponseForSuccess(SetSpeed(speed), result);
-                }
-                result = "{\"error\":\"Invalid payload\"}";
-                return Core::ERROR_BAD_REQUEST;
-            }
-            else if (lowerMethod == "voiceguidance.navigationhints")
-            {
-                return GetVoiceGuidanceHints(result);
-            }
-            else if (lowerMethod == "voiceguidance.setnavigationhints")
-            {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    bool enabled = params.Get("value").Boolean();
-                    return ResponseUtils::SetNullResponseForSuccess(SetVoiceGuidanceHints(enabled), result);
-                }
-                result = "{\"error\":\"Invalid payload\"}";
-                return Core::ERROR_BAD_REQUEST;
-            }
-            else if (lowerMethod == "accessibility.voiceguidancesettings")
-            {
-                return GetVoiceGuidanceSettings(result);
-            }
-            else if (lowerMethod == "accessibility.voiceguidance")
-            {
-                return GetVoiceGuidanceSettings(result);
-            }
+                // Localization methods
+                {"localization.countrycode", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetCountryCode(r); 
+                }},
+                {"localization.setcountrycode", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string& p, string& r) -> Core::hresult {
+                    JsonObject params;
+                    if (params.FromString(p)) {
+                        string countryCode = params.Get("value").String();
+                        return ResponseUtils::SetNullResponseForSuccess(self->SetCountryCode(countryCode), r);
+                    }
+                    r = "{\"error\":\"Invalid payload\"}";
+                    return Core::ERROR_BAD_REQUEST;
+                }},
+                {"localization.timezone", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetTimeZone(r); 
+                }},
+                {"localization.settimezone", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string& p, string& r) -> Core::hresult {
+                    JsonObject params;
+                    if (params.FromString(p)) {
+                        string timeZone = params.Get("value").String();
+                        return ResponseUtils::SetNullResponseForSuccess(self->SetTimeZone(timeZone), r);
+                    }
+                    r = "{\"error\":\"Invalid payload\"}";
+                    return Core::ERROR_BAD_REQUEST;
+                }},
+                {"localization.addadditionalinfo", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string& p, string& r) {
+                    return ResponseUtils::SetNullResponseForSuccess(self->AddAdditionalInfo(p, r), r);
+                }},
+                {"localization.language", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetPresentationLanguage(r); 
+                }},
+                {"localization.locale", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetLocale(r); 
+                }},
+                {"localization.setlocale", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string& p, string& r) -> Core::hresult {
+                    JsonObject params;
+                    if (params.FromString(p)) {
+                        string locale = params.Get("value").String();
+                        return ResponseUtils::SetNullResponseForSuccess(self->SetLocale(locale), r);
+                    }
+                    r = "{\"error\":\"Invalid payload\"}";
+                    return Core::ERROR_BAD_REQUEST;
+                }},
+                {"localization.preferredaudiolanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetPreferredAudioLanguages(r); 
+                }},
+                {"localization.setpreferredaudiolanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string& p, string& r) -> Core::hresult {
+                    JsonObject params;
+                    if (params.FromString(p)) {
+                        string languages = params.Get("value").String();
+                        return ResponseUtils::SetNullResponseForSuccess(self->SetPreferredAudioLanguages(languages), r);
+                    }
+                    r = "{\"error\":\"Invalid payload\"}";
+                    return Core::ERROR_BAD_REQUEST;
+                }},
 
-            // Route audio description methods
-            else if (lowerMethod == "accessibility.audiodescriptionsettings")
-            {
-                return GetAudioDescription(result);
-            }
-            else if (lowerMethod == "audiodescriptions.enabled")
-            {
-                return GetAudioDescriptionsEnabled(result);
-            }
-            else if (lowerMethod == "audiodescriptions.setenabled")
-            {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    bool enabled = params.Get("value").Boolean();
-                    return ResponseUtils::SetNullResponseForSuccess(SetAudioDescriptionsEnabled(enabled), result);
-                }
-                result = "{\"error\":\"Invalid payload\"}";
-                return Core::ERROR_BAD_REQUEST;
-            }
+                // Second screen methods
+                {"secondscreen.friendlyname", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetSecondScreenFriendlyName(r); 
+                }},
 
-            // Route accessibility methods
-            else if (lowerMethod == "accessibility.highcontrastui")
-            {
-                return GetHighContrast(result);
-            }
+                // Voice guidance methods
+                {"voiceguidance.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetVoiceGuidance(r); 
+                }},
+                {"voiceguidance.setenabled", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string& p, string& r) -> Core::hresult {
+                    JsonObject params;
+                    if (params.FromString(p)) {
+                        bool enabled = params.Get("value").Boolean();
+                        return ResponseUtils::SetNullResponseForSuccess(self->SetVoiceGuidance(enabled), r);
+                    }
+                    r = "{\"error\":\"Invalid payload\"}";
+                    return Core::ERROR_BAD_REQUEST;
+                }},
+                {"voiceguidance.speed", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) {
+                    double speed;
+                    Core::hresult status = self->GetSpeed(speed);
+                    if (status == Core::ERROR_NONE) {
+                        std::ostringstream jsonStream;
+                        jsonStream << speed;
+                        r = jsonStream.str();
+                    }
+                    return status;
+                }},
+                {"voiceguidance.rate", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) {
+                    double speed;
+                    Core::hresult status = self->GetSpeed(speed);
+                    if (status == Core::ERROR_NONE) {
+                        std::ostringstream jsonStream;
+                        jsonStream << speed;
+                        r = jsonStream.str();
+                    }
+                    return status;
+                }},
+                {"voiceguidance.setspeed", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string& p, string& r) -> Core::hresult {
+                    JsonObject params;
+                    if (params.FromString(p)) {
+                        double speed = params.Get("value").Number();
+                        return ResponseUtils::SetNullResponseForSuccess(self->SetSpeed(speed), r);
+                    }
+                    r = "{\"error\":\"Invalid payload\"}";
+                    return Core::ERROR_BAD_REQUEST;
+                }},
+                {"voiceguidance.setrate", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string& p, string& r) -> Core::hresult {
+                    JsonObject params;
+                    if (params.FromString(p)) {
+                        double speed = params.Get("value").Number();
+                        return ResponseUtils::SetNullResponseForSuccess(self->SetSpeed(speed), r);
+                    }
+                    r = "{\"error\":\"Invalid payload\"}";
+                    return Core::ERROR_BAD_REQUEST;
+                }},
+                {"voiceguidance.navigationhints", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetVoiceGuidanceHints(r); 
+                }},
+                {"voiceguidance.setnavigationhints", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string& p, string& r) -> Core::hresult {
+                    JsonObject params;
+                    if (params.FromString(p)) {
+                        bool enabled = params.Get("value").Boolean();
+                        return ResponseUtils::SetNullResponseForSuccess(self->SetVoiceGuidanceHints(enabled), r);
+                    }
+                    r = "{\"error\":\"Invalid payload\"}";
+                    return Core::ERROR_BAD_REQUEST;
+                }},
+                {"accessibility.voiceguidancesettings", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetVoiceGuidanceSettings(r); 
+                }},
+                {"accessibility.voiceguidance", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetVoiceGuidanceSettings(r); 
+                }},
 
-            // Route closed captions methods
-            else if (lowerMethod == "closedcaptions.enabled")
-            {
-                return GetCaptions(result);
-            }
-            else if (lowerMethod == "closedcaptions.setenabled")
-            {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    bool enabled = params.Get("value").Boolean();
-                    return ResponseUtils::SetNullResponseForSuccess(SetCaptions(enabled), result);
-                }
-                result = "{\"error\":\"Invalid payload\"}";
-                return Core::ERROR_BAD_REQUEST;
-            }
-            else if (lowerMethod == "closedcaptions.preferredlanguages")
-            {
-                return GetPreferredCaptionsLanguages(result);
-            }
-            else if (lowerMethod == "closedcaptions.setpreferredlanguages")
-            {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    string languages = params.Get("value").String();
-                    return ResponseUtils::SetNullResponseForSuccess(SetPreferredCaptionsLanguages(languages), result);
-                }
-                result = "{\"error\":\"Invalid payload\"}";
-                return Core::ERROR_BAD_REQUEST;
-            }
-            else if (lowerMethod == "accessibility.closedcaptions")
-            {
-                return GetClosedCaptionsSettings(result);
-            }
-            else if (lowerMethod == "accessibility.closedcaptionssettings")
-            {
-                return GetClosedCaptionsSettings(result);
-            }
+                // Audio description methods
+                {"accessibility.audiodescriptionsettings", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetAudioDescription(r); 
+                }},
+                {"audiodescriptions.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetAudioDescriptionsEnabled(r); 
+                }},
+                {"audiodescriptions.setenabled", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string& p, string& r) -> Core::hresult {
+                    JsonObject params;
+                    if (params.FromString(p)) {
+                        bool enabled = params.Get("value").Boolean();
+                        return ResponseUtils::SetNullResponseForSuccess(self->SetAudioDescriptionsEnabled(enabled), r);
+                    }
+                    r = "{\"error\":\"Invalid payload\"}";
+                    return Core::ERROR_BAD_REQUEST;
+                }},
 
-            // Route localization methods
-            else if (lowerMethod == "localization.language")
-            {
-                return GetPresentationLanguage(result);
-            }
-            else if (lowerMethod == "localization.locale")
-            {
-                return GetLocale(result);
-            }
-            else if (lowerMethod == "localization.setlocale")
-            {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    string locale = params.Get("value").String();
-                    return ResponseUtils::SetNullResponseForSuccess(SetLocale(locale), result);
-                }
-                result = "{\"error\":\"Invalid payload\"}";
-                return Core::ERROR_BAD_REQUEST;
-            }
-            else if (lowerMethod == "localization.preferredaudiolanguages")
-            {
-                return GetPreferredAudioLanguages(result);
-            }
-            else if (lowerMethod == "localization.setpreferredaudiolanguages")
-            {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    string languages = params.Get("value").String();
-                    return ResponseUtils::SetNullResponseForSuccess(SetPreferredAudioLanguages(languages), result);
-                }
-                result = "{\"error\":\"Invalid payload\"}";
-                return Core::ERROR_BAD_REQUEST;
-            }
-            else if (lowerMethod == "device.version")
-            {
-                return GetFirmwareVersion(result);
-            }
-            else if (lowerMethod == "device.screenresolution")
-            {
-                return GetScreenResolution(result);
-            }
-            else if (lowerMethod == "device.videoresolution")
-            {
-                return GetVideoResolution(result);
-            }            
-            else if (lowerMethod == "device.hdcp")
-            {
-                return GetHdcp(result);
-            }
-            else if (lowerMethod == "device.hdr")
-            {
-                return GetHdr(result);
-            }
-            else if (lowerMethod == "device.audio")
-            {
-                return GetAudio(result);
+                // Accessibility methods
+                {"accessibility.highcontrastui", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetHighContrast(r); 
+                }},
+
+                // Closed captions methods
+                {"closedcaptions.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetCaptions(r); 
+                }},
+                {"closedcaptions.setenabled", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string& p, string& r) -> Core::hresult {
+                    JsonObject params;
+                    if (params.FromString(p)) {
+                        bool enabled = params.Get("value").Boolean();
+                        return ResponseUtils::SetNullResponseForSuccess(self->SetCaptions(enabled), r);
+                    }
+                    r = "{\"error\":\"Invalid payload\"}";
+                    return Core::ERROR_BAD_REQUEST;
+                }},
+                {"closedcaptions.preferredlanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetPreferredCaptionsLanguages(r); 
+                }},
+                {"closedcaptions.setpreferredlanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string& p, string& r) -> Core::hresult {
+                    JsonObject params;
+                    if (params.FromString(p)) {
+                        string languages = params.Get("value").String();
+                        return ResponseUtils::SetNullResponseForSuccess(self->SetPreferredCaptionsLanguages(languages), r);
+                    }
+                    r = "{\"error\":\"Invalid payload\"}";
+                    return Core::ERROR_BAD_REQUEST;
+                }},
+                {"accessibility.closedcaptions", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetClosedCaptionsSettings(r); 
+                }},
+                {"accessibility.closedcaptionssettings", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const string&, string& r) { 
+                    return self->GetClosedCaptionsSettings(r); 
+                }}
+            };
+
+            // Find and execute the handler
+            auto it = handlers.find(lowerMethod);
+            if (it != handlers.end()) {
+                return it->second(this, context, payload, result);
             }
 
             // If method not found, return error
