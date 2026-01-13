@@ -32,8 +32,7 @@ on:
 
 jobs:
   coverity_incremental_scan:
-    #runs-on: comcast-runner
-    runs-on: comcast-ubuntu-latest
+    runs-on: ubuntu-latest
     container: 
       image: ${{ vars.DOCKER_REGISTRY }}/rdk-docker/docker-rdk-coverity:latest
       credentials:
