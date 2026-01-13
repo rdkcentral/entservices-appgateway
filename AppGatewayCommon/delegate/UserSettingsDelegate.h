@@ -125,11 +125,20 @@ class UserSettingsDelegate : public BaseEventDelegate{
             mNotificationHandler(*this), mTextTrackNotificationHandler(*this) {}
 
         ~UserSettingsDelegate() {
+            // Unregister notification handlers before releasing interfaces
             if (mUserSettings != nullptr) {
+                if (mNotificationHandler.GetRegistered()) {
+                    mUserSettings->Unregister(&mNotificationHandler);
+                    mNotificationHandler.SetRegistered(false);
+                }
                 mUserSettings->Release();
                 mUserSettings = nullptr;
             }
             if (mTextTrack != nullptr) {
+                if (mTextTrackNotificationHandler.GetRegistered()) {
+                    mTextTrack->Unregister(&mTextTrackNotificationHandler);
+                    mTextTrackNotificationHandler.SetRegistered(false);
+                }
                 mTextTrack->Release();
                 mTextTrack = nullptr;
             }
@@ -209,7 +218,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
             if (userSettings == nullptr) {
                 LOGERR("UserSettings COM interface not available");
-                result = "{\"error\":\"couldnt get voiceguidance state\"}";
+                result = "{\"error\":\"couldn't get voiceguidance state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
@@ -217,13 +226,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetVoiceGuidance(enabled);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform the response: return_or_error(.result, "couldnt get voiceguidance state")
+                // Transform the response: return_or_error(.result, "couldn't get voiceguidance state")
                 // Return the boolean result directly as per transform specification
                 result = enabled ? "true" : "false";
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetVoiceGuidance on UserSettings COM interface, error: %u", rc);
-                result = "{\"error\":\"couldnt get voiceguidance state\"}";
+                result = "{\"error\":\"couldn't get voiceguidance state\"}";
                 return Core::ERROR_GENERAL;
             }
         }
@@ -235,7 +244,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
             if (userSettings == nullptr) {
                 LOGERR("UserSettings COM interface not available");
-                result = "{\"error\":\"couldnt get audio description settings\"}";
+                result = "{\"error\":\"couldn't get audio description settings\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
@@ -243,13 +252,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetAudioDescription(enabled);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform the response: return_or_error({ enabled: .result }, "couldnt get audio description settings")
+                // Transform the response: return_or_error({ enabled: .result }, "couldn't get audio description settings")
                 // Create JSON response with enabled state
                 result = ObjectUtils::CreateBooleanJsonString("enabled", enabled);
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetAudioDescription on UserSettings COM interface, error: %u", rc);
-                result = "{\"error\":\"couldnt get audio description settings\"}";
+                result = "{\"error\":\"couldn't get audio description settings\"}";
                 return Core::ERROR_GENERAL;
             }
         }
@@ -261,7 +270,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
             if (userSettings == nullptr) {
                 LOGERR("UserSettings COM interface not available");
-                result = "{\"error\":\"couldnt get audio descriptions enabled\"}";
+                result = "{\"error\":\"couldn't get audio descriptions enabled\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
@@ -269,13 +278,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetAudioDescription(enabled);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform the response: return_or_error(.result, "couldnt get audio descriptions enabled")
+                // Transform the response: return_or_error(.result, "couldn't get audio descriptions enabled")
                 // Return the boolean result directly as per transform specification
                 result = enabled ? "true" : "false";
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetAudioDescription on UserSettings COM interface, error: %u", rc);
-                result = "{\"error\":\"couldnt get audio descriptions enabled\"}";
+                result = "{\"error\":\"couldn't get audio descriptions enabled\"}";
                 return Core::ERROR_GENERAL;
             }
         }
@@ -287,7 +296,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
             if (userSettings == nullptr) {
                 LOGERR("UserSettings COM interface not available");
-                result = "{\"error\":\"couldnt get high contrast state\"}";
+                result = "{\"error\":\"couldn't get high contrast state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
@@ -295,13 +304,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetHighContrast(enabled);
 
             if (rc == Core::ERROR_NONE) {
-                 // Transform the response: return_or_error(.result, "couldnt get audio descriptions enabled")
+                 // Transform the response: return_or_error(.result, "couldn't get audio descriptions enabled")
                 // Return the boolean result directly as per transform specification
                 result = enabled ? "true" : "false";
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetHighContrast on UserSettings COM interface, error: %u", rc);
-                result = "{\"error\":\"couldnt get high contrast state\"}";
+                result = "{\"error\":\"couldn't get high contrast state\"}";
                 return Core::ERROR_GENERAL;
             }
         }
@@ -313,7 +322,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
             if (userSettings == nullptr) {
                 LOGERR("UserSettings COM interface not available");
-                result = "{\"error\":\"couldnt get captions state\"}";
+                result = "{\"error\":\"couldn't get captions state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
@@ -321,13 +330,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetCaptions(enabled);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform the response: return_or_error(.result, "couldnt get captions state")
+                // Transform the response: return_or_error(.result, "couldn't get captions state")
                 // Return the boolean result directly as per transform specification
                 result = enabled ? "true" : "false";
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetCaptions on UserSettings COM interface, error: %u", rc);
-                result = "{\"error\":\"couldnt get captions state\"}";
+                result = "{\"error\":\"couldn't get captions state\"}";
                 return Core::ERROR_GENERAL;
             }
         }
@@ -445,7 +454,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->SetVoiceGuidanceRate(rate);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform response: return_or_error(null, "couldnt set speed")
+                // Transform response: return_or_error(null, "couldn't set speed")
                 // Success case - return null (no error)
                 return Core::ERROR_NONE;
             } else {
@@ -506,7 +515,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
             if (userSettings == nullptr) {
                 LOGERR("UserSettings COM interface not available");
-                result = "{\"error\":\"couldnt get navigationHints\"}";
+                result = "{\"error\":\"couldn't get navigationHints\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
@@ -514,13 +523,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetVoiceGuidanceHints(hints);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform: return_or_error(.result, "couldnt get navigationHints")
+                // Transform: return_or_error(.result, "couldn't get navigationHints")
                 // Return the boolean result directly as per transform specification
                 result = hints ? "true" : "false";
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetVoiceGuidanceHints on UserSettings COM interface, error: %u", rc);
-                result = "{\"error\":\"couldnt get navigationHints\"}";
+                result = "{\"error\":\"couldn't get navigationHints\"}";
                 return Core::ERROR_GENERAL;
             }
         }
@@ -704,12 +713,12 @@ class UserSettingsDelegate : public BaseEventDelegate{
                         }
                     }
                 }
- 
+
                 if (jsonArray.Length() == 0) {
                     // Empty array - return default ["eng"]
                     jsonArray.Add("eng");
                 }
- 
+
                 jsonArray.ToString(result);
                 return Core::ERROR_NONE;
             } else {
@@ -856,7 +865,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
         }
 
         void OnCaptionsChanged(const bool enabled) {
-            mParent.Dispatch( "accessibility.onclosedcaptionssettingschanged", ObjectUtils::CreateBooleanJsonString("enabled", enabled));
+           mParent.Dispatch( "closedcaptions.onenabledchanged", ObjectUtils::BoolToJsonString(enabled));
         }
 
         void OnPreferredCaptionsLanguagesChanged(const string& preferredLanguages) {
@@ -919,19 +928,19 @@ class UserSettingsDelegate : public BaseEventDelegate{
             mParent.Dispatch( "OnContentPinChanged", contentPin);
         }
 
-                // New Method for Set registered
+                // Method to set registered state
                 void SetRegistered(bool state) {
                     std::lock_guard<std::mutex> lock(registerMutex);
                     registered = state;
                 }
 
-                // New Method for get registered
+                // Method to get registered state
                 bool GetRegistered() {
                     std::lock_guard<std::mutex> lock(registerMutex);
                     return registered;
                 }
 
-                BEGIN_INTERFACE_MAP(NotificationHandler)
+                BEGIN_INTERFACE_MAP(UserSettingsNotificationHandler)
                 INTERFACE_ENTRY(Exchange::IUserSettings::INotification)
                 END_INTERFACE_MAP
             private:
@@ -949,17 +958,28 @@ class UserSettingsDelegate : public BaseEventDelegate{
                 void OnClosedCaptionsStyleChanged(const Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle &style) override {
                     LOGINFO("OnClosedCaptionsStyleChanged received");
 
-                    // Get enabled state from UserSettings
+                    // Get enabled state and preferred languages from UserSettings
                     Exchange::IUserSettings* userSettings = mParent.GetUserSettingsInterface();
                     bool enabled = false;
-                    if (userSettings != nullptr) {
-                        userSettings->GetCaptions(enabled);
-                    }
-
-                    // Get preferred captions languages from UserSettings
                     string preferredLanguages;
+
                     if (userSettings != nullptr) {
-                        userSettings->GetPreferredCaptionsLanguages(preferredLanguages);
+                        // Retrieve captions enabled state with error handling
+                        Core::hresult captionsResult = userSettings->GetCaptions(enabled);
+                        if (captionsResult != Core::ERROR_NONE) {
+                            LOGWARN("OnClosedCaptionsStyleChanged: GetCaptions failed with error %u, using default enabled=%s",
+                                    captionsResult, enabled ? "true" : "false");
+                        }
+
+                        // Retrieve preferred captions languages with error handling
+                        Core::hresult langsResult = userSettings->GetPreferredCaptionsLanguages(preferredLanguages);
+                        if (langsResult != Core::ERROR_NONE) {
+                            LOGWARN("OnClosedCaptionsStyleChanged: GetPreferredCaptionsLanguages failed with error %u, using default [\"eng\"]",
+                                    langsResult);
+                            preferredLanguages = "";  // Ensure empty so default is applied below
+                        }
+                    } else {
+                        LOGWARN("OnClosedCaptionsStyleChanged: UserSettings interface unavailable, using defaults (enabled=false, preferredLanguages=[\"eng\"])");
                     }
 
                     // Build JSON response using JsonObject and JsonArray
@@ -1005,13 +1025,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
                     mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", result);
                 }
 
-                // New Method for Set registered
+                // Method to set registered state
                 void SetRegistered(bool state) {
                     std::lock_guard<std::mutex> lock(registerMutex);
                     registered = state;
                 }
 
-                // New Method for get registered
+                // Method to get registered state
                 bool GetRegistered() {
                     std::lock_guard<std::mutex> lock(registerMutex);
                     return registered;
@@ -1036,4 +1056,3 @@ class UserSettingsDelegate : public BaseEventDelegate{
         
 };
 #endif
-
