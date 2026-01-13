@@ -182,7 +182,7 @@
         },
         "accessibility.onClosedCaptionsSettingsChanged": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "org.rdk.AppGatewayCommon.OnClosedCaptionsStyleChanged"
+            "event": "org.rdk.AppGatewayCommon.onClosedCaptionsStyleChanged"
         },
         "voiceguidance.onNavigationHintsChanged": {
             "alias": "org.rdk.AppGatewayCommon",

@@ -104,6 +104,20 @@ static const char* FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::Fon
     }
 }
 
+// Helper function to build JSON styles object from ClosedCaptionsStyle struct
+static void BuildClosedCaptionsStyleJson(const Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle& style, JsonObject& styles) {
+    styles["fontFamily"] = FontFamilyToString(style.fontFamily);
+    styles["fontSize"] = FontSizeToString(style.fontSize);
+    styles["fontColor"] = style.fontColor;
+    styles["fontOpacity"] = static_cast<int>(style.fontOpacity);
+    styles["fontEdge"] = FontEdgeToString(style.fontEdge);
+    styles["fontEdgeColor"] = style.fontEdgeColor;
+    styles["backgroundColor"] = style.backgroundColor;
+    styles["backgroundOpacity"] = static_cast<int>(style.backgroundOpacity);
+    styles["windowColor"] = style.windowColor;
+    styles["windowOpacity"] = static_cast<int>(style.windowOpacity);
+}
+
 class UserSettingsDelegate : public BaseEventDelegate{
     public:
         UserSettingsDelegate(PluginHost::IShell* shell):
@@ -333,23 +347,10 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = textTrack->GetClosedCaptionsStyle(style);
 
             if (rc == Core::ERROR_NONE) {
-                // Build JSON response with all style properties
-                // Use helper functions to convert enums to string values
-                std::ostringstream jsonStream;
-                jsonStream << "{";
-                jsonStream << "\"fontFamily\":\"" << FontFamilyToString(style.fontFamily) << "\"";
-                jsonStream << ",\"fontSize\":\"" << FontSizeToString(style.fontSize) << "\"";
-                jsonStream << ",\"fontColor\":\"" << style.fontColor << "\"";
-                jsonStream << ",\"fontOpacity\":" << static_cast<int>(style.fontOpacity);
-                jsonStream << ",\"fontEdge\":\"" << FontEdgeToString(style.fontEdge) << "\"";
-                jsonStream << ",\"fontEdgeColor\":\"" << style.fontEdgeColor << "\"";
-                jsonStream << ",\"backgroundColor\":\"" << style.backgroundColor << "\"";
-                jsonStream << ",\"backgroundOpacity\":" << static_cast<int>(style.backgroundOpacity);
-                jsonStream << ",\"windowColor\":\"" << style.windowColor << "\"";
-                jsonStream << ",\"windowOpacity\":" << static_cast<int>(style.windowOpacity);
-                jsonStream << "}";
-
-                result = jsonStream.str();
+                // Build JSON response with all style properties using helper function
+                JsonObject styles;
+                BuildClosedCaptionsStyleJson(style, styles);
+                styles.ToString(result);
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetClosedCaptionsStyle on TextTrack COM interface, error: %u", rc);
@@ -636,40 +637,28 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
             if (rc == Core::ERROR_NONE) {
                 // Transform: return_or_else(.result | split(","), [])
+                JsonArray jsonArray;
                 if (!preferredLanguages.empty()) {
                     // Split comma-separated string into JSON array
-                    // Example: "eng,fra,spa" -> ["eng","fra","spa"]
-                    result = "[";
-                    size_t pos = 0;
+                    std::istringstream stream(preferredLanguages);
                     string token;
-                    bool first = true;
-
-                    while ((pos = preferredLanguages.find(',')) != string::npos) {
-                        token = preferredLanguages.substr(0, pos);
+                    while (std::getline(stream, token, ',')) {
                         // Trim whitespace
-                        token.erase(0, token.find_first_not_of(" \t"));
-                        token.erase(token.find_last_not_of(" \t") + 1);
-
-                        if (!first) result += ",";
-                        result += "\"" + token + "\"";
-                        first = false;
-                        preferredLanguages.erase(0, pos + 1);
+                        size_t start = token.find_first_not_of(" \t");
+                        if (start == string::npos) {
+                            continue; // Skip all-whitespace tokens
+                        }
+                        token.erase(0, start);
+                        size_t end = token.find_last_not_of(" \t");
+                        if (end != string::npos) {
+                            token.erase(end + 1);
+                        }
+                        if (!token.empty()) {
+                            jsonArray.Add(token);
+                        }
                     }
-
-                    // Handle the last token
-                    if (!preferredLanguages.empty()) {
-                        preferredLanguages.erase(0, preferredLanguages.find_first_not_of(" \t"));
-                        preferredLanguages.erase(preferredLanguages.find_last_not_of(" \t") + 1);
-
-                        if (!first) result += ",";
-                        result += "\"" + preferredLanguages + "\"";
-                    }
-
-                    result += "]";
-                } else {
-                    // Empty string case - return empty array
-                    result = "[]";
                 }
+                jsonArray.ToString(result);
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetPreferredAudioLanguages on UserSettings COM interface, error: %u", rc);
@@ -694,40 +683,34 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
             if (rc == Core::ERROR_NONE) {
                 // Transform: if .result | length > 0 then .result | split(",") else ["eng"] end
+                JsonArray jsonArray;
                 if (!preferredLanguages.empty()) {
                     // Split comma-separated string into JSON array
-                    // Example: "eng,fra,spa" -> ["eng","fra","spa"]
-                    result = "[";
-                    size_t pos = 0;
+                    std::istringstream stream(preferredLanguages);
                     string token;
-                    bool first = true;
-
-                    while ((pos = preferredLanguages.find(',')) != string::npos) {
-                        token = preferredLanguages.substr(0, pos);
+                    while (std::getline(stream, token, ',')) {
                         // Trim whitespace
-                        token.erase(0, token.find_first_not_of(" \t"));
-                        token.erase(token.find_last_not_of(" \t") + 1);
-
-                        if (!first) result += ",";
-                        result += "\"" + token + "\"";
-                        first = false;
-                        preferredLanguages.erase(0, pos + 1);
+                        size_t start = token.find_first_not_of(" \t");
+                        if (start == string::npos) {
+                            continue; // Skip all-whitespace tokens
+                        }
+                        token.erase(0, start);
+                        size_t end = token.find_last_not_of(" \t");
+                        if (end != string::npos) {
+                            token.erase(end + 1);
+                        }
+                        if (!token.empty()) {
+                            jsonArray.Add(token);
+                        }
                     }
-
-                    // Handle the last token
-                    if (!preferredLanguages.empty()) {
-                        preferredLanguages.erase(0, preferredLanguages.find_first_not_of(" \t"));
-                        preferredLanguages.erase(preferredLanguages.find_last_not_of(" \t") + 1);
-
-                        if (!first) result += ",";
-                        result += "\"" + preferredLanguages + "\"";
-                    }
-
-                    result += "]";
-                } else {
-                    // Empty string case - return ["eng"] as default
-                    result = "[\"eng\"]";
                 }
+ 
+                if (jsonArray.Length() == 0) {
+                    // Empty array - return default ["eng"]
+                    jsonArray.Add("eng");
+                }
+ 
+                jsonArray.ToString(result);
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetPreferredCaptionsLanguages on UserSettings COM interface, error: %u", rc);
@@ -752,74 +735,39 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
             string commaSeparatedLanguages;
 
-            // Check if input is a JSON array
-            if (languages.length() >= 2 && languages[0] == '[' && languages.back() == ']') {
-                // Handle JSON array format
-                string arrayContent = languages.substr(1, languages.length() - 2); // Remove [ ]
-
-                if (!arrayContent.empty()) {
-                    // Use a cleaner parsing approach similar to GetPreferredAudioLanguages
-                    string remaining = arrayContent;
-                    bool first = true;
-
-                    while (!remaining.empty()) {
-                        // Skip whitespace and commas
-                        size_t start = remaining.find_first_not_of(" \t,");
-                        if (start == string::npos) break;
-
-                        remaining = remaining.substr(start);
-
-                        string token;
-                        if (!remaining.empty() && remaining[0] == '"') {
-                            // Find closing quote
-                            size_t endQuote = remaining.find('"', 1);
-                            if (endQuote != string::npos) {
-                                token = remaining.substr(1, endQuote - 1); // Extract content between quotes
-                                remaining = remaining.substr(endQuote + 1);
-                            } else {
-                                // Malformed JSON - no closing quote
-                                LOGERR("Malformed JSON: missing closing quote");
-                                break;
-                            }
-                        } else {
-                            // Malformed JSON - expected quoted string
-                            LOGERR("Malformed JSON: expected quoted string");
-                            break;
-                        }
-
-                        // Add token to result if not empty
-                        if (!token.empty()) {
-                            if (!first) commaSeparatedLanguages += ",";
-                            commaSeparatedLanguages += token;
-                            first = false;
-                        }
+            // Try parsing as JSON array first
+            JsonArray jsonArray;
+            if (jsonArray.FromString(languages)) {
+                // Successfully parsed as JSON array
+                bool first = true;
+                JsonArray::Iterator it = jsonArray.Elements();
+                while (it.Next()) {
+                    if (it.Current().Content() == JsonValue::type::STRING) {
+                        if (!first) commaSeparatedLanguages += ",";
+                        commaSeparatedLanguages += it.Current().String();
+                        first = false;
                     }
                 }
-            } else if (languages == "[]") {
-                // Handle empty array case
-                commaSeparatedLanguages = "";
             } else {
-                // Handle single string value case (e.g., "tam")
-                // Remove quotes if present and use as-is
+                // Not a JSON array, treat as single string value
+                // Remove quotes if present
                 if (languages.length() >= 2 && languages[0] == '"' && languages.back() == '"') {
                     commaSeparatedLanguages = languages.substr(1, languages.length() - 2);
+                } else if (languages == "[]") {
+                    commaSeparatedLanguages = "";  // Empty array
                 } else {
                     commaSeparatedLanguages = languages;
                 }
-                LOGINFO("Handling single string value: %s", commaSeparatedLanguages.c_str());
             }
 
-            LOGINFO("Converted JSON array to comma-separated: %s", commaSeparatedLanguages.c_str());
+            LOGINFO("Converted to comma-separated: %s", commaSeparatedLanguages.c_str());
 
             Core::hresult rc = userSettings->SetPreferredAudioLanguages(commaSeparatedLanguages);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform response: return_or_error(null, "couldn't set preferred audio languages")
-                // Success case - return null (no error)
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call SetPreferredAudioLanguages on UserSettings COM interface, error: %u", rc);
-                // Error case - return error
                 return Core::ERROR_GENERAL;
             }
         }
@@ -840,74 +788,39 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
             string commaSeparatedLanguages;
 
-            // Check if input is a JSON array
-            if (preferredLanguages.length() >= 2 && preferredLanguages[0] == '[' && preferredLanguages.back() == ']') {
-                // Handle JSON array format
-                string arrayContent = preferredLanguages.substr(1, preferredLanguages.length() - 2); // Remove [ ]
-
-                if (!arrayContent.empty()) {
-                    // Use a cleaner parsing approach similar to SetPreferredAudioLanguages
-                    string remaining = arrayContent;
-                    bool first = true;
-
-                    while (!remaining.empty()) {
-                        // Skip whitespace and commas
-                        size_t start = remaining.find_first_not_of(" \t,");
-                        if (start == string::npos) break;
-
-                        remaining = remaining.substr(start);
-
-                        string token;
-                        if (!remaining.empty() && remaining[0] == '"') {
-                            // Find closing quote
-                            size_t endQuote = remaining.find('"', 1);
-                            if (endQuote != string::npos) {
-                                token = remaining.substr(1, endQuote - 1); // Extract content between quotes
-                                remaining = remaining.substr(endQuote + 1);
-                            } else {
-                                // Malformed JSON - no closing quote
-                                LOGERR("Malformed JSON: missing closing quote");
-                                break;
-                            }
-                        } else {
-                            // Malformed JSON - expected quoted string
-                            LOGERR("Malformed JSON: expected quoted string");
-                            break;
-                        }
-
-                        // Add token to result if not empty
-                        if (!token.empty()) {
-                            if (!first) commaSeparatedLanguages += ",";
-                            commaSeparatedLanguages += token;
-                            first = false;
-                        }
+            // Try parsing as JSON array first
+            JsonArray jsonArray;
+            if (jsonArray.FromString(preferredLanguages)) {
+                // Successfully parsed as JSON array
+                bool first = true;
+                JsonArray::Iterator it = jsonArray.Elements();
+                while (it.Next()) {
+                    if (it.Current().Content() == JsonValue::type::STRING) {
+                        if (!first) commaSeparatedLanguages += ",";
+                        commaSeparatedLanguages += it.Current().String();
+                        first = false;
                     }
                 }
-            } else if (preferredLanguages == "[]") {
-                // Handle empty array case
-                commaSeparatedLanguages = "";
             } else {
-                // Handle single string value case (e.g., "tam")
-                // Remove quotes if present and use as-is
+                // Not a JSON array, treat as single string value
+                // Remove quotes if present
                 if (preferredLanguages.length() >= 2 && preferredLanguages[0] == '"' && preferredLanguages.back() == '"') {
                     commaSeparatedLanguages = preferredLanguages.substr(1, preferredLanguages.length() - 2);
+                } else if (preferredLanguages == "[]") {
+                    commaSeparatedLanguages = "";  // Empty array
                 } else {
                     commaSeparatedLanguages = preferredLanguages;
                 }
-                LOGINFO("Handling single string value: %s", commaSeparatedLanguages.c_str());
             }
 
-            LOGINFO("Converted JSON array to comma-separated: %s", commaSeparatedLanguages.c_str());
+            LOGINFO("Converted to comma-separated: %s", commaSeparatedLanguages.c_str());
 
             Core::hresult rc = userSettings->SetPreferredCaptionsLanguages(commaSeparatedLanguages);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform response: return_or_error(null, "couldn't set preferred captions languages")
-                // Success case - return null (no error)
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call SetPreferredCaptionsLanguages on UserSettings COM interface, error: %u", rc);
-                // Error case - return error
                 return Core::ERROR_GENERAL;
             }
         }
@@ -1005,7 +918,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
         void OnContentPinChanged(const string& contentPin) {
             mParent.Dispatch( "OnContentPinChanged", contentPin);
         }
-                
+
                 // New Method for Set registered
                 void SetRegistered(bool state) {
                     std::lock_guard<std::mutex> lock(registerMutex);
@@ -1049,56 +962,47 @@ class UserSettingsDelegate : public BaseEventDelegate{
                         userSettings->GetPreferredCaptionsLanguages(preferredLanguages);
                     }
 
-                    // Build JSON response with enabled, styles, and preferredLanguages
-                    std::ostringstream jsonStream;
-                    jsonStream << "{";
-                    jsonStream << "\"enabled\":" << (enabled ? "true" : "false");
+                    // Build JSON response using JsonObject and JsonArray
+                    JsonObject response;
+                    response["enabled"] = enabled;
 
-                    // Add styles object
-                    jsonStream << ",\"styles\":{";
-                    jsonStream << "\"fontFamily\":\"" << FontFamilyToString(style.fontFamily) << "\"";
-                    jsonStream << ",\"fontSize\":\"" << FontSizeToString(style.fontSize) << "\"";
-                    jsonStream << ",\"fontColor\":\"" << style.fontColor << "\"";
-                    jsonStream << ",\"fontOpacity\":" << static_cast<int>(style.fontOpacity);
-                    jsonStream << ",\"fontEdge\":\"" << FontEdgeToString(style.fontEdge) << "\"";
-                    jsonStream << ",\"fontEdgeColor\":\"" << style.fontEdgeColor << "\"";
-                    jsonStream << ",\"backgroundColor\":\"" << style.backgroundColor << "\"";
-                    jsonStream << ",\"backgroundOpacity\":" << static_cast<int>(style.backgroundOpacity);
-                    jsonStream << ",\"windowColor\":\"" << style.windowColor << "\"";
-                    jsonStream << ",\"windowOpacity\":" << static_cast<int>(style.windowOpacity);
-                    jsonStream << "}";
+                    // Add styles object using helper function
+                    JsonObject styles;
+                    BuildClosedCaptionsStyleJson(style, styles);
+                    response["styles"] = styles;
 
                     // Add preferredLanguages array
-                    jsonStream << ",\"preferredLanguages\":";
+                    JsonArray languagesArray;
                     if (!preferredLanguages.empty()) {
-                        // Convert comma-separated string to JSON array
-                        jsonStream << "[";
-                        size_t pos = 0;
-                        bool first = true;
-                        string remaining = preferredLanguages;
-                        while ((pos = remaining.find(',')) != string::npos) {
-                            string token = remaining.substr(0, pos);
-                            token.erase(0, token.find_first_not_of(" \t"));
-                            token.erase(token.find_last_not_of(" \t") + 1);
-                            if (!first) jsonStream << ",";
-                            jsonStream << "\"" << token << "\"";
-                            first = false;
-                            remaining.erase(0, pos + 1);
+                        // Split comma-separated string into JSON array
+                        std::istringstream stream(preferredLanguages);
+                        string token;
+                        while (std::getline(stream, token, ',')) {
+                            // Trim whitespace
+                            size_t start = token.find_first_not_of(" \t");
+                            if (start == string::npos) {
+                                continue; // Skip all-whitespace tokens
+                            }
+                            token.erase(0, start);
+                            size_t end = token.find_last_not_of(" \t");
+                            if (end != string::npos) {
+                                token.erase(end + 1);
+                            }
+                            if (!token.empty()) {
+                                languagesArray.Add(token);
+                            }
                         }
-                        if (!remaining.empty()) {
-                            remaining.erase(0, remaining.find_first_not_of(" \t"));
-                            remaining.erase(remaining.find_last_not_of(" \t") + 1);
-                            if (!first) jsonStream << ",";
-                            jsonStream << "\"" << remaining << "\"";
-                        }
-                        jsonStream << "]";
-                    } else {
-                        jsonStream << "[\"eng\"]";  // Default to ["eng"] if empty
                     }
 
-                    jsonStream << "}";
+                    if (languagesArray.Length() == 0) {
+                        languagesArray.Add("eng");  // Default to ["eng"] if empty
+                    }
 
-                    mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", jsonStream.str());
+                    response["preferredLanguages"] = languagesArray;
+
+                    string result;
+                    response.ToString(result);
+                    mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", result);
                 }
 
                 // New Method for Set registered
@@ -1113,7 +1017,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
                     return registered;
                 }
 
-                BEGIN_INTERFACE_MAP(NotificationHandler)
+                BEGIN_INTERFACE_MAP(TextTrackNotificationHandler)
                 INTERFACE_ENTRY(Exchange::ITextTrackClosedCaptionsStyle::INotification)
                 END_INTERFACE_MAP
             private:
@@ -1132,3 +1036,4 @@ class UserSettingsDelegate : public BaseEventDelegate{
         
 };
 #endif
+
