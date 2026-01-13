@@ -13,7 +13,7 @@ on:
 
 jobs:
   call_coverity_full_scan:
-    uses: rdkcentral/entservices-appgateway/.github/workflows/coverity_component_full_scan.yml@main
+    uses: rdkcentral/entservices-appgateway/.github/workflows/coverity_component_full_scan.yml@RDKEMW-12209
     with:
       branchName: ${{ github.event.inputs.branchName || 'main' }}
       buildCommand: sh -x build_dependencies.sh && sh -x cov_build.sh
