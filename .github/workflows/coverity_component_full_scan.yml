@@ -1,0 +1,98 @@
+name: Coverity Full Analysis Scan
+
+on:
+  workflow_call:
+    inputs:
+      buildCommand:
+        description: 'Build Command'
+        required: true
+        type: string
+      branchName:
+        description: 'Branch Name'
+        required: true
+        type: string
+      customSetup:
+        description: 'Custom setup commands'
+        required: false
+        type: string
+    secrets:
+      RDKE_COVERITY_APIKEY:
+        required: true
+      RDKE_ARTIFACTORY_USER_APIKEY:
+        required: true
+      RDKE_GITHUB_TOKEN:
+        required: false
+      RDKE_GITHUB_TOKENCM:
+        required: true
+
+jobs:
+  coverity_full_scan:
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ vars.DOCKER_REGISTRY }}/rdk-docker/docker-rdk-coverity:latest
+      credentials:
+        username: ${{ vars.RDKE_ARTIFACTORY_USER }}
+        password: ${{ secrets.RDKE_ARTIFACTORY_USER_APIKEY }}
+
+    env:
+      COVERITY_URL: ${{ vars.COVERITY_URL }}
+      COVERITY_USER: ${{ vars.RDKE_COVERITY_USER }}
+      COVERITY_APIKEY: ${{ secrets.RDKE_COVERITY_APIKEY }}
+      GITHUB_TOKEN: ${{ secrets.RDKE_GITHUB_TOKEN }}
+      COVERITY_PROJECT_NAME: ${{ github.event.repository.name }}
+      COVERITY_STREAM_NAME: ${{ github.event.repository.name }}_${{ inputs.branchName }}
+      BUILD_COMMAND: ${{ inputs.buildCommand }}
+      GITHUB_TOKENCM: ${{ secrets.RDKE_GITHUB_TOKENCM }}
+      COVERITY_UNSUPPORTED_COMPILER_INVOCATION: 1
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Custom setup
+        if: ${{ inputs.customSetup }}
+        run: |
+          eval "${{ inputs.customSetup }}"
+
+      - name: Coverity Full Analysis Scan
+        run: |
+          export PATH=$PATH:/opt/coverity/bin
+          set -x
+          echo "COVERITY_PROJECT_NAME: $COVERITY_PROJECT_NAME"
+          echo "COVERITY_STREAM_NAME: $COVERITY_STREAM_NAME"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          chmod +x $GITHUB_WORKSPACE
+          cd $GITHUB_WORKSPACE
+          ls -al
+          
+          # Configure Coverity for GCC
+          cov-configure --gcc
+          
+          # Capture the build
+          cov-build --dir coverity_dir $BUILD_COMMAND
+          
+          # Run full analysis
+          cov-analyze --dir coverity_dir --one-tu-per-psf false --disable-spotbugs --aggressiveness-level low --enable DC.STRING_BUFFER --all
+          
+          # Commit results to Coverity Connect with retry logic
+          max_retries=3
+          retries=0
+          retry_timeout_sec=30
+          numsec=0
+          success=false
+          while [ $retries -lt $max_retries ]; do
+            echo "Attempt $((retries + 1)) for cov-commit-defects command"
+            cov-commit-defects --dir coverity_dir --stream $COVERITY_STREAM_NAME --url $COVERITY_URL --user $COVERITY_USER --password $COVERITY_APIKEY  
+            if [ "$?" -eq "0" ]; then
+              success=true
+              echo "cov-commit-defects is successful"
+              break
+            fi
+            retries=$((retries + 1))
+            numsec=$(($retries * $retry_timeout_sec))
+            echo "sleeping $numsec seconds and $retries time retrying"
+            sleep $numsec
+          done
+          if [ "$success" = false ]; then
+            echo "The cov-commit-defects process failed after $max_retries attempts."
+            exit 1
+          fi

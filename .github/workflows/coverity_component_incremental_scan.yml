@@ -1,0 +1,100 @@
+name: Coverity Incremental Analysis Scan
+
+on:
+  workflow_call:
+    inputs:
+      pullRequestNumber:
+        description: 'Coverity Run: Pull Request Number'
+        required: true
+        type: string
+      buildCommand:
+        description: 'Build Command'
+        required: true
+        type: string
+      branchName:
+        description: 'Branch Name'
+        required: true
+        type: string
+      customSetup:
+        description: 'Custom setup commands'
+        required: false
+        type: string
+
+    secrets:
+      RDKE_COVERITY_APIKEY:
+        required: true
+      RDKE_ARTIFACTORY_USER_APIKEY:
+        required: true
+      RDKE_GITHUB_TOKEN:
+        required: true
+      RDKE_GITHUB_TOKENCM:
+        required: true
+
+jobs:
+  coverity_incremental_scan:
+    runs-on: ubuntu-latest
+    container: 
+      image: ${{ vars.DOCKER_REGISTRY }}/rdk-docker/docker-rdk-coverity:latest
+      credentials:
+        username: ${{ vars.RDKE_ARTIFACTORY_USER }}
+        password: ${{ secrets.RDKE_ARTIFACTORY_USER_APIKEY }}
+
+    env:
+      COVERITY_URL: ${{ vars.COVERITY_URL }}
+      COVERITY_USER: ${{ vars.RDKE_COVERITY_USER }}
+      COVERITY_APIKEY: ${{ secrets.RDKE_COVERITY_APIKEY }}
+      GITHUB_TOKEN: ${{ secrets.RDKE_GITHUB_TOKEN }}
+      COVERITY_PROJECT_NAME: ${{ github.event.repository.name }}
+      COVERITY_STREAM_NAME: ${{ github.event.repository.name }}_${{ inputs.branchName }}
+      GITHUB_TOKENCM: ${{ secrets.RDKE_GITHUB_TOKENCM }}
+      BUILD_COMMAND: ${{ inputs.buildCommand }}
+      COVERITY_UNSUPPORTED_COMPILER_INVOCATION: 1
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Custom setup
+      if: ${{ inputs.customSetup }}
+      run: |
+        echo "customSetup Details:=${{ inputs.customSetup }}"
+        eval "${{ inputs.customSetup }}"
+
+    - name: Get Pull Request Changeset
+      id: changeset
+      uses: jitterbit/get-changed-files@v1
+      if: ${{ github.event_name == 'pull_request' }}
+      
+    # Coverity incremental analysis scan on pull requests
+    - name: Coverity Incremental Analysis Scan
+      if: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && steps.changeset.outputs.added_modified != '' }}
+      run: |
+        export PATH=$PATH:/opt/coverity/bin
+        set -x
+        echo "COVERITY_PROJECT_NAME: $COVERITY_PROJECT_NAME"
+        echo "COVERITY_STREAM_NAME: $COVERITY_STREAM_NAME"
+        echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+        chmod +x $GITHUB_WORKSPACE
+        cd $GITHUB_WORKSPACE
+        ls -al
+        echo "changed files : ${{ steps.changeset.outputs.added_modified }}"
+        
+        # Run Coverity incremental scan on changed files only
+        cov-run-desktop --dir coverity_dir --url $COVERITY_URL --user $COVERITY_USER --password $COVERITY_APIKEY --stream $COVERITY_STREAM_NAME --build $BUILD_COMMAND
+        cov-run-desktop --dir coverity_dir --url $COVERITY_URL --user $COVERITY_USER --password $COVERITY_APIKEY --stream $COVERITY_STREAM_NAME --present-in-reference false \
+          --ignore-uncapturable-inputs true \
+          --exit1-if-defects true  \
+          --json-output-v7 coverity_dir/coverity-results.json \
+          --allow-suffix-match --set-new-defect-owner false \
+          ${{ steps.changeset.outputs.added_modified }}
+          
+    # Post results as PR comment - only NEW issues will be reported
+    - name: Coverity Pull Request Feedback
+      if: always()
+      uses: synopsys-sig/coverity-report-output-v7-json@v0.1.1
+      with:
+        json-file-path: coverity_dir/coverity-results.json
+        github-token: ${{ secrets.RDKE_GITHUB_TOKEN }}
+        coverity-url: ${{ vars.COVERITY_URL }}
+        coverity-project-name: ${{ github.event.repository.name }}
+        coverity-username: ${{ vars.RDKE_COVERITY_USER }}
+        coverity-password: ${{ secrets.RDKE_COVERITY_APIKEY }}

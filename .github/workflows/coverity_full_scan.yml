@@ -1,0 +1,28 @@
+name: Coverity Full Analysis Scan
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'  # Run weekly on Sunday at 2 AM
+  workflow_dispatch:
+    inputs:
+      branchName:
+        description: 'Branch Name to Scan'
+        required: false
+        default: 'main'
+        type: string
+
+jobs:
+  call_coverity_full_scan:
+    uses: rdkcentral/entservices-appgateway/.github/workflows/coverity_component_full_scan.yml@main
+    with:
+      branchName: ${{ github.event.inputs.branchName || 'main' }}
+      buildCommand: sh -x build_dependencies.sh && sh -x cov_build.sh
+      customSetup: |
+        apt-get update -y
+        apt-get install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev tree
+        pip install jsonref
+    secrets:
+      RDKE_ARTIFACTORY_USER_APIKEY: ${{ secrets.RDKE_ARTIFACTORY_USER_APIKEY }}
+      RDKE_COVERITY_APIKEY: ${{ secrets.RDKE_COVERITY_APIKEY }}
+      RDKE_GITHUB_TOKEN: ${{ secrets.RDKE_GITHUB_TOKEN }}
+      RDKE_GITHUB_TOKENCM: ${{ secrets.RDKCM_RDKE }}

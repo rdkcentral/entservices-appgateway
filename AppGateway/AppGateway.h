@@ -28,6 +28,7 @@ namespace WPEFramework {
 		// For a plugin to be capable to handle JSONRPC, inherit from PluginHost::JSONRPC.
 		// By inheriting from this class, the plugin realizes the interface PluginHost::IDispatcher.
 		// This realization of this interface implements, by default, the following methods on this plugin
+		// Test comment to trigger Coverity workflow
 		// - exists
 		// - register
 		// - unregister
