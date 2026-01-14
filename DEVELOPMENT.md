@@ -657,6 +657,6 @@ journalctl -f | grep -E "(WPEFramework|AppGateway)"
 ## Getting Help
 
 - File issues on GitHub: https://github.com/rdkcentral/entservices-appgateway/issues
-- Check existing documentation in `docs/` directory
+- Check existing documentation (see DOCS.md for navigation)
 - Review test cases for usage examples
 - Consult Thunder documentation for framework questions

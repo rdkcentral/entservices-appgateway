@@ -289,7 +289,7 @@ Uses Thunder's `Core::hresult` error codes:
 - `Core::ERROR_GENERAL`: Generic failure
 - `Core::ERROR_UNAVAILABLE`: Service not available
 - `Core::ERROR_ILLEGAL_STATE`: Invalid state for operation
-- `Core::ERROR_PRIVILIGED_REQUEST`: Permission denied
+- `Core::ERROR_PRIVILEGED_REQUEST`: Permission denied
 
 ### Error Propagation
 1. Implementation layer returns error code
