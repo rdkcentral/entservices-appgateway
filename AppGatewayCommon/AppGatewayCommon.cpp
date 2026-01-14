@@ -200,6 +200,21 @@ namespace Plugin {
                 { "localization.preferredaudiolanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
                     return self->GetPreferredAudioLanguages(result);
                 }},
+                { "lifecycle2.close", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+                    return self->mDelegate->getLifecycleDelegate()->Lifecycle2Close(ctx,payload,result);
+                }},
+                { "lifecycle2.state", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+                    return self->mDelegate->getLifecycleDelegate()->Lifecycle2State(ctx,payload,result);
+                }},
+                { "lifecycle.close", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+                    return self->mDelegate->getLifecycleDelegate()->LifecycleClose(ctx,payload,result);
+                }},
+                { "lifecycle.ready", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+                    return self->mDelegate->getLifecycleDelegate()->LifecycleReady(ctx,payload,result);
+                }},
+                { "lifecycle.finished", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+                    return self->mDelegate->getLifecycleDelegate()->LifecycleFinished(ctx,payload,result);
+                }},
             };
 
             auto it = handlers.find(lowerMethod);
@@ -1070,8 +1085,6 @@ namespace Plugin {
             allowed = true;
             return Core::ERROR_NONE;
         }
-
-
 
 } // namespace Plugin
 } // namespace WPEFramework

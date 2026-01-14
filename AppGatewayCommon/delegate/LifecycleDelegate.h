@@ -131,6 +131,29 @@ class LifecycleDelegate : public BaseEventDelegate
         }
     }
 
+    Core::hresult LifecycleClose(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        return Core::ERROR_NONE;
+    }
+
+    Core::hresult Lifecycle2Close(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        return Core::ERROR_NONE;
+    }
+
+    Core::hresult Lifecycle2State(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        return Core::ERROR_NONE;
+    }
+
+    Core::hresult LifecycleReady(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        if (mLifecycleManagerState != nullptr) {
+            return mLifecycleManagerState->AppReady(context.appId);            
+        }
+        return Core::ERROR_NONE;
+    }
+
+    Core::hresult LifecycleFinished(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        return Core::ERROR_NONE;
+    }
+
     private:
     class LifecycleNotificationHandler : public Exchange::ILifecycleManagerState::INotification
     {
