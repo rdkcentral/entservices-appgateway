@@ -226,9 +226,12 @@ This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) fo
 
 ## Documentation
 
+- **[DOCS.md](DOCS.md)** - Complete documentation index and navigation guide
 - [CHANGELOG.md](CHANGELOG.md) - Release notes and version history
 - [Tests/README.md](Tests/README.md) - Detailed testing documentation
-- For additional architecture details, see component-specific READMEs
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture and design details
+- [DEVELOPMENT.md](DEVELOPMENT.md) - Developer setup and workflow guide
+- [API.md](API.md) - Complete API reference with examples
 
 ## Support
 
