@@ -46,71 +46,84 @@ static const std::set<string> VALID_USER_SETTINGS_EVENT = {
 static const char* FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily family) {
     switch (family) {
         case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CONTENT_DEFAULT:
-            return "CONTENT_DEFAULT";
+            return "null";
         case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::MONOSPACED_SERIF:
-            return "MONOSPACED_SERIF";
+            return "monospaced_serif";
         case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::PROPORTIONAL_SERIF:
-            return "PROPORTIONAL_SERIF";
+            return "proportional_serif";
         case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::MONOSPACE_SANS_SERIF:
-            return "MONOSPACE_SANS_SERIF";
+            return "monospaced_sanserif";
         case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::PROPORTIONAL_SANS_SERIF:
-            return "PROPORTIONAL_SANS_SERIF";
+            return "proportional_sanserif";
         case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CASUAL:
-            return "CASUAL";
+            return "casual";
         case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CURSIVE:
-            return "CURSIVE";
+            return "cursive";
         case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::SMALL_CAPITAL:
-            return "SMALL_CAPITAL";
+            return "smallcaps";
         default:
-            return "CONTENT_DEFAULT";
+            return "null";
     }
 }
 
-static const char* FontSizeToString(Exchange::ITextTrackClosedCaptionsStyle::FontSize size) {
+static int FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize size) {
     switch (size) {
         case Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT:
-            return "CONTENT_DEFAULT";
+            return -1;  // Will be filtered out as null in JSON
         case Exchange::ITextTrackClosedCaptionsStyle::FontSize::SMALL:
-            return "SMALL";
+            return 0;
         case Exchange::ITextTrackClosedCaptionsStyle::FontSize::REGULAR:
-            return "REGULAR";
+            return 1;
         case Exchange::ITextTrackClosedCaptionsStyle::FontSize::LARGE:
-            return "LARGE";
+            return 2;
         case Exchange::ITextTrackClosedCaptionsStyle::FontSize::EXTRA_LARGE:
-            return "EXTRA_LARGE";
+            return 3;
         default:
-            return "CONTENT_DEFAULT";
+            return -1;
     }
 }
 
 static const char* FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge edge) {
     switch (edge) {
         case Exchange::ITextTrackClosedCaptionsStyle::FontEdge::CONTENT_DEFAULT:
-            return "CONTENT_DEFAULT";
+            return "null";
         case Exchange::ITextTrackClosedCaptionsStyle::FontEdge::NONE:
-            return "NONE";
+            return "none";
         case Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RAISED:
-            return "RAISED";
+            return "raised";
         case Exchange::ITextTrackClosedCaptionsStyle::FontEdge::DEPRESSED:
-            return "DEPRESSED";
+            return "depressed";
         case Exchange::ITextTrackClosedCaptionsStyle::FontEdge::UNIFORM:
-            return "UNIFORM";
+            return "uniform";
         case Exchange::ITextTrackClosedCaptionsStyle::FontEdge::LEFT_DROP_SHADOW:
-            return "LEFT_DROP_SHADOW";
+            return "drop_shadow_left";
         case Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RIGHT_DROP_SHADOW:
-            return "RIGHT_DROP_SHADOW";
+            return "drop_shadow_right";
         default:
-            return "CONTENT_DEFAULT";
+            return "null";
     }
 }
 
 // Helper function to build JSON styles object from ClosedCaptionsStyle struct
 static void BuildClosedCaptionsStyleJson(const Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle& style, JsonObject& styles) {
-    styles["fontFamily"] = FontFamilyToString(style.fontFamily);
-    styles["fontSize"] = FontSizeToString(style.fontSize);
+    // Only add fontFamily if not CONTENT_DEFAULT
+    if (style.fontFamily != Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CONTENT_DEFAULT) {
+        styles["fontFamily"] = FontFamilyToString(style.fontFamily);
+    }
+    
+    // Only add fontSize if not CONTENT_DEFAULT
+    if (style.fontSize != Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT) {
+        styles["fontSize"] = FontSizeToNumber(style.fontSize);
+    }
+    
     styles["fontColor"] = style.fontColor;
     styles["fontOpacity"] = static_cast<int>(style.fontOpacity);
-    styles["fontEdge"] = FontEdgeToString(style.fontEdge);
+    
+    // Only add fontEdge if not CONTENT_DEFAULT
+    if (style.fontEdge != Exchange::ITextTrackClosedCaptionsStyle::FontEdge::CONTENT_DEFAULT) {
+        styles["fontEdge"] = FontEdgeToString(style.fontEdge);
+    }
+
     styles["fontEdgeColor"] = style.fontEdgeColor;
     styles["backgroundColor"] = style.backgroundColor;
     styles["backgroundOpacity"] = static_cast<int>(style.backgroundOpacity);
