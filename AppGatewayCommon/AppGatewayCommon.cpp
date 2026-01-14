@@ -1084,16 +1084,14 @@ namespace Plugin {
 
         Core::hresult AppGatewayCommon::Authenticate(const string &sessionId /* @in */, string &appId /* @out */)
         {
-            Core::hresult result = Core::ERROR_NOT_EXIST;
-            
-            return result;
+            auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
+            return lifecycleDelegate->Authenticate(sessionId, appId);
         }
 
         Core::hresult AppGatewayCommon::GetSessionId(const string &appId /* @in */, string &sessionId /* @out */)
         {
-            Core::hresult result = Core::ERROR_NOT_EXIST;
-            
-            return result;
+            auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
+            return lifecycleDelegate->GetSessionId(appId, sessionId);
         }
 
         Core::hresult AppGatewayCommon::CheckPermissionGroup(const string &appId /* @in */, const string &permissionGroup /* @in */, bool &allowed /* @out */)

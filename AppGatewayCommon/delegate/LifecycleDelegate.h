@@ -25,10 +25,12 @@
 #include "StringUtils.h"
 #include "BaseEventDelegate.h"
 #include <interfaces/ILifecycleManagerState.h>
+#include <interfaces/IRDKWindowManager.h>
 #include "UtilsLogging.h"
 using namespace WPEFramework;
 
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
+#define WINDOW_MANAGER_CALLSIGN "org.rdk.WindowManager"
 
 // Valid lifecycle events that can be subscribed to
 static const std::set<string> VALID_LIFECYCLE_EVENT = {
@@ -38,7 +40,8 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
     "lifecycle.onsuspended",
     "lifecycle.onunloading",
     "lifecycle2.onstatechanged",
-    "discovery.onnavigateto"
+    "discovery.onnavigateto",
+    "presentation.onfocusedChanged"
 };
 
 class LifecycleDelegate : public BaseEventDelegate
@@ -94,38 +97,6 @@ class LifecycleDelegate : public BaseEventDelegate
         return false;
     }
 
-    Exchange::ILifecycleManagerState* GetLifecycleManagerStateInterface()
-    {
-        if (mLifecycleManagerState == nullptr && mShell != nullptr)
-        {
-            mLifecycleManagerState = mShell->QueryInterfaceByCallsign<Exchange::ILifecycleManagerState>(LIFECYCLE_MANAGER_CALLSIGN);
-            if (mLifecycleManagerState == nullptr)
-            {
-                LOGERR("Failed to get LifecycleManagerState COM interface");
-            }
-        }
-        return mLifecycleManagerState;
-    }
-
-    // Handle Lifecycle update for a given appInstanceId by accepting the previous and current lifecycle state
-    void HandleLifeycleUpdate(const string& appInstanceId,  const Exchange::ILifecycleManager::LifecycleState oldLifecycleState, const Exchange::ILifecycleManager::LifecycleState newLifecycleState)
-    {
-        // update lifecycle state registry
-        mLifecycleStateRegistry.UpdateLifecycleState(appInstanceId, newLifecycleState);
-
-        // get appId from appInstanceId
-        string appId = mAppIdInstanceIdMap.GetAppId(appInstanceId);
-
-        Dispatch("Lifecycle2.onStateChanged", mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId), appId);
-
-        // if new lifecycleState is ACTIVE trigger last known intent
-        if (newLifecycleState == Exchange::ILifecycleManager::ACTIVE) {
-            DispatchLastKnownIntent(appId);
-        }
-
-        HandleLifecycle1Update(appInstanceId, oldLifecycleState, newLifecycleState);
-    }
-
     // Dispatch last known intent for a given appId
     void DispatchLastKnownIntent(const string& appId)
     {
@@ -138,26 +109,25 @@ class LifecycleDelegate : public BaseEventDelegate
         }
     }
 
-    // Create method to support lifecycle 1 updates which accepts the instanceId along with current
-    // old lifecycle states
-    void HandleLifecycle1Update(const string& appInstanceId,  const Exchange::ILifecycleManager::LifecycleState oldLifecycleState, const Exchange::ILifecycleManager::LifecycleState newLifecycleState)
+    // Get AppId from Instance Id
+    Core::hresult Authenticate(const string& appInstanceId, string& appId)
     {
-        switch (newLifecycleState) {
-            
-            case Exchange::ILifecycleManager::PAUSED:
-                Dispatch("Lifecycle.onInactive", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
-                break;
-            case Exchange::ILifecycleManager::SUSPENDED:
-            case Exchange::ILifecycleManager::HIBERNATED:
-                Dispatch("Lifecycle.onSuspended", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
-                break;
-            case Exchange::ILifecycleManager::UNLOADED:
-            case Exchange::ILifecycleManager::TERMINATING:
-                Dispatch("Lifecycle.onUnloading", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
-                break;
-            default:
-                // No action for other states
-                break;
+        appId = mAppIdInstanceIdMap.GetAppId(appInstanceId);
+        if (appId.empty()) {
+            return Core::ERROR_GENERAL;
+        } else {
+            return Core::ERROR_NONE;
+        }
+    }
+
+    // Get AppInstanceId from AppId
+    Core::hresult GetSessionId(const string& appId, string& appInstanceId)
+    {
+        appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
+        if (appInstanceId.empty()) {
+            return Core::ERROR_GENERAL;
+        } else {
+            return Core::ERROR_NONE;
         }
     }
 
@@ -165,7 +135,7 @@ class LifecycleDelegate : public BaseEventDelegate
     class LifecycleNotificationHandler : public Exchange::ILifecycleManagerState::INotification
     {
     public:
-        LifecycleNotificationHandler(LifecycleDelegate &parent) : mParent(parent), registered(false) {}
+        LifecycleNotificationHandler(LifecycleDelegate &parent) : mParent(parent) {}
         void OnAppLifecycleStateChanged(const string& appId /* @text appId */,
                                         const string& appInstanceId /* @text appInstanceId */,
                                         const Exchange::ILifecycleManager::LifecycleState oldLifecycleState /* @text oldLifecycleState */,
@@ -190,27 +160,38 @@ class LifecycleDelegate : public BaseEventDelegate
             
         }
 
-        // Registration management methods
-        void SetRegistered(bool state)
-        {
-            std::lock_guard<std::mutex> lock(registerMutex);
-            registered = state;
-        }
-
-        bool GetRegistered()
-        {
-            std::lock_guard<std::mutex> lock(registerMutex);
-            return registered;
-        }
-
         BEGIN_INTERFACE_MAP(NotificationHandler)
         INTERFACE_ENTRY(Exchange::ILifecycleManagerState::INotification)
         END_INTERFACE_MAP
 
     private:
         LifecycleDelegate &mParent;
-        bool registered;
-        std::mutex registerMutex;
+    };
+
+    class WindowManagerNotificationHandler : public Exchange::IRDKWindowManager::INotification
+    {
+    public:
+        WindowManagerNotificationHandler(LifecycleDelegate &parent) : mParent(parent) {}
+
+        void OnFocus(const std::string& appInstanceId){
+            mParent.mFocusedAppRegistry.SetFocusedAppInstanceId(appInstanceId);
+            mParent.Dispatch("Presentation.onFocusedChanged", mParent.mFocusedAppRegistry.GetFocusedEventData(appInstanceId), mParent.mAppIdInstanceIdMap.GetAppId(appInstanceId));
+            mParent.HandleAppFocusForLifecycle1(appInstanceId);
+        }
+
+        void OnBlur(const std::string& appInstanceId){
+            mParent.mFocusedAppRegistry.ClearFocusedAppInstanceId();
+            mParent.Dispatch("Presentation.onFocusedChanged", mParent.mFocusedAppRegistry.GetFocusedEventData(appInstanceId), mParent.mAppIdInstanceIdMap.GetAppId(appInstanceId));
+            mParent.HandleAppBlurForLifecycle1(appInstanceId);
+        }
+
+        // Implement notification methods if needed
+        BEGIN_INTERFACE_MAP(WindowManagerNotificationHandler)
+        INTERFACE_ENTRY(Exchange::IRDKWindowManager::INotification)
+        END_INTERFACE_MAP
+
+    private:
+        LifecycleDelegate &mParent;
     };
 
     // create a class to store app Id and app instance id map
@@ -269,6 +250,15 @@ class LifecycleDelegate : public BaseEventDelegate
                 LifecycleStateInfo& stateInfo = lifecycleStateMap[appInstanceId];
                 stateInfo.previousState = stateInfo.currentState;
                 stateInfo.currentState = newState;
+            }
+
+            // is current app lifecycle state is ACTIVE
+            bool IsAppLifecycleActive(const string& appInstanceId) {
+                std::lock_guard<std::mutex> lock(registryMutex);
+                if (lifecycleStateMap.find(appInstanceId) != lifecycleStateMap.end()) {
+                    return lifecycleStateMap[appInstanceId].currentState == Exchange::ILifecycleManager::ACTIVE;
+                }
+                return false;
             }
 
             LifecycleStateInfo GetLifecycleStateInfo(const string& appInstanceId) {
@@ -337,6 +327,44 @@ class LifecycleDelegate : public BaseEventDelegate
             std::mutex intentMutex;
     };
 
+    // create a class which stores the last app instance id which has focus
+    // focus can be cleared by clearing the app instance id when no apps are in focus
+    class FocusedAppRegistry {
+        public:
+            void SetFocusedAppInstanceId(const string& appInstanceId) {
+                std::lock_guard<std::mutex> lock(focusMutex);
+                focusedAppInstanceId = appInstanceId;
+            }
+
+            // check if given instanceId has focus
+            bool IsAppInstanceIdFocused(const string& appInstanceId) {
+                std::lock_guard<std::mutex> lock(focusMutex);
+                return focusedAppInstanceId == appInstanceId;
+            }
+
+            string GetFocusedAppInstanceId() {
+                std::lock_guard<std::mutex> lock(focusMutex);
+                return focusedAppInstanceId;
+            }
+
+            void ClearFocusedAppInstanceId() {
+                std::lock_guard<std::mutex> lock(focusMutex);
+                focusedAppInstanceId.clear();
+            }
+
+            // return a focus json string for a given app instanceId {"value": true or false}
+            string GetFocusedEventData(const string& appInstanceId) {
+                std::lock_guard<std::mutex> lock(focusMutex);
+                bool isFocused = (focusedAppInstanceId == appInstanceId);
+                // jsonPayload is boolean for value
+                string jsonPayload = "{ \"value\": " + string(isFocused ? "true" : "false") + " }";
+                return jsonPayload;
+            }
+        private:
+            string focusedAppInstanceId;
+            std::mutex focusMutex;
+    };
+
 
     // create a utility function to convert LifecycleState to string
     static string LifecycleStateToString(Exchange::ILifecycleManager::LifecycleState state) {
@@ -382,15 +410,111 @@ class LifecycleDelegate : public BaseEventDelegate
         }
     }
 
+    // Create method to support lifecycle 1 updates which accepts the instanceId along with current
+    // old lifecycle states
+    void HandleLifecycle1Update(const string& appInstanceId,  const Exchange::ILifecycleManager::LifecycleState oldLifecycleState, const Exchange::ILifecycleManager::LifecycleState newLifecycleState)
+    {
+        switch (newLifecycleState) {
+            
+            case Exchange::ILifecycleManager::PAUSED:
+                Dispatch("Lifecycle.onInactive", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
+                break;
+            case Exchange::ILifecycleManager::SUSPENDED:
+            case Exchange::ILifecycleManager::HIBERNATED:
+                Dispatch("Lifecycle.onSuspended", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
+                break;
+            case Exchange::ILifecycleManager::UNLOADED:
+            case Exchange::ILifecycleManager::TERMINATING:
+                Dispatch("Lifecycle.onUnloading", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
+                break;
+            case Exchange::ILifecycleManager::ACTIVE:
+                // if app is in focus send foreground
+                 if(mFocusedAppRegistry.IsAppInstanceIdFocused(appInstanceId)) {
+                    Dispatch("Lifecycle.onForeground", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
+                 } else {
+                    Dispatch("Lifecycle.onBackground", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
+                 }
+                break;
+            default:
+                // No action for other states
+                break;
+        }
+    }
+
+    // create a function to handle focus for a given app instance id
+    void HandleAppFocusForLifecycle1(const string& appInstanceId) {
+        // get if current app lifecycle is active
+        if (mLifecycleStateRegistry.IsAppLifecycleActive(appInstanceId)) {
+            mFocusedAppRegistry.SetFocusedAppInstanceId(appInstanceId);
+            Dispatch("Lifecycle.onForeground", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
+        }
+    }
+
+    // create a function to handle blur for a given app instance id
+    void HandleAppBlurForLifecycle1(const string& appInstanceId) {
+        // get if current app lifecycle is active
+        if (mLifecycleStateRegistry.IsAppLifecycleActive(appInstanceId)) {
+            mFocusedAppRegistry.ClearFocusedAppInstanceId();
+            Dispatch("Lifecycle.onBackground", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
+        }
+    }
+
+    Exchange::ILifecycleManagerState* GetLifecycleManagerStateInterface()
+    {
+        if (mLifecycleManagerState == nullptr && mShell != nullptr)
+        {
+            mLifecycleManagerState = mShell->QueryInterfaceByCallsign<Exchange::ILifecycleManagerState>(LIFECYCLE_MANAGER_CALLSIGN);
+            if (mLifecycleManagerState == nullptr)
+            {
+                LOGERR("Failed to get LifecycleManagerState COM interface");
+            }
+        }
+        return mLifecycleManagerState;
+    }
+
+    Exchange::IRDKWindowManager* GetWindowManagerInterface()
+    {
+        if (mWindowManager == nullptr && mShell != nullptr)
+        {
+            mWindowManager = mShell->QueryInterfaceByCallsign<Exchange::IRDKWindowManager>(WINDOW_MANAGER_CALLSIGN);
+            if (mWindowManager == nullptr)
+            {
+                LOGERR("Failed to get RDKWindowManager COM interface");
+            }
+        }
+        return mWindowManager;
+    }
+
+    // Handle Lifecycle update for a given appInstanceId by accepting the previous and current lifecycle state
+    void HandleLifeycleUpdate(const string& appInstanceId,  const Exchange::ILifecycleManager::LifecycleState oldLifecycleState, const Exchange::ILifecycleManager::LifecycleState newLifecycleState)
+    {
+        // update lifecycle state registry
+        mLifecycleStateRegistry.UpdateLifecycleState(appInstanceId, newLifecycleState);
+
+        // get appId from appInstanceId
+        string appId = mAppIdInstanceIdMap.GetAppId(appInstanceId);
+
+        Dispatch("Lifecycle2.onStateChanged", mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId), appId);
+
+        // if new lifecycleState is ACTIVE trigger last known intent
+        if (newLifecycleState == Exchange::ILifecycleManager::ACTIVE) {
+            DispatchLastKnownIntent(appId);
+        }
+
+        HandleLifecycle1Update(appInstanceId, oldLifecycleState, newLifecycleState);
+    }
+
     
     private:
         PluginHost::IShell *mShell;
         Exchange::ILifecycleManagerState *mLifecycleManagerState;
+        Exchange::IRDKWindowManager *mWindowManager;
         Core::Sink<LifecycleNotificationHandler> mNotificationHandler;
         // add all registries
         AppIdInstanceIdMap mAppIdInstanceIdMap;
         LifecycleStateRegistry mLifecycleStateRegistry;
         NavigationIntentRegistry mNavigationIntentRegistry;
+        FocusedAppRegistry mFocusedAppRegistry;
 };
 
 
