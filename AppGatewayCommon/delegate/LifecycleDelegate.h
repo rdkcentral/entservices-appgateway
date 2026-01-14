@@ -32,7 +32,12 @@ using namespace WPEFramework;
 
 // Valid lifecycle events that can be subscribed to
 static const std::set<string> VALID_LIFECYCLE_EVENT = {
-    "device.onlifecyclechanged"
+    "lifecycle.onbackground",
+    "lifecycle.onforeground",
+    "lifecycle.oninactive",
+    "lifecycle.onsuspended",
+    "lifecycle.onunloading",
+    "lifecycle2.onstatechanged"
 };
 
 class LifecycleDelegate : public BaseEventDelegate
@@ -66,12 +71,6 @@ class LifecycleDelegate : public BaseEventDelegate
         // Check if event is present in VALID_LIFECYCLE_EVENT make check case insensitive
         if (listen)
         {
-           Exchange::ILifecycleManagerState *lifecycleManagerState = GetLifecycleManagerStateInterface();
-           if (lifecycleManagerState == nullptr)
-           {
-               LOGERR("LifecycleManagerState interface not available");
-               return false;
-           }
             AddNotification(event, cb);
         }
         else
@@ -107,6 +106,19 @@ class LifecycleDelegate : public BaseEventDelegate
         return mLifecycleManagerState;
     }
 
+    // Handle Lifecycle update for a given appInstanceId by accepting the previous and current lifecycle state
+    void HandleLifeycleUpdate(const string& appInstanceId,  const Exchange::ILifecycleManager::LifecycleState oldLifecycleState, const Exchange::ILifecycleManager::LifecycleState newLifecycleState)
+    {
+        // update lifecycle state registry
+        mLifecycleStateRegistry.UpdateLifecycleState(appInstanceId, newLifecycleState);
+
+        // get appId from appInstanceId
+        string appId = mAppIdInstanceIdMap.GetAppId(appInstanceId);
+
+        Dispatch("Lifecycle2.onStateChanged", mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId), appId);
+
+    }
+
     private:
     class LifecycleNotificationHandler : public Exchange::ILifecycleManagerState::INotification
     {
@@ -120,6 +132,20 @@ class LifecycleDelegate : public BaseEventDelegate
         {
             LOGINFO("OnAppLifecycleStateChanged: appId=%s, appInstanceId=%s, oldState=%d, newState=%d, navigationIntent=%s",
                     appId.c_str(), appInstanceId.c_str(), oldLifecycleState, newLifecycleState, navigationIntent.c_str());
+
+            // add navigation intent to registry
+            mParent.mNavigationIntentRegistry.AddNavigationIntent(appInstanceId, navigationIntent);
+
+            // if new Lifecycle state is INITIALIZING then add to app instance map
+            if (newLifecycleState == Exchange::ILifecycleManager::INITIALIZING) {
+                mParent.mAppIdInstanceIdMap.AddAppInstanceId(appId, appInstanceId);
+                // also add to lifecycle state registry
+                mParent.mLifecycleStateRegistry.AddLifecycleState(appInstanceId, oldLifecycleState, newLifecycleState);   
+            } 
+
+            // handle lifecycle update
+            mParent.HandleLifeycleUpdate(appInstanceId, oldLifecycleState, newLifecycleState);            
+            
         }
 
         // Registration management methods
@@ -145,11 +171,164 @@ class LifecycleDelegate : public BaseEventDelegate
         std::mutex registerMutex;
     };
 
+    // create a class to store app Id and app instance id map
+    class AppIdInstanceIdMap {
+        public:
+            void AddAppInstanceId(const string& appId, const string& appInstanceId) {
+                std::lock_guard<std::mutex> lock(mapMutex);
+                appIdInstanceIdMap[appId] = appInstanceId;
+            }
+
+            string GetAppInstanceId(const string& appId) {
+                std::lock_guard<std::mutex> lock(mapMutex);
+                if (appIdInstanceIdMap.find(appId) != appIdInstanceIdMap.end()) {
+                    return appIdInstanceIdMap[appId];
+                }
+                return "";
+            }
+
+            // reverse lookup app instance id to app id
+            string GetAppId(const string& appInstanceId) {
+                std::lock_guard<std::mutex> lock(mapMutex);
+                for (const auto& pair : appIdInstanceIdMap) {
+                    if (pair.second == appInstanceId) {
+                        return pair.first;
+                    }
+                }
+                return "";
+            }
+
+            void RemoveAppInstanceId(const string& appId) {
+                std::lock_guard<std::mutex> lock(mapMutex);
+                appIdInstanceIdMap.erase(appId);
+            }
+        private:
+            std::map<string, string> appIdInstanceIdMap;
+            std::mutex mapMutex;
+    };
+
+    // struct to contain previous and current const Exchange::ILifecycleManager::LifecycleState
+    struct LifecycleStateInfo {
+        Exchange::ILifecycleManager::LifecycleState previousState;
+        Exchange::ILifecycleManager::LifecycleState currentState;
+    };
+
+    // Create a class to act as Registry to contain map of appInstanceId to LifecycleStateInfo
+    class LifecycleStateRegistry {
+        public:
+            // new method to accept previous state and current state for a given appInstanceId
+            void AddLifecycleState(const string& appInstanceId, Exchange::ILifecycleManager::LifecycleState previousState, Exchange::ILifecycleManager::LifecycleState currentState) {
+                std::lock_guard<std::mutex> lock(registryMutex);
+                lifecycleStateMap[appInstanceId] = {previousState, currentState};
+            }
+
+            void UpdateLifecycleState(const string& appInstanceId, Exchange::ILifecycleManager::LifecycleState newState) {
+                std::lock_guard<std::mutex> lock(registryMutex);
+                LifecycleStateInfo& stateInfo = lifecycleStateMap[appInstanceId];
+                stateInfo.previousState = stateInfo.currentState;
+                stateInfo.currentState = newState;
+            }
+
+            LifecycleStateInfo GetLifecycleStateInfo(const string& appInstanceId) {
+                std::lock_guard<std::mutex> lock(registryMutex);
+                if (lifecycleStateMap.find(appInstanceId) != lifecycleStateMap.end()) {
+                    return lifecycleStateMap[appInstanceId];
+                }
+                return {Exchange::ILifecycleManager::UNLOADED, Exchange::ILifecycleManager::UNLOADED};
+            }
+
+            void RemoveLifecycleStateInfo(const string& appInstanceId) {
+                std::lock_guard<std::mutex> lock(registryMutex);
+                lifecycleStateMap.erase(appInstanceId);
+            }
+
+            // Get json payload of current and previous state for a given appInstanceId
+            string GetLifecycle1StateJson(const string& appInstanceId) {
+                std::lock_guard<std::mutex> lock(registryMutex);
+                if (lifecycleStateMap.find(appInstanceId) != lifecycleStateMap.end()) {
+                    LifecycleStateInfo& stateInfo = lifecycleStateMap[appInstanceId];
+                    string jsonPayload = "{ \"previous\": \"" + LifecycleStateToString(stateInfo.previousState) +
+                                         "\", \"state\": \"" + LifecycleStateToString(stateInfo.currentState) + "\" }";
+                    return jsonPayload;
+                }
+                return "{}";
+            }
+
+            string GetLifecycle2StateJson(const string& appInstanceId) {
+                std::lock_guard<std::mutex> lock(registryMutex);
+                if (lifecycleStateMap.find(appInstanceId) != lifecycleStateMap.end()) {
+                    LifecycleStateInfo& stateInfo = lifecycleStateMap[appInstanceId];
+                    string jsonPayload = "{ \"oldState\": \"" + LifecycleStateToString(stateInfo.previousState) +
+                                         "\", \"newState\": \"" + LifecycleStateToString(stateInfo.currentState) + "\" }";
+                    return jsonPayload;
+                }
+                return "{}";
+            }
+            
+        private:
+            std::map<string, LifecycleStateInfo> lifecycleStateMap;
+            std::mutex registryMutex;
+    };
+
+    // create a class as registry to store appInstance Id and the intent string
+    class NavigationIntentRegistry {
+        public:
+            void AddNavigationIntent(const string& appInstanceId, const string& navigationIntent) {
+                std::lock_guard<std::mutex> lock(intentMutex);
+                navigationIntentMap[appInstanceId] = navigationIntent;
+            }
+
+            string GetNavigationIntent(const string& appInstanceId) {
+                std::lock_guard<std::mutex> lock(intentMutex);
+                if (navigationIntentMap.find(appInstanceId) != navigationIntentMap.end()) {
+                    return navigationIntentMap[appInstanceId];
+                }
+                return "";
+            }
+
+            void RemoveNavigationIntent(const string& appInstanceId) {
+                std::lock_guard<std::mutex> lock(intentMutex);
+                navigationIntentMap.erase(appInstanceId);
+            }
+        private:
+            std::map<string, string> navigationIntentMap;
+            std::mutex intentMutex;
+    };
+
+
+    // create a utility function to convert LifecycleState to string
+    static string LifecycleStateToString(Exchange::ILifecycleManager::LifecycleState state) {
+        switch (state) {
+            case Exchange::ILifecycleManager::UNLOADED:
+                return "UNLOADED";
+            case Exchange::ILifecycleManager::LOADING:
+                return "LOADING";
+            case Exchange::ILifecycleManager::INITIALIZING:
+                return "INITIALIZING";
+            case Exchange::ILifecycleManager::PAUSED:
+                return "PAUSED";
+            case Exchange::ILifecycleManager::ACTIVE:
+                return "ACTIVE";
+            case Exchange::ILifecycleManager::SUSPENDED:
+                return "SUSPENDED";
+            case Exchange::ILifecycleManager::HIBERNATED:
+                return "HIBERNATED";
+            case Exchange::ILifecycleManager::TERMINATING:
+                return "TERMINATING";
+            default:
+                return "UNKNOWN";
+        }
+    }
+
     
     private:
         PluginHost::IShell *mShell;
         Exchange::ILifecycleManagerState *mLifecycleManagerState;
         Core::Sink<LifecycleNotificationHandler> mNotificationHandler;
+        // add all registries
+        AppIdInstanceIdMap mAppIdInstanceIdMap;
+        LifecycleStateRegistry mLifecycleStateRegistry;
+        NavigationIntentRegistry mNavigationIntentRegistry;
 };
 
 
