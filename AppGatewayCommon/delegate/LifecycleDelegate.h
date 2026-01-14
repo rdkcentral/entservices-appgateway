@@ -122,6 +122,8 @@ class LifecycleDelegate : public BaseEventDelegate
         if (newLifecycleState == Exchange::ILifecycleManager::ACTIVE) {
             DispatchLastKnownIntent(appId);
         }
+
+        HandleLifecycle1Update(appInstanceId, oldLifecycleState, newLifecycleState);
     }
 
     // Dispatch last known intent for a given appId
@@ -133,6 +135,29 @@ class LifecycleDelegate : public BaseEventDelegate
             if (!navigationIntent.empty()) {
                 Dispatch("Discovery.onNavigateTo", navigationIntent, appId);
             }
+        }
+    }
+
+    // Create method to support lifecycle 1 updates which accepts the instanceId along with current
+    // old lifecycle states
+    void HandleLifecycle1Update(const string& appInstanceId,  const Exchange::ILifecycleManager::LifecycleState oldLifecycleState, const Exchange::ILifecycleManager::LifecycleState newLifecycleState)
+    {
+        switch (newLifecycleState) {
+            
+            case Exchange::ILifecycleManager::PAUSED:
+                Dispatch("Lifecycle.onInactive", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
+                break;
+            case Exchange::ILifecycleManager::SUSPENDED:
+            case Exchange::ILifecycleManager::HIBERNATED:
+                Dispatch("Lifecycle.onSuspended", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
+                break;
+            case Exchange::ILifecycleManager::UNLOADED:
+            case Exchange::ILifecycleManager::TERMINATING:
+                Dispatch("Lifecycle.onUnloading", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
+                break;
+            default:
+                // No action for other states
+                break;
         }
     }
 
