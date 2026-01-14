@@ -37,7 +37,8 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
     "lifecycle.oninactive",
     "lifecycle.onsuspended",
     "lifecycle.onunloading",
-    "lifecycle2.onstatechanged"
+    "lifecycle2.onstatechanged",
+    "discovery.onnavigateto"
 };
 
 class LifecycleDelegate : public BaseEventDelegate
@@ -117,6 +118,22 @@ class LifecycleDelegate : public BaseEventDelegate
 
         Dispatch("Lifecycle2.onStateChanged", mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId), appId);
 
+        // if new lifecycleState is ACTIVE trigger last known intent
+        if (newLifecycleState == Exchange::ILifecycleManager::ACTIVE) {
+            DispatchLastKnownIntent(appId);
+        }
+    }
+
+    // Dispatch last known intent for a given appId
+    void DispatchLastKnownIntent(const string& appId)
+    {
+        string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
+        if (!appInstanceId.empty()) {
+            string navigationIntent = mNavigationIntentRegistry.GetNavigationIntent(appInstanceId);
+            if (!navigationIntent.empty()) {
+                Dispatch("Discovery.onNavigateTo", navigationIntent, appId);
+            }
+        }
     }
 
     private:
@@ -300,23 +317,43 @@ class LifecycleDelegate : public BaseEventDelegate
     static string LifecycleStateToString(Exchange::ILifecycleManager::LifecycleState state) {
         switch (state) {
             case Exchange::ILifecycleManager::UNLOADED:
-                return "UNLOADED";
+                return "unloaded";
             case Exchange::ILifecycleManager::LOADING:
-                return "LOADING";
+                return "loading";
             case Exchange::ILifecycleManager::INITIALIZING:
-                return "INITIALIZING";
+                return "initializing";
             case Exchange::ILifecycleManager::PAUSED:
-                return "PAUSED";
+                return "paused";
             case Exchange::ILifecycleManager::ACTIVE:
-                return "ACTIVE";
+                return "active";
             case Exchange::ILifecycleManager::SUSPENDED:
-                return "SUSPENDED";
+                return "suspended";
             case Exchange::ILifecycleManager::HIBERNATED:
-                return "HIBERNATED";
+                return "hibernated";
             case Exchange::ILifecycleManager::TERMINATING:
-                return "TERMINATING";
+                return "terminating";
             default:
-                return "UNKNOWN";
+                return "";
+        }
+    }
+
+    static string Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::LifecycleState state) {
+        switch (state) {
+            case Exchange::ILifecycleManager::UNLOADED:
+            case Exchange::ILifecycleManager::TERMINATING:
+                return "unloading";
+            case Exchange::ILifecycleManager::LOADING:
+            case Exchange::ILifecycleManager::INITIALIZING:
+                return "initializing";
+            case Exchange::ILifecycleManager::PAUSED:
+                return "inactive";
+            case Exchange::ILifecycleManager::ACTIVE:
+                return "foreground";
+            case Exchange::ILifecycleManager::HIBERNATED:
+            case Exchange::ILifecycleManager::SUSPENDED:
+                return "suspended";
+            default:
+                return "";
         }
     }
 
