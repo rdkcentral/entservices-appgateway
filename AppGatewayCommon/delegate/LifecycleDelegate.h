@@ -48,7 +48,7 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
 class LifecycleDelegate : public BaseEventDelegate
 {
     public:
-    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell),mLifecycleManagerState(nullptr), mNotificationHandler(*this)
+    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell),mLifecycleManagerState(nullptr), mNotificationHandler(*this), mWindowManager(nullptr), mWindowManagerNotificationHandler(*this)
     {
         if (useAppManagers()) {
            Exchange::ILifecycleManagerState *lifecycleManagerState = GetLifecycleManagerStateInterface();
@@ -56,8 +56,14 @@ class LifecycleDelegate : public BaseEventDelegate
            {
                LOGERR("LifecycleManagerState interface not available");
            }
-           mLifecycleManagerState->Register(&mNotificationHandler);
-           mNotificationHandler.SetRegistered(true);
+           lifecycleManagerState->Register(&mNotificationHandler);
+
+           Exchange::IRDKWindowManager *windowManager = GetWindowManagerInterface();
+           if (windowManager == nullptr)
+           {
+                LOGERR("WindowManager interface not available");
+           }
+           windowManager->Register(&mWindowManagerNotificationHandler);
         }
     }
 
@@ -69,6 +75,11 @@ class LifecycleDelegate : public BaseEventDelegate
             mLifecycleManagerState = nullptr;
         }
         
+        if (mWindowManager != nullptr)
+        {
+            mWindowManager->Release();
+            mWindowManager = nullptr;
+        }
     }
 
     bool HandleSubscription(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen)
@@ -584,6 +595,7 @@ class LifecycleDelegate : public BaseEventDelegate
         Exchange::ILifecycleManagerState *mLifecycleManagerState;
         Exchange::IRDKWindowManager *mWindowManager;
         Core::Sink<LifecycleNotificationHandler> mNotificationHandler;
+        Core::Sink<WindowManagerNotificationHandler> mWindowManagerNotificationHandler;
         // add all registries
         AppIdInstanceIdMap mAppIdInstanceIdMap;
         LifecycleStateRegistry mLifecycleStateRegistry;
