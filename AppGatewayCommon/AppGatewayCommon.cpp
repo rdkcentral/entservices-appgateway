@@ -1071,13 +1071,30 @@ namespace Plugin {
 
         Core::hresult AppGatewayCommon::Authenticate(const string &sessionId /* @in */, string &appId /* @out */)
         {
+            if (!mDelegate)
+            {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
             auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
+            if (!lifecycleDelegate)
+            {
+                return Core::ERROR_UNAVAILABLE;
+            }
             return lifecycleDelegate->Authenticate(sessionId, appId);
         }
 
         Core::hresult AppGatewayCommon::GetSessionId(const string &appId /* @in */, string &sessionId /* @out */)
         {
+            if (!mDelegate)
+            {
+                return Core::ERROR_UNAVAILABLE;
+            }
             auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
+            if (!lifecycleDelegate)
+            {
+                return Core::ERROR_UNAVAILABLE;
+            }
             return lifecycleDelegate->GetSessionId(appId, sessionId);
         }
 

@@ -48,22 +48,26 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
 class LifecycleDelegate : public BaseEventDelegate
 {
     public:
-    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell),mLifecycleManagerState(nullptr), mNotificationHandler(*this), mWindowManager(nullptr), mWindowManagerNotificationHandler(*this)
+    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell),mLifecycleManagerState(nullptr), mWindowManager(nullptr), mNotificationHandler(*this), mWindowManagerNotificationHandler(*this)
     {
         if (ConfigUtils::useAppManagers()) {
            Exchange::ILifecycleManagerState *lifecycleManagerState = GetLifecycleManagerStateInterface();
            if (lifecycleManagerState == nullptr)
            {
                LOGERR("LifecycleManagerState interface not available");
+           } else {
+                lifecycleManagerState->Register(&mNotificationHandler);
            }
-           lifecycleManagerState->Register(&mNotificationHandler);
+           
 
            Exchange::IRDKWindowManager *windowManager = GetWindowManagerInterface();
            if (windowManager == nullptr)
            {
                 LOGERR("WindowManager interface not available");
            }
-           windowManager->Register(&mWindowManagerNotificationHandler);
+           else {
+                windowManager->Register(&mWindowManagerNotificationHandler);
+           }
         }
     }
 
