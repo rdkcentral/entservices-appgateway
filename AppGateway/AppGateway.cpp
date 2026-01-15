@@ -48,7 +48,7 @@ namespace Plugin {
     SERVICE_REGISTRATION(AppGateway, API_VERSION_NUMBER_MAJOR, API_VERSION_NUMBER_MINOR, API_VERSION_NUMBER_PATCH);
 
     AppGateway::AppGateway()
-            : PluginHost::JSONRPC(), mService(nullptr), mAppGateway(nullptr), mResponder(nullptr), mAuthenticator(nullptr), mConnectionId(0)
+            : PluginHost::JSONRPC(), mService(nullptr), mAppGateway(nullptr), mResponder(nullptr), mConnectionId(0)
         {
 
         LOGINFO("AppGateway Constructor");

@@ -56,7 +56,6 @@ namespace WPEFramework {
             INTERFACE_ENTRY(PluginHost::IDispatcher)
             INTERFACE_AGGREGATE(Exchange::IAppGatewayResolver, mAppGateway)
             INTERFACE_AGGREGATE(Exchange::IAppGatewayResponder, mResponder)
-            INTERFACE_AGGREGATE(Exchange::IAppGatewayAuthenticator, mAuthenticator)
             END_INTERFACE_MAP
 
         private:
@@ -66,7 +65,6 @@ namespace WPEFramework {
             PluginHost::IShell* mService;
             Exchange::IAppGatewayResolver* mAppGateway;
             Exchange::IAppGatewayResponder* mResponder;
-            Exchange::IAppGatewayAuthenticator* mAuthenticator;
             uint32_t mConnectionId;
         };
 	} // namespace Plugin
