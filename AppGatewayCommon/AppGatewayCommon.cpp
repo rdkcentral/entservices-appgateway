@@ -1102,6 +1102,7 @@ namespace Plugin {
         {
             // For this implementation, we are not maintaining permission group mapping.
             // For the time being keeping it as allowed for all apps.
+            // TODO: Implement proper permission group mapping and validation instead of allowing all apps.
             allowed = true;
             return Core::ERROR_NONE;
         }

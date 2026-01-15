@@ -245,7 +245,7 @@ class LifecycleDelegate : public BaseEventDelegate
             } 
 
             // handle lifecycle update
-            mParent.HandleLifeycleUpdate(appInstanceId, oldLifecycleState, newLifecycleState);            
+            mParent.HandleLifecycleUpdate(appInstanceId, oldLifecycleState, newLifecycleState);            
             
         }
 
@@ -575,7 +575,7 @@ class LifecycleDelegate : public BaseEventDelegate
     }
 
     // Handle Lifecycle update for a given appInstanceId by accepting the previous and current lifecycle state
-    void HandleLifeycleUpdate(const string& appInstanceId,  const Exchange::ILifecycleManager::LifecycleState oldLifecycleState, const Exchange::ILifecycleManager::LifecycleState newLifecycleState)
+    void HandleLifecycleUpdate(const string& appInstanceId,  const Exchange::ILifecycleManager::LifecycleState oldLifecycleState, const Exchange::ILifecycleManager::LifecycleState newLifecycleState)
     {
         // update lifecycle state registry
         mLifecycleStateRegistry.UpdateLifecycleState(appInstanceId, newLifecycleState);

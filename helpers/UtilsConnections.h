@@ -52,7 +52,7 @@ namespace WPEFramework
             }
 
             // Check if there any additional parameter keys
-            size_t additional_param_key = query.find("&");
+            size_t additional_param_key = value.find("&");
             if (additional_param_key != std::string::npos)
             {
                 std::string new_value = value.substr(0,additional_param_key);
