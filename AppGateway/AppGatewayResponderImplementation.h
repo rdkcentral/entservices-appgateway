@@ -314,7 +314,7 @@ namespace Plugin {
 
         void CleanupConnectionId(const uint32_t connectionId) {
             std::lock_guard<std::mutex> lock(mCompliantJsonRpcMutex);
-            auto it = std::find(mCompliantJsonRpcConnections.begin(), mCompliantJsonRpcConnections.end(), connectionId);
+            auto it = mCompliantJsonRpcConnections.find(connectionId);
             if (it != mCompliantJsonRpcConnections.end()) {
                 mCompliantJsonRpcConnections.erase(it);
             }
