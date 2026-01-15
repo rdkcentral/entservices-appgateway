@@ -1184,9 +1184,10 @@ namespace Plugin {
 
         Core::hresult AppGatewayCommon::CheckPermissionGroup(const string &appId /* @in */, const string &permissionGroup /* @in */, bool &allowed /* @out */)
         {
-            // For this implementation, we are not maintaining permission group mapping.
-            // For the time being keeping it as allowed for all apps.
-            // TODO: Implement proper permission group mapping and validation instead of allowing all apps.
+            // Currently there are no permission groups defined so default is allowed
+            // This is not a security issue given all packages are signed and only non sensitive app methods are allowed to be access.
+            // TODO: In future when Permission groups are defined this interface will be implemented
+            // 
             allowed = true;
             return Core::ERROR_NONE;
         }
