@@ -170,6 +170,7 @@ namespace WPEFramework
                     }
                     
                     mAppIdRegistry.Remove(connectionId);
+                    mCompliantJsonRpcRegistry.CleanupConnectionId(connectionId);
                     Exchange::IAppNotifications* appNotifications = mService->QueryInterfaceByCallsign<Exchange::IAppNotifications>(APP_NOTIFICATIONS_CALLSIGN);
                     if (appNotifications != nullptr) {
                         if (Core::ERROR_NONE != appNotifications->Cleanup(connectionId, APP_GATEWAY_CALLSIGN)) {
