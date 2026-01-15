@@ -203,6 +203,9 @@ namespace Plugin {
                 { "lifecycle2.close", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
                     return self->mDelegate->getLifecycleDelegate()->Lifecycle2Close(ctx,payload,result);
                 }},
+                { "lifecycle.state", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+                    return self->mDelegate->getLifecycleDelegate()->LifecycleState(ctx,payload,result);
+                }},
                 { "lifecycle2.state", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
                     return self->mDelegate->getLifecycleDelegate()->Lifecycle2State(ctx,payload,result);
                 }},

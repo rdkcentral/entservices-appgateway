@@ -132,18 +132,68 @@ class LifecycleDelegate : public BaseEventDelegate
     }
 
     Core::hresult LifecycleClose(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        result = "null";
+        if (mLifecycleManagerState != nullptr) {
+            JsonObject params;
+            if (params.FromString(payload))
+            {
+                string reason = params.Get("reason").String();
+                // reason == userExit maps to USER_EXIT enum
+                if (reason == "userExit") {
+                    return mLifecycleManagerState->CloseApp(context.appId, Exchange::ILifecycleManagerState::USER_EXIT);
+                } else {
+                    return mLifecycleManagerState->CloseApp(context.appId, Exchange::ILifecycleManagerState::ERROR);
+                }
+            }
+        }
         return Core::ERROR_NONE;
     }
 
     Core::hresult Lifecycle2Close(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        result = "null";
+        if (mLifecycleManagerState != nullptr) {
+            JsonObject params;
+            if (params.FromString(payload))
+            {
+                string reason = params.Get("type").String();
+                // reason == userExit maps to USER_EXIT enum
+                if (reason == "deactivate") {
+                    return mLifecycleManagerState->CloseApp(context.appId, Exchange::ILifecycleManagerState::USER_EXIT);
+                } else if (reason == "unload") {
+                    return mLifecycleManagerState->CloseApp(context.appId, Exchange::ILifecycleManagerState::ERROR);
+                } else if (reason == "killReload") {
+                    return mLifecycleManagerState->CloseApp(context.appId, Exchange::ILifecycleManagerState::KILL_AND_RUN);
+                } else if (reason == "killReactivate") {
+                    return mLifecycleManagerState->CloseApp(context.appId, Exchange::ILifecycleManagerState::KILL_AND_ACTIVATE);
+                }
+            }
+        }
         return Core::ERROR_NONE;
     }
 
     Core::hresult Lifecycle2State(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        // get appInstance Id from context.appId
+        string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(context.appId);
+        // Get current LifecycleState for given appInstanceId
+        LifecycleStateInfo stateInfo = mLifecycleStateRegistry.GetLifecycleStateInfo(appInstanceId);
+
+        result = LifecycleStateToString(stateInfo.currentState);
+        return Core::ERROR_NONE;
+    }
+
+    Core::hresult LifecycleState(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+         // get appInstance Id from context.appId
+        string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(context.appId);
+        // Get current LifecycleState for given appInstanceId
+        LifecycleStateInfo stateInfo = mLifecycleStateRegistry.GetLifecycleStateInfo(appInstanceId);
+
+        result = Lifecycle2StateToLifecycle1String(stateInfo.currentState);
+        
         return Core::ERROR_NONE;
     }
 
     Core::hresult LifecycleReady(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        result = "null";
         if (mLifecycleManagerState != nullptr) {
             return mLifecycleManagerState->AppReady(context.appId);            
         }
@@ -302,8 +352,8 @@ class LifecycleDelegate : public BaseEventDelegate
                 std::lock_guard<std::mutex> lock(registryMutex);
                 if (lifecycleStateMap.find(appInstanceId) != lifecycleStateMap.end()) {
                     LifecycleStateInfo& stateInfo = lifecycleStateMap[appInstanceId];
-                    string jsonPayload = "{ \"previous\": \"" + LifecycleStateToString(stateInfo.previousState) +
-                                         "\", \"state\": \"" + LifecycleStateToString(stateInfo.currentState) + "\" }";
+                    string jsonPayload = "{ \"previous\": \"" + Lifecycle2StateToLifecycle1String(stateInfo.previousState) +
+                                         "\", \"state\": \"" + Lifecycle2StateToLifecycle1String(stateInfo.currentState) + "\" }";
                     return jsonPayload;
                 }
                 return "{}";
