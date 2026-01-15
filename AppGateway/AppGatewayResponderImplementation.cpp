@@ -123,7 +123,7 @@ namespace WPEFramework
                     }
 
                     if ( mAuthenticator==nullptr ) {
-                        if (useAppManagers()) {
+                        if (ConfigUtils::useAppManagers()) {
                             mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN);
                         } else {
                             mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);

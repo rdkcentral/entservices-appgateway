@@ -50,7 +50,7 @@ class LifecycleDelegate : public BaseEventDelegate
     public:
     LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell),mLifecycleManagerState(nullptr), mNotificationHandler(*this), mWindowManager(nullptr), mWindowManagerNotificationHandler(*this)
     {
-        if (useAppManagers()) {
+        if (ConfigUtils::useAppManagers()) {
            Exchange::ILifecycleManagerState *lifecycleManagerState = GetLifecycleManagerStateInterface();
            if (lifecycleManagerState == nullptr)
            {
