@@ -158,6 +158,12 @@ namespace WPEFramework {
             Core::hresult GetHdcp(string &result /* @out */);
             Core::hresult GetHdr(string &result /* @out */);
             Core::hresult GetAudio(string &result /* @out */);
+            Core::hresult LifecycleFinished(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult LifecycleClose(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult LifecycleState(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult Lifecycle2State(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult Lifecycle2Close(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
 
         private:
             PluginHost::IShell* mShell;
