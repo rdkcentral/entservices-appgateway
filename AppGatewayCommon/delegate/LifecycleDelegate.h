@@ -481,16 +481,21 @@ class LifecycleDelegate : public BaseEventDelegate
 
     static string Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::LifecycleState state) {
         switch (state) {
+            // Lifecycle 1 only has unloading state which can be either unloaded or terminating from Lifecycle 2
             case Exchange::ILifecycleManager::UNLOADED:
             case Exchange::ILifecycleManager::TERMINATING:
                 return "unloading";
+            // Lifecycle 1 does not have loading state separate from initializing, map both to initializing
             case Exchange::ILifecycleManager::LOADING:
             case Exchange::ILifecycleManager::INITIALIZING:
                 return "initializing";
+            // Lifecycle 1 direct mapping
             case Exchange::ILifecycleManager::PAUSED:
                 return "inactive";
+            // Lifecyle 1 direct mapping
             case Exchange::ILifecycleManager::ACTIVE:
                 return "foreground";
+            // Lifecycle 1 maps both suspended and hibernated to suspended
             case Exchange::ILifecycleManager::HIBERNATED:
             case Exchange::ILifecycleManager::SUSPENDED:
                 return "suspended";

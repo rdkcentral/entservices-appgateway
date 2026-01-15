@@ -321,7 +321,7 @@ namespace Plugin {
         }
 
         private:
-            // vector of connection IDs which are compliant with JSON RPC
+            // unordered set of connection IDs which are compliant with JSON RPC
             std::unordered_set<uint32_t> mCompliantJsonRpcConnections;
             std::mutex mCompliantJsonRpcMutex;
         };
