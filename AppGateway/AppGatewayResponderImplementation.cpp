@@ -30,6 +30,7 @@
 // so we can use a simple in-memory registry to track connection IDs and their associated app IDs.
 #define APPGATEWAY_SOCKET_ADDRESS "127.0.0.1:3473"
 #define DEFAULT_CONFIG_PATH "/etc/app-gateway/resolution.base.json"
+#define COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN "org.rdk.AppGatewayCommon"
 
 namespace WPEFramework
 {
@@ -122,7 +123,11 @@ namespace WPEFramework
                     }
 
                     if ( mAuthenticator==nullptr ) {
-                        mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
+                        if (useAppManagers()) {
+                            mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN);
+                        } else {
+                            mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
+                        }
                         if (mAuthenticator == nullptr) {
                             LOGERR("Authenticator Not available");
                             return false;

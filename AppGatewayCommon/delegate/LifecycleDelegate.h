@@ -27,6 +27,7 @@
 #include <interfaces/ILifecycleManagerState.h>
 #include <interfaces/IRDKWindowManager.h>
 #include "UtilsLogging.h"
+#include "UtilsCallsign.h"
 using namespace WPEFramework;
 
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
@@ -49,7 +50,7 @@ class LifecycleDelegate : public BaseEventDelegate
     public:
     LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell),mLifecycleManagerState(nullptr), mNotificationHandler(*this)
     {
-        #ifdef USE_APP_MANAGERS
+        if (useAppManagers()) {
            Exchange::ILifecycleManagerState *lifecycleManagerState = GetLifecycleManagerStateInterface();
            if (lifecycleManagerState == nullptr)
            {
@@ -57,7 +58,7 @@ class LifecycleDelegate : public BaseEventDelegate
            }
            mLifecycleManagerState->Register(&mNotificationHandler);
            mNotificationHandler.SetRegistered(true);
-        #endif
+        }
     }
 
     ~LifecycleDelegate()

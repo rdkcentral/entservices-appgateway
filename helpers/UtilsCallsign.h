@@ -18,22 +18,27 @@
 **/
 
 #pragma once
+#include "UtilsfileExists.h"
 
 #ifndef __UTILSCALLSIGN_H__
 #define __UTILSCALLSIGN_H__
 #define APP_GATEWAY_CALLSIGN "org.rdk.AppGateway"
-
-#ifdef USE_APP_MANAGERS
-    #define GATEWAY_AUTHENTICATOR_CALLSIGN "org.rdk.AppGatewayCommon"
-#else
-    #define GATEWAY_AUTHENTICATOR_CALLSIGN "org.rdk.LaunchDelegate"
-#endif
-
+#define GATEWAY_AUTHENTICATOR_CALLSIGN "org.rdk.LaunchDelegate"
 #define INTERNAL_GATEWAY_CALLSIGN "org.rdk.LaunchDelegate"
-
 #define APP_NOTIFICATIONS_CALLSIGN "org.rdk.AppNotifications"
 #define APP_TO_APP_PROVIDER_CALLSIGN "org.rdk.App2AppProvider"
 #define FB_PRIVACY_CALLSIGN "org.rdk.FbPrivacy"
 #define FB_METRICS_CALLSIGN "org.rdk.FbMetrics"
 #define ANALYTICS_PLUGIN_CALLSIGN "org.rdk.Analytics"
+#define AI2MANAGERS_PATH "/opt/ai2managers"
+
+static bool useAppManagers() {
+    if (fileExists(AI2MANAGERS_PATH)) {
+        return true;
+    }
+    return false;
+}
 #endif
+
+
+

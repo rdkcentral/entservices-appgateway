@@ -39,7 +39,6 @@ if(RDK_SERVICE_L2_TEST)
 endif()
 
 option(DISABLE_SECURITY_TOKEN "Disable security token" OFF)
-option(USE_APP_MANAGERS "Enable App Managers" ON)
 
 if(RDK_SERVICES_L1_TEST)
     add_subdirectory(Tests/L1Tests)
@@ -47,10 +46,6 @@ endif()
 
 if(DISABLE_SECURITY_TOKEN)
     add_definitions(-DDISABLE_SECURITY_TOKEN)
-endif()
-
-if(USE_APP_MANAGERS)
-    add_definitions(-DUSE_APP_MANAGERS)
 endif()
 
 if(PLUGIN_APPGATEWAY)
