@@ -42,7 +42,7 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
     "lifecycle.onunloading",
     "lifecycle2.onstatechanged",
     "discovery.onnavigateto",
-    "presentation.onfocusedChanged"
+    "presentation.onfocusedchanged"
 };
 
 class LifecycleDelegate : public BaseEventDelegate
