@@ -101,21 +101,21 @@ class SettingsDelegate {
             lifecycleDelegate.reset();
         }
 
-	std::shared_ptr<SystemDelegate> getSystemDelegate() const {
+        std::shared_ptr<SystemDelegate> getSystemDelegate() const {
             return systemDelegate;
         }
 
-	std::shared_ptr<UserSettingsDelegate> getUserSettings() {
+        std::shared_ptr<UserSettingsDelegate> getUserSettings() {
             return userSettings;
         }
 
-    std::shared_ptr<NetworkDelegate> getNetworkDelegate() const {
-        return networkDelegate;
-    }
+        std::shared_ptr<NetworkDelegate> getNetworkDelegate() const {
+            return networkDelegate;
+        }
 
-    std::shared_ptr<LifecycleDelegate> getLifecycleDelegate() const {
-        return lifecycleDelegate;
-    }
+        std::shared_ptr<LifecycleDelegate> getLifecycleDelegate() const {
+            return lifecycleDelegate;
+        }
 
     private:
         std::shared_ptr<UserSettingsDelegate> userSettings;

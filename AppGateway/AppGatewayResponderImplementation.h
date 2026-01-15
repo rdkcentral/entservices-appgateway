@@ -27,6 +27,7 @@
 #include <com/com.h>
 #include <core/core.h>
 #include <map>
+#include <unordered_set>
 
 
 namespace WPEFramework {
@@ -302,13 +303,13 @@ namespace Plugin {
             // if token contains the string defined by kCompliantJsonRpcFeatureFlag then add it to the compliant list
             if (token.find(kCompliantJsonRpcFeatureFlag) != string::npos) {
                 std::lock_guard<std::mutex> lock(mCompliantJsonRpcMutex);
-                mCompliantJsonRpcConnections.push_back(connectionId);
+                mCompliantJsonRpcConnections.insert(connectionId);
             }
         }
 
         bool IsCompliantJsonRpc(const uint32_t connectionId) {
             std::lock_guard<std::mutex> lock(mCompliantJsonRpcMutex);
-            return (std::find(mCompliantJsonRpcConnections.begin(), mCompliantJsonRpcConnections.end(), connectionId) != mCompliantJsonRpcConnections.end());
+            return (mCompliantJsonRpcConnections.find(connectionId) != mCompliantJsonRpcConnections.end());
         }
 
         void CleanupConnectionId(const uint32_t connectionId) {
@@ -321,7 +322,7 @@ namespace Plugin {
 
         private:
             // vector of connection IDs which are compliant with JSON RPC
-            std::vector<uint32_t> mCompliantJsonRpcConnections;
+            std::unordered_set<uint32_t> mCompliantJsonRpcConnections;
             std::mutex mCompliantJsonRpcMutex;
         };
 
