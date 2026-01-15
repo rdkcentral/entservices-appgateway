@@ -293,9 +293,14 @@ namespace Plugin {
         // Create new Registry for JSON RPC compliant connections
         class CompliantJsonRpcRegistry {
         public:
+        // Token substring that indicates a connection is compliant with JSON RPC (RPC version 2).
+        // When this substring is present in the authentication token, the connection is treated
+        // as JSON RPC compliant and added to the compliant connections registry.
+        static constexpr const char* kCompliantJsonRpcFeatureFlag = "RPCV2=true";
+
         void CheckAndAddCompliantJsonRpc(const uint32_t connectionId, const string& token) {
-            // if token contains the string RPCV2=true then add it to the compliant list
-            if (token.find("RPCV2=true") != string::npos) {
+            // if token contains the string defined by kCompliantJsonRpcFeatureFlag then add it to the compliant list
+            if (token.find(kCompliantJsonRpcFeatureFlag) != string::npos) {
                 std::lock_guard<std::mutex> lock(mCompliantJsonRpcMutex);
                 mCompliantJsonRpcConnections.push_back(connectionId);
             }
