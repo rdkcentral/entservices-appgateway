@@ -76,14 +76,14 @@ class LifecycleDelegate : public BaseEventDelegate
         if (ConfigUtils::useAppManagers()) {
             if (mLifecycleManagerState != nullptr)
             {
-                lifecycleManagerState->Unregister(&mNotificationHandler);
+                mLifecycleManagerState->Unregister(&mNotificationHandler);
                 mLifecycleManagerState->Release();
                 mLifecycleManagerState = nullptr;
             }
             
             if (mWindowManager != nullptr)
             {
-                windowManager->Unregister(&mWindowManagerNotificationHandler);
+                mWindowManager->Unregister(&mWindowManagerNotificationHandler);
                 mWindowManager->Release();
                 mWindowManager = nullptr;
             }
@@ -273,7 +273,9 @@ class LifecycleDelegate : public BaseEventDelegate
         }
 
         void OnBlur(const std::string& appInstanceId){
-            mParent.mFocusedAppRegistry.ClearFocusedAppInstanceId();
+            if (mParent.mFocusedAppRegistry.IsAppInstanceIdFocused(appInstanceId)) {
+                mParent.mFocusedAppRegistry.ClearFocusedAppInstanceId();
+            }
             mParent.Dispatch("Presentation.onFocusedChanged", mParent.mFocusedAppRegistry.GetFocusedEventData(appInstanceId), mParent.mAppIdInstanceIdMap.GetAppId(appInstanceId));
             mParent.HandleAppBlurForLifecycle1(appInstanceId);
         }
