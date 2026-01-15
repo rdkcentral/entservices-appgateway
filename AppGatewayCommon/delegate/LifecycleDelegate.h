@@ -73,16 +73,20 @@ class LifecycleDelegate : public BaseEventDelegate
 
     ~LifecycleDelegate()
     {
-        if (mLifecycleManagerState != nullptr)
-        {
-            mLifecycleManagerState->Release();
-            mLifecycleManagerState = nullptr;
-        }
-        
-        if (mWindowManager != nullptr)
-        {
-            mWindowManager->Release();
-            mWindowManager = nullptr;
+        if (ConfigUtils::useAppManagers()) {
+            if (mLifecycleManagerState != nullptr)
+            {
+                lifecycleManagerState->Unregister(&mNotificationHandler);
+                mLifecycleManagerState->Release();
+                mLifecycleManagerState = nullptr;
+            }
+            
+            if (mWindowManager != nullptr)
+            {
+                windowManager->Unregister(&mWindowManagerNotificationHandler);
+                mWindowManager->Release();
+                mWindowManager = nullptr;
+            }
         }
     }
 
