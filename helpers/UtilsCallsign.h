@@ -33,7 +33,7 @@
 #define AI2MANAGERS_PATH "/opt/ai2managers"
 
 static bool useAppManagers() {
-    if (fileExists(AI2MANAGERS_PATH)) {
+    if (Utils::fileExists(AI2MANAGERS_PATH)) {
         return true;
     }
     return false;
