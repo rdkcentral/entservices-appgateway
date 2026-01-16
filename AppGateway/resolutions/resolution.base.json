@@ -164,7 +164,7 @@
             "alias": "org.rdk.AppGatewayCommon",
             "event": "Accessibility.onAudioDescriptionSettingsChanged"
         },
-        "AudioDescriptions.onEnabledChanged": {
+        "audiodescriptions.onenabledchanged": {
             "alias": "org.rdk.AppGatewayCommon",
             "event": "AudioDescriptions.onEnabledChanged"
         },

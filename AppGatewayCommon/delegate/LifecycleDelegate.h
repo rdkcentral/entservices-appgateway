@@ -529,7 +529,7 @@ class LifecycleDelegate : public BaseEventDelegate
                 break;
             case Exchange::ILifecycleManager::ACTIVE:
                 // if app is in focus send foreground
-                 if(mFocusedAppRegistry.IsAppInstanceIdFocused(appInstanceId)) {
+                 if (mFocusedAppRegistry.IsAppInstanceIdFocused(appInstanceId)) {
                     Dispatch("Lifecycle.onForeground", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
                  } else {
                     Dispatch("Lifecycle.onBackground", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));

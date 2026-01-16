@@ -57,7 +57,7 @@ namespace WPEFramework
             {
                 std::string new_value = value.substr(0,additional_param_key);
                 if (new_value.empty()) {
-                    LOGWARN("%s query params looks incorrect", value.c_str());
+                    LOGWARN("%s query params look incorrect", value.c_str());
                     return value;
                 } else {
                     return new_value;
