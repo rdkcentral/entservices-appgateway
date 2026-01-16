@@ -1068,118 +1068,59 @@ namespace Plugin {
             return systemDelegate->GetAudio(result);
         }
 
+        template <typename DelegateType, typename LifecycleType, typename Func, typename... Args>
+        Core::hresult InvokeLifecycleDelegate(const std::shared_ptr<DelegateType>& delegate,
+                                            std::shared_ptr<LifecycleType> (DelegateType::*getLifecycleDelegate)() const,
+                                            Func func, Args&&... args) {
+            if (!delegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            std::shared_ptr<LifecycleType> lifecycleDelegate = (delegate.get()->*getLifecycleDelegate)();
+            if (!lifecycleDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return (lifecycleDelegate.get()->*func)(std::forward<Args>(args)...);
+        }
+
 
         Core::hresult AppGatewayCommon::Authenticate(const string &sessionId /* @in */, string &appId /* @out */)
         {
-            if (!mDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-
-            auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
-            if (!lifecycleDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            return lifecycleDelegate->Authenticate(sessionId, appId);
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Authenticate, sessionId, appId);
         }
 
         Core::hresult AppGatewayCommon::GetSessionId(const string &appId /* @in */, string &sessionId /* @out */)
         {
-            if (!mDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
-            if (!lifecycleDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            return lifecycleDelegate->GetSessionId(appId, sessionId);
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetSessionId, appId, sessionId);
         }
 
         Core::hresult AppGatewayCommon::LifecycleFinished(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            if (!mDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
-            if (!lifecycleDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            return lifecycleDelegate->LifecycleFinished(ctx, payload, result);
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleFinished, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            if (!mDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
-            if (!lifecycleDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            return lifecycleDelegate->LifecycleReady(ctx, payload, result);
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleReady, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::LifecycleClose(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            if (!mDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
-            if (!lifecycleDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            return lifecycleDelegate->LifecycleClose(ctx, payload, result);
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleClose, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::Lifecycle2State(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            if (!mDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
-            if (!lifecycleDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            return lifecycleDelegate->Lifecycle2State(ctx, payload, result);
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Lifecycle2State, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::LifecycleState(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            if (!mDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
-            if (!lifecycleDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            return lifecycleDelegate->LifecycleState(ctx, payload, result);
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleState, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::Lifecycle2Close(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            if (!mDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
-            if (!lifecycleDelegate)
-            {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            return lifecycleDelegate->Lifecycle2Close(ctx, payload, result);
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Lifecycle2Close, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::CheckPermissionGroup(const string &appId /* @in */, const string &permissionGroup /* @in */, bool &allowed /* @out */)
