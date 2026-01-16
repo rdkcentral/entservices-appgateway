@@ -164,6 +164,8 @@ namespace WPEFramework {
             Core::hresult LifecycleState(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult Lifecycle2State(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult Lifecycle2Close(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult DispatchLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult GetLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
 
         private:
             PluginHost::IShell* mShell;

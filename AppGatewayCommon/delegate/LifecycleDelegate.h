@@ -117,18 +117,6 @@ class LifecycleDelegate : public BaseEventDelegate
         return false;
     }
 
-    // Dispatch last known intent for a given appId
-    void DispatchLastKnownIntent(const string& appId)
-    {
-        string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
-        if (!appInstanceId.empty()) {
-            string navigationIntent = mNavigationIntentRegistry.GetNavigationIntent(appInstanceId);
-            if (!navigationIntent.empty()) {
-                Dispatch("Discovery.onNavigateTo", navigationIntent, appId);
-            }
-        }
-    }
-
     // Get AppId from Instance Id
     Core::hresult Authenticate(const string& appInstanceId, string& appId)
     {
@@ -221,6 +209,18 @@ class LifecycleDelegate : public BaseEventDelegate
     }
 
     Core::hresult LifecycleFinished(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        result = "null";
+        return Core::ERROR_NONE;
+    }
+
+    Core::hresult DispatchLastIntent(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        DispatchLastKnownIntent(context.appId);
+        result = "null";
+        return Core::ERROR_NONE;
+    }
+
+    Core::hresult GetLastIntent(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        GetLastKnownIntent(context.appId, result);
         return Core::ERROR_NONE;
     }
 
@@ -583,6 +583,25 @@ class LifecycleDelegate : public BaseEventDelegate
             }
         }
         return mWindowManager;
+    }
+
+    // Dispatch last known intent for a given appId
+    void DispatchLastKnownIntent(const string& appId)
+    {
+        string navigationIntent;
+        GetLastKnownIntent(appId, navigationIntent);
+        if (!navigationIntent.empty()) {
+            Dispatch("Discovery.onNavigateTo", navigationIntent, appId);
+        }
+    }
+
+    void GetLastKnownIntent(const string& appId, string& navigationIntent)
+    {
+        navigationIntent.clear();
+        string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
+        if (!appInstanceId.empty()) {
+            navigationIntent = mNavigationIntentRegistry.GetNavigationIntent(appInstanceId);
+        }
     }
 
     // Handle Lifecycle update for a given appInstanceId by accepting the previous and current lifecycle state
