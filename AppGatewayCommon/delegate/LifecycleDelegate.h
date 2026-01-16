@@ -28,6 +28,7 @@
 #include <interfaces/IRDKWindowManager.h>
 #include "UtilsLogging.h"
 #include "UtilsCallsign.h"
+#include "UtilsFirebolt.h"
 using namespace WPEFramework;
 
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
@@ -152,7 +153,15 @@ class LifecycleDelegate : public BaseEventDelegate
                 } else {
                     return mLifecycleManagerState->CloseApp(context.appId, Exchange::ILifecycleManagerState::ERROR);
                 }
+            } else {
+                LOGERR("Payload parsing failure %s", payload.c_str());
+                ErrorUtils::CustomBadRequest("Invalid close reason", result);
+                return Core::ERROR_GENERAL;
             }
+        } else {
+            LOGERR("LifecycleManagerState interface not available");
+            ErrorUtils::CustomInitialize("LifecycleManager not available", result);
+            return Core::ERROR_GENERAL;
         }
         return Core::ERROR_NONE;
     }
@@ -167,14 +176,23 @@ class LifecycleDelegate : public BaseEventDelegate
                 // reason == userExit maps to USER_EXIT enum
                 if (reason == "deactivate") {
                     return mLifecycleManagerState->CloseApp(context.appId, Exchange::ILifecycleManagerState::USER_EXIT);
-                } else if (reason == "unload") {
-                    return mLifecycleManagerState->CloseApp(context.appId, Exchange::ILifecycleManagerState::ERROR);
                 } else if (reason == "killReload") {
                     return mLifecycleManagerState->CloseApp(context.appId, Exchange::ILifecycleManagerState::KILL_AND_RUN);
                 } else if (reason == "killReactivate") {
                     return mLifecycleManagerState->CloseApp(context.appId, Exchange::ILifecycleManagerState::KILL_AND_ACTIVATE);
+                } else {
+                    return mLifecycleManagerState->CloseApp(context.appId, Exchange::ILifecycleManagerState::ERROR);
                 }
+            } else {
+                LOGERR("Payload parsing failure %s", payload.c_str());
+                ErrorUtils::CustomBadRequest("Invalid close reason", result);
+                return Core::ERROR_GENERAL;
             }
+            
+        } else {
+                LOGERR("LifecycleManagerState interface not available");
+                ErrorUtils::CustomInitialize("LifecycleManager not available", result);
+                return Core::ERROR_GENERAL;
         }
         return Core::ERROR_NONE;
     }
@@ -374,8 +392,11 @@ class LifecycleDelegate : public BaseEventDelegate
                 std::lock_guard<std::mutex> lock(registryMutex);
                 if (lifecycleStateMap.find(appInstanceId) != lifecycleStateMap.end()) {
                     LifecycleStateInfo& stateInfo = lifecycleStateMap[appInstanceId];
-                    string jsonPayload = "{ \"previous\": \"" + Lifecycle2StateToLifecycle1String(stateInfo.previousState) +
-                                         "\", \"state\": \"" + Lifecycle2StateToLifecycle1String(stateInfo.currentState) + "\" }";
+                    JsonObject object;
+                    object["previous"] = Lifecycle2StateToLifecycle1String(stateInfo.previousState);
+                    object["state"] = Lifecycle2StateToLifecycle1String(stateInfo.currentState);
+                    string jsonPayload;
+                    object.ToString(jsonPayload);
                     return jsonPayload;
                 }
                 return "{}";
@@ -385,8 +406,11 @@ class LifecycleDelegate : public BaseEventDelegate
                 std::lock_guard<std::mutex> lock(registryMutex);
                 if (lifecycleStateMap.find(appInstanceId) != lifecycleStateMap.end()) {
                     LifecycleStateInfo& stateInfo = lifecycleStateMap[appInstanceId];
-                    string jsonPayload = "{ \"oldState\": \"" + LifecycleStateToString(stateInfo.previousState) +
-                                         "\", \"newState\": \"" + LifecycleStateToString(stateInfo.currentState) + "\" }";
+                    JsonObject object;
+                    object["oldState"] = LifecycleStateToString(stateInfo.previousState);
+                    object["newState"] = LifecycleStateToString(stateInfo.currentState);
+                    string jsonPayload;
+                    object.ToString(jsonPayload);
                     return jsonPayload;
                 }
                 return "{}";
@@ -451,8 +475,11 @@ class LifecycleDelegate : public BaseEventDelegate
             string GetFocusedEventData(const string& appInstanceId) {
                 std::lock_guard<std::mutex> lock(focusMutex);
                 bool isFocused = (focusedAppInstanceId == appInstanceId);
+                JsonObject object;
+                object["value"] = isFocused;
                 // jsonPayload is boolean for value
-                string jsonPayload = "{ \"value\": " + string(isFocused ? "true" : "false") + " }";
+                string jsonPayload;
+                object.ToString(jsonPayload);
                 return jsonPayload;
             }
         private:
