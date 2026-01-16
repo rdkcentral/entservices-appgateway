@@ -48,7 +48,7 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
 class LifecycleDelegate : public BaseEventDelegate
 {
     public:
-    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell),mLifecycleManagerState(nullptr), mWindowManager(nullptr), mNotificationHandler(*this), mWindowManagerNotificationHandler(*this)
+    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell), mLifecycleManagerState(nullptr), mWindowManager(nullptr), mNotificationHandler(*this), mWindowManagerNotificationHandler(*this)
     {
         if (ConfigUtils::useAppManagers()) {
            Exchange::ILifecycleManagerState *lifecycleManagerState = GetLifecycleManagerStateInterface();
@@ -498,7 +498,7 @@ class LifecycleDelegate : public BaseEventDelegate
             // Lifecycle 1 direct mapping
             case Exchange::ILifecycleManager::PAUSED:
                 return "inactive";
-            // Lifecyle 1 direct mapping
+            // Lifecycle 1 direct mapping
             case Exchange::ILifecycleManager::ACTIVE:
                 return "foreground";
             // Lifecycle 1 maps both suspended and hibernated to suspended
