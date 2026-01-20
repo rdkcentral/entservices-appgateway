@@ -42,6 +42,11 @@ static const std::set<string> VALID_USER_SETTINGS_EVENT = {
     "accessibility.onvoiceguidancesettingschanged",
 };
 
+// Events that require TextTrack interface registration
+static const std::set<string> TEXTTRACK_EVENTS = {
+    "accessibility.onclosedcaptionssettingschanged"
+};
+
 // Helper functions to convert enums to strings matching TextTrack API format
 static const char* FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily family) {
     switch (family) {
@@ -102,6 +107,64 @@ static const char* FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::Fon
         default:
             return "null";
     }
+}
+
+// Helper function to parse comma-separated languages into JSON array
+// Parses: "eng,fra,spa" -> JSON array ["eng","fra","spa"]
+static void ParseCommaSeparatedLanguages(const string& commaSeparatedLanguages, JsonArray& jsonArray) {
+    if (!commaSeparatedLanguages.empty()) {
+        // Split comma-separated string into JSON array
+        std::istringstream stream(commaSeparatedLanguages);
+        string token;
+        while (std::getline(stream, token, ',')) {
+            // Trim whitespace
+            size_t start = token.find_first_not_of(" \t");
+            if (start == string::npos) {
+                continue; // Skip all-whitespace tokens
+            }
+            token.erase(0, start);
+            size_t end = token.find_last_not_of(" \t");
+            if (end != string::npos) {
+                token.erase(end + 1);
+            }
+            if (!token.empty()) {
+                jsonArray.Add(token);
+            }
+        }
+    }
+}
+
+// Helper function to convert JSON array or string to comma-separated format
+// Handles: JSON array ["eng","fra","spa"] -> "eng,fra,spa"
+static string ConvertToCommaSeparatedLanguages(const string& languages) {
+    string commaSeparatedLanguages;
+    
+    // Try parsing as JSON array first
+    JsonArray jsonArray;
+    if (jsonArray.FromString(languages)) {
+        // Successfully parsed as JSON array
+        bool first = true;
+        JsonArray::Iterator it = jsonArray.Elements();
+        while (it.Next()) {
+            if (it.Current().Content() == JsonValue::type::STRING) {
+                if (!first) commaSeparatedLanguages += ",";
+                commaSeparatedLanguages += it.Current().String();
+                first = false;
+            }
+        }
+    } else {
+        // Not a JSON array, treat as single string value
+        // Remove quotes if present
+        if (languages.length() >= 2 && languages[0] == '"' && languages.back() == '"') {
+            commaSeparatedLanguages = languages.substr(1, languages.length() - 2);
+        } else if (languages == "[]") {
+            commaSeparatedLanguages = "";  // Empty array
+        } else {
+            commaSeparatedLanguages = languages;
+        }
+    }
+    
+    return commaSeparatedLanguages;
 }
 
 // Helper function to build JSON styles object from ClosedCaptionsStyle struct
@@ -173,12 +236,15 @@ class UserSettingsDelegate : public BaseEventDelegate{
                     mNotificationHandler.SetRegistered(true);
                 }
 
-                // Register for TextTrack notifications for closed captions style changes
-                Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
-                if (textTrack != nullptr && !mTextTrackNotificationHandler.GetRegistered()) {
-                    LOGINFO("Registering for TextTrack notifications");
-                    mTextTrack->Register(&mTextTrackNotificationHandler);
-                    mTextTrackNotificationHandler.SetRegistered(true);
+                // Register for TextTrack notifications only for closed captions related events
+                std::string lowerEvent = StringUtils::toLower(event);
+                if (TEXTTRACK_EVENTS.find(lowerEvent) != TEXTTRACK_EVENTS.end()) {
+                    Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+                    if (textTrack != nullptr && !mTextTrackNotificationHandler.GetRegistered()) {
+                        LOGINFO("Registering for TextTrack notifications (event: %s)", event.c_str());
+                        mTextTrack->Register(&mTextTrackNotificationHandler);
+                        mTextTrackNotificationHandler.SetRegistered(true);
+                    }
                 }
 
                 return true;
@@ -660,26 +726,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             if (rc == Core::ERROR_NONE) {
                 // Transform: return_or_else(.result | split(","), [])
                 JsonArray jsonArray;
-                if (!preferredLanguages.empty()) {
-                    // Split comma-separated string into JSON array
-                    std::istringstream stream(preferredLanguages);
-                    string token;
-                    while (std::getline(stream, token, ',')) {
-                        // Trim whitespace
-                        size_t start = token.find_first_not_of(" \t");
-                        if (start == string::npos) {
-                            continue; // Skip all-whitespace tokens
-                        }
-                        token.erase(0, start);
-                        size_t end = token.find_last_not_of(" \t");
-                        if (end != string::npos) {
-                            token.erase(end + 1);
-                        }
-                        if (!token.empty()) {
-                            jsonArray.Add(token);
-                        }
-                    }
-                }
+                ParseCommaSeparatedLanguages(preferredLanguages, jsonArray);
                 jsonArray.ToString(result);
                 return Core::ERROR_NONE;
             } else {
@@ -706,26 +753,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             if (rc == Core::ERROR_NONE) {
                 // Transform: if .result | length > 0 then .result | split(",") else ["eng"] end
                 JsonArray jsonArray;
-                if (!preferredLanguages.empty()) {
-                    // Split comma-separated string into JSON array
-                    std::istringstream stream(preferredLanguages);
-                    string token;
-                    while (std::getline(stream, token, ',')) {
-                        // Trim whitespace
-                        size_t start = token.find_first_not_of(" \t");
-                        if (start == string::npos) {
-                            continue; // Skip all-whitespace tokens
-                        }
-                        token.erase(0, start);
-                        size_t end = token.find_last_not_of(" \t");
-                        if (end != string::npos) {
-                            token.erase(end + 1);
-                        }
-                        if (!token.empty()) {
-                            jsonArray.Add(token);
-                        }
-                    }
-                }
+                ParseCommaSeparatedLanguages(preferredLanguages, jsonArray);
 
                 if (jsonArray.Length() == 0) {
                     // Empty array - return default ["eng"]
@@ -755,33 +783,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             // 1. A JSON array: ["eng","fra","spa"] -> "eng,fra,spa"
             // 2. A single string: "tam" -> "tam"
 
-            string commaSeparatedLanguages;
-
-            // Try parsing as JSON array first
-            JsonArray jsonArray;
-            if (jsonArray.FromString(languages)) {
-                // Successfully parsed as JSON array
-                bool first = true;
-                JsonArray::Iterator it = jsonArray.Elements();
-                while (it.Next()) {
-                    if (it.Current().Content() == JsonValue::type::STRING) {
-                        if (!first) commaSeparatedLanguages += ",";
-                        commaSeparatedLanguages += it.Current().String();
-                        first = false;
-                    }
-                }
-            } else {
-                // Not a JSON array, treat as single string value
-                // Remove quotes if present
-                if (languages.length() >= 2 && languages[0] == '"' && languages.back() == '"') {
-                    commaSeparatedLanguages = languages.substr(1, languages.length() - 2);
-                } else if (languages == "[]") {
-                    commaSeparatedLanguages = "";  // Empty array
-                } else {
-                    commaSeparatedLanguages = languages;
-                }
-            }
-
+            string commaSeparatedLanguages = ConvertToCommaSeparatedLanguages(languages);
             LOGINFO("Converted to comma-separated: %s", commaSeparatedLanguages.c_str());
 
             Core::hresult rc = userSettings->SetPreferredAudioLanguages(commaSeparatedLanguages);
@@ -808,33 +810,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             // 1. A JSON array: ["eng","fra","spa"] -> "eng,fra,spa"
             // 2. A single string: "tam" -> "tam"
 
-            string commaSeparatedLanguages;
-
-            // Try parsing as JSON array first
-            JsonArray jsonArray;
-            if (jsonArray.FromString(preferredLanguages)) {
-                // Successfully parsed as JSON array
-                bool first = true;
-                JsonArray::Iterator it = jsonArray.Elements();
-                while (it.Next()) {
-                    if (it.Current().Content() == JsonValue::type::STRING) {
-                        if (!first) commaSeparatedLanguages += ",";
-                        commaSeparatedLanguages += it.Current().String();
-                        first = false;
-                    }
-                }
-            } else {
-                // Not a JSON array, treat as single string value
-                // Remove quotes if present
-                if (preferredLanguages.length() >= 2 && preferredLanguages[0] == '"' && preferredLanguages.back() == '"') {
-                    commaSeparatedLanguages = preferredLanguages.substr(1, preferredLanguages.length() - 2);
-                } else if (preferredLanguages == "[]") {
-                    commaSeparatedLanguages = "";  // Empty array
-                } else {
-                    commaSeparatedLanguages = preferredLanguages;
-                }
-            }
-
+            string commaSeparatedLanguages = ConvertToCommaSeparatedLanguages(preferredLanguages);
             LOGINFO("Converted to comma-separated: %s", commaSeparatedLanguages.c_str());
 
             Core::hresult rc = userSettings->SetPreferredCaptionsLanguages(commaSeparatedLanguages);
@@ -1006,26 +982,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
                     // Add preferredLanguages array
                     JsonArray languagesArray;
-                    if (!preferredLanguages.empty()) {
-                        // Split comma-separated string into JSON array
-                        std::istringstream stream(preferredLanguages);
-                        string token;
-                        while (std::getline(stream, token, ',')) {
-                            // Trim whitespace
-                            size_t start = token.find_first_not_of(" \t");
-                            if (start == string::npos) {
-                                continue; // Skip all-whitespace tokens
-                            }
-                            token.erase(0, start);
-                            size_t end = token.find_last_not_of(" \t");
-                            if (end != string::npos) {
-                                token.erase(end + 1);
-                            }
-                            if (!token.empty()) {
-                                languagesArray.Add(token);
-                            }
-                        }
-                    }
+                    ParseCommaSeparatedLanguages(preferredLanguages, languagesArray);
 
                     if (languagesArray.Length() == 0) {
                         languagesArray.Add("eng");  // Default to ["eng"] if empty
