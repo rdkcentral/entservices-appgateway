@@ -7,8 +7,13 @@ on:
     branches: [ main, 'sprint/**', 'release/**', topic/RDK*, develop ]
 
 jobs:
+  # Coverity native full build job for entservices-appgateway.
+  # This workflow was previously disabled via an `if: false` guard and is now
+  # re-enabled to restore native Coverity analysis coverage in CI. It runs a full
+  # dependency build followed by `cov_build.sh` to generate Coverity build
+  # artifacts for static analysis of the entservices-appgateway component on
+  # main, sprint, release, and develop branches (and their pull requests).
   build-entservices-on-pr:
-    if: false  # Disabled
     name: Build entservices-appgateway component in github rdkcentral
     runs-on: ubuntu-latest
     container:
