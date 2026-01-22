@@ -594,7 +594,7 @@ namespace WPEFramework
                 return "";
             }
             std::string value = json[key.c_str()].String();
-            LOGINFO("%s '%s' read: %s", tag, key.c_str(), value.c_str());
+            LOGINFO("%s '%s' read: %s", tag, value.c_str());
             return value;
         }
 
