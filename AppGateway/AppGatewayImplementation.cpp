@@ -206,10 +206,9 @@ namespace WPEFramework
             mService = shell;
             mService->AddRef();
 
+            // Issue ID 298: Identical code for different branches
+            // Fix: Remove redundant if statement - both branches return result
             result = InitializeResolver();
-            if (Core::ERROR_NONE != result) {
-                return result;
-            }
             return result;
         }
         
@@ -619,4 +618,3 @@ namespace WPEFramework
 
     } // namespace Plugin
 } // namespace WPEFramework
-
