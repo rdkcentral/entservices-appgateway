@@ -173,25 +173,54 @@ static void BuildClosedCaptionsStyleJson(const Exchange::ITextTrackClosedCaption
     if (style.fontFamily != Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CONTENT_DEFAULT) {
         styles["fontFamily"] = FontFamilyToString(style.fontFamily);
     }
-    
+
     // Only add fontSize if not CONTENT_DEFAULT
     if (style.fontSize != Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT) {
         styles["fontSize"] = FontSizeToNumber(style.fontSize);
     }
-    
-    styles["fontColor"] = style.fontColor;
-    styles["fontOpacity"] = static_cast<int>(style.fontOpacity);
-    
+
+    // Only add fontColor if not empty
+    if (!style.fontColor.empty()) {
+        styles["fontColor"] = style.fontColor;
+    }
+
+    // Only add fontOpacity if >= 0
+    int fontOpacity = static_cast<int>(style.fontOpacity);
+    if (fontOpacity >= 0) {
+        styles["fontOpacity"] = fontOpacity;
+    }
+
     // Only add fontEdge if not CONTENT_DEFAULT
     if (style.fontEdge != Exchange::ITextTrackClosedCaptionsStyle::FontEdge::CONTENT_DEFAULT) {
         styles["fontEdge"] = FontEdgeToString(style.fontEdge);
     }
 
-    styles["fontEdgeColor"] = style.fontEdgeColor;
-    styles["backgroundColor"] = style.backgroundColor;
-    styles["backgroundOpacity"] = static_cast<int>(style.backgroundOpacity);
-    styles["windowColor"] = style.windowColor;
-    styles["windowOpacity"] = static_cast<int>(style.windowOpacity);
+    // Only add fontEdgeColor if not empty
+    if (!style.fontEdgeColor.empty()) {
+        styles["fontEdgeColor"] = style.fontEdgeColor;
+    }
+
+    // Only add backgroundColor if not empty
+    if (!style.backgroundColor.empty()) {
+        styles["backgroundColor"] = style.backgroundColor;
+    }
+
+    // Only add backgroundOpacity if >= 0
+    int backgroundOpacity = static_cast<int>(style.backgroundOpacity);
+    if (backgroundOpacity >= 0) {
+        styles["backgroundOpacity"] = backgroundOpacity;
+    }
+
+    // Only add windowColor if not empty
+    if (!style.windowColor.empty()) {
+        styles["windowColor"] = style.windowColor;
+    }
+
+    // Only add windowOpacity if >= 0
+    int windowOpacity = static_cast<int>(style.windowOpacity);
+    if (windowOpacity >= 0) {
+        styles["windowOpacity"] = windowOpacity;
+    }
 }
 
 class UserSettingsDelegate : public BaseEventDelegate{
@@ -1023,6 +1052,6 @@ class UserSettingsDelegate : public BaseEventDelegate{
         Core::Sink<UserSettingsNotificationHandler> mNotificationHandler;
         Core::Sink<TextTrackNotificationHandler> mTextTrackNotificationHandler;
 
-        
 };
 #endif
+
