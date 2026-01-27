@@ -106,6 +106,120 @@ namespace Plugin {
             return Core::ERROR_NONE;
     }
 
+            
+    // ...existing code...
+    // Static handler map definition
+    const std::unordered_map<std::string, AppGatewayCommon::HandlerFunction> AppGatewayCommon::handlers = {
+        { "device.make", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetDeviceMake(result);
+        }},
+        { "device.name", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetDeviceName(result);
+        }},
+        { "device.sku", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetDeviceSku(result);
+        }},
+        { "localization.countrycode", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetCountryCode(result);
+        }},
+        { "localization.timezone", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetTimeZone(result);
+        }},
+        { "secondscreen.friendlyname", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetSecondScreenFriendlyName(result);
+        }},
+        { "localization.addadditionalinfo", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return ResponseUtils::SetNullResponseForSuccess(self->AddAdditionalInfo(payload, result), result);
+        }},
+        { "device.network", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetInternetConnectionStatus(result);
+        }},
+        { "voiceguidance.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetVoiceGuidance(result);
+        }},
+        { "device.version", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetFirmwareVersion(result);
+        }},
+        { "device.screenresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetScreenResolution(result);
+        }},
+        { "device.videoresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetVideoResolution(result);
+        }},
+        { "device.hdcp", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetHdcp(result);
+        }},
+        { "device.hdr", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetHdr(result);
+        }},
+        { "device.audio", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetAudio(result);
+        }},
+        { "voiceguidance.navigationhints", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetVoiceGuidanceHints(result);
+        }},
+        { "accessibility.voiceguidancesettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetVoiceGuidanceSettings(result);
+        }},
+        { "accessibility.voiceguidance", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetVoiceGuidanceSettings(result);
+        }},
+        { "accessibility.audiodescriptionsettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetAudioDescription(result);
+        }},
+        { "audiodescriptions.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetAudioDescriptionsEnabled(result);
+        }},
+        { "accessibility.highcontrastui", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetHighContrast(result);
+        }},
+        { "closedcaptions.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetCaptions(result);
+        }},
+        { "closedcaptions.preferredlanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetPreferredCaptionsLanguages(result);
+        }},
+        { "accessibility.closedcaptions", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetClosedCaptionsSettings(result);
+        }},
+        { "accessibility.closedcaptionssettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetClosedCaptionsSettings(result);
+        }},
+        { "localization.language", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetPresentationLanguage(result);
+        }},
+        { "localization.locale", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetLocale(result);
+        }},
+        { "localization.preferredaudiolanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetPreferredAudioLanguages(result);
+        }},
+        { "lifecycle2.close", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->Lifecycle2Close(ctx,payload,result);
+        }},
+        { "lifecycle.state", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->LifecycleState(ctx,payload,result);
+        }},
+        { "lifecycle2.state", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->Lifecycle2State(ctx,payload,result);
+        }},
+        { "lifecycle.close", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->LifecycleClose(ctx,payload,result);
+        }},
+        { "lifecycle.ready", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->LifecycleReady(ctx,payload,result);
+        }},
+        { "lifecycle.finished", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->LifecycleFinished(ctx,payload,result);
+        }},
+        { "commoninternal.dispatchintent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->DispatchLastIntent(ctx,payload,result);
+        }},
+        { "commoninternal.getlastintent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetLastIntent(ctx,payload,result);
+        }},
+    };
+
     Core::hresult AppGatewayCommon::HandleAppGatewayRequest(const Exchange::GatewayContext &context /* @in */,
                                           const string& method /* @in */,
                                           const string &payload /* @in @opaque */,
@@ -114,117 +228,6 @@ namespace Plugin {
             LOGTRACE("HandleAppGatewayRequest: method=%s, payload=%s, appId=%s",
                     method.c_str(), payload.c_str(), context.appId.c_str());
             std::string lowerMethod = StringUtils::toLower(method);
-
-            static const std::unordered_map<std::string, std::function<Core::hresult(AppGatewayCommon*, const Exchange::GatewayContext&, const std::string&, std::string&)>> handlers = {
-                { "device.make", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetDeviceMake(result);
-                }},
-                { "device.name", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetDeviceName(result);
-                }},
-                { "device.sku", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetDeviceSku(result);
-                }},
-                { "localization.countrycode", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetCountryCode(result);
-                }},
-                { "localization.timezone", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetTimeZone(result);
-                }},
-                { "secondscreen.friendlyname", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetSecondScreenFriendlyName(result);
-                }},
-                { "localization.addadditionalinfo", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return ResponseUtils::SetNullResponseForSuccess(self->AddAdditionalInfo(payload, result), result);
-                }},
-                { "device.network", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetInternetConnectionStatus(result);
-                }},
-                { "voiceguidance.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetVoiceGuidance(result);
-                }},
-                { "device.version", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetFirmwareVersion(result);
-                }},
-                { "device.screenresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetScreenResolution(result);
-                }},
-                { "device.videoresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetVideoResolution(result);
-                }},
-                { "device.hdcp", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetHdcp(result);
-                }},
-                { "device.hdr", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetHdr(result);
-                }},
-                { "device.audio", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetAudio(result);
-                }},
-                { "voiceguidance.navigationhints", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetVoiceGuidanceHints(result);
-                }},
-                { "accessibility.voiceguidancesettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetVoiceGuidanceSettings(result);
-                }},
-                { "accessibility.voiceguidance", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetVoiceGuidanceSettings(result);
-                }},
-                { "accessibility.audiodescriptionsettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetAudioDescription(result);
-                }},
-                { "audiodescriptions.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetAudioDescriptionsEnabled(result);
-                }},
-                { "accessibility.highcontrastui", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetHighContrast(result);
-                }},
-                { "closedcaptions.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetCaptions(result);
-                }},
-                { "closedcaptions.preferredlanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetPreferredCaptionsLanguages(result);
-                }},
-                { "accessibility.closedcaptions", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetClosedCaptionsSettings(result);
-                }},
-                { "accessibility.closedcaptionssettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetClosedCaptionsSettings(result);
-                }},
-                { "localization.language", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetPresentationLanguage(result);
-                }},
-                { "localization.locale", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetLocale(result);
-                }},
-                { "localization.preferredaudiolanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetPreferredAudioLanguages(result);
-                }},
-                { "lifecycle2.close", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->Lifecycle2Close(ctx,payload,result);
-                }},
-                { "lifecycle.state", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->LifecycleState(ctx,payload,result);
-                }},
-                { "lifecycle2.state", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->Lifecycle2State(ctx,payload,result);
-                }},
-                { "lifecycle.close", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->LifecycleClose(ctx,payload,result);
-                }},
-                { "lifecycle.ready", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->LifecycleReady(ctx,payload,result);
-                }},
-                { "lifecycle.finished", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->LifecycleFinished(ctx,payload,result);
-                }},
-                { "commoninternal.dispatchintent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->DispatchLastIntent(ctx,payload,result);
-                }},
-                { "commoninternal.getlastintent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-                    return self->GetLastIntent(ctx,payload,result);
-                }},
-            };
 
             auto it = handlers.find(lowerMethod);
             if (it != handlers.end()) {

@@ -34,6 +34,8 @@ namespace WPEFramework {
 
 		class AppGatewayCommon : public PluginHost::IPlugin, Exchange::IAppGatewayRequestHandler, Exchange::IAppNotificationHandler, Exchange::IAppGatewayAuthenticator{
         private:
+            using HandlerFunction = std::function<Core::hresult(AppGatewayCommon*, const Exchange::GatewayContext&, const std::string&, std::string&)>;
+            static const std::unordered_map<std::string, HandlerFunction> handlers;
             // We do not allow this plugin to be copied !!
             AppGatewayCommon(const AppGatewayCommon&) = delete;
             AppGatewayCommon& operator=(const AppGatewayCommon&) = delete;
