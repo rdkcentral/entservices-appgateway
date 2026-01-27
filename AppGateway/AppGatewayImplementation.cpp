@@ -442,7 +442,6 @@ namespace WPEFramework
 
                 result = mResolverPtr->CallThunderPlugin(alias, finalParams, resolution);
 
-                # fprintf result aliase finalParams resolution
                 fprintf(stderr, "FASIL AppGatewayImplementation::FetchResolvedData: alias=%s finalParams=%s resolution=%s\n",
                         alias.c_str(), finalParams.c_str(), resolution.c_str());
                 fprintf(stderr, "AppGatewayImplementation::FetchResolvedData: result=%u\n", result);
