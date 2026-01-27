@@ -300,10 +300,16 @@ namespace Plugin {
         static constexpr const char* kCompliantJsonRpcFeatureFlag = "RPCV2=true";
 
         void CheckAndAddCompliantJsonRpc(const uint32_t connectionId, const string& token) {
-            // if token contains the string defined by kCompliantJsonRpcFeatureFlag then add it to the compliant list
-            if (token.find(kCompliantJsonRpcFeatureFlag) != string::npos) {
-                std::lock_guard<std::mutex> lock(mCompliantJsonRpcMutex);
-                mCompliantJsonRpcConnections.insert(connectionId);
+            // Split all query parameters based on delimiter '&'
+            std::stringstream ss(token);
+            std::string param;
+            while (std::getline(ss, param, '&')) {
+                // If any parameter exactly matches the feature flag, add to compliant list
+                if (param == kCompliantJsonRpcFeatureFlag) {
+                    std::lock_guard<std::mutex> lock(mCompliantJsonRpcMutex);
+                    mCompliantJsonRpcConnections.insert(connectionId);
+                    break;
+                }
             }
         }
 

@@ -1081,11 +1081,11 @@ namespace Plugin {
             if (!delegate) {
                 return Core::ERROR_UNAVAILABLE;
             }
-            std::shared_ptr<LifecycleType> lifecycleDelegate = (delegate.get()->*getLifecycleDelegate)();
+            std::shared_ptr<LifecycleType> lifecycleDelegate = ((*delegate).*getLifecycleDelegate)();
             if (!lifecycleDelegate) {
                 return Core::ERROR_UNAVAILABLE;
             }
-            return (lifecycleDelegate.get()->*func)(std::forward<Args>(args)...);
+            return ((*lifecycleDelegate).*func)(std::forward<Args>(args)...);
         }
 
 
