@@ -427,7 +427,9 @@ namespace WPEFramework
                     }
                 }
             }
-            LOGTRACE("Resolved method '%s' to alias '%s'", method.c_str(), alias.c_str());            
+            LOGTRACE("Resolved method '%s' to alias '%s'", method.c_str(), alias.c_str());
+            fprintf(stderr, "FASIL AppGatewayImplementation::FetchResolvedData: Resolved method '%s' to alias '%s'\n",
+                    method.c_str(), alias.c_str());            
             // Check if the given method is an event
             if (mResolverPtr->HasEvent(method)) {
                 result = PreProcessEvent(context, alias, method, origin, params, resolution);
@@ -439,13 +441,24 @@ namespace WPEFramework
                 LOGTRACE("Final Request params alias=%s Params = %s", alias.c_str(), finalParams.c_str());
 
                 result = mResolverPtr->CallThunderPlugin(alias, finalParams, resolution);
-                if (result != Core::ERROR_NONE) {
-                    LOGERR("Failed to retrieve resolution from Thunder method %s", alias.c_str());
-                    ErrorUtils::CustomInternal("Failed with internal error", resolution);
-                } else {
-                    if (resolution.empty()) {
-                        resolution = "null";
+
+                # fprintf result aliase finalParams resolution
+                fprintf(stderr, "FASIL AppGatewayImplementation::FetchResolvedData: alias=%s finalParams=%s resolution=%s\n",
+                        alias.c_str(), finalParams.c_str(), resolution.c_str());
+                fprintf(stderr, "AppGatewayImplementation::FetchResolvedData: result=%u\n", result);
+
+                if (resolution.empty()) {
+                    fprintf(stderr, "FASIL AppGatewayImplementation::FetchResolvedData: Thunder method %s returned empty resolution\n", alias.c_str());
+                    resolution = "null";
+                    LOGTRACE("Thunder method %s returned empty resolution", alias.c_str());
+
+                    if (result != Core::ERROR_NONE) {
+                        LOGERR("Failed to retrieve resolution from Thunder method %s", alias.c_str());
+                        ErrorUtils::CustomInternal("Failed with internal error", resolution);
                     }
+                }
+                else {
+                    fprintf(stderr, "FASIL AppGatewayImplementation::FetchResolvedData: Received resolution from Thunder method %s: %s\n", alias.c_str(), resolution.c_str());
                 }
             }
             return result;
