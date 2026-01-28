@@ -194,7 +194,7 @@ namespace WPEFramework
         Core::hresult AppGatewayResponderImplementation::Emit(const Context& context /* @in */, 
                 const string& method /* @in */, const string& payload /* @in @opaque */) {
             // check if the connection is compliant with JSON RPC
-            if (!mCompliantJsonRpcRegistry.IsCompliantJsonRpc(context.connectionId)) {
+            if (mCompliantJsonRpcRegistry.IsCompliantJsonRpc(context.connectionId)) {
                 Core::IWorkerPool::Instance().Submit(EmitJob::Create(this, context.connectionId, method, payload));
             }
             else {
