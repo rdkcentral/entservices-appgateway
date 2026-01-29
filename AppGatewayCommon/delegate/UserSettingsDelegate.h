@@ -256,25 +256,33 @@ class UserSettingsDelegate : public BaseEventDelegate{
                     LOGERR("UserSettings interface not available");
                     return false;
                 }
-	
-                if (!mNotificationHandler.GetRegistered()) {
-                    LOGINFO("Registering for UserSettings notifications");
-                    mUserSettings->Register(&mNotificationHandler);
-                    mNotificationHandler.SetRegistered(true);
+
+                // Protect UserSettings registration with lock to prevent race condition
+                {
+                    std::lock_guard<std::mutex> lock(mRegistrationMutex);
+                    if (!mNotificationHandler.GetRegistered()) {
+                        LOGINFO("Registering for UserSettings notifications");
+                        mUserSettings->Register(&mNotificationHandler);
+                        mNotificationHandler.SetRegistered(true);
+                    }
                 }
 
                 // Register for TextTrack notifications only for closed captions related events
                 std::string lowerEvent = StringUtils::toLower(event);
                 if (TEXTTRACK_EVENTS.find(lowerEvent) != TEXTTRACK_EVENTS.end()) {
                     Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
-                    if (textTrack != nullptr && !mTextTrackNotificationHandler.GetRegistered()) {
-                        LOGINFO("Registering for TextTrack notifications (event: %s)", event.c_str());
-                        textTrack->Register(&mTextTrackNotificationHandler);
-                        mTextTrackNotificationHandler.SetRegistered(true);
+
+                    if (textTrack != nullptr) {
+                        std::lock_guard<std::mutex> lock(mRegistrationMutex);
+                        if (!mTextTrackNotificationHandler.GetRegistered()) {
+                            LOGINFO("Registering for TextTrack notifications (event: %s)", event.c_str());
+                            textTrack->Register(&mTextTrackNotificationHandler);
+                            mTextTrackNotificationHandler.SetRegistered(true);
+                        }
                     }
                 }
 
-				AddNotification(event, cb);
+                AddNotification(event, cb);
 
                 return true;
             } else {
@@ -1140,6 +1148,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
         PluginHost::IShell* mShell;
         Core::Sink<UserSettingsNotificationHandler> mNotificationHandler;
         Core::Sink<TextTrackNotificationHandler> mTextTrackNotificationHandler;
+        std::mutex mRegistrationMutex;
 
 };
 #endif
