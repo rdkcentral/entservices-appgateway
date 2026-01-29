@@ -60,6 +60,7 @@ namespace Plugin {
         PluginInterfaceRef(PluginInterfaceRef&& other)
             : _interface(other._interface), _service(other._service)
         {
+            other._interface = nullptr;
             other._service = nullptr;
         }
 
