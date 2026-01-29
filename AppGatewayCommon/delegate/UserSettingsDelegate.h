@@ -74,7 +74,7 @@ static const char* FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::F
 static int FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize size) {
     switch (size) {
         case Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT:
-            return -1;  // Will be filtered out as null in JSON
+            return -1;  // Never added to JSON when CONTENT_DEFAULT
         case Exchange::ITextTrackClosedCaptionsStyle::FontSize::SMALL:
             return 0;
         case Exchange::ITextTrackClosedCaptionsStyle::FontSize::REGULAR:
@@ -271,7 +271,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
                     Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
                     if (textTrack != nullptr && !mTextTrackNotificationHandler.GetRegistered()) {
                         LOGINFO("Registering for TextTrack notifications (event: %s)", event.c_str());
-                        mTextTrack->Register(&mTextTrackNotificationHandler);
+                        textTrack->Register(&mTextTrackNotificationHandler);
                         mTextTrackNotificationHandler.SetRegistered(true);
                     }
                 }
@@ -884,10 +884,99 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         void OnCaptionsChanged(const bool enabled) {
            mParent.Dispatch( "closedcaptions.onenabledchanged", ObjectUtils::BoolToJsonString(enabled));
+
+           // Also dispatch accessibility.onclosedcaptionssettingschanged with combined settings
+           Exchange::ITextTrackClosedCaptionsStyle* textTrack = mParent.GetTextTrackInterface();
+           Exchange::IUserSettings* userSettings = mParent.GetUserSettingsInterface();
+           string preferredLanguages;
+
+           if (userSettings != nullptr) {
+               Core::hresult langsResult = userSettings->GetPreferredCaptionsLanguages(preferredLanguages);
+               if (langsResult != Core::ERROR_NONE) {
+                   LOGWARN("OnCaptionsChanged: GetPreferredCaptionsLanguages failed with error %u, using default [\"eng\"]", langsResult);
+                   preferredLanguages = "";
+               }
+           } else {
+               LOGWARN("OnCaptionsChanged: UserSettings interface unavailable, using default preferredLanguages=[\"eng\"]");
+           }
+
+           JsonObject response;
+           response["enabled"] = enabled;
+
+           // Add styles - get from TextTrack if available, otherwise use empty
+           JsonObject styles;
+           if (textTrack != nullptr) {
+               Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle ccStyle;
+               Core::hresult styleResult = textTrack->GetClosedCaptionsStyle(ccStyle);
+               if (styleResult == Core::ERROR_NONE) {
+                   BuildClosedCaptionsStyleJson(ccStyle, styles);
+               } else {
+                   LOGWARN("OnCaptionsChanged: GetClosedCaptionsStyle failed with error %u, using empty styles", styleResult);
+               }
+           } else {
+               LOGWARN("OnCaptionsChanged: TextTrack interface unavailable, using empty styles");
+           }
+           response["styles"] = styles;
+
+           // Add preferredLanguages array
+           JsonArray languagesArray;
+           ParseCommaSeparatedLanguages(preferredLanguages, languagesArray);
+           if (languagesArray.Length() == 0) {
+               languagesArray.Add("eng");  // Default to ["eng"] if empty
+           }
+           response["preferredLanguages"] = languagesArray;
+
+           string result;
+           response.ToString(result);
+           mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", result);
         }
 
         void OnPreferredCaptionsLanguagesChanged(const string& preferredLanguages) {
             mParent.Dispatch( "closedcaptions.onpreferredlanguageschanged", preferredLanguages);
+
+            // Also dispatch accessibility.onclosedcaptionssettingschanged with combined settings
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = mParent.GetTextTrackInterface();
+            Exchange::IUserSettings* userSettings = mParent.GetUserSettingsInterface();
+            bool enabled = false;
+
+            if (userSettings != nullptr) {
+                Core::hresult captionsResult = userSettings->GetCaptions(enabled);
+                if (captionsResult != Core::ERROR_NONE) {
+                    LOGWARN("OnPreferredCaptionsLanguagesChanged: GetCaptions failed with error %u, using default enabled=false", captionsResult);
+                }
+            } else {
+                LOGWARN("OnPreferredCaptionsLanguagesChanged: UserSettings interface unavailable, using default enabled=false");
+            }
+
+            JsonObject response;
+            response["enabled"] = enabled;
+
+            // Add styles - get from TextTrack if available, otherwise use empty
+            JsonObject styles;
+            if (textTrack != nullptr) {
+                Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle ccStyle;
+                Core::hresult styleResult = textTrack->GetClosedCaptionsStyle(ccStyle);
+                if (styleResult == Core::ERROR_NONE) {
+                    BuildClosedCaptionsStyleJson(ccStyle, styles);
+                } else {
+                    LOGWARN("OnPreferredCaptionsLanguagesChanged: GetClosedCaptionsStyle failed with error %u, using empty styles", styleResult);
+                }
+            } else {
+                LOGWARN("OnPreferredCaptionsLanguagesChanged: TextTrack interface unavailable, using empty styles");
+            }
+            response["styles"] = styles;
+
+            // Add preferredLanguages array
+            JsonArray languagesArray;
+            ParseCommaSeparatedLanguages(preferredLanguages, languagesArray);
+            if (languagesArray.Length() == 0) {
+                languagesArray.Add("eng");  // Default to ["eng"] if empty
+            }
+            response["preferredLanguages"] = languagesArray;
+
+            string result;
+            response.ToString(result);
+            mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", result);
         }
 
         void OnPreferredClosedCaptionServiceChanged(const string& service) {
