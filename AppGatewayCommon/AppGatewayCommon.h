@@ -68,7 +68,9 @@ namespace WPEFramework {
                 }
                 virtual void Dispatch()
                 {
-                    mParent.mDelegate->HandleAppEventNotifier(mCallback, mEvent, mListen);
+                    if (mParent.mDelegate != nullptr) {
+                        mParent.mDelegate->HandleAppEventNotifier(mCallback, mEvent, mListen);
+                    }
                 }
 
             private:

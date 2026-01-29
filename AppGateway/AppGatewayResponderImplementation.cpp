@@ -220,8 +220,6 @@ namespace WPEFramework
                            appId.c_str(),connectionId, requestId, method.c_str(), params.c_str());
                 }
                 // App Id is available
-                // Issue ID 20: Variable copied when it could be moved
-                // Fix: Use std::move to transfer ownership instead of copying
                 Context context = {
                     requestId,
                     connectionId,

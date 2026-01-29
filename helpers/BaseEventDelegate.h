@@ -144,7 +144,7 @@ public:
         {
             std::unordered_set<Exchange::IAppNotificationHandler::IEmitter *> emitters;
             emitters.insert(cb);
-            mRegisteredNotifications[event_l] = emitters;
+            mRegisteredNotifications[event_l] = std::move(emitters);
             cb->AddRef();
             LOGDBG("Notification registered = %s", event_l.c_str());
         }

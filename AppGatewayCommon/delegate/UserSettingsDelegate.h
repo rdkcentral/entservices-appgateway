@@ -421,7 +421,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
                         language = presentationLanguage.substr(0, dashPos);
                     } else {
                         // If no dash found, return the whole string
-                        language = presentationLanguage;
+                        language = std::move(presentationLanguage);
                     }
                     // Wrap in quotes to make it a valid JSON string
                     result = "\"" + language + "\"";
