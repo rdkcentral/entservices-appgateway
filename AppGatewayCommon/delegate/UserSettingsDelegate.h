@@ -257,8 +257,6 @@ class UserSettingsDelegate : public BaseEventDelegate{
                     return false;
                 }
 	
-                AddNotification(event, cb);
-
                 if (!mNotificationHandler.GetRegistered()) {
                     LOGINFO("Registering for UserSettings notifications");
                     mUserSettings->Register(&mNotificationHandler);
@@ -275,6 +273,8 @@ class UserSettingsDelegate : public BaseEventDelegate{
                         mTextTrackNotificationHandler.SetRegistered(true);
                     }
                 }
+
+				AddNotification(event, cb);
 
                 return true;
             } else {
