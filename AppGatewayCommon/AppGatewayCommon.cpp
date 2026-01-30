@@ -107,145 +107,91 @@ namespace Plugin {
     }
 
             
-    // Static handler map used to route GatewayContext requests to the corresponding AppGatewayCommon member handlers.
+    // ...existing code...
+    // Static handler map definition
     const std::unordered_map<std::string, AppGatewayCommon::HandlerFunction> AppGatewayCommon::handlers = {
         { "device.make", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetDeviceMake(result);
         }},
         { "device.name", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetDeviceName(result);
         }},
         { "device.sku", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetDeviceSku(result);
         }},
         { "localization.countrycode", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetCountryCode(result);
         }},
         { "localization.timezone", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetTimeZone(result);
         }},
         { "secondscreen.friendlyname", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetSecondScreenFriendlyName(result);
         }},
         { "localization.addadditionalinfo", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
             return ResponseUtils::SetNullResponseForSuccess(self->AddAdditionalInfo(payload, result), result);
         }},
         { "device.network", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetInternetConnectionStatus(result);
         }},
         { "voiceguidance.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetVoiceGuidance(result);
         }},
         { "device.version", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetFirmwareVersion(result);
         }},
         { "device.screenresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetScreenResolution(result);
         }},
         { "device.videoresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetVideoResolution(result);
         }},
         { "device.hdcp", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetHdcp(result);
         }},
         { "device.hdr", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetHdr(result);
         }},
         { "device.audio", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetAudio(result);
         }},
         { "voiceguidance.navigationhints", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetVoiceGuidanceHints(result);
         }},
         { "accessibility.voiceguidancesettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetVoiceGuidanceSettings(result);
         }},
         { "accessibility.voiceguidance", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetVoiceGuidanceSettings(result);
         }},
         { "accessibility.audiodescriptionsettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetAudioDescription(result);
         }},
         { "audiodescriptions.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetAudioDescriptionsEnabled(result);
         }},
         { "accessibility.highcontrastui", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetHighContrast(result);
         }},
         { "closedcaptions.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetCaptions(result);
         }},
         { "closedcaptions.preferredlanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetPreferredCaptionsLanguages(result);
         }},
         { "accessibility.closedcaptions", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetClosedCaptionsSettings(result);
         }},
         { "accessibility.closedcaptionssettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetClosedCaptionsSettings(result);
         }},
         { "localization.language", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetPresentationLanguage(result);
         }},
         { "localization.locale", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetLocale(result);
         }},
         { "localization.preferredaudiolanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
             return self->GetPreferredAudioLanguages(result);
         }},
         { "lifecycle2.close", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
@@ -282,6 +228,10 @@ namespace Plugin {
             LOGTRACE("HandleAppGatewayRequest: method=%s, payload=%s, appId=%s",
                     method.c_str(), payload.c_str(), context.appId.c_str());
             std::string lowerMethod = StringUtils::toLower(method);
+
+            auto it = handlers.find(lowerMethod);
+            if (it != handlers.end()) {
+                return it->second(this, context, payload, result);
 
             auto it = handlers.find(lowerMethod);
             if (it != handlers.end()) {
@@ -389,6 +339,7 @@ namespace Plugin {
                 return Core::ERROR_BAD_REQUEST;
             }
             
+            
             else if (lowerMethod == "closedcaptions.setpreferredlanguages")
             {
                 JsonObject params;
@@ -400,6 +351,7 @@ namespace Plugin {
                 result = "{\"error\":\"Invalid payload\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
+            
             
             else if (lowerMethod == "localization.setlocale")
             {
@@ -422,6 +374,7 @@ namespace Plugin {
                 }
                 result = "{\"error\":\"Invalid payload\"}";
                 return Core::ERROR_BAD_REQUEST;
+            } 
             } 
 
             // If method not found, return error
@@ -1140,6 +1093,80 @@ namespace Plugin {
             return systemDelegate->GetAudio(result);
         }
 
+        template <typename DelegateType, typename LifecycleType, typename Func, typename... Args>
+        Core::hresult InvokeLifecycleDelegate(const std::shared_ptr<DelegateType>& delegate,
+                                            std::shared_ptr<LifecycleType> (DelegateType::*getLifecycleDelegate)() const,
+                                            Func func, Args&&... args) {
+            if (!delegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            std::shared_ptr<LifecycleType> lifecycleDelegate = ((*delegate).*getLifecycleDelegate)();
+            if (!lifecycleDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return ((*lifecycleDelegate).*func)(std::forward<Args>(args)...);
+        }
+
+
+        Core::hresult AppGatewayCommon::Authenticate(const string &sessionId /* @in */, string &appId /* @out */)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Authenticate, sessionId, appId);
+        }
+
+        Core::hresult AppGatewayCommon::GetSessionId(const string &appId /* @in */, string &sessionId /* @out */)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetSessionId, appId, sessionId);
+        }
+
+        Core::hresult AppGatewayCommon::LifecycleFinished(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleFinished, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleReady, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::LifecycleClose(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleClose, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::Lifecycle2State(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Lifecycle2State, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::LifecycleState(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleState, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::Lifecycle2Close(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Lifecycle2Close, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::DispatchLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::DispatchLastIntent, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::GetLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetLastIntent, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::CheckPermissionGroup(const string &appId /* @in */, const string &permissionGroup /* @in */, bool &allowed /* @out */)
+        {
+            // Currently there are no permission groups defined so default is allowed
+            // This is not a security issue given all packages are signed and only non sensitive app methods are allowed to be accessed.
+            // TODO: In future when Permission groups are defined this interface will be implemented
+            // 
+            allowed = true;
+            return Core::ERROR_NONE;
+        }
         template <typename DelegateType, typename LifecycleType, typename Func, typename... Args>
         Core::hresult InvokeLifecycleDelegate(const std::shared_ptr<DelegateType>& delegate,
                                             std::shared_ptr<LifecycleType> (DelegateType::*getLifecycleDelegate)() const,
