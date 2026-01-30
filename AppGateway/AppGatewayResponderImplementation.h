@@ -28,7 +28,6 @@
 #include <core/core.h>
 #include <map>
 #include <unordered_set>
-#include <sstream>
 
 
 namespace WPEFramework {
@@ -333,6 +332,47 @@ namespace Plugin {
             std::mutex mCompliantJsonRpcMutex;
         };
 
+        // Create new Registry for JSON RPC compliant connections
+        class CompliantJsonRpcRegistry {
+        public:
+        // Token substring that indicates a connection is compliant with JSON RPC (RPC version 2).
+        // When this substring is present in the authentication token, the connection is treated
+        // as JSON RPC compliant and added to the compliant connections registry.
+        static constexpr const char* kCompliantJsonRpcFeatureFlag = "RPCV2=true";
+
+        void CheckAndAddCompliantJsonRpc(const uint32_t connectionId, const string& token) {
+            // Split all query parameters based on delimiter '&'
+            std::stringstream ss(token);
+            std::string param;
+            while (std::getline(ss, param, '&')) {
+                // If any parameter exactly matches the feature flag, add to compliant list
+                if (param == kCompliantJsonRpcFeatureFlag) {
+                    std::lock_guard<std::mutex> lock(mCompliantJsonRpcMutex);
+                    mCompliantJsonRpcConnections.insert(connectionId);
+                    break;
+                }
+            }
+        }
+
+        bool IsCompliantJsonRpc(const uint32_t connectionId) {
+            std::lock_guard<std::mutex> lock(mCompliantJsonRpcMutex);
+            return (mCompliantJsonRpcConnections.find(connectionId) != mCompliantJsonRpcConnections.end());
+        }
+
+        void CleanupConnectionId(const uint32_t connectionId) {
+            std::lock_guard<std::mutex> lock(mCompliantJsonRpcMutex);
+            auto it = mCompliantJsonRpcConnections.find(connectionId);
+            if (it != mCompliantJsonRpcConnections.end()) {
+                mCompliantJsonRpcConnections.erase(it);
+            }
+        }
+
+        private:
+            // unordered set of connection IDs which are compliant with JSON RPC
+            std::unordered_set<uint32_t> mCompliantJsonRpcConnections;
+            std::mutex mCompliantJsonRpcMutex;
+        };
+
         void DispatchWsMsg(const std::string& method,
             const std::string& params,
             const uint32_t requestId,
@@ -358,6 +398,7 @@ namespace Plugin {
         mutable Core::CriticalSection mConnectionStatusImplLock;
         std::list<Exchange::IAppGatewayResponder::INotification*> mConnectionStatusNotification;
         bool mEnhancedLoggingEnabled;
+        CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
         CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
     };
 } // namespace Plugin
