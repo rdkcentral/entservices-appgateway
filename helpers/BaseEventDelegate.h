@@ -34,8 +34,8 @@ public:
     class EXTERNAL EventDelegateDispatchJob : public Core::IDispatch
     {
     public:
-        EventDelegateDispatchJob(BaseEventDelegate *delegate, const string &event, const string &payload)
-            : mDelegate(*delegate), mEvent(event), mPayload(payload) {}
+        EventDelegateDispatchJob(BaseEventDelegate *delegate, const string &event, const string &payload, string appId = "")
+            : mDelegate(*delegate), mEvent(event), mPayload(payload), mAppId(appId) {}
 
         EventDelegateDispatchJob() = delete;
         EventDelegateDispatchJob(const EventDelegateDispatchJob &) = delete;
@@ -45,20 +45,21 @@ public:
         }
 
         static Core::ProxyType<Core::IDispatch> Create(BaseEventDelegate *parent,
-                                                       const string &event, const string &payload)
+                                                       const string &event, const string &payload, string appId = "")
         {
-            return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<EventDelegateDispatchJob>::Create(parent, event, payload)));
+            return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<EventDelegateDispatchJob>::Create(parent, event, payload, appId)));
         }
 
         virtual void Dispatch()
         {
-            mDelegate.DispatchToAppNotifications(mEvent, mPayload);
+            mDelegate.DispatchToAppNotifications(mEvent, mPayload, mAppId);
         }
 
     private:
         BaseEventDelegate &mDelegate;
         string mEvent;
         string mPayload;
+        string mAppId;
     };
 
     BaseEventDelegate() : mRegisteredNotifications(),
@@ -82,7 +83,7 @@ public:
 
     virtual bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError) = 0;
 
-    bool Dispatch(const string &event, const string &payload)
+    bool Dispatch(const string &event, const string &payload, string appId = "")
     {
         LOGDBG("Dispatching %s with payload %s", event.c_str(), payload.c_str());
 
@@ -93,12 +94,12 @@ public:
             return false;
         }
 
-        Core::IWorkerPool::Instance().Submit(EventDelegateDispatchJob::Create(this, event, payload));
+        Core::IWorkerPool::Instance().Submit(EventDelegateDispatchJob::Create(this, event, payload, appId));
 
         return true;
     }
 
-    bool DispatchToAppNotifications(const string &event, const string &payload)
+    bool DispatchToAppNotifications(const string &event, const string &payload, const string &appId)
     {
 
         auto emitters = GetEmittersForNotification(event);
@@ -107,7 +108,7 @@ public:
             LOGDBG("Using registered emitter for event %s", event.c_str());
             for (auto emitter : emitters)
             {
-                emitter->Emit(event, payload, "");
+                emitter->Emit(event, payload, appId);
                 emitter->Release();
             }
             return true;

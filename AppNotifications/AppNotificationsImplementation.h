@@ -69,11 +69,11 @@ namespace Plugin {
             void EventUpdate(const string& key, const string& payloadStr, const string& appId );
 
             // Create a method to check if the SubscriberMap
-            void Dispatch(const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload);
+            void Dispatch(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload);
 
-            void DispatchToGateway(const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload);
+            void DispatchToGateway(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload);
 
-            void DispatchToLaunchDelegate(const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload);
+            void DispatchToLaunchDelegate(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload);
             void CleanupNotifications(const uint32_t &connectionId, const string& origin);
         private:
             AppNotificationsImplementation& mParent;

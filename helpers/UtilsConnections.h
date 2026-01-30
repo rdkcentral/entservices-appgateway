@@ -51,7 +51,18 @@ namespace WPEFramework
                 return "";
             }
 
-            LOGINFO("ResolveQuery: Extracted %s = %s\n", key.c_str(), value.c_str());
+            // Check if there any additional parameter keys
+            size_t additional_param_key = value.find("&");
+            if (additional_param_key != std::string::npos)
+            {
+                std::string new_value = value.substr(0,additional_param_key);
+                if (new_value.empty()) {
+                    LOGWARN("%s query params look incorrect", value.c_str());
+                    return value;
+                } else {
+                    return new_value;
+                }
+            }
             return value;
         }
     }

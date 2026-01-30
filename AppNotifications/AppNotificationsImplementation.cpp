@@ -166,12 +166,12 @@ namespace WPEFramework
 
                         if(context.appId == appId) {
                             // Dispatch the event to the subscriber
-                            Dispatch(context, payloadStr);
+                            Dispatch(key, context, payloadStr);
                         }
                         
                     } else {
                         // Dispatch the event to the subscriber
-                        Dispatch(context, payloadStr);
+                        Dispatch(key, context, payloadStr);
                     }
                 }
             } else {
@@ -180,15 +180,15 @@ namespace WPEFramework
             }
         }
 
-        void AppNotificationsImplementation::SubscriberMap::Dispatch(const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload) {
+        void AppNotificationsImplementation::SubscriberMap::Dispatch(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload) {
             if (ContextUtils::IsOriginGateway(context.origin)) {
-                DispatchToGateway(context, payload);
+                DispatchToGateway(key, context, payload);
             } else {
-                DispatchToLaunchDelegate(context, payload);
+                DispatchToLaunchDelegate(key, context, payload);
             }
         }
 
-        void AppNotificationsImplementation::SubscriberMap::DispatchToGateway(const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload) {
+        void AppNotificationsImplementation::SubscriberMap::DispatchToGateway(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload) {
             if (nullptr == mAppGateway) {
                 mAppGateway = mParent.mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(APP_GATEWAY_CALLSIGN);
                 if (mAppGateway == nullptr) {
@@ -197,10 +197,10 @@ namespace WPEFramework
                 }
             }
             Exchange::GatewayContext gatewayContext = ContextUtils::ConvertNotificationToAppGatewayContext(context);
-            mAppGateway->Respond(gatewayContext, payload);
+            mAppGateway->Emit(gatewayContext, key, payload);
         }
 
-        void AppNotificationsImplementation::SubscriberMap::DispatchToLaunchDelegate(const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload) {
+        void AppNotificationsImplementation::SubscriberMap::DispatchToLaunchDelegate(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload) {
             if (nullptr == mInternalGatewayNotifier) {
                 mInternalGatewayNotifier = mParent.mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
                 if (mInternalGatewayNotifier == nullptr) {
@@ -209,7 +209,7 @@ namespace WPEFramework
                 }
             }
             Exchange::GatewayContext gatewayContext = ContextUtils::ConvertNotificationToAppGatewayContext(context);
-            mInternalGatewayNotifier->Respond(gatewayContext, payload);
+            mInternalGatewayNotifier->Emit(gatewayContext, key, payload);
         }
 
         AppNotificationsImplementation::ThunderSubscriptionManager::~ThunderSubscriptionManager() {
