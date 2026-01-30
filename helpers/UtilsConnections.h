@@ -53,7 +53,7 @@ namespace WPEFramework
 
             // Check if there any additional parameter keys
             size_t additional_param_key = value.find("&");
-            if (std::string::npos != additional_param_key)
+            if (additional_param_key != std::string::npos)
             {
                 std::string new_value = value.substr(0,additional_param_key);
                 if (new_value.empty()) {

@@ -28,7 +28,6 @@
 #include <core/core.h>
 #include <map>
 #include <unordered_set>
-#include <sstream>
 
 
 namespace WPEFramework {

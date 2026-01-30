@@ -29,7 +29,6 @@
 #include "UtilsLogging.h"
 #include "UtilsCallsign.h"
 #include "UtilsFirebolt.h"
-#include <set>
 using namespace WPEFramework;
 
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
@@ -54,7 +53,7 @@ class LifecycleDelegate : public BaseEventDelegate
     {
         if (ConfigUtils::useAppManagers()) {
            Exchange::ILifecycleManagerState *lifecycleManagerState = GetLifecycleManagerStateInterface();
-           if (nullptr == lifecycleManagerState)
+           if (lifecycleManagerState == nullptr)
            {
                LOGERR("LifecycleManagerState interface not available");
            } else {
@@ -63,7 +62,7 @@ class LifecycleDelegate : public BaseEventDelegate
            
 
            Exchange::IRDKWindowManager *windowManager = GetWindowManagerInterface();
-           if (nullptr == windowManager)
+           if (windowManager == nullptr)
            {
                 LOGERR("WindowManager interface not available");
            }
@@ -76,14 +75,14 @@ class LifecycleDelegate : public BaseEventDelegate
     ~LifecycleDelegate()
     {
         if (ConfigUtils::useAppManagers()) {
-            if (nullptr != mLifecycleManagerState)
+            if (mLifecycleManagerState != nullptr)
             {
                 mLifecycleManagerState->Unregister(&mNotificationHandler);
                 mLifecycleManagerState->Release();
                 mLifecycleManagerState = nullptr;
             }
             
-            if (nullptr != mWindowManager)
+            if (mWindowManager != nullptr)
             {
                 mWindowManager->Unregister(&mWindowManagerNotificationHandler);
                 mWindowManager->Release();
@@ -272,7 +271,7 @@ class LifecycleDelegate : public BaseEventDelegate
             
         }
 
-        BEGIN_INTERFACE_MAP(LifecycleNotificationHandler)
+        BEGIN_INTERFACE_MAP(NotificationHandler)
         INTERFACE_ENTRY(Exchange::ILifecycleManagerState::INotification)
         END_INTERFACE_MAP
 
