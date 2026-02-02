@@ -150,6 +150,8 @@ static string ConvertToCommaSeparatedLanguages(const string& languages) {
                 if (!first) commaSeparatedLanguages += ",";
                 commaSeparatedLanguages += it.Current().String();
                 first = false;
+            } else {
+                LOGWARN("ConvertToCommaSeparatedLanguages: ignoring non-string element in languages array");
             }
         }
     } else {
@@ -187,6 +189,10 @@ static void BuildClosedCaptionsStyleJson(const Exchange::ITextTrackClosedCaption
     // Only add fontOpacity if >= 0
     int fontOpacity = static_cast<int>(style.fontOpacity);
     if (fontOpacity >= 0) {
+        if (fontOpacity > 255) {
+            LOGWARN("fontOpacity out of range (%d), clamping to 255", fontOpacity);
+            fontOpacity = 255;
+        }
         styles["fontOpacity"] = fontOpacity;
     }
 
@@ -208,6 +214,10 @@ static void BuildClosedCaptionsStyleJson(const Exchange::ITextTrackClosedCaption
     // Only add backgroundOpacity if >= 0
     int backgroundOpacity = static_cast<int>(style.backgroundOpacity);
     if (backgroundOpacity >= 0) {
+        if (backgroundOpacity > 255) {
+            LOGWARN("backgroundOpacity out of range (%d), clamping to 255", backgroundOpacity);
+            backgroundOpacity = 255;
+        }
         styles["backgroundOpacity"] = backgroundOpacity;
     }
 
@@ -219,6 +229,10 @@ static void BuildClosedCaptionsStyleJson(const Exchange::ITextTrackClosedCaption
     // Only add windowOpacity if >= 0
     int windowOpacity = static_cast<int>(style.windowOpacity);
     if (windowOpacity >= 0) {
+        if (windowOpacity > 255) {
+            LOGWARN("windowOpacity out of range (%d), clamping to 255", windowOpacity);
+            windowOpacity = 255;
+        }
         styles["windowOpacity"] = windowOpacity;
     }
 }
@@ -230,6 +244,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             mNotificationHandler(*this), mTextTrackNotificationHandler(*this) {}
 
         ~UserSettingsDelegate() {
+            std::scoped_lock<std::mutex, std::mutex> lock(mRegistrationMutex, mInterfaceMutex);
             // Unregister notification handlers before releasing interfaces
             if (mUserSettings != nullptr) {
                 if (mNotificationHandler.GetRegistered()) {
@@ -270,15 +285,12 @@ class UserSettingsDelegate : public BaseEventDelegate{
                 // Register for TextTrack notifications only for closed captions related events
                 std::string lowerEvent = StringUtils::toLower(event);
                 if (TEXTTRACK_EVENTS.find(lowerEvent) != TEXTTRACK_EVENTS.end()) {
+                    std::lock_guard<std::mutex> lock(mRegistrationMutex);
                     Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
-
-                    if (textTrack != nullptr) {
-                        std::lock_guard<std::mutex> lock(mRegistrationMutex);
-                        if (!mTextTrackNotificationHandler.GetRegistered()) {
-                            LOGINFO("Registering for TextTrack notifications (event: %s)", event.c_str());
-                            textTrack->Register(&mTextTrackNotificationHandler);
-                            mTextTrackNotificationHandler.SetRegistered(true);
-                        }
+                    if ((textTrack != nullptr) && (!mTextTrackNotificationHandler.GetRegistered())) {
+                        LOGINFO("Registering for TextTrack notifications (event: %s)", event.c_str());
+                        textTrack->Register(&mTextTrackNotificationHandler);
+                        mTextTrackNotificationHandler.SetRegistered(true);
                     }
                 }
 
@@ -307,6 +319,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
 	 // Common method to ensure mUserSettings is available for all APIs and notifications
         Exchange::IUserSettings* GetUserSettingsInterface() {
+            std::lock_guard<std::mutex> lock(mInterfaceMutex);
             if (mUserSettings == nullptr && mShell != nullptr) {
                 mUserSettings = mShell->QueryInterfaceByCallsign<Exchange::IUserSettings>(USERSETTINGS_CALLSIGN);
                 if (mUserSettings == nullptr) {
@@ -318,6 +331,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         // Common method to ensure mTextTrack is available for all APIs and notifications
         Exchange::ITextTrackClosedCaptionsStyle* GetTextTrackInterface() {
+            std::lock_guard<std::mutex> lock(mInterfaceMutex);
             if (mTextTrack == nullptr && mShell != nullptr) {
                 mTextTrack = mShell->QueryInterfaceByCallsign<Exchange::ITextTrackClosedCaptionsStyle>(TEXTTRACK_CALLSIGN);
                 if (mTextTrack == nullptr) {
@@ -1043,17 +1057,17 @@ class UserSettingsDelegate : public BaseEventDelegate{
             mParent.Dispatch( "OnContentPinChanged", contentPin);
         }
 
-                // Method to set registered state
-                void SetRegistered(bool state) {
-                    std::lock_guard<std::mutex> lock(registerMutex);
-                    registered = state;
-                }
+        // Method to set registered state
+        void SetRegistered(bool state) {
+            std::lock_guard<std::mutex> lock(registerMutex);
+            registered = state;
+        }
 
-                // Method to get registered state
-                bool GetRegistered() {
-                    std::lock_guard<std::mutex> lock(registerMutex);
-                    return registered;
-                }
+        // Method to get registered state
+        bool GetRegistered() {
+            std::lock_guard<std::mutex> lock(registerMutex);
+            return registered;
+        }
 
                 BEGIN_INTERFACE_MAP(UserSettingsNotificationHandler)
                 INTERFACE_ENTRY(Exchange::IUserSettings::INotification)
@@ -1121,17 +1135,17 @@ class UserSettingsDelegate : public BaseEventDelegate{
                     mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", result);
                 }
 
-                // Method to set registered state
-                void SetRegistered(bool state) {
-                    std::lock_guard<std::mutex> lock(registerMutex);
-                    registered = state;
-                }
+        // Method to set registered state
+        void SetRegistered(bool state) {
+            std::lock_guard<std::mutex> lock(registerMutex);
+            registered = state;
+        }
 
-                // Method to get registered state
-                bool GetRegistered() {
-                    std::lock_guard<std::mutex> lock(registerMutex);
-                    return registered;
-                }
+        // Method to get registered state
+        bool GetRegistered() {
+            std::lock_guard<std::mutex> lock(registerMutex);
+            return registered;
+        }
 
                 BEGIN_INTERFACE_MAP(TextTrackNotificationHandler)
                 INTERFACE_ENTRY(Exchange::ITextTrackClosedCaptionsStyle::INotification)
@@ -1149,6 +1163,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
         Core::Sink<UserSettingsNotificationHandler> mNotificationHandler;
         Core::Sink<TextTrackNotificationHandler> mTextTrackNotificationHandler;
         std::mutex mRegistrationMutex;
+        std::mutex mInterfaceMutex;
 
 };
 #endif
