@@ -5,6 +5,8 @@ applyTo: "**/**Implementation.cpp,**/**Implementation.h,**/**.cpp,**/**.h"
 # Instruction Summary
   1. [Inter-Plugin Communication](https://github.com/rdkcentral/entservices-appgateway/blob/develop/.github/instructions/Pluginimplementation.instructions.md#inter-plugin-communication)
   2. [On-Demand Plugin Interface Acquisition](https://github.com/rdkcentral/entservices-appgateway/blob/develop/.github/instructions/Pluginimplementation.instructions.md#on-demand-plugin-interface-acquisition)
+  3. [Reusing Plugin Interface Acquisition](https://github.com/rdkcentral/entservices-appgateway/blob/develop/.github/instructions/Pluginimplementation.instructions.md#reusing-plugin-interface-acquisition)
+    4. [Bootstrap Logging](https://github.com/rdkcentral/entservices-appgateway/blob/develop/.github/instructions/Pluginimplementation.instructions.md#bootstrap-logging)
 
 ### Inter-Plugin Communication
 
@@ -219,7 +221,7 @@ void Network::subscribeToEvents(void) {
 
 ### Requirement
 
-When a Thunder plugin needs to communicate with another plugin (via JSON-RPC or COM-RPC), do not create and hold the other plugin's interface instance throughout the plugin lifecycle.
+For one time cases when a Thunder plugin needs to communicate with another plugin (via JSON-RPC or COM-RPC),do not create and hold the other plugin's interface instance throughout the plugin lifecycle.
 Instead, create the instance only when needed and release it immediately after use. If the other plugin gets deactivated, your stored interface becomes stale. Calling methods on a stale interface leads to undefined behavior, crashes, or deadlocks. Thunder does not automatically invalidate your pointer when the remote plugin goes down.
 
 ### Example
@@ -254,3 +256,83 @@ void MyPlugin::DoSomething() {
     _otherPlugin->PerformAction(); // Risky if other plugin is deactivated!
 }
 ```
+
+
+### Reusing Plugin Interface Acquisition
+
+### Requirement
+
+For cases where a Thunder plugin needs to communicate frequently with another plugin (via JSON-RPC or COM-RPC), it is acceptable to cache the other plugin's interface instance for reuse. However, you must implement proper lifecycle management by monitoring the other plugin's state changes. When the other plugin is deactivated, you must release your cached interface pointer to avoid using a stale reference. Current set of Thunder Implementations are not exopected to be deactvivated during normal operation. Hence this pattern should be used judiciously and only when necessary. But it is critical to Query the interface under lock to avoid multi-threading issues. However these cached interfaces must be Released during Deinitialize() to avoid memory leaks. Any subscriptions or registrations made with the cached interface must also be cleaned up during Deinitialize().
+
+### Example
+
+```cpp
+void MyPlugin::Initialize() {
+    lock_guard<mutex> lock(_pluginMutex);
+    _otherPlugin = shell->QueryInterfaceByCallsign<WPEFramework::Exchange::IOtherPlugin>();
+}
+
+void MyPlugin::Deinitialize() {
+    lock_guard<mutex> lock(_pluginMutex);
+    if (_otherPlugin) {
+        _otherPlugin->Release();
+        _otherPlugin = nullptr;
+    }
+}
+
+void MyPlugin::DoSomething() {
+    lock_guard<mutex> lock(_pluginMutex);
+    _otherPlugin->PerformAction(); // Risky if other plugin is deactivated!
+}
+```
+
+### Incorrect Example
+
+```cpp
+void MyPlugin::Initialize() {
+    _otherPlugin = shell->QueryInterfaceByCallsign<WPEFramework::Exchange::IOtherPlugin>();
+}
+
+void MyPlugin::Deinitialize() {
+    if (_otherPlugin) {
+        _otherPlugin->Release();
+        _otherPlugin = nullptr;
+    }
+}
+
+void MyPlugin::DoSomething() {
+    _otherPlugin->PerformAction(); // Risky if other plugin is deactivated!
+}
+```
+### Bootstrap Logging
+### Requirement
+
+All plugins must use the `SYSLOG` macros for logging purposes for Initialize, Configure and Deinitialize methods. Direct usage of printf, std::cout, or other logging mechanisms is not allowed. First line and last line of Initialize, Configure and Deinitialize methods must log the entry and exit of the method respectively.
+
+### Example
+
+```cpp
+uint32_t MyPlugin::Initialize(PluginHost::IShell* service) {
+    SYSLOG(Logging::Notification, (_"T[%s] Initialize entry", __FUNCTION__));
+    ...
+    SYSLOG(Logging::Notification, (_"T[%s] Initialize exit", __FUNCTION__));
+    return Core::ERROR_NONE;
+}
+
+void MyPlugin::Deinitialize() {
+    SYSLOG(Logging::Notification, (_"T[%s] Deinitialize entry", __FUNCTION__));
+    ...
+    SYSLOG(Logging::Notification, (_"T[%s] Deinitialize exit", __FUNCTION__));
+}
+```
+
+
+### Incorrect Example
+
+```cpp
+uint32_t MyPlugin::Initialize(PluginHost::IShell* service) {
+    printf("Initialize entry\n");
+    ...
+    printf("Initialize exit\n");
+    return Core::ERROR_NONE;
+}

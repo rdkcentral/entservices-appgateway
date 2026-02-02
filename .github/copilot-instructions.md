@@ -19,3 +19,5 @@ Refer: https://github.com/rdkcentral/entservices-appgateway/blob/develop/.github
 Refer: https://github.com/rdkcentral/entservices-appgateway/blob/develop/.github/instructions/Plugincmake.instructions.md#namespace-usage
 
 Refer: https://github.com/rdkcentral/entservices-appgateway/blob/develop/.github/instructions/PluginOnboardingCompliance.instructions.md#coverity-scan-inclusion-and-test-workflow-updates-for-new-plugins
+
+Refer: https://github.com/rdkcentral/entservices-appgateway/blob/develop/.github/instructions/General.instructions.md#critical-logging
