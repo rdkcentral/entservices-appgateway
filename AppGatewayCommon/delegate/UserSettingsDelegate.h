@@ -21,11 +21,14 @@
 #include "StringUtils.h"
 #include "BaseEventDelegate.h"
 #include <interfaces/IUserSettings.h>
+#include <interfaces/ITextTrack.h>
 #include "UtilsLogging.h"
 #include "ObjectUtils.h"
 #include <set>
+#include <sstream>
 using namespace WPEFramework;
 #define USERSETTINGS_CALLSIGN "org.rdk.UserSettings"
+#define TEXTTRACK_CALLSIGN "org.rdk.TextTrack"
 
 static const std::set<string> VALID_USER_SETTINGS_EVENT = {
     "localization.onlanguagechanged",
@@ -39,15 +42,210 @@ static const std::set<string> VALID_USER_SETTINGS_EVENT = {
     "accessibility.onvoiceguidancesettingschanged",
 };
 
+// Events that require TextTrack interface registration
+static const std::set<string> TEXTTRACK_EVENTS = {
+    "accessibility.onclosedcaptionssettingschanged"
+};
+
+// Helper functions to convert enums to strings matching TextTrack API format
+static const char* FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily family) {
+    switch (family) {
+        case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CONTENT_DEFAULT:
+            return "null";
+        case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::MONOSPACED_SERIF:
+            return "monospaced_serif";
+        case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::PROPORTIONAL_SERIF:
+            return "proportional_serif";
+        case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::MONOSPACE_SANS_SERIF:
+            return "monospaced_sanserif";
+        case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::PROPORTIONAL_SANS_SERIF:
+            return "proportional_sanserif";
+        case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CASUAL:
+            return "casual";
+        case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CURSIVE:
+            return "cursive";
+        case Exchange::ITextTrackClosedCaptionsStyle::FontFamily::SMALL_CAPITAL:
+            return "smallcaps";
+        default:
+            return "null";
+    }
+}
+
+static int FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize size) {
+    switch (size) {
+        case Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT:
+            return -1;  // Never added to JSON when CONTENT_DEFAULT
+        case Exchange::ITextTrackClosedCaptionsStyle::FontSize::SMALL:
+            return 0;
+        case Exchange::ITextTrackClosedCaptionsStyle::FontSize::REGULAR:
+            return 1;
+        case Exchange::ITextTrackClosedCaptionsStyle::FontSize::LARGE:
+            return 2;
+        case Exchange::ITextTrackClosedCaptionsStyle::FontSize::EXTRA_LARGE:
+            return 3;
+        default:
+            return -1;
+    }
+}
+
+static const char* FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge edge) {
+    switch (edge) {
+        case Exchange::ITextTrackClosedCaptionsStyle::FontEdge::CONTENT_DEFAULT:
+            return "null";
+        case Exchange::ITextTrackClosedCaptionsStyle::FontEdge::NONE:
+            return "none";
+        case Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RAISED:
+            return "raised";
+        case Exchange::ITextTrackClosedCaptionsStyle::FontEdge::DEPRESSED:
+            return "depressed";
+        case Exchange::ITextTrackClosedCaptionsStyle::FontEdge::UNIFORM:
+            return "uniform";
+        case Exchange::ITextTrackClosedCaptionsStyle::FontEdge::LEFT_DROP_SHADOW:
+            return "drop_shadow_left";
+        case Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RIGHT_DROP_SHADOW:
+            return "drop_shadow_right";
+        default:
+            return "null";
+    }
+}
+
+// Helper function to parse comma-separated languages into JSON array
+// Parses: "eng,fra,spa" -> JSON array ["eng","fra","spa"]
+static void ParseCommaSeparatedLanguages(const string& commaSeparatedLanguages, JsonArray& jsonArray) {
+    if (!commaSeparatedLanguages.empty()) {
+        // Split comma-separated string into JSON array
+        std::istringstream stream(commaSeparatedLanguages);
+        string token;
+        while (std::getline(stream, token, ',')) {
+            // Trim whitespace
+            size_t start = token.find_first_not_of(" \t");
+            if (start == string::npos) {
+                continue; // Skip all-whitespace tokens
+            }
+            token.erase(0, start);
+            size_t end = token.find_last_not_of(" \t");
+            if (end != string::npos) {
+                token.erase(end + 1);
+            }
+            if (!token.empty()) {
+                jsonArray.Add(token);
+            }
+        }
+    }
+}
+
+// Helper function to convert JSON array or string to comma-separated format
+// Handles: JSON array ["eng","fra","spa"] -> "eng,fra,spa"
+static string ConvertToCommaSeparatedLanguages(const string& languages) {
+    string commaSeparatedLanguages;
+    
+    // Try parsing as JSON array first
+    JsonArray jsonArray;
+    if (jsonArray.FromString(languages)) {
+        // Successfully parsed as JSON array
+        bool first = true;
+        JsonArray::Iterator it = jsonArray.Elements();
+        while (it.Next()) {
+            if (it.Current().Content() == JsonValue::type::STRING) {
+                if (!first) commaSeparatedLanguages += ",";
+                commaSeparatedLanguages += it.Current().String();
+                first = false;
+            }
+        }
+    } else {
+        // Not a JSON array, treat as single string value
+        // Remove quotes if present
+        if (languages.length() >= 2 && languages[0] == '"' && languages.back() == '"') {
+            commaSeparatedLanguages = languages.substr(1, languages.length() - 2);
+        } else if (languages == "[]") {
+            commaSeparatedLanguages = "";  // Empty array
+        } else {
+            commaSeparatedLanguages = languages;
+        }
+    }
+    
+    return commaSeparatedLanguages;
+}
+
+// Helper function to build JSON styles object from ClosedCaptionsStyle struct
+static void BuildClosedCaptionsStyleJson(const Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle& style, JsonObject& styles) {
+    // Only add fontFamily if not CONTENT_DEFAULT
+    if (style.fontFamily != Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CONTENT_DEFAULT) {
+        styles["fontFamily"] = FontFamilyToString(style.fontFamily);
+    }
+
+    // Only add fontSize if not CONTENT_DEFAULT
+    if (style.fontSize != Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT) {
+        styles["fontSize"] = FontSizeToNumber(style.fontSize);
+    }
+
+    // Only add fontColor if not empty
+    if (!style.fontColor.empty()) {
+        styles["fontColor"] = style.fontColor;
+    }
+
+    // Only add fontOpacity if >= 0
+    int fontOpacity = static_cast<int>(style.fontOpacity);
+    if (fontOpacity >= 0) {
+        styles["fontOpacity"] = fontOpacity;
+    }
+
+    // Only add fontEdge if not CONTENT_DEFAULT
+    if (style.fontEdge != Exchange::ITextTrackClosedCaptionsStyle::FontEdge::CONTENT_DEFAULT) {
+        styles["fontEdge"] = FontEdgeToString(style.fontEdge);
+    }
+
+    // Only add fontEdgeColor if not empty
+    if (!style.fontEdgeColor.empty()) {
+        styles["fontEdgeColor"] = style.fontEdgeColor;
+    }
+
+    // Only add backgroundColor if not empty
+    if (!style.backgroundColor.empty()) {
+        styles["backgroundColor"] = style.backgroundColor;
+    }
+
+    // Only add backgroundOpacity if >= 0
+    int backgroundOpacity = static_cast<int>(style.backgroundOpacity);
+    if (backgroundOpacity >= 0) {
+        styles["backgroundOpacity"] = backgroundOpacity;
+    }
+
+    // Only add windowColor if not empty
+    if (!style.windowColor.empty()) {
+        styles["windowColor"] = style.windowColor;
+    }
+
+    // Only add windowOpacity if >= 0
+    int windowOpacity = static_cast<int>(style.windowOpacity);
+    if (windowOpacity >= 0) {
+        styles["windowOpacity"] = windowOpacity;
+    }
+}
+
 class UserSettingsDelegate : public BaseEventDelegate{
     public:
         UserSettingsDelegate(PluginHost::IShell* shell):
-            BaseEventDelegate(), mUserSettings(nullptr), mShell(shell), mNotificationHandler(*this) {}
+            BaseEventDelegate(), mUserSettings(nullptr), mTextTrack(nullptr), mShell(shell),
+            mNotificationHandler(*this), mTextTrackNotificationHandler(*this) {}
 
         ~UserSettingsDelegate() {
+            // Unregister notification handlers before releasing interfaces
             if (mUserSettings != nullptr) {
+                if (mNotificationHandler.GetRegistered()) {
+                    mUserSettings->Unregister(&mNotificationHandler);
+                    mNotificationHandler.SetRegistered(false);
+                }
                 mUserSettings->Release();
                 mUserSettings = nullptr;
+            }
+            if (mTextTrack != nullptr) {
+                if (mTextTrackNotificationHandler.GetRegistered()) {
+                    mTextTrack->Unregister(&mTextTrackNotificationHandler);
+                    mTextTrackNotificationHandler.SetRegistered(false);
+                }
+                mTextTrack->Release();
+                mTextTrack = nullptr;
             }
         }
 
@@ -58,18 +256,35 @@ class UserSettingsDelegate : public BaseEventDelegate{
                     LOGERR("UserSettings interface not available");
                     return false;
                 }
-	
+
+                // Protect UserSettings registration with lock to prevent race condition
+                {
+                    std::lock_guard<std::mutex> lock(mRegistrationMutex);
+                    if (!mNotificationHandler.GetRegistered()) {
+                        LOGINFO("Registering for UserSettings notifications");
+                        mUserSettings->Register(&mNotificationHandler);
+                        mNotificationHandler.SetRegistered(true);
+                    }
+                }
+
+                // Register for TextTrack notifications only for closed captions related events
+                std::string lowerEvent = StringUtils::toLower(event);
+                if (TEXTTRACK_EVENTS.find(lowerEvent) != TEXTTRACK_EVENTS.end()) {
+                    Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+
+                    if (textTrack != nullptr) {
+                        std::lock_guard<std::mutex> lock(mRegistrationMutex);
+                        if (!mTextTrackNotificationHandler.GetRegistered()) {
+                            LOGINFO("Registering for TextTrack notifications (event: %s)", event.c_str());
+                            textTrack->Register(&mTextTrackNotificationHandler);
+                            mTextTrackNotificationHandler.SetRegistered(true);
+                        }
+                    }
+                }
+
                 AddNotification(event, cb);
 
-                if (!mNotificationHandler.GetRegistered()) {
-                    LOGINFO("Registering for UserSettings notifications");
-                    mUserSettings->Register(&mNotificationHandler);
-                    mNotificationHandler.SetRegistered(true);
-                    return true;
-                } else {
-                    LOGTRACE(" Is UserSettings registered = %s", mNotificationHandler.GetRegistered() ? "true" : "false");
-                }
-                
+                return true;
             } else {
                 // Not removing the notification subscription for cases where only one event is removed 
                 // Registration is lazy one but we need to evaluate if there is any value in unregistering
@@ -101,6 +316,17 @@ class UserSettingsDelegate : public BaseEventDelegate{
             return mUserSettings;
         }
 
+        // Common method to ensure mTextTrack is available for all APIs and notifications
+        Exchange::ITextTrackClosedCaptionsStyle* GetTextTrackInterface() {
+            if (mTextTrack == nullptr && mShell != nullptr) {
+                mTextTrack = mShell->QueryInterfaceByCallsign<Exchange::ITextTrackClosedCaptionsStyle>(TEXTTRACK_CALLSIGN);
+                if (mTextTrack == nullptr) {
+                    LOGERR("Failed to get TextTrack COM interface");
+                }
+            }
+            return mTextTrack;
+        }
+
         Core::hresult GetVoiceGuidance(string& result) {
             LOGINFO("GetVoiceGuidance from UserSettings COM interface");
             result.clear();
@@ -108,7 +334,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
             if (userSettings == nullptr) {
                 LOGERR("UserSettings COM interface not available");
-                result = "{\"error\":\"couldnt get voiceguidance state\"}";
+                result = "{\"error\":\"couldn't get voiceguidance state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
@@ -116,13 +342,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetVoiceGuidance(enabled);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform the response: return_or_error(.result, "couldnt get voiceguidance state")
+                // Transform the response: return_or_error(.result, "couldn't get voiceguidance state")
                 // Return the boolean result directly as per transform specification
                 result = enabled ? "true" : "false";
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetVoiceGuidance on UserSettings COM interface, error: %u", rc);
-                result = "{\"error\":\"couldnt get voiceguidance state\"}";
+                result = "{\"error\":\"couldn't get voiceguidance state\"}";
                 return Core::ERROR_GENERAL;
             }
         }
@@ -134,7 +360,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
             if (userSettings == nullptr) {
                 LOGERR("UserSettings COM interface not available");
-                result = "{\"error\":\"couldnt get audio description settings\"}";
+                result = "{\"error\":\"couldn't get audio description settings\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
@@ -142,13 +368,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetAudioDescription(enabled);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform the response: return_or_error({ enabled: .result }, "couldnt get audio description settings")
+                // Transform the response: return_or_error({ enabled: .result }, "couldn't get audio description settings")
                 // Create JSON response with enabled state
                 result = ObjectUtils::CreateBooleanJsonString("enabled", enabled);
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetAudioDescription on UserSettings COM interface, error: %u", rc);
-                result = "{\"error\":\"couldnt get audio description settings\"}";
+                result = "{\"error\":\"couldn't get audio description settings\"}";
                 return Core::ERROR_GENERAL;
             }
         }
@@ -160,7 +386,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
             if (userSettings == nullptr) {
                 LOGERR("UserSettings COM interface not available");
-                result = "{\"error\":\"couldnt get audio descriptions enabled\"}";
+                result = "{\"error\":\"couldn't get audio descriptions enabled\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
@@ -168,13 +394,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetAudioDescription(enabled);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform the response: return_or_error(.result, "couldnt get audio descriptions enabled")
+                // Transform the response: return_or_error(.result, "couldn't get audio descriptions enabled")
                 // Return the boolean result directly as per transform specification
                 result = enabled ? "true" : "false";
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetAudioDescription on UserSettings COM interface, error: %u", rc);
-                result = "{\"error\":\"couldnt get audio descriptions enabled\"}";
+                result = "{\"error\":\"couldn't get audio descriptions enabled\"}";
                 return Core::ERROR_GENERAL;
             }
         }
@@ -186,7 +412,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
             if (userSettings == nullptr) {
                 LOGERR("UserSettings COM interface not available");
-                result = "{\"error\":\"couldnt get high contrast state\"}";
+                result = "{\"error\":\"couldn't get high contrast state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
@@ -194,13 +420,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetHighContrast(enabled);
 
             if (rc == Core::ERROR_NONE) {
-                 // Transform the response: return_or_error(.result, "couldnt get audio descriptions enabled")
+                 // Transform the response: return_or_error(.result, "couldn't get audio descriptions enabled")
                 // Return the boolean result directly as per transform specification
                 result = enabled ? "true" : "false";
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetHighContrast on UserSettings COM interface, error: %u", rc);
-                result = "{\"error\":\"couldnt get high contrast state\"}";
+                result = "{\"error\":\"couldn't get high contrast state\"}";
                 return Core::ERROR_GENERAL;
             }
         }
@@ -212,7 +438,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
             if (userSettings == nullptr) {
                 LOGERR("UserSettings COM interface not available");
-                result = "{\"error\":\"couldnt get captions state\"}";
+                result = "{\"error\":\"couldn't get captions state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
@@ -220,13 +446,40 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetCaptions(enabled);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform the response: return_or_error(.result, "couldnt get captions state")
+                // Transform the response: return_or_error(.result, "couldn't get captions state")
                 // Return the boolean result directly as per transform specification
                 result = enabled ? "true" : "false";
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetCaptions on UserSettings COM interface, error: %u", rc);
-                result = "{\"error\":\"couldnt get captions state\"}";
+                result = "{\"error\":\"couldn't get captions state\"}";
+                return Core::ERROR_GENERAL;
+            }
+        }
+
+        Core::hresult GetClosedCaptionsStyle(string& result) {
+            LOGINFO("GetClosedCaptionsStyle from TextTrack COM interface");
+            result.clear();
+
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                LOGERR("TextTrack COM interface not available");
+                result = "{\"error\":\"couldn't get closed captions style\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle style;
+            Core::hresult rc = textTrack->GetClosedCaptionsStyle(style);
+
+            if (rc == Core::ERROR_NONE) {
+                // Build JSON response with all style properties using helper function
+                JsonObject styles;
+                BuildClosedCaptionsStyleJson(style, styles);
+                styles.ToString(result);
+                return Core::ERROR_NONE;
+            } else {
+                LOGERR("Failed to call GetClosedCaptionsStyle on TextTrack COM interface, error: %u", rc);
+                result = "{\"error\":\"couldn't get closed captions style\"}";
                 return Core::ERROR_GENERAL;
             }
         }
@@ -317,7 +570,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->SetVoiceGuidanceRate(rate);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform response: return_or_error(null, "couldnt set speed")
+                // Transform response: return_or_error(null, "couldn't set speed")
                 // Success case - return null (no error)
                 return Core::ERROR_NONE;
             } else {
@@ -378,7 +631,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
             if (userSettings == nullptr) {
                 LOGERR("UserSettings COM interface not available");
-                result = "{\"error\":\"couldnt get navigationHints\"}";
+                result = "{\"error\":\"couldn't get navigationHints\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
@@ -386,13 +639,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetVoiceGuidanceHints(hints);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform: return_or_error(.result, "couldnt get navigationHints")
+                // Transform: return_or_error(.result, "couldn't get navigationHints")
                 // Return the boolean result directly as per transform specification
                 result = hints ? "true" : "false";
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetVoiceGuidanceHints on UserSettings COM interface, error: %u", rc);
-                result = "{\"error\":\"couldnt get navigationHints\"}";
+                result = "{\"error\":\"couldn't get navigationHints\"}";
                 return Core::ERROR_GENERAL;
             }
         }
@@ -509,40 +762,9 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
             if (rc == Core::ERROR_NONE) {
                 // Transform: return_or_else(.result | split(","), [])
-                if (!preferredLanguages.empty()) {
-                    // Split comma-separated string into JSON array
-                    // Example: "eng,fra,spa" -> ["eng","fra","spa"]
-                    result = "[";
-                    size_t pos = 0;
-                    string token;
-                    bool first = true;
-
-                    while ((pos = preferredLanguages.find(',')) != string::npos) {
-                        token = preferredLanguages.substr(0, pos);
-                        // Trim whitespace
-                        token.erase(0, token.find_first_not_of(" \t"));
-                        token.erase(token.find_last_not_of(" \t") + 1);
-
-                        if (!first) result += ",";
-                        result += "\"" + token + "\"";
-                        first = false;
-                        preferredLanguages.erase(0, pos + 1);
-                    }
-
-                    // Handle the last token
-                    if (!preferredLanguages.empty()) {
-                        preferredLanguages.erase(0, preferredLanguages.find_first_not_of(" \t"));
-                        preferredLanguages.erase(preferredLanguages.find_last_not_of(" \t") + 1);
-
-                        if (!first) result += ",";
-                        result += "\"" + preferredLanguages + "\"";
-                    }
-
-                    result += "]";
-                } else {
-                    // Empty string case - return empty array
-                    result = "[]";
-                }
+                JsonArray jsonArray;
+                ParseCommaSeparatedLanguages(preferredLanguages, jsonArray);
+                jsonArray.ToString(result);
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetPreferredAudioLanguages on UserSettings COM interface, error: %u", rc);
@@ -567,40 +789,15 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
             if (rc == Core::ERROR_NONE) {
                 // Transform: if .result | length > 0 then .result | split(",") else ["eng"] end
-                if (!preferredLanguages.empty()) {
-                    // Split comma-separated string into JSON array
-                    // Example: "eng,fra,spa" -> ["eng","fra","spa"]
-                    result = "[";
-                    size_t pos = 0;
-                    string token;
-                    bool first = true;
+                JsonArray jsonArray;
+                ParseCommaSeparatedLanguages(preferredLanguages, jsonArray);
 
-                    while ((pos = preferredLanguages.find(',')) != string::npos) {
-                        token = preferredLanguages.substr(0, pos);
-                        // Trim whitespace
-                        token.erase(0, token.find_first_not_of(" \t"));
-                        token.erase(token.find_last_not_of(" \t") + 1);
-
-                        if (!first) result += ",";
-                        result += "\"" + token + "\"";
-                        first = false;
-                        preferredLanguages.erase(0, pos + 1);
-                    }
-
-                    // Handle the last token
-                    if (!preferredLanguages.empty()) {
-                        preferredLanguages.erase(0, preferredLanguages.find_first_not_of(" \t"));
-                        preferredLanguages.erase(preferredLanguages.find_last_not_of(" \t") + 1);
-
-                        if (!first) result += ",";
-                        result += "\"" + preferredLanguages + "\"";
-                    }
-
-                    result += "]";
-                } else {
-                    // Empty string case - return ["eng"] as default
-                    result = "[\"eng\"]";
+                if (jsonArray.Length() == 0) {
+                    // Empty array - return default ["eng"]
+                    jsonArray.Add("eng");
                 }
+
+                jsonArray.ToString(result);
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetPreferredCaptionsLanguages on UserSettings COM interface, error: %u", rc);
@@ -623,76 +820,15 @@ class UserSettingsDelegate : public BaseEventDelegate{
             // 1. A JSON array: ["eng","fra","spa"] -> "eng,fra,spa"
             // 2. A single string: "tam" -> "tam"
 
-            string commaSeparatedLanguages;
-
-            // Check if input is a JSON array
-            if (languages.length() >= 2 && languages[0] == '[' && languages.back() == ']') {
-                // Handle JSON array format
-                string arrayContent = languages.substr(1, languages.length() - 2); // Remove [ ]
-
-                if (!arrayContent.empty()) {
-                    // Use a cleaner parsing approach similar to GetPreferredAudioLanguages
-                    string remaining = arrayContent;
-                    bool first = true;
-
-                    while (!remaining.empty()) {
-                        // Skip whitespace and commas
-                        size_t start = remaining.find_first_not_of(" \t,");
-                        if (start == string::npos) break;
-
-                        remaining = remaining.substr(start);
-
-                        string token;
-                        if (!remaining.empty() && remaining[0] == '"') {
-                            // Find closing quote
-                            size_t endQuote = remaining.find('"', 1);
-                            if (endQuote != string::npos) {
-                                token = remaining.substr(1, endQuote - 1); // Extract content between quotes
-                                remaining = remaining.substr(endQuote + 1);
-                            } else {
-                                // Malformed JSON - no closing quote
-                                LOGERR("Malformed JSON: missing closing quote");
-                                break;
-                            }
-                        } else {
-                            // Malformed JSON - expected quoted string
-                            LOGERR("Malformed JSON: expected quoted string");
-                            break;
-                        }
-
-                        // Add token to result if not empty
-                        if (!token.empty()) {
-                            if (!first) commaSeparatedLanguages += ",";
-                            commaSeparatedLanguages += token;
-                            first = false;
-                        }
-                    }
-                }
-            } else if (languages == "[]") {
-                // Handle empty array case
-                commaSeparatedLanguages = "";
-            } else {
-                // Handle single string value case (e.g., "tam")
-                // Remove quotes if present and use as-is
-                if (languages.length() >= 2 && languages[0] == '"' && languages.back() == '"') {
-                    commaSeparatedLanguages = languages.substr(1, languages.length() - 2);
-                } else {
-                    commaSeparatedLanguages = languages;
-                }
-                LOGINFO("Handling single string value: %s", commaSeparatedLanguages.c_str());
-            }
-
-            LOGINFO("Converted JSON array to comma-separated: %s", commaSeparatedLanguages.c_str());
+            string commaSeparatedLanguages = ConvertToCommaSeparatedLanguages(languages);
+            LOGINFO("Converted to comma-separated: %s", commaSeparatedLanguages.c_str());
 
             Core::hresult rc = userSettings->SetPreferredAudioLanguages(commaSeparatedLanguages);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform response: return_or_error(null, "couldn't set preferred audio languages")
-                // Success case - return null (no error)
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call SetPreferredAudioLanguages on UserSettings COM interface, error: %u", rc);
-                // Error case - return error
                 return Core::ERROR_GENERAL;
             }
         }
@@ -711,76 +847,15 @@ class UserSettingsDelegate : public BaseEventDelegate{
             // 1. A JSON array: ["eng","fra","spa"] -> "eng,fra,spa"
             // 2. A single string: "tam" -> "tam"
 
-            string commaSeparatedLanguages;
-
-            // Check if input is a JSON array
-            if (preferredLanguages.length() >= 2 && preferredLanguages[0] == '[' && preferredLanguages.back() == ']') {
-                // Handle JSON array format
-                string arrayContent = preferredLanguages.substr(1, preferredLanguages.length() - 2); // Remove [ ]
-
-                if (!arrayContent.empty()) {
-                    // Use a cleaner parsing approach similar to SetPreferredAudioLanguages
-                    string remaining = arrayContent;
-                    bool first = true;
-
-                    while (!remaining.empty()) {
-                        // Skip whitespace and commas
-                        size_t start = remaining.find_first_not_of(" \t,");
-                        if (start == string::npos) break;
-
-                        remaining = remaining.substr(start);
-
-                        string token;
-                        if (!remaining.empty() && remaining[0] == '"') {
-                            // Find closing quote
-                            size_t endQuote = remaining.find('"', 1);
-                            if (endQuote != string::npos) {
-                                token = remaining.substr(1, endQuote - 1); // Extract content between quotes
-                                remaining = remaining.substr(endQuote + 1);
-                            } else {
-                                // Malformed JSON - no closing quote
-                                LOGERR("Malformed JSON: missing closing quote");
-                                break;
-                            }
-                        } else {
-                            // Malformed JSON - expected quoted string
-                            LOGERR("Malformed JSON: expected quoted string");
-                            break;
-                        }
-
-                        // Add token to result if not empty
-                        if (!token.empty()) {
-                            if (!first) commaSeparatedLanguages += ",";
-                            commaSeparatedLanguages += token;
-                            first = false;
-                        }
-                    }
-                }
-            } else if (preferredLanguages == "[]") {
-                // Handle empty array case
-                commaSeparatedLanguages = "";
-            } else {
-                // Handle single string value case (e.g., "tam")
-                // Remove quotes if present and use as-is
-                if (preferredLanguages.length() >= 2 && preferredLanguages[0] == '"' && preferredLanguages.back() == '"') {
-                    commaSeparatedLanguages = preferredLanguages.substr(1, preferredLanguages.length() - 2);
-                } else {
-                    commaSeparatedLanguages = preferredLanguages;
-                }
-                LOGINFO("Handling single string value: %s", commaSeparatedLanguages.c_str());
-            }
-
-            LOGINFO("Converted JSON array to comma-separated: %s", commaSeparatedLanguages.c_str());
+            string commaSeparatedLanguages = ConvertToCommaSeparatedLanguages(preferredLanguages);
+            LOGINFO("Converted to comma-separated: %s", commaSeparatedLanguages.c_str());
 
             Core::hresult rc = userSettings->SetPreferredCaptionsLanguages(commaSeparatedLanguages);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform response: return_or_error(null, "couldn't set preferred captions languages")
-                // Success case - return null (no error)
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call SetPreferredCaptionsLanguages on UserSettings COM interface, error: %u", rc);
-                // Error case - return error
                 return Core::ERROR_GENERAL;
             }
         }
@@ -816,11 +891,100 @@ class UserSettingsDelegate : public BaseEventDelegate{
         }
 
         void OnCaptionsChanged(const bool enabled) {
-            mParent.Dispatch( "accessibility.onclosedcaptionssettingschanged", ObjectUtils::CreateBooleanJsonString("enabled", enabled));
+           mParent.Dispatch( "closedcaptions.onenabledchanged", ObjectUtils::BoolToJsonString(enabled));
+
+           // Also dispatch accessibility.onclosedcaptionssettingschanged with combined settings
+           Exchange::ITextTrackClosedCaptionsStyle* textTrack = mParent.GetTextTrackInterface();
+           Exchange::IUserSettings* userSettings = mParent.GetUserSettingsInterface();
+           string preferredLanguages;
+
+           if (userSettings != nullptr) {
+               Core::hresult langsResult = userSettings->GetPreferredCaptionsLanguages(preferredLanguages);
+               if (langsResult != Core::ERROR_NONE) {
+                   LOGWARN("OnCaptionsChanged: GetPreferredCaptionsLanguages failed with error %u, using default [\"eng\"]", langsResult);
+                   preferredLanguages = "";
+               }
+           } else {
+               LOGWARN("OnCaptionsChanged: UserSettings interface unavailable, using default preferredLanguages=[\"eng\"]");
+           }
+
+           JsonObject response;
+           response["enabled"] = enabled;
+
+           // Add styles - get from TextTrack if available, otherwise use empty
+           JsonObject styles;
+           if (textTrack != nullptr) {
+               Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle ccStyle;
+               Core::hresult styleResult = textTrack->GetClosedCaptionsStyle(ccStyle);
+               if (styleResult == Core::ERROR_NONE) {
+                   BuildClosedCaptionsStyleJson(ccStyle, styles);
+               } else {
+                   LOGWARN("OnCaptionsChanged: GetClosedCaptionsStyle failed with error %u, using empty styles", styleResult);
+               }
+           } else {
+               LOGWARN("OnCaptionsChanged: TextTrack interface unavailable, using empty styles");
+           }
+           response["styles"] = styles;
+
+           // Add preferredLanguages array
+           JsonArray languagesArray;
+           ParseCommaSeparatedLanguages(preferredLanguages, languagesArray);
+           if (languagesArray.Length() == 0) {
+               languagesArray.Add("eng");  // Default to ["eng"] if empty
+           }
+           response["preferredLanguages"] = languagesArray;
+
+           string result;
+           response.ToString(result);
+           mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", result);
         }
 
         void OnPreferredCaptionsLanguagesChanged(const string& preferredLanguages) {
             mParent.Dispatch( "closedcaptions.onpreferredlanguageschanged", preferredLanguages);
+
+            // Also dispatch accessibility.onclosedcaptionssettingschanged with combined settings
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = mParent.GetTextTrackInterface();
+            Exchange::IUserSettings* userSettings = mParent.GetUserSettingsInterface();
+            bool enabled = false;
+
+            if (userSettings != nullptr) {
+                Core::hresult captionsResult = userSettings->GetCaptions(enabled);
+                if (captionsResult != Core::ERROR_NONE) {
+                    LOGWARN("OnPreferredCaptionsLanguagesChanged: GetCaptions failed with error %u, using default enabled=false", captionsResult);
+                }
+            } else {
+                LOGWARN("OnPreferredCaptionsLanguagesChanged: UserSettings interface unavailable, using default enabled=false");
+            }
+
+            JsonObject response;
+            response["enabled"] = enabled;
+
+            // Add styles - get from TextTrack if available, otherwise use empty
+            JsonObject styles;
+            if (textTrack != nullptr) {
+                Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle ccStyle;
+                Core::hresult styleResult = textTrack->GetClosedCaptionsStyle(ccStyle);
+                if (styleResult == Core::ERROR_NONE) {
+                    BuildClosedCaptionsStyleJson(ccStyle, styles);
+                } else {
+                    LOGWARN("OnPreferredCaptionsLanguagesChanged: GetClosedCaptionsStyle failed with error %u, using empty styles", styleResult);
+                }
+            } else {
+                LOGWARN("OnPreferredCaptionsLanguagesChanged: TextTrack interface unavailable, using empty styles");
+            }
+            response["styles"] = styles;
+
+            // Add preferredLanguages array
+            JsonArray languagesArray;
+            ParseCommaSeparatedLanguages(preferredLanguages, languagesArray);
+            if (languagesArray.Length() == 0) {
+                languagesArray.Add("eng");  // Default to ["eng"] if empty
+            }
+            response["preferredLanguages"] = languagesArray;
+
+            string result;
+            response.ToString(result);
+            mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", result);
         }
 
         void OnPreferredClosedCaptionServiceChanged(const string& service) {
@@ -878,20 +1042,20 @@ class UserSettingsDelegate : public BaseEventDelegate{
         void OnContentPinChanged(const string& contentPin) {
             mParent.Dispatch( "OnContentPinChanged", contentPin);
         }
-                
-                // New Method for Set registered
+
+                // Method to set registered state
                 void SetRegistered(bool state) {
                     std::lock_guard<std::mutex> lock(registerMutex);
                     registered = state;
                 }
 
-                // New Method for get registered
+                // Method to get registered state
                 bool GetRegistered() {
                     std::lock_guard<std::mutex> lock(registerMutex);
                     return registered;
                 }
 
-                BEGIN_INTERFACE_MAP(NotificationHandler)
+                BEGIN_INTERFACE_MAP(UserSettingsNotificationHandler)
                 INTERFACE_ENTRY(Exchange::IUserSettings::INotification)
                 END_INTERFACE_MAP
             private:
@@ -900,10 +1064,92 @@ class UserSettingsDelegate : public BaseEventDelegate{
                     std::mutex registerMutex;
 
         };
+
+        class TextTrackNotificationHandler: public Exchange::ITextTrackClosedCaptionsStyle::INotification {
+            public:
+                 TextTrackNotificationHandler(UserSettingsDelegate& parent) : mParent(parent), registered(false) {}
+                ~TextTrackNotificationHandler() {}
+
+                void OnClosedCaptionsStyleChanged(const Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle &style) override {
+                    LOGINFO("OnClosedCaptionsStyleChanged received");
+
+                    // Get enabled state and preferred languages from UserSettings
+                    Exchange::IUserSettings* userSettings = mParent.GetUserSettingsInterface();
+                    bool enabled = false;
+                    string preferredLanguages;
+
+                    if (userSettings != nullptr) {
+                        // Retrieve captions enabled state with error handling
+                        Core::hresult captionsResult = userSettings->GetCaptions(enabled);
+                        if (captionsResult != Core::ERROR_NONE) {
+                            LOGWARN("OnClosedCaptionsStyleChanged: GetCaptions failed with error %u, using default enabled=%s",
+                                    captionsResult, enabled ? "true" : "false");
+                        }
+
+                        // Retrieve preferred captions languages with error handling
+                        Core::hresult langsResult = userSettings->GetPreferredCaptionsLanguages(preferredLanguages);
+                        if (langsResult != Core::ERROR_NONE) {
+                            LOGWARN("OnClosedCaptionsStyleChanged: GetPreferredCaptionsLanguages failed with error %u, using default [\"eng\"]",
+                                    langsResult);
+                            preferredLanguages = "";  // Ensure empty so default is applied below
+                        }
+                    } else {
+                        LOGWARN("OnClosedCaptionsStyleChanged: UserSettings interface unavailable, using defaults (enabled=false, preferredLanguages=[\"eng\"])");
+                    }
+
+                    // Build JSON response using JsonObject and JsonArray
+                    JsonObject response;
+                    response["enabled"] = enabled;
+
+                    // Add styles object using helper function
+                    JsonObject styles;
+                    BuildClosedCaptionsStyleJson(style, styles);
+                    response["styles"] = styles;
+
+                    // Add preferredLanguages array
+                    JsonArray languagesArray;
+                    ParseCommaSeparatedLanguages(preferredLanguages, languagesArray);
+
+                    if (languagesArray.Length() == 0) {
+                        languagesArray.Add("eng");  // Default to ["eng"] if empty
+                    }
+
+                    response["preferredLanguages"] = languagesArray;
+
+                    string result;
+                    response.ToString(result);
+                    mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", result);
+                }
+
+                // Method to set registered state
+                void SetRegistered(bool state) {
+                    std::lock_guard<std::mutex> lock(registerMutex);
+                    registered = state;
+                }
+
+                // Method to get registered state
+                bool GetRegistered() {
+                    std::lock_guard<std::mutex> lock(registerMutex);
+                    return registered;
+                }
+
+                BEGIN_INTERFACE_MAP(TextTrackNotificationHandler)
+                INTERFACE_ENTRY(Exchange::ITextTrackClosedCaptionsStyle::INotification)
+                END_INTERFACE_MAP
+            private:
+                    UserSettingsDelegate& mParent;
+                    bool registered;
+                    std::mutex registerMutex;
+
+        };
+
         Exchange::IUserSettings *mUserSettings;
+        Exchange::ITextTrackClosedCaptionsStyle *mTextTrack;
         PluginHost::IShell* mShell;
         Core::Sink<UserSettingsNotificationHandler> mNotificationHandler;
+        Core::Sink<TextTrackNotificationHandler> mTextTrackNotificationHandler;
+        std::mutex mRegistrationMutex;
 
-        
 };
 #endif
+
