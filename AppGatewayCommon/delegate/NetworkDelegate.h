@@ -51,6 +51,7 @@ public:
     {
         if (mNetworkManager != nullptr)
         {
+            mNetworkManager->UnregisterInternetStatusChangeNotification(_notification.baseInterface<Exchange::INetworkManager::IInternetStatusChangeNotification>());
             mNetworkManager->Release();
             mNetworkManager = nullptr;
         }
@@ -72,7 +73,7 @@ public:
             if (!mNotificationHandler.GetRegistered())
             {
                 LOGINFO("Registering for NetworkManager notifications");
-                mNetworkManager->Register(&mNotificationHandler);
+                mNetworkManager->RegisterInternetStatusChangeNotification(_notification.baseInterface<Exchange::INetworkManager::IInternetStatusChangeNotification>());
                 mNotificationHandler.SetRegistered(true);
                 return true;
             }
@@ -204,13 +205,20 @@ public:
     }
 
 private:
-    class NetworkNotificationHandler : public Exchange::INetworkManager::INotification
+    class NetworkNotificationHandler : public Exchange::INetworkManager::RegisterInternetStatusChangeNotification
     {
     public:
         NetworkNotificationHandler(NetworkDelegate &parent) : mParent(parent), registered(false) {}
         ~NetworkNotificationHandler() {}
 
-       void onInternetStatusChange(const Exchange::INetworkManager::InternetStatus prevState, const Exchange::INetworkManager::InternetStatus currState, const string interface)
+        template <typename T>
+        T* baseInterface()
+        {
+            static_assert(std::is_base_of<T, Notification>(), "base type mismatch");
+            return static_cast<T*>(this);
+        }
+
+        void onInternetStatusChange(const Exchange::INetworkManager::InternetStatus prevState, const Exchange::INetworkManager::InternetStatus currState, const string interface)
         {
             LOGINFO("onInternetStatusChange: prevState=%d, currState=%d, interface=%s", prevState, currState, interface.c_str());
 
@@ -246,7 +254,7 @@ private:
         }
 
         BEGIN_INTERFACE_MAP(NotificationHandler)
-        INTERFACE_ENTRY(Exchange::INetworkManager::INotification)
+        INTERFACE_ENTRY(Exchange::INetworkManager::IInternetStatusChangeNotification)
         END_INTERFACE_MAP
 
     private:
