@@ -150,8 +150,6 @@ static string ConvertToCommaSeparatedLanguages(const string& languages) {
                 if (!first) commaSeparatedLanguages += ",";
                 commaSeparatedLanguages += it.Current().String();
                 first = false;
-            } else {
-                LOGWARN("ConvertToCommaSeparatedLanguages: ignoring non-string element in languages array");
             }
         }
     } else {
@@ -189,10 +187,6 @@ static void BuildClosedCaptionsStyleJson(const Exchange::ITextTrackClosedCaption
     // Only add fontOpacity if >= 0
     int fontOpacity = static_cast<int>(style.fontOpacity);
     if (fontOpacity >= 0) {
-        if (fontOpacity > 255) {
-            LOGWARN("fontOpacity out of range (%d), clamping to 255", fontOpacity);
-            fontOpacity = 255;
-        }
         styles["fontOpacity"] = fontOpacity;
     }
 
@@ -214,10 +208,6 @@ static void BuildClosedCaptionsStyleJson(const Exchange::ITextTrackClosedCaption
     // Only add backgroundOpacity if >= 0
     int backgroundOpacity = static_cast<int>(style.backgroundOpacity);
     if (backgroundOpacity >= 0) {
-        if (backgroundOpacity > 255) {
-            LOGWARN("backgroundOpacity out of range (%d), clamping to 255", backgroundOpacity);
-            backgroundOpacity = 255;
-        }
         styles["backgroundOpacity"] = backgroundOpacity;
     }
 
@@ -229,10 +219,6 @@ static void BuildClosedCaptionsStyleJson(const Exchange::ITextTrackClosedCaption
     // Only add windowOpacity if >= 0
     int windowOpacity = static_cast<int>(style.windowOpacity);
     if (windowOpacity >= 0) {
-        if (windowOpacity > 255) {
-            LOGWARN("windowOpacity out of range (%d), clamping to 255", windowOpacity);
-            windowOpacity = 255;
-        }
         styles["windowOpacity"] = windowOpacity;
     }
 }
@@ -245,32 +231,19 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         ~UserSettingsDelegate() {
             // Unregister notification handlers before releasing interfaces
-            {
-                // Protect unregistration with the same mutex used for registration to
-                // avoid races with concurrent registration/callback execution.
-                std::lock_guard<std::mutex> lock(mRegistrationMutex);
-
-                if (mUserSettings != nullptr) {
-                    if (mNotificationHandler.GetRegistered()) {
-                        mUserSettings->Unregister(&mNotificationHandler);
-                        mNotificationHandler.SetRegistered(false);
-                    }
-                }
-
-                if (mTextTrack != nullptr) {
-                    if (mTextTrackNotificationHandler.GetRegistered()) {
-                        mTextTrack->Unregister(&mTextTrackNotificationHandler);
-                        mTextTrackNotificationHandler.SetRegistered(false);
-                    }
-                }
-            }
-
             if (mUserSettings != nullptr) {
+                if (mNotificationHandler.GetRegistered()) {
+                    mUserSettings->Unregister(&mNotificationHandler);
+                    mNotificationHandler.SetRegistered(false);
+                }
                 mUserSettings->Release();
                 mUserSettings = nullptr;
             }
-
             if (mTextTrack != nullptr) {
+                if (mTextTrackNotificationHandler.GetRegistered()) {
+                    mTextTrack->Unregister(&mTextTrackNotificationHandler);
+                    mTextTrackNotificationHandler.SetRegistered(false);
+                }
                 mTextTrack->Release();
                 mTextTrack = nullptr;
             }
@@ -289,7 +262,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
                     std::lock_guard<std::mutex> lock(mRegistrationMutex);
                     if (!mNotificationHandler.GetRegistered()) {
                         LOGINFO("Registering for UserSettings notifications");
-                        userSettings->Register(&mNotificationHandler);
+                        mUserSettings->Register(&mNotificationHandler);
                         mNotificationHandler.SetRegistered(true);
                     }
                 }
@@ -297,15 +270,14 @@ class UserSettingsDelegate : public BaseEventDelegate{
                 // Register for TextTrack notifications only for closed captions related events
                 std::string lowerEvent = StringUtils::toLower(event);
                 if (TEXTTRACK_EVENTS.find(lowerEvent) != TEXTTRACK_EVENTS.end()) {
-                    std::lock_guard<std::mutex> lock(mRegistrationMutex);
-                    if (!mTextTrackNotificationHandler.GetRegistered()) {
-                        Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
-                        if (textTrack != nullptr) {
+                    Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+
+                    if (textTrack != nullptr) {
+                        std::lock_guard<std::mutex> lock(mRegistrationMutex);
+                        if (!mTextTrackNotificationHandler.GetRegistered()) {
                             LOGINFO("Registering for TextTrack notifications (event: %s)", event.c_str());
                             textTrack->Register(&mTextTrackNotificationHandler);
                             mTextTrackNotificationHandler.SetRegistered(true);
-                        } else {
-                            LOGERR("TextTrack interface not available");
                         }
                     }
                 }
@@ -335,7 +307,6 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
 	 // Common method to ensure mUserSettings is available for all APIs and notifications
         Exchange::IUserSettings* GetUserSettingsInterface() {
-            std::lock_guard<std::mutex> lock(mInterfaceMutex);
             if (mUserSettings == nullptr && mShell != nullptr) {
                 mUserSettings = mShell->QueryInterfaceByCallsign<Exchange::IUserSettings>(USERSETTINGS_CALLSIGN);
                 if (mUserSettings == nullptr) {
@@ -347,7 +318,6 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         // Common method to ensure mTextTrack is available for all APIs and notifications
         Exchange::ITextTrackClosedCaptionsStyle* GetTextTrackInterface() {
-            std::lock_guard<std::mutex> lock(mInterfaceMutex);
             if (mTextTrack == nullptr && mShell != nullptr) {
                 mTextTrack = mShell->QueryInterfaceByCallsign<Exchange::ITextTrackClosedCaptionsStyle>(TEXTTRACK_CALLSIGN);
                 if (mTextTrack == nullptr) {
@@ -450,7 +420,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetHighContrast(enabled);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform the response: return_or_error(.result, "couldn't get high contrast state")
+                 // Transform the response: return_or_error(.result, "couldn't get high contrast state")
                 // Return the boolean result directly as per transform specification
                 result = enabled ? "true" : "false";
                 return Core::ERROR_NONE;
@@ -891,62 +861,6 @@ class UserSettingsDelegate : public BaseEventDelegate{
         }
 
     private:
-        // Helper method to build and dispatch the combined closed captions settings notification
-        void DispatchClosedCaptionsSettingsChanged(const char* callerContext) {
-            Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
-            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
-            bool enabled = false;
-            string preferredLanguages;
-
-            // Get enabled state from UserSettings
-            if (userSettings != nullptr) {
-                Core::hresult captionsResult = userSettings->GetCaptions(enabled);
-                if (captionsResult != Core::ERROR_NONE) {
-                    LOGWARN("%s: GetCaptions failed with error %u, using default enabled=false", callerContext, captionsResult);
-                }
-
-                // Get preferred languages from UserSettings
-                Core::hresult langsResult = userSettings->GetPreferredCaptionsLanguages(preferredLanguages);
-                if (langsResult != Core::ERROR_NONE) {
-                    LOGWARN("%s: GetPreferredCaptionsLanguages failed with error %u, using default [\"eng\"]", callerContext, langsResult);
-                    preferredLanguages = "";
-                }
-            } else {
-                LOGWARN("%s: UserSettings interface unavailable, using defaults (enabled=false, preferredLanguages=[\"eng\"])", callerContext);
-            }
-
-            // Build JSON response
-            JsonObject response;
-            response["enabled"] = enabled;
-
-            // Add styles - get from TextTrack if available, otherwise use empty
-            JsonObject styles;
-            if (textTrack != nullptr) {
-                Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle ccStyle;
-                Core::hresult styleResult = textTrack->GetClosedCaptionsStyle(ccStyle);
-                if (styleResult == Core::ERROR_NONE) {
-                    BuildClosedCaptionsStyleJson(ccStyle, styles);
-                } else {
-                    LOGWARN("%s: GetClosedCaptionsStyle failed with error %u, using empty styles", callerContext, styleResult);
-                }
-            } else {
-                LOGWARN("%s: TextTrack interface unavailable, using empty styles", callerContext);
-            }
-            response["styles"] = styles;
-
-            // Add preferredLanguages array
-            JsonArray languagesArray;
-            ParseCommaSeparatedLanguages(preferredLanguages, languagesArray);
-            if (languagesArray.Length() == 0) {
-                languagesArray.Add("eng");  // Default to ["eng"] if empty
-            }
-            response["preferredLanguages"] = languagesArray;
-
-            string result;
-            response.ToString(result);
-            Dispatch("accessibility.onclosedcaptionssettingschanged", result);
-        }
-
         class UserSettingsNotificationHandler: public Exchange::IUserSettings::INotification {
             public:
                  UserSettingsNotificationHandler(UserSettingsDelegate& parent) : mParent(parent),registered(false){}
@@ -978,14 +892,99 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         void OnCaptionsChanged(const bool enabled) {
            mParent.Dispatch( "closedcaptions.onenabledchanged", ObjectUtils::BoolToJsonString(enabled));
+
            // Also dispatch accessibility.onclosedcaptionssettingschanged with combined settings
-           mParent.DispatchClosedCaptionsSettingsChanged("OnCaptionsChanged");
+           Exchange::ITextTrackClosedCaptionsStyle* textTrack = mParent.GetTextTrackInterface();
+           Exchange::IUserSettings* userSettings = mParent.GetUserSettingsInterface();
+           string preferredLanguages;
+
+           if (userSettings != nullptr) {
+               Core::hresult langsResult = userSettings->GetPreferredCaptionsLanguages(preferredLanguages);
+               if (langsResult != Core::ERROR_NONE) {
+                   LOGWARN("OnCaptionsChanged: GetPreferredCaptionsLanguages failed with error %u, using default [\"eng\"]", langsResult);
+                   preferredLanguages = "";
+               }
+           } else {
+               LOGWARN("OnCaptionsChanged: UserSettings interface unavailable, using default preferredLanguages=[\"eng\"]");
+           }
+
+           JsonObject response;
+           response["enabled"] = enabled;
+
+           // Add styles - get from TextTrack if available, otherwise use empty
+           JsonObject styles;
+           if (textTrack != nullptr) {
+               Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle ccStyle;
+               Core::hresult styleResult = textTrack->GetClosedCaptionsStyle(ccStyle);
+               if (styleResult == Core::ERROR_NONE) {
+                   BuildClosedCaptionsStyleJson(ccStyle, styles);
+               } else {
+                   LOGWARN("OnCaptionsChanged: GetClosedCaptionsStyle failed with error %u, using empty styles", styleResult);
+               }
+           } else {
+               LOGWARN("OnCaptionsChanged: TextTrack interface unavailable, using empty styles");
+           }
+           response["styles"] = styles;
+
+           // Add preferredLanguages array
+           JsonArray languagesArray;
+           ParseCommaSeparatedLanguages(preferredLanguages, languagesArray);
+           if (languagesArray.Length() == 0) {
+               languagesArray.Add("eng");  // Default to ["eng"] if empty
+           }
+           response["preferredLanguages"] = languagesArray;
+
+           string result;
+           response.ToString(result);
+           mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", result);
         }
 
         void OnPreferredCaptionsLanguagesChanged(const string& preferredLanguages) {
             mParent.Dispatch( "closedcaptions.onpreferredlanguageschanged", preferredLanguages);
+
             // Also dispatch accessibility.onclosedcaptionssettingschanged with combined settings
-            mParent.DispatchClosedCaptionsSettingsChanged("OnPreferredCaptionsLanguagesChanged");
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = mParent.GetTextTrackInterface();
+            Exchange::IUserSettings* userSettings = mParent.GetUserSettingsInterface();
+            bool enabled = false;
+
+            if (userSettings != nullptr) {
+                Core::hresult captionsResult = userSettings->GetCaptions(enabled);
+                if (captionsResult != Core::ERROR_NONE) {
+                    LOGWARN("OnPreferredCaptionsLanguagesChanged: GetCaptions failed with error %u, using default enabled=false", captionsResult);
+                }
+            } else {
+                LOGWARN("OnPreferredCaptionsLanguagesChanged: UserSettings interface unavailable, using default enabled=false");
+            }
+
+            JsonObject response;
+            response["enabled"] = enabled;
+
+            // Add styles - get from TextTrack if available, otherwise use empty
+            JsonObject styles;
+            if (textTrack != nullptr) {
+                Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle ccStyle;
+                Core::hresult styleResult = textTrack->GetClosedCaptionsStyle(ccStyle);
+                if (styleResult == Core::ERROR_NONE) {
+                    BuildClosedCaptionsStyleJson(ccStyle, styles);
+                } else {
+                    LOGWARN("OnPreferredCaptionsLanguagesChanged: GetClosedCaptionsStyle failed with error %u, using empty styles", styleResult);
+                }
+            } else {
+                LOGWARN("OnPreferredCaptionsLanguagesChanged: TextTrack interface unavailable, using empty styles");
+            }
+            response["styles"] = styles;
+
+            // Add preferredLanguages array
+            JsonArray languagesArray;
+            ParseCommaSeparatedLanguages(preferredLanguages, languagesArray);
+            if (languagesArray.Length() == 0) {
+                languagesArray.Add("eng");  // Default to ["eng"] if empty
+            }
+            response["preferredLanguages"] = languagesArray;
+
+            string result;
+            response.ToString(result);
+            mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", result);
         }
 
         void OnPreferredClosedCaptionServiceChanged(const string& service) {
@@ -1044,17 +1043,17 @@ class UserSettingsDelegate : public BaseEventDelegate{
             mParent.Dispatch( "OnContentPinChanged", contentPin);
         }
 
-        // Method to set registered state
-        void SetRegistered(bool state) {
-            std::lock_guard<std::mutex> lock(registerMutex);
-            registered = state;
-        }
+                // Method to set registered state
+                void SetRegistered(bool state) {
+                    std::lock_guard<std::mutex> lock(registerMutex);
+                    registered = state;
+                }
 
-        // Method to get registered state
-        bool GetRegistered() {
-            std::lock_guard<std::mutex> lock(registerMutex);
-            return registered;
-        }
+                // Method to get registered state
+                bool GetRegistered() {
+                    std::lock_guard<std::mutex> lock(registerMutex);
+                    return registered;
+                }
 
                 BEGIN_INTERFACE_MAP(UserSettingsNotificationHandler)
                 INTERFACE_ENTRY(Exchange::IUserSettings::INotification)
@@ -1073,21 +1072,66 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
                 void OnClosedCaptionsStyleChanged(const Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle &style) override {
                     LOGINFO("OnClosedCaptionsStyleChanged received");
-                    // Dispatch accessibility.onclosedcaptionssettingschanged with combined settings
-                    mParent.DispatchClosedCaptionsSettingsChanged("OnClosedCaptionsStyleChanged");
+
+                    // Get enabled state and preferred languages from UserSettings
+                    Exchange::IUserSettings* userSettings = mParent.GetUserSettingsInterface();
+                    bool enabled = false;
+                    string preferredLanguages;
+
+                    if (userSettings != nullptr) {
+                        // Retrieve captions enabled state with error handling
+                        Core::hresult captionsResult = userSettings->GetCaptions(enabled);
+                        if (captionsResult != Core::ERROR_NONE) {
+                            LOGWARN("OnClosedCaptionsStyleChanged: GetCaptions failed with error %u, using default enabled=%s",
+                                    captionsResult, enabled ? "true" : "false");
+                        }
+
+                        // Retrieve preferred captions languages with error handling
+                        Core::hresult langsResult = userSettings->GetPreferredCaptionsLanguages(preferredLanguages);
+                        if (langsResult != Core::ERROR_NONE) {
+                            LOGWARN("OnClosedCaptionsStyleChanged: GetPreferredCaptionsLanguages failed with error %u, using default [\"eng\"]",
+                                    langsResult);
+                            preferredLanguages = "";  // Ensure empty so default is applied below
+                        }
+                    } else {
+                        LOGWARN("OnClosedCaptionsStyleChanged: UserSettings interface unavailable, using defaults (enabled=false, preferredLanguages=[\"eng\"])");
+                    }
+
+                    // Build JSON response using JsonObject and JsonArray
+                    JsonObject response;
+                    response["enabled"] = enabled;
+
+                    // Add styles object using helper function
+                    JsonObject styles;
+                    BuildClosedCaptionsStyleJson(style, styles);
+                    response["styles"] = styles;
+
+                    // Add preferredLanguages array
+                    JsonArray languagesArray;
+                    ParseCommaSeparatedLanguages(preferredLanguages, languagesArray);
+
+                    if (languagesArray.Length() == 0) {
+                        languagesArray.Add("eng");  // Default to ["eng"] if empty
+                    }
+
+                    response["preferredLanguages"] = languagesArray;
+
+                    string result;
+                    response.ToString(result);
+                    mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", result);
                 }
 
-        // Method to set registered state
-        void SetRegistered(bool state) {
-            std::lock_guard<std::mutex> lock(registerMutex);
-            registered = state;
-        }
+                // Method to set registered state
+                void SetRegistered(bool state) {
+                    std::lock_guard<std::mutex> lock(registerMutex);
+                    registered = state;
+                }
 
-        // Method to get registered state
-        bool GetRegistered() {
-            std::lock_guard<std::mutex> lock(registerMutex);
-            return registered;
-        }
+                // Method to get registered state
+                bool GetRegistered() {
+                    std::lock_guard<std::mutex> lock(registerMutex);
+                    return registered;
+                }
 
                 BEGIN_INTERFACE_MAP(TextTrackNotificationHandler)
                 INTERFACE_ENTRY(Exchange::ITextTrackClosedCaptionsStyle::INotification)
@@ -1105,7 +1149,6 @@ class UserSettingsDelegate : public BaseEventDelegate{
         Core::Sink<UserSettingsNotificationHandler> mNotificationHandler;
         Core::Sink<TextTrackNotificationHandler> mTextTrackNotificationHandler;
         std::mutex mRegistrationMutex;
-        std::mutex mInterfaceMutex;
 
 };
 #endif
