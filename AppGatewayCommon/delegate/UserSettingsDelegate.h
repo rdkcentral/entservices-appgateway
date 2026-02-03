@@ -244,25 +244,18 @@ class UserSettingsDelegate : public BaseEventDelegate{
             mNotificationHandler(*this), mTextTrackNotificationHandler(*this) {}
 
         ~UserSettingsDelegate() {
-            // Check registration states before acquiring locks to avoid nested lock acquisition
-            // and potential deadlock with SetRegistered/GetRegistered methods
-            bool userSettingsRegistered = mNotificationHandler.GetRegistered();
-            bool textTrackRegistered = mTextTrackNotificationHandler.GetRegistered();
-            
             std::scoped_lock<std::mutex, std::mutex> lock(mRegistrationMutex, mInterfaceMutex);
             // Unregister notification handlers before releasing interfaces
             if (mUserSettings != nullptr) {
-                if (userSettingsRegistered) {
+                if (mNotificationHandler.GetRegistered()) {
                     mUserSettings->Unregister(&mNotificationHandler);
-                    mNotificationHandler.SetRegistered(false);
                 }
                 mUserSettings->Release();
                 mUserSettings = nullptr;
             }
             if (mTextTrack != nullptr) {
-                if (textTrackRegistered) {
+                if (mTextTrackNotificationHandler.GetRegistered()) {
                     mTextTrack->Unregister(&mTextTrackNotificationHandler);
-                    mTextTrackNotificationHandler.SetRegistered(false);
                 }
                 mTextTrack->Release();
                 mTextTrack = nullptr;
@@ -442,7 +435,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetHighContrast(enabled);
 
             if (rc == Core::ERROR_NONE) {
-                // Transform the response: return_or_error(.result, "couldn't get get high contrast state")
+                // Transform the response: return_or_error(.result, "couldn't get high contrast state")
                 // Return the boolean result directly as per transform specification
                 result = enabled ? "true" : "false";
                 return Core::ERROR_NONE;
