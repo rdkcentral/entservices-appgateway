@@ -285,12 +285,15 @@ class UserSettingsDelegate : public BaseEventDelegate{
                 // Register for TextTrack notifications only for closed captions related events
                 std::string lowerEvent = StringUtils::toLower(event);
                 if (TEXTTRACK_EVENTS.find(lowerEvent) != TEXTTRACK_EVENTS.end()) {
-                    std::lock_guard<std::mutex> lock(mRegistrationMutex);
+                    // Acquire TextTrack interface outside of mRegistrationMutex to maintain lock ordering
                     Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
-                    if ((textTrack != nullptr) && (!mTextTrackNotificationHandler.GetRegistered())) {
-                        LOGINFO("Registering for TextTrack notifications (event: %s)", event.c_str());
-                        textTrack->Register(&mTextTrackNotificationHandler);
-                        mTextTrackNotificationHandler.SetRegistered(true);
+                    if (textTrack != nullptr) {
+                        std::lock_guard<std::mutex> lock(mRegistrationMutex);
+                        if (!mTextTrackNotificationHandler.GetRegistered()) {
+                            LOGINFO("Registering for TextTrack notifications (event: %s)", event.c_str());
+                            textTrack->Register(&mTextTrackNotificationHandler);
+                            mTextTrackNotificationHandler.SetRegistered(true);
+                        }
                     }
                 }
 
