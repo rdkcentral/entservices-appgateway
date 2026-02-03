@@ -243,7 +243,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             BaseEventDelegate(), mUserSettings(nullptr), mTextTrack(nullptr), mShell(shell),
             mNotificationHandler(*this), mTextTrackNotificationHandler(*this) {}
 
-         ~UserSettingsDelegate() {
+        ~UserSettingsDelegate() {
             // Unregister notification handlers before releasing interfaces
             if (mUserSettings != nullptr) {
                 if (mNotificationHandler.GetRegistered()) {
