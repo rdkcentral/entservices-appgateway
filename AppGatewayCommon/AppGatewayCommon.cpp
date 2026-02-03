@@ -953,9 +953,10 @@ namespace Plugin {
             }
 
             // Get closed captions styles from UserSettings delegate
-            string stylesResult = "{}";
+            // Styles are treated as optional: if styles retrieval fails, return an empty object.
+            string stylesResult;
             Core::hresult stylesStatus = userSettingsDelegate->GetClosedCaptionsStyle(stylesResult);
-            if (stylesStatus != Core::ERROR_NONE)
+            if ((stylesStatus != Core::ERROR_NONE) || stylesResult.empty())
             {
                 LOGWARN("Couldn't get closed captions styles, using empty object");
                 stylesResult = "{}";
@@ -963,12 +964,32 @@ namespace Plugin {
 
             // Construct the combined JSON response
             // Format: {"enabled": <bool>, "preferredLanguages": <array>, "styles": {<style properties>}}
-            std::ostringstream jsonStream;
-            jsonStream << "{\"enabled\": " << enabledResult
-                       << ", \"preferredLanguages\": " << languagesResult
-                       << ", \"styles\": " << stylesResult << "}";
-
-            result = jsonStream.str();
+            JsonObject response;
+            
+            // Parse enabled (boolean value as string "true" or "false")
+            bool enabled = (enabledResult == "true");
+            response["enabled"] = enabled;
+            
+            // Parse preferredLanguages (JSON array string)
+            JsonArray languagesArray;
+            if (languagesArray.FromString(languagesResult)) {
+                response["preferredLanguages"] = languagesArray;
+            } else {
+                LOGWARN("Failed to parse preferredLanguages JSON, using default [\"eng\"]");
+                languagesArray.Add("eng");
+                response["preferredLanguages"] = languagesArray;
+            }
+            
+            // Parse styles (JSON object string)
+            JsonObject stylesObject;
+            if (stylesObject.FromString(stylesResult)) {
+                response["styles"] = stylesObject;
+            } else {
+                LOGWARN("Failed to parse styles JSON, using empty object");
+                response["styles"] = JsonObject();
+            }
+            
+            response.ToString(result);
 
             return Core::ERROR_NONE;
         }
