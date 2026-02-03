@@ -245,19 +245,32 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         ~UserSettingsDelegate() {
             // Unregister notification handlers before releasing interfaces
-            if (mUserSettings != nullptr) {
-                if (mNotificationHandler.GetRegistered()) {
-                    mUserSettings->Unregister(&mNotificationHandler);
-                    mNotificationHandler.SetRegistered(false);
+            {
+                // Protect unregistration with the same mutex used for registration to
+                // avoid races with concurrent registration/callback execution.
+                std::lock_guard<std::mutex> lock(mRegistrationMutex);
+
+                if (mUserSettings != nullptr) {
+                    if (mNotificationHandler.GetRegistered()) {
+                        mUserSettings->Unregister(&mNotificationHandler);
+                        mNotificationHandler.SetRegistered(false);
+                    }
                 }
+
+                if (mTextTrack != nullptr) {
+                    if (mTextTrackNotificationHandler.GetRegistered()) {
+                        mTextTrack->Unregister(&mTextTrackNotificationHandler);
+                        mTextTrackNotificationHandler.SetRegistered(false);
+                    }
+                }
+            }
+
+            if (mUserSettings != nullptr) {
                 mUserSettings->Release();
                 mUserSettings = nullptr;
             }
+
             if (mTextTrack != nullptr) {
-                if (mTextTrackNotificationHandler.GetRegistered()) {
-                    mTextTrack->Unregister(&mTextTrackNotificationHandler);
-                    mTextTrackNotificationHandler.SetRegistered(false);
-                }
                 mTextTrack->Release();
                 mTextTrack = nullptr;
             }
