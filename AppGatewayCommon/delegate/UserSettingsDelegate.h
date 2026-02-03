@@ -243,12 +243,12 @@ class UserSettingsDelegate : public BaseEventDelegate{
             BaseEventDelegate(), mUserSettings(nullptr), mTextTrack(nullptr), mShell(shell),
             mNotificationHandler(*this), mTextTrackNotificationHandler(*this) {}
 
-        ~UserSettingsDelegate() {
-            std::scoped_lock<std::mutex, std::mutex> lock(mRegistrationMutex, mInterfaceMutex);
+         ~UserSettingsDelegate() {
             // Unregister notification handlers before releasing interfaces
             if (mUserSettings != nullptr) {
                 if (mNotificationHandler.GetRegistered()) {
                     mUserSettings->Unregister(&mNotificationHandler);
+                    mNotificationHandler.SetRegistered(false);
                 }
                 mUserSettings->Release();
                 mUserSettings = nullptr;
@@ -256,6 +256,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             if (mTextTrack != nullptr) {
                 if (mTextTrackNotificationHandler.GetRegistered()) {
                     mTextTrack->Unregister(&mTextTrackNotificationHandler);
+                    mTextTrackNotificationHandler.SetRegistered(false);
                 }
                 mTextTrack->Release();
                 mTextTrack = nullptr;
