@@ -326,15 +326,12 @@ class UserSettingsDelegate : public BaseEventDelegate{
             return false;
         }
 
-	 // Common method to ensure mUserSettings is available for all APIs and notifications
+        // Common method to ensure mUserSettings is available for all APIs and notifications
         Exchange::IUserSettings* GetUserSettingsInterface() {
-            if (mShell != nullptr) {
-                std::lock_guard<std::mutex> lock(mInterfaceInitMutex);
+            if (mUserSettings == nullptr && mShell != nullptr) {
+                mUserSettings = mShell->QueryInterfaceByCallsign<Exchange::IUserSettings>(USERSETTINGS_CALLSIGN);
                 if (mUserSettings == nullptr) {
-                    mUserSettings = mShell->QueryInterfaceByCallsign<Exchange::IUserSettings>(USERSETTINGS_CALLSIGN);
-                    if (mUserSettings == nullptr) {
-                        LOGERR("Failed to get UserSettings COM interface");
-                    }
+                    LOGERR("Failed to get UserSettings COM interface");
                 }
             }
             return mUserSettings;
@@ -342,13 +339,10 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         // Common method to ensure mTextTrack is available for all APIs and notifications
         Exchange::ITextTrackClosedCaptionsStyle* GetTextTrackInterface() {
-            if (mShell != nullptr) {
-                std::lock_guard<std::mutex> lock(mInterfaceInitMutex);
+            if (mTextTrack == nullptr && mShell != nullptr) {
+                mTextTrack = mShell->QueryInterfaceByCallsign<Exchange::ITextTrackClosedCaptionsStyle>(TEXTTRACK_CALLSIGN);
                 if (mTextTrack == nullptr) {
-                    mTextTrack = mShell->QueryInterfaceByCallsign<Exchange::ITextTrackClosedCaptionsStyle>(TEXTTRACK_CALLSIGN);
-                    if (mTextTrack == nullptr) {
-                        LOGERR("Failed to get TextTrack COM interface");
-                    }
+                    LOGERR("Failed to get TextTrack COM interface");
                 }
             }
             return mTextTrack;
@@ -1132,7 +1126,6 @@ class UserSettingsDelegate : public BaseEventDelegate{
         Core::Sink<UserSettingsNotificationHandler> mNotificationHandler;
         Core::Sink<TextTrackNotificationHandler> mTextTrackNotificationHandler;
         std::mutex mRegistrationMutex;
-        std::mutex mInterfaceInitMutex;
 
 };
 #endif
