@@ -51,7 +51,7 @@ public:
     {
         if (mNetworkManager != nullptr)
         {
-            mNetworkManager->UnregisterInternetStatusChangeNotification(mNotificationHandler.baseInterface<Exchange::INetworkManager::IInternetStatusChangeNotification>());
+            mNetworkManager->UnregisterInetStatNotify(mNotificationHandler.baseInterface<Exchange::INetworkManager::IInetStatNotify>());
             mNetworkManager->Release();
             mNetworkManager = nullptr;
         }
@@ -73,7 +73,7 @@ public:
             if (!mNotificationHandler.GetRegistered())
             {
                 LOGINFO("Registering for NetworkManager notifications");
-                mNetworkManager->RegisterInternetStatusChangeNotification(mNotificationHandler.baseInterface<Exchange::INetworkManager::IInternetStatusChangeNotification>());
+                mNetworkManager->RegisterInetStatNotify(mNotificationHandler.baseInterface<Exchange::INetworkManager::IInetStatNotify>());
                 mNotificationHandler.SetRegistered(true);
                 return true;
             }
@@ -205,7 +205,7 @@ public:
     }
 
 private:
-    class NetworkNotificationHandler : public Exchange::INetworkManager::IInternetStatusChangeNotification
+    class NetworkNotificationHandler : public Exchange::INetworkManager::IInetStatNotify
     {
     public:
         NetworkNotificationHandler(NetworkDelegate &parent) : mParent(parent), registered(false) {}
@@ -254,7 +254,7 @@ private:
         }
 
         BEGIN_INTERFACE_MAP(NotificationHandler)
-        INTERFACE_ENTRY(Exchange::INetworkManager::IInternetStatusChangeNotification)
+        INTERFACE_ENTRY(Exchange::INetworkManager::IInetStatNotify)
         END_INTERFACE_MAP
 
     private:
