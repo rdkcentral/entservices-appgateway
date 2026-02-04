@@ -150,6 +150,8 @@ static string ConvertToCommaSeparatedLanguages(const string& languages) {
                 if (!first) commaSeparatedLanguages += ",";
                 commaSeparatedLanguages += it.Current().String();
                 first = false;
+            } else {
+                LOGWARN("Non-string element encountered in language array, skipping element of type: %d", static_cast<int>(it.Current().Content()));
             }
         }
     } else {
@@ -223,6 +225,25 @@ static void BuildClosedCaptionsStyleJson(const Exchange::ITextTrackClosedCaption
     }
 }
 
+// Helper function to build combined closed captions settings response
+// Combines enabled state, styles, and preferred languages into a single JSON response
+static string BuildClosedCaptionsSettingsResponse(const bool enabled, const string& preferredLanguages, const JsonObject& styles) {
+    JsonObject response;
+    response["enabled"] = enabled;
+    response["styles"] = styles;
+
+    JsonArray languagesArray;
+    ParseCommaSeparatedLanguages(preferredLanguages, languagesArray);
+    if (languagesArray.Length() == 0) {
+        languagesArray.Add("eng");  // Default to ["eng"] if empty
+    }
+    response["preferredLanguages"] = languagesArray;
+
+    string result;
+    response.ToString(result);
+    return result;
+}
+
 class UserSettingsDelegate : public BaseEventDelegate{
     public:
         UserSettingsDelegate(PluginHost::IShell* shell):
@@ -262,7 +283,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
                     std::lock_guard<std::mutex> lock(mRegistrationMutex);
                     if (!mNotificationHandler.GetRegistered()) {
                         LOGINFO("Registering for UserSettings notifications");
-                        mUserSettings->Register(&mNotificationHandler);
+                        userSettings->Register(&mNotificationHandler);
                         mNotificationHandler.SetRegistered(true);
                     }
                 }
@@ -307,10 +328,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
 	 // Common method to ensure mUserSettings is available for all APIs and notifications
         Exchange::IUserSettings* GetUserSettingsInterface() {
-            if (mUserSettings == nullptr && mShell != nullptr) {
-                mUserSettings = mShell->QueryInterfaceByCallsign<Exchange::IUserSettings>(USERSETTINGS_CALLSIGN);
+            if (mShell != nullptr) {
+                std::lock_guard<std::mutex> lock(mInterfaceInitMutex);
                 if (mUserSettings == nullptr) {
-                    LOGERR("Failed to get UserSettings COM interface");
+                    mUserSettings = mShell->QueryInterfaceByCallsign<Exchange::IUserSettings>(USERSETTINGS_CALLSIGN);
+                    if (mUserSettings == nullptr) {
+                        LOGERR("Failed to get UserSettings COM interface");
+                    }
                 }
             }
             return mUserSettings;
@@ -318,10 +342,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         // Common method to ensure mTextTrack is available for all APIs and notifications
         Exchange::ITextTrackClosedCaptionsStyle* GetTextTrackInterface() {
-            if (mTextTrack == nullptr && mShell != nullptr) {
-                mTextTrack = mShell->QueryInterfaceByCallsign<Exchange::ITextTrackClosedCaptionsStyle>(TEXTTRACK_CALLSIGN);
+            if (mShell != nullptr) {
+                std::lock_guard<std::mutex> lock(mInterfaceInitMutex);
                 if (mTextTrack == nullptr) {
-                    LOGERR("Failed to get TextTrack COM interface");
+                    mTextTrack = mShell->QueryInterfaceByCallsign<Exchange::ITextTrackClosedCaptionsStyle>(TEXTTRACK_CALLSIGN);
+                    if (mTextTrack == nullptr) {
+                        LOGERR("Failed to get TextTrack COM interface");
+                    }
                 }
             }
             return mTextTrack;
@@ -908,9 +935,6 @@ class UserSettingsDelegate : public BaseEventDelegate{
                LOGWARN("OnCaptionsChanged: UserSettings interface unavailable, using default preferredLanguages=[\"eng\"]");
            }
 
-           JsonObject response;
-           response["enabled"] = enabled;
-
            // Add styles - get from TextTrack if available, otherwise use empty
            JsonObject styles;
            if (textTrack != nullptr) {
@@ -924,19 +948,9 @@ class UserSettingsDelegate : public BaseEventDelegate{
            } else {
                LOGWARN("OnCaptionsChanged: TextTrack interface unavailable, using empty styles");
            }
-           response["styles"] = styles;
 
-           // Add preferredLanguages array
-           JsonArray languagesArray;
-           ParseCommaSeparatedLanguages(preferredLanguages, languagesArray);
-           if (languagesArray.Length() == 0) {
-               languagesArray.Add("eng");  // Default to ["eng"] if empty
-           }
-           response["preferredLanguages"] = languagesArray;
-
-           string result;
-           response.ToString(result);
-           mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", result);
+           mParent.Dispatch("accessibility.onclosedcaptionssettingschanged",
+                           BuildClosedCaptionsSettingsResponse(enabled, preferredLanguages, styles));
         }
 
         void OnPreferredCaptionsLanguagesChanged(const string& preferredLanguages) {
@@ -956,9 +970,6 @@ class UserSettingsDelegate : public BaseEventDelegate{
                 LOGWARN("OnPreferredCaptionsLanguagesChanged: UserSettings interface unavailable, using default enabled=false");
             }
 
-            JsonObject response;
-            response["enabled"] = enabled;
-
             // Add styles - get from TextTrack if available, otherwise use empty
             JsonObject styles;
             if (textTrack != nullptr) {
@@ -972,19 +983,9 @@ class UserSettingsDelegate : public BaseEventDelegate{
             } else {
                 LOGWARN("OnPreferredCaptionsLanguagesChanged: TextTrack interface unavailable, using empty styles");
             }
-            response["styles"] = styles;
 
-            // Add preferredLanguages array
-            JsonArray languagesArray;
-            ParseCommaSeparatedLanguages(preferredLanguages, languagesArray);
-            if (languagesArray.Length() == 0) {
-                languagesArray.Add("eng");  // Default to ["eng"] if empty
-            }
-            response["preferredLanguages"] = languagesArray;
-
-            string result;
-            response.ToString(result);
-            mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", result);
+            mParent.Dispatch("accessibility.onclosedcaptionssettingschanged",
+                            BuildClosedCaptionsSettingsResponse(enabled, preferredLanguages, styles));
         }
 
         void OnPreferredClosedCaptionServiceChanged(const string& service) {
@@ -1097,28 +1098,10 @@ class UserSettingsDelegate : public BaseEventDelegate{
                         LOGWARN("OnClosedCaptionsStyleChanged: UserSettings interface unavailable, using defaults (enabled=false, preferredLanguages=[\"eng\"])");
                     }
 
-                    // Build JSON response using JsonObject and JsonArray
-                    JsonObject response;
-                    response["enabled"] = enabled;
-
-                    // Add styles object using helper function
                     JsonObject styles;
                     BuildClosedCaptionsStyleJson(style, styles);
-                    response["styles"] = styles;
-
-                    // Add preferredLanguages array
-                    JsonArray languagesArray;
-                    ParseCommaSeparatedLanguages(preferredLanguages, languagesArray);
-
-                    if (languagesArray.Length() == 0) {
-                        languagesArray.Add("eng");  // Default to ["eng"] if empty
-                    }
-
-                    response["preferredLanguages"] = languagesArray;
-
-                    string result;
-                    response.ToString(result);
-                    mParent.Dispatch("accessibility.onclosedcaptionssettingschanged", result);
+                    mParent.Dispatch("accessibility.onclosedcaptionssettingschanged",
+                                    BuildClosedCaptionsSettingsResponse(enabled, preferredLanguages, styles));
                 }
 
                 // Method to set registered state
@@ -1149,6 +1132,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
         Core::Sink<UserSettingsNotificationHandler> mNotificationHandler;
         Core::Sink<TextTrackNotificationHandler> mTextTrackNotificationHandler;
         std::mutex mRegistrationMutex;
+        std::mutex mInterfaceInitMutex;
 
 };
 #endif
