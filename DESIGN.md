@@ -4,7 +4,7 @@
 
 The App Gateway is a Thunder (WPEFramework) plugin that provides a Firebolt-compatible API gateway for applications running on RDK devices. It acts as an intermediary between applications and Thunder plugins, providing request routing, event handling, authentication, and notification management.
 
-This implementation deprecates the ripple gateway from the RDK Apps Managers Framework.
+This implementation deprecates the legacy Ripple Gateway from the RDK Apps Managers Framework; Ripple Gateway support is being phased out and will be removed after the completion of the migration period described in the "Ripple Gateway Migration Guide" in the RDK Apps Managers Framework documentation.
 
 ## System Architecture
 
