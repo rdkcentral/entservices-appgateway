@@ -2,7 +2,7 @@
 applyTo: "CMakeLists.txt"
 ---
 
-## Requirement
+### Requirement
 
 ### Coverity Scan Inclusion and Test Workflow Updates for New Plugins
 
