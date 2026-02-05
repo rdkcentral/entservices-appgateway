@@ -85,3 +85,51 @@ if (pointer == nullptr) {
 }
 ```
 
+
+### Avoiding Public Member Variables
+### Requirement
+Avoid using public member variables in classes. Instead, use private member variables with public getter and setter methods to encapsulate the data.
+### Example
+
+```cpp
+class MyClass {
+public:
+    int GetValue() const { return value; }
+    void SetValue(int val) { value = val; }
+
+private:
+    int value;
+};
+```
+
+### Incorrect Example
+
+```cpp
+class MyClass {
+public:
+    int value; // Public member variable
+};
+```
+
+
+### Using nullptr instead of NULL
+### Requirement
+Use `nullptr` instead of `NULL` for pointer initialization and comparisons to improve type safety and clarity.
+### Example 
+
+```cpp
+int* ptr = nullptr;
+if (nullptr == ptr) {
+    // Handle null pointer
+}
+```
+
+### Incorrect Example
+
+```cpp
+int* ptr = NULL;
+if (NULL == ptr) {
+    // Handle null pointer
+}
+```
+
