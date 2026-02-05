@@ -313,16 +313,16 @@ All plugins must use the `SYSLOG` macros for logging purposes for Initialize, Co
 
 ```cpp
 uint32_t MyPlugin::Initialize(PluginHost::IShell* service) {
-    SYSLOG(Logging::Notification, (_"T[%s] Initialize entry", __FUNCTION__));
+    SYSLOG(Logging::Notification, (_T("[%s] Initialize entry"), __FUNCTION__));
     ...
-    SYSLOG(Logging::Notification, (_"T[%s] Initialize exit", __FUNCTION__));
+    SYSLOG(Logging::Notification, (_T("[%s] Initialize exit"), __FUNCTION__));
     return Core::ERROR_NONE;
 }
 
 void MyPlugin::Deinitialize() {
-    SYSLOG(Logging::Notification, (_"T[%s] Deinitialize entry", __FUNCTION__));
+    SYSLOG(Logging::Notification, (_T("[%s] Deinitialize entry"), __FUNCTION__));
     ...
-    SYSLOG(Logging::Notification, (_"T[%s] Deinitialize exit", __FUNCTION__));
+    SYSLOG(Logging::Notification, (_T("[%s] Deinitialize exit"), __FUNCTION__));
 }
 ```
 
