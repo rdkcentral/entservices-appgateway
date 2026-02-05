@@ -4,7 +4,7 @@ applyTo: "**/**Implementation.cpp,**/**Implementation.h,**/**.cpp,**/**.h"
 
 # Instruction Summary
   1. [Critical Logging](https://github.com/rdkcentral/entservices-appgateway/blob/develop/.github/instructions/General.instructions.md#critical-logging)
-  2. [Recoverrable Error reporting](https://github.com/rdkcentral/entservices-appgateway/blob/develop/.github/instructions/General.instructions.md#recoverrable-error-reporting)
+  2. [Recoverable Error reporting](https://github.com/rdkcentral/entservices-appgateway/blob/develop/.github/instructions/General.instructions.md#recoverable-error-reporting)
   3. [YODA Notation in conditionals](https://github.com/rdkcentral/entservices-appgateway/blob/develop/.github/instructions/General.instructions.md#yoda-notation-in-conditionals)
 
 ### Critical Logging
@@ -36,7 +36,7 @@ if (pointer == nullptr) {
 ```
 
 
-### Recoverrable Error reporting 
+### Recoverable Error reporting 
 ### Requirement
 
 Do not log recoverable logs as Errors. Use the following macro to log warning messages.
