@@ -28,7 +28,7 @@ QueryInterface:
 _userSettingsPlugin = _service->QueryInterface<WPEFramework::Exchange::IUserSettings>();
 ```
 
-SHOULD not use JSON-RPC or LinkType for inter-plugin communication, as they introduce unnecessary overhead.
+should not use JSON-RPC or LinkType for inter-plugin communication, as they introduce unnecessary overhead.
 
 ### Incorrect Example
 
@@ -37,7 +37,7 @@ LinkType:
 _telemetry = Core::ProxyType<JSONRPCLink>::Create(_T("org.rdk.telemetry"), _T(""), "token=" + token);
 ```
 
-Json-RPC:
+JSON-RPC:
 ```cpp
 uint32_t ret = m_SystemPluginObj->Invoke<JsonObject, JsonObject>(THUNDER_RPC_TIMEOUT, _T("getFriendlyName"), params, Result);
 ```
@@ -221,7 +221,7 @@ void Network::subscribeToEvents(void) {
 
 ### Requirement
 
-For one time cases when a Thunder plugin needs to communicate with another plugin (via JSON-RPC or COM-RPC),do not create and hold the other plugin's interface instance throughout the plugin lifecycle.
+For one time cases when a Thunder plugin needs to communicate with another plugin (via JSON-RPC or COM-RPC), do not create and hold the other plugin's interface instance throughout the plugin lifecycle.
 Instead, create the instance only when needed and release it immediately after use. If the other plugin gets deactivated, your stored interface becomes stale. Calling methods on a stale interface leads to undefined behavior, crashes, or deadlocks. Thunder does not automatically invalidate your pointer when the remote plugin goes down.
 
 ### Example
@@ -262,8 +262,14 @@ void MyPlugin::DoSomething() {
 
 ### Requirement
 
-For cases where a Thunder plugin needs to communicate frequently with another plugin (via JSON-RPC or COM-RPC), it is acceptable to cache the other plugin's interface instance for reuse. However, you must implement proper lifecycle management by monitoring the other plugin's state changes. When the other plugin is deactivated, you must release your cached interface pointer to avoid using a stale reference. Current set of Thunder Implementations are not expected to be deactivated during normal operation. Hence this pattern should be used judiciously and only when necessary. But it is critical to Query the interface under lock to avoid multi-threading issues. However these cached interfaces must be Released during Deinitialize() to avoid memory leaks. Any subscriptions or registrations made with the cached interface must also be cleaned up during Deinitialize().
+For cases where a Thunder plugin needs to communicate frequently with another plugin (via JSON-RPC or COM-RPC), it is acceptable to cache the other plugin's interface instance for reuse, provided you follow these rules:
 
+- Implement proper lifecycle management by monitoring the other plugin's state changes.
+- When the other plugin is deactivated, release your cached interface pointer to avoid using a stale reference.
+- The current set of Thunder implementations is not expected to be deactivated during normal operation, so this caching pattern should be used judiciously and only when necessary.
+- Always query and access the cached interface under an appropriate lock to avoid multi-threading issues.
+- Release all cached interfaces during `Deinitialize()` to avoid memory leaks.
+- Clean up any subscriptions or registrations made with the cached interface during `Deinitialize()`.
 ### Example
 
 ```cpp
@@ -282,7 +288,9 @@ void MyPlugin::Deinitialize() {
 
 void MyPlugin::DoSomething() {
     lock_guard<mutex> lock(_pluginMutex);
-    _otherPlugin->PerformAction(); // Risky if other plugin is deactivated!
+    if (nullptr != _otherPlugin) {
+        _otherPlugin->PerformAction(); // Safe access under lock
+    }
 }
 ```
 

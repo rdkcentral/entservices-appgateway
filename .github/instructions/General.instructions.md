@@ -21,7 +21,7 @@ If the function returns an error code, ensure to return the appropriate Core::ER
 ### Example
 
 ```cpp
-if (pointer == nullptr) {
+if (nullptr == pointer) {
     LOGERR("Pointer is null in function %s", __FUNCTION__);
     return Core::ERROR_BAD_REQUEST;
 }
@@ -30,7 +30,7 @@ if (pointer == nullptr) {
 ### Incorrect Example
 
 ```cpp
-if (pointer == nullptr) {
+if (nullptr == pointer) {
     return Core::ERROR_BAD_REQUEST;
 }
 ```
@@ -49,7 +49,7 @@ LOGWARN("Warning Message with parameters: %d, %s", intParam, strParam.c_str());
 
 ```cpp
 // optional data is missing
-if (optionalData == nullptr) {
+if (nullptr == optionalData) {
     LOGWARN("Optional data is missing in function %s", __FUNCTION__);
 } // proceed with default behavior
 ```
@@ -58,7 +58,7 @@ if (optionalData == nullptr) {
 
 ```cpp
 // optional data is missing
-if (optionalData == nullptr) {
+if (nullptr == optionalData) {
     LOGERR("Optional data is missing in function %s", __FUNCTION__);
 } // proceed with default behavior
 ```

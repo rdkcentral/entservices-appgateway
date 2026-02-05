@@ -113,7 +113,7 @@ RDKShell::RDKShell()
 
 ### Requirement
 
-- If the plugin runs as out-of-process, then it should implement RPC::IRemoteConnection::"INotification interface inside your plugin.
+- If the plugin runs as out-of-process, then it should implement RPC::IRemoteConnection::INotification interface inside the plugin.
 
 ### Example
 
