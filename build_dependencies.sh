@@ -35,7 +35,7 @@ git clone --branch main https://github.com/rdkcentral/entservices-apis.git
 
 git clone https://$GITHUB_TOKEN@github.com/rdkcentral/entservices-testframework.git
 
-git clone --branch topic/RDKEMW-13124  https://github.com/rdkcentral/networkmanager.git
+git clone --branch main https://github.com/rdkcentral/networkmanager.git
 
 ############################
 # Build Thunder-Tools
