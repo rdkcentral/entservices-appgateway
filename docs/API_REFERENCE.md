@@ -64,7 +64,7 @@ The `GatewayContext` carries request metadata throughout the system.
 Applications connect via WebSocket with authentication token:
 
 ```
-ws://gateway-host:port/appgateway?session=<session-token>&RPCV2=true
+ws://gateway-host:port/appgateway?token=<auth-token>&RPCV2=true
 ```
 
 ## Common API Methods
