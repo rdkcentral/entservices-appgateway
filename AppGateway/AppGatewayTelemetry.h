@@ -154,11 +154,13 @@ namespace Plugin {
 
         // ============================================
         // Scenario 1: Bootstrap Time Recording
+        // Records bootstrap duration and plugin count as METRICS
         // ============================================
         void RecordBootstrapTime(uint64_t durationMs, uint32_t pluginsLoaded);
 
         // ============================================
         // Scenario 2: Health Stats Tracking
+        // Counters are incremented during operation, then sent as METRICS periodically
         // ============================================
         void IncrementWebSocketConnections();
         void DecrementWebSocketConnections();
@@ -168,11 +170,13 @@ namespace Plugin {
 
         // ============================================
         // Scenario 3: API Error Tracking (Internal)
+        // Errors are counted, then sent as METRICS periodically
         // ============================================
         void RecordApiError(const std::string& apiName);
 
         // ============================================
         // Scenario 4: External Service Error Tracking (Internal)
+        // Service errors are counted, then sent as METRICS periodically
         // ============================================
         void RecordExternalServiceErrorInternal(const std::string& serviceName);
 

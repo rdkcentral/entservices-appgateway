@@ -1,5 +1,8 @@
-/*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+/**
+ * If not stated otherwise in this file or this component's LICENSE
+ * file the following copyright and licenses apply:
+ *
+ * Copyright 2025 RDK Management
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,9 +15,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+ **/
 
 #pragma once
 
@@ -51,7 +52,7 @@
  */
 
 #include <interfaces/IAppGateway.h>
-//#include <plugins/json/JsonData_Container.h>
+#include <plugins/json/JsonData_Container.h>
 #include "UtilsLogging.h"
 #include "AppGatewayTelemetryMarkers.h"
 
@@ -64,6 +65,22 @@ namespace AppGatewayTelemetryHelper {
      * 
      * This class provides a RAII-style wrapper for the telemetry interface.
      * It automatically acquires and releases the COM-RPC interface.
+     * 
+     * ## Events vs Metrics
+     * 
+     * **Events** (RecordEvent/RecordTelemetryEvent):
+     * - For individual occurrences that happen at specific points in time
+     * - Contains JSON payload with context about what happened
+     * - Each event is sent to T2 immediately or queued individually
+     * - Use for: errors, state changes, user actions
+     * - Example: API error, service failure, user login
+     * 
+     * **Metrics** (RecordMetric/RecordTelemetryMetric):
+     * - For numeric values that should be aggregated over time
+     * - Aggregation includes: sum, count, min, max, average
+     * - Aggregated values sent to T2 periodically (e.g., hourly)
+     * - Use for: latencies, counters, measurements
+     * - Example: API latency, service latency, request count
      */
     class TelemetryClient
     {
@@ -171,10 +188,13 @@ namespace AppGatewayTelemetryHelper {
         }
 
         /**
-         * @brief Record an API error using generic marker
+         * @brief Record an API error event (individual occurrence)
          * @param apiName Name of the API that failed
          * @param errorCode Predefined error code from AppGatewayTelemetryMarkers.h
          * @return Core::hresult
+         * 
+         * This records an EVENT - each error occurrence is sent individually to T2.
+         * Use this to track WHAT errors happened, not how many.
          */
         Core::hresult RecordApiError(const std::string& apiName, const std::string& errorCode)
         {
@@ -193,10 +213,13 @@ namespace AppGatewayTelemetryHelper {
         }
 
         /**
-         * @brief Record an external service error using generic marker
+         * @brief Record an external service error event (individual occurrence)
          * @param serviceName Predefined service name from AppGatewayTelemetryMarkers.h
          * @param errorCode Predefined error code from AppGatewayTelemetryMarkers.h
          * @return Core::hresult
+         * 
+         * This records an EVENT - each error occurrence is sent individually to T2.
+         * Use this to track WHAT service errors happened, not how many.
          */
         Core::hresult RecordExternalServiceError(const std::string& serviceName, 
                                                   const std::string& errorCode)
@@ -216,41 +239,43 @@ namespace AppGatewayTelemetryHelper {
         }
 
         /**
-         * @brief Record an API latency metric using generic marker
+         * @brief Record an API latency metric (aggregated value)
          * @param apiName Name of the API
          * @param latencyMs Latency in milliseconds
          * @return Core::hresult
+         * 
+         * This records a METRIC - values are aggregated (sum/count/min/max/avg)
+         * and sent to T2 periodically. Use this to track API performance over time.
+         * 
+         * Generates a composite metric name: "agw_<PluginName>_<ApiName>_Latency"
+         * This allows each plugin-API combination to have its own aggregated metric.
          */
         Core::hresult RecordApiLatency(const std::string& apiName, double latencyMs)
         {
-            JsonObject data;
-            data["plugin"] = mPluginName;
-            data["api"] = apiName;
-            data["latency_ms"] = latencyMs;
+            std::string metricName = "agw_" + mPluginName + "_" + apiName + "_Latency";
+            
+            LOGTRACE("TelemetryClient: Recording API latency - plugin=%s, api=%s, latency=%.2fms, metric=%s",
+                     mPluginName.c_str(), apiName.c_str(), latencyMs, metricName.c_str());
 
-            std::string eventData;
-            data.ToString(eventData);
-
-            LOGTRACE("TelemetryClient: Recording API latency - plugin=%s, api=%s, latency=%.2fms",
-                     mPluginName.c_str(), apiName.c_str(), latencyMs);
-
-            return RecordEvent(AGW_MARKER_PLUGIN_API_LATENCY, eventData);
+            return RecordMetric(metricName, latencyMs, AGW_UNIT_MILLISECONDS);
         }
 
         /**
-         * @brief Record an external service latency metric
+         * @brief Record an external service latency metric (aggregated value)
          * @param serviceName Predefined service name from AppGatewayTelemetryMarkers.h
          * @param latencyMs Latency in milliseconds
          * @return Core::hresult
          * 
-         * Uses RecordTelemetryMetric with composite metric name: agw_<PluginName>_<ServiceName>_Latency
-         * This allows AppGateway to aggregate latency statistics (sum/min/max/avg) per service.
+         * This records a METRIC - values are aggregated (sum/count/min/max/avg)
+         * and sent to T2 periodically. Use this to track service performance over time.
+         * 
+         * Generates a composite metric name: "agw_<PluginName>_<ServiceName>_Latency"
+         * This allows each plugin-service combination to have its own aggregated metric.
          */
         Core::hresult RecordServiceLatency(const std::string& serviceName, double latencyMs)
         {
-            // Create composite metric name: agw_<PluginName>_<ServiceName>_Latency
             std::string metricName = "agw_" + mPluginName + "_" + serviceName + "_Latency";
-
+            
             LOGTRACE("TelemetryClient: Recording service latency - plugin=%s, service=%s, latency=%.2fms, metric=%s",
                      mPluginName.c_str(), serviceName.c_str(), latencyMs, metricName.c_str());
 
@@ -370,11 +395,14 @@ namespace AppGatewayTelemetryHelper {
  * @param apiName Name of the API
  * @param latencyMs Latency in milliseconds
  * 
- * Uses generic marker AGW_MARKER_PLUGIN_API_LATENCY with plugin name from initialization.
+ * Generates a unique metric name "agw_<PluginName>_<ApiName>_Latency" and records
+ * it as a numeric metric for statistical aggregation (sum, count, min, max, avg).
  * 
  * Example:
  *   AGW_REPORT_API_LATENCY("GetSettings", 150.5)
+ *     -> Records metric "agw_Badger_GetSettings_Latency"
  *   AGW_REPORT_API_LATENCY("GetAppPermissions", 250.0)
+ *     -> Records metric "agw_Badger_GetAppPermissions_Latency"
  */
 #define AGW_REPORT_API_LATENCY(apiName, latencyMs) \
     do { \
@@ -389,15 +417,14 @@ namespace AppGatewayTelemetryHelper {
  * @param serviceName Predefined service name from AppGatewayTelemetryMarkers.h
  * @param latencyMs Latency in milliseconds
  * 
- * Uses RecordTelemetryMetric with composite metric name: agw_<PluginName>_<ServiceName>_Latency
- * AppGateway will aggregate latency statistics (sum/min/max/avg/count) per service.
+ * Generates a unique metric name "agw_<PluginName>_<ServiceName>_Latency" and records
+ * it as a numeric metric for statistical aggregation (sum, count, min, max, avg).
  * 
  * Example:
  *   AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_THOR_PERMISSION, 350.0)
- *   // Creates metric: agw_<YourPlugin>_ThorPermissionService_Latency
- *   
+ *     -> Records metric "agw_Badger_ThorPermissionService_Latency"
  *   AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_OTT_TOKEN, 200.0)
- *   // Creates metric: agw_<YourPlugin>_OttTokenService_Latency
+ *     -> Records metric "agw_OttServices_OttTokenService_Latency"
  */
 #define AGW_REPORT_SERVICE_LATENCY(serviceName, latencyMs) \
     do { \

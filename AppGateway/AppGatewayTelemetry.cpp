@@ -140,12 +140,17 @@ namespace Plugin {
 
     void AppGatewayTelemetry::RecordBootstrapTime(uint64_t durationMs, uint32_t pluginsLoaded)
     {
-        JsonObject payload;
-        payload["duration_ms"] = durationMs;
-        payload["plugins_loaded"] = pluginsLoaded;
+        // Record bootstrap metrics (numeric values for aggregation)
+        Exchange::GatewayContext context;
+        context.requestId = 0;
+        context.connectionId = 0;
+        context.appId = "AppGateway";
 
-        std::string payloadStr = FormatTelemetryPayload(payload);
-        SendT2Event(AGW_MARKER_BOOTSTRAP_TIME, payloadStr);
+        RecordTelemetryMetric(context, "agw_Bootstrap_Duration", 
+                              static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+        RecordTelemetryMetric(context, "agw_Bootstrap_PluginCount", 
+                              static_cast<double>(pluginsLoaded), AGW_UNIT_COUNT);
+        
         LOGINFO("Bootstrap time recorded: %lu ms, plugins loaded: %u", durationMs, pluginsLoaded);
     }
 
@@ -354,16 +359,28 @@ namespace Plugin {
             return;
         }
 
-        JsonObject payload;
-        payload["websocket_connections"] = wsConnections;
-        payload["total_calls"] = totalCalls;
-        payload["successful_calls"] = successfulCalls;
-        payload["failed_calls"] = failedCalls;
-        payload["reporting_interval_sec"] = mReportingIntervalSec;
+        // Send each health metric individually for proper aggregation
+        JsonObject metricPayload;
+        metricPayload["reporting_interval_sec"] = mReportingIntervalSec;
+        metricPayload["sum"] = wsConnections;
+        metricPayload["count"] = 1;
+        metricPayload["unit"] = AGW_UNIT_COUNT;
+        std::string wsPayload = FormatTelemetryPayload(metricPayload);
+        SendT2Event("agw_WebSocket_Connections", wsPayload);
 
-        std::string payloadStr = FormatTelemetryPayload(payload);
-        SendT2Event(AGW_MARKER_HEALTH_STATS, payloadStr);
-        LOGINFO("Health stats sent: ws=%u, total=%u, success=%u, failed=%u",
+        metricPayload["sum"] = totalCalls;
+        std::string totalPayload = FormatTelemetryPayload(metricPayload);
+        SendT2Event("agw_Total_Calls", totalPayload);
+
+        metricPayload["sum"] = successfulCalls;
+        std::string successPayload = FormatTelemetryPayload(metricPayload);
+        SendT2Event("agw_Successful_Calls", successPayload);
+
+        metricPayload["sum"] = failedCalls;
+        std::string failedPayload = FormatTelemetryPayload(metricPayload);
+        SendT2Event("agw_Failed_Calls", failedPayload);
+
+        LOGINFO("Health stats sent as metrics: ws=%u, total=%u, success=%u, failed=%u",
                 wsConnections, totalCalls, successfulCalls, failedCalls);
     }
 
@@ -374,21 +391,23 @@ namespace Plugin {
             return;
         }
 
-        JsonObject payload;
-        payload["reporting_interval_sec"] = mReportingIntervalSec;
-
-        JsonArray failures;
+        // Send each API error count as a separate metric for proper aggregation
         for (const auto& item : mApiErrorCounts) {
-            JsonObject entry;
-            entry["api"] = item.first;
-            entry["count"] = item.second;
-            failures.Add(entry);
+            std::string metricName = "agw_API_Error_Count_" + item.first;
+            
+            JsonObject metricPayload;
+            metricPayload["reporting_interval_sec"] = mReportingIntervalSec;
+            metricPayload["sum"] = item.second;
+            metricPayload["count"] = 1;
+            metricPayload["unit"] = AGW_UNIT_COUNT;
+            
+            std::string payloadStr = FormatTelemetryPayload(metricPayload);
+            SendT2Event(metricName.c_str(), payloadStr);
+            
+            LOGINFO("API error metric sent: %s = %u", metricName.c_str(), item.second);
         }
-        payload["api_failures"] = failures;
-
-        std::string payloadStr = FormatTelemetryPayload(payload);
-        SendT2Event(AGW_MARKER_API_ERROR_STATS, payloadStr);
-        LOGINFO("API error stats sent: %zu APIs with errors", mApiErrorCounts.size());
+        
+        LOGINFO("API error stats sent as metrics: %zu APIs with errors", mApiErrorCounts.size());
     }
 
     void AppGatewayTelemetry::SendExternalServiceErrorStats()
@@ -398,21 +417,23 @@ namespace Plugin {
             return;
         }
 
-        JsonObject payload;
-        payload["reporting_interval_sec"] = mReportingIntervalSec;
-
-        JsonArray failures;
+        // Send each external service error count as a separate metric for proper aggregation
         for (const auto& item : mExternalServiceErrorCounts) {
-            JsonObject entry;
-            entry["service"] = item.first;
-            entry["count"] = item.second;
-            failures.Add(entry);
+            std::string metricName = "agw_External_Service_Error_Count_" + item.first;
+            
+            JsonObject metricPayload;
+            metricPayload["reporting_interval_sec"] = mReportingIntervalSec;
+            metricPayload["sum"] = item.second;
+            metricPayload["count"] = 1;
+            metricPayload["unit"] = AGW_UNIT_COUNT;
+            
+            std::string payloadStr = FormatTelemetryPayload(metricPayload);
+            SendT2Event(metricName.c_str(), payloadStr);
+            
+            LOGINFO("External service error metric sent: %s = %u", metricName.c_str(), item.second);
         }
-        payload["service_failures"] = failures;
-
-        std::string payloadStr = FormatTelemetryPayload(payload);
-        SendT2Event(AGW_MARKER_EXT_SERVICE_ERROR_STATS, payloadStr);
-        LOGINFO("External service error stats sent: %zu services with errors", 
+        
+        LOGINFO("External service error stats sent as metrics: %zu services with errors", 
                 mExternalServiceErrorCounts.size());
     }
 
