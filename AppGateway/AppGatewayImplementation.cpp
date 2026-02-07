@@ -494,13 +494,23 @@ namespace WPEFramework
             Exchange::IAppGatewayRequestHandler *requestHandler = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayRequestHandler>(alias);
             if (requestHandler != nullptr) {
                 std::string finalParams = UpdateContext(context, method, params, origin, true);
+                
+                // Track telemetry for AppGatewayCommon request handling
+                AppGatewayTelemetry::getInstance().IncrementTotalCalls();
+                
                 if (Core::ERROR_NONE != requestHandler->HandleAppGatewayRequest(context, method, finalParams, resolution)) {
                     LOGERR("HandleAppGatewayRequest failed for callsign: %s", alias.c_str());
+                    
+                    // Record API error and increment failed calls
+                    AppGatewayTelemetry::getInstance().RecordApiError(method);
+                    AppGatewayTelemetry::getInstance().IncrementFailedCalls();
+                    
                     if (resolution.empty()){
                         ErrorUtils::CustomInternal("HandleAppGatewayRequest failed", resolution);
                     }
                 } else {
                     result = Core::ERROR_NONE;
+                    AppGatewayTelemetry::getInstance().IncrementSuccessfulCalls();
                 }
                 requestHandler->Release();
             } else {

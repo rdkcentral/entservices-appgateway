@@ -23,39 +23,43 @@
  * @brief Predefined T2 telemetry markers for App Gateway ecosystem
  * 
  * This file defines all standard telemetry markers used across the App Gateway
- * plugin ecosystem. Other developers implementing telemetry in their plugins
- * MUST use these predefined markers when calling IAppGatewayTelemetry interface.
+ * plugin ecosystem. Plugins use these markers when reporting telemetry via the
+ * IAppGatewayTelemetry COM-RPC interface.
  * 
- * ## Naming Convention
+ * ## Marker Design - Generic Category-Based Approach
+ * 
+ * The system uses GENERIC markers where the plugin/service name is part of the
+ * payload data rather than the marker name itself. This reduces T2 marker count
+ * and simplifies codebase maintenance.
  * 
  * All markers follow this pattern:
- *   `agw_<PluginName><Category><Type>_split`
+ *   `AppGw<Category><Type>_split`
  * 
  * Where:
- * - `agw_` - App Gateway prefix (mandatory)
- * - `<PluginName>` - Name of the plugin (e.g., Badger, OttServices)
- * - `<Category>` - Category of telemetry (e.g., Api, ExtService)
- * - `<Type>` - Type of data (e.g., Error, Latency, Stats)
- * - `_split` - Suffix indicating structured data payload
+ * - `AppGw` - App Gateway prefix (identifies the source)
+ * - `<Category>` - Category of telemetry (e.g., Plugin, Health, Api)
+ * - `<Type>` - Type of data (e.g., ApiError, ExtServiceError, ApiLatency)
+ * - `_split` - Suffix indicating structured/split format for T2
  * 
  * ## Usage
  * 
- * When calling IAppGatewayTelemetry::RecordTelemetryEvent():
- *   - eventName = Use one of the predefined markers below
- *   - eventData = JSON string with relevant data
+ * Plugins should use the helper functions from UtilsAppGatewayTelemetry.h:
+ *   - AGW_REPORT_API_ERROR() - Reports API failures (uses RecordTelemetryEvent)
+ *   - AGW_REPORT_EXTERNAL_SERVICE_ERROR() - Reports external service failures (uses RecordTelemetryEvent)
+ *   - AGW_REPORT_API_LATENCY() - Reports API call latency (uses RecordTelemetryEvent with JSON)
+ *   - AGW_REPORT_SERVICE_LATENCY() - Reports external service latency (uses RecordTelemetryMetric with aggregation)
  * 
- * When calling IAppGatewayTelemetry::RecordTelemetryMetric():
- *   - metricName = Use one of the predefined metric markers below
- *   - metricValue = Numeric value
- *   - metricUnit = Use predefined units (AGW_UNIT_*)
+ * Direct COM-RPC interface usage (if helper macros unavailable):
+ *   IAppGatewayTelemetry::RecordTelemetryEvent(context, markerName, jsonPayload)
+ *   IAppGatewayTelemetry::RecordTelemetryMetric(context, metricName, value, unit)
  * 
- * ## Adding New Markers
+ * ## Adding Support for New Plugins
  * 
- * When adding markers for a new plugin:
- * 1. Add a new section below with your plugin name
- * 2. Follow the naming convention
- * 3. Document the expected eventData/metricValue format
- * 4. Update the architecture documentation
+ * When integrating a new plugin:
+ * 1. Add your plugin name constant below (if not already present)
+ * 2. Use existing generic markers (AGW_MARKER_PLUGIN_API_ERROR, etc.)
+ * 3. Include plugin name in the payload data using your constant
+ * 4. No need to create new plugin-specific markers!
  */
 
 //=============================================================================
@@ -75,79 +79,92 @@
 
 //=============================================================================
 // APP GATEWAY INTERNAL MARKERS (Used by AppGatewayTelemetry internally)
-// These are aggregated and reported by AppGateway itself
+// These are aggregated and reported by AppGateway itself, not by external plugins
 //=============================================================================
 
 /**
  * @brief Bootstrap time marker
  * @details Records total time taken to start all App Gateway plugins
- * @payload { "duration_ms": <uint64>, "plugins_loaded": <uint32> }
+ * Format: JSON or COMPACT (configurable via SetTelemetryFormat)
+ * @payload JSON: { "duration_ms": <uint64>, "plugins_loaded": <uint32> }
+ *          COMPACT: <duration_ms>,<plugins_loaded>
  */
 #define AGW_MARKER_BOOTSTRAP_TIME                   "AppGwBootstrapTime_split"
 
 /**
  * @brief Health statistics marker
  * @details Aggregate stats emitted at configurable intervals (default 1 hour)
- * @payload { "websocket_connections": <uint32>, "total_calls": <uint32>,
- *            "successful_calls": <uint32>, "failed_calls": <uint32>,
- *            "reporting_interval_sec": <uint32> }
+ * @payload JSON: { "websocket_connections": <uint32>, "total_calls": <uint32>,
+ *                  "successful_calls": <uint32>, "failed_calls": <uint32>,
+ *                  "reporting_interval_sec": <uint32> }
+ *          COMPACT: <websocket_connections>,<total_calls>,<successful_calls>,<failed_calls>,<interval_sec>
  */
 #define AGW_MARKER_HEALTH_STATS                     "AppGwHealthStats_split"
 
 /**
  * @brief API error statistics marker
  * @details API failure counts aggregated over reporting interval
- * @payload { "reporting_interval_sec": <uint32>,
- *            "api_failures": [{ "api": "<name>", "count": <uint32> }, ...] }
+ * @payload JSON: { "reporting_interval_sec": <uint32>,
+ *                  "api_failures": [{ "api": "<name>", "count": <uint32> }, ...] }
+ *          COMPACT: <interval_sec>,(<api>,<count>),(<api>,<count>),...
  */
 #define AGW_MARKER_API_ERROR_STATS                  "AppGwApiErrorStats_split"
 
 /**
  * @brief External service error statistics marker
  * @details External service failure counts aggregated over reporting interval
- * @payload { "reporting_interval_sec": <uint32>,
- *            "service_failures": [{ "service": "<name>", "count": <uint32> }, ...] }
+ * @payload JSON: { "reporting_interval_sec": <uint32>,
+ *                  "service_failures": [{ "service": "<name>", "count": <uint32> }, ...] }
+ *          COMPACT: <interval_sec>,(<service>,<count>),(<service>,<count>),...
  */
 #define AGW_MARKER_EXT_SERVICE_ERROR_STATS          "AppGwExtServiceError_split"
 
 //=============================================================================
 // GENERIC PLUGIN TELEMETRY MARKERS
-// These markers are shared by all plugins - plugin name is included in the data
+// Used by all plugins - plugin/service name is included in the payload data
+// Plugins should use helper macros from UtilsAppGatewayTelemetry.h
 //=============================================================================
 
 /**
  * @brief Plugin API error event marker
- * @details Reports API failures from any plugin. Plugin name included in data.
+ * @details Reports API failures from any plugin. Plugin name included in payload.
+ * @usage Use AGW_REPORT_API_ERROR() helper macro from UtilsAppGatewayTelemetry.h
  * @payload { "plugin": "<pluginName>", "api": "<apiName>", "error": "<errorCode>" }
- * 
- * Example usage:
- *   AGW_REPORT_API_ERROR(AGW_MARKER_PLUGIN_API_ERROR, "Badger", "GetAppSessionId", "INTERFACE_UNAVAILABLE")
+ * @example AGW_REPORT_API_ERROR("GetAppSessionId", AGW_ERROR_TIMEOUT)
+ * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
  */
 #define AGW_MARKER_PLUGIN_API_ERROR                 "AppGwPluginApiError_split"
 
 /**
  * @brief Plugin external service error event marker
- * @details Reports external service failures from any plugin. Plugin name included in data.
+ * @details Reports external service failures from any plugin. Plugin name included in payload.
+ * @usage Use AGW_REPORT_EXTERNAL_SERVICE_ERROR() helper macro from UtilsAppGatewayTelemetry.h
  * @payload { "plugin": "<pluginName>", "service": "<serviceName>", "error": "<errorCode>" }
- * 
- * Example usage:
- *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR, "OttServices", "ThorPermissionService", "CONNECTION_TIMEOUT")
+ * @example AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CONNECTION_TIMEOUT)
+ * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
  */
 #define AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR         "AppGwPluginExtServiceError_split"
 
 /**
  * @brief Plugin API latency metric marker
- * @details Reports API call latency from any plugin. Plugin and API name included in data.
+ * @details Reports API call latency from any plugin using RecordTelemetryEvent with JSON payload.
+ * @usage Use AGW_REPORT_API_LATENCY() helper macro from UtilsAppGatewayTelemetry.h
  * @payload { "plugin": "<pluginName>", "api": "<apiName>", "latency_ms": <double> }
- * @unit AGW_UNIT_MILLISECONDS
+ * @example AGW_REPORT_API_LATENCY("AuthorizeDataField", 125.5)
+ * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
  */
 #define AGW_MARKER_PLUGIN_API_LATENCY               "AppGwPluginApiLatency_split"
 
 /**
- * @brief Plugin external service latency metric marker
- * @details Reports external service call latency from any plugin.
- * @payload { "plugin": "<pluginName>", "service": "<serviceName>", "latency_ms": <double> }
- * @unit AGW_UNIT_MILLISECONDS
+ * @brief Plugin external service latency metric marker (DEPRECATED - not used)
+ * @details This marker is no longer used. Service latency is now reported using RecordTelemetryMetric
+ *          with composite metric names in the format: agw_<PluginName>_<ServiceName>_Latency
+ * @usage Use AGW_REPORT_SERVICE_LATENCY() helper macro from UtilsAppGatewayTelemetry.h
+ * @metric_name agw_<PluginName>_<ServiceName>_Latency (e.g., agw_OttServices_ThorPermissionService_Latency)
+ * @metric_value Latency in milliseconds
+ * @metric_unit AGW_UNIT_MILLISECONDS
+ * @example AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_THOR_PERMISSION, 85.3)
+ * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
  */
 #define AGW_MARKER_PLUGIN_SERVICE_LATENCY           "AppGwPluginServiceLatency_split"
 
@@ -246,60 +263,134 @@
 
 //=============================================================================
 // USAGE EXAMPLES
-// How to use the generic markers with plugin/method names as values
+// How to use the markers with helper functions from UtilsAppGatewayTelemetry.h
 //=============================================================================
 
-
 /*
- * Example: Reporting an API error from Badger plugin
+ * Example 1: Reporting an API error from Badger plugin
  *
- *   // In Badger.cpp
- *   AGW_REPORT_API_ERROR(AGW_MARKER_PLUGIN_API_ERROR, 
- *                        AGW_PLUGIN_BADGER, 
- *                        "GetAppSessionId", 
- *                        AGW_ERROR_INTERFACE_UNAVAILABLE);
+ *   // In Badger.cpp - Include the helper and initialize
+ *   #include "UtilsAppGatewayTelemetry.h"
  *
- *   // This sends: { "plugin": "Badger", "api": "GetAppSessionId", "error": "INTERFACE_UNAVAILABLE" }
+ *   // In Initialize() method:
+ *   AGW_TELEMETRY_INIT(mService, AGW_PLUGIN_BADGER);
  *
- * Example: Reporting an external service error from OttServices plugin
+ *   // Report the error (plugin name automatic from init):
+ *   AGW_REPORT_API_ERROR("GetAppSessionId", AGW_ERROR_INTERFACE_UNAVAILABLE);
+ *
+ *   // This internally calls RecordTelemetryEvent with:
+ *   //   eventName = AGW_MARKER_PLUGIN_API_ERROR
+ *   //   eventData = { "plugin": "Badger", "api": "GetAppSessionId", 
+ *   //                 "error": "INTERFACE_UNAVAILABLE" }
+ *   //   (Plugin name from initialization)
+ *
+ *
+ * Example 2: Reporting an external service error from OttServices plugin
  *
  *   // In OttServicesImplementation.cpp
- *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR,
- *                                      AGW_PLUGIN_OTTSERVICES,
- *                                      AGW_SERVICE_THOR_PERMISSION,
+ *   #include "UtilsAppGatewayTelemetry.h"
+ *
+ *   // In Initialize() method:
+ *   AGW_TELEMETRY_INIT(mService, AGW_PLUGIN_OTTSERVICES);
+ *
+ *   // Report the service error (plugin name automatic from init):
+ *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION,
  *                                      AGW_ERROR_CONNECTION_TIMEOUT);
  *
- *   // This sends: { "plugin": "OttServices", "service": "ThorPermissionService", "error": "CONNECTION_TIMEOUT" }
+ *   // This internally calls RecordTelemetryEvent with:
+ *   //   eventName = AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR
+ *   //   eventData = { "plugin": "OttServices", "service": "ThorPermissionService", 
+ *   //                 "error": "CONNECTION_TIMEOUT" }
+ *   //   (Plugin name from initialization)
  *
- * Example: Reporting API latency from any plugin
  *
- *   AGW_REPORT_API_LATENCY(AGW_MARKER_PLUGIN_API_LATENCY,
- *                          AGW_PLUGIN_BADGER,
- *                          "AuthorizeDataField",
- *                          125.5);  // latency in ms
+ * Example 3: Reporting API latency from any plugin
  *
- *   // This sends: { "plugin": "Badger", "api": "AuthorizeDataField", "latency_ms": 125.5 }
+ *   #include "UtilsAppGatewayTelemetry.h"
  *
- * Example: Reporting a custom metric (PermissionGroup failures) from Badger plugin
+ *   AGW_REPORT_API_LATENCY("AuthorizeDataField", 125.5);  // latency in ms
  *
- *   // In Badger.cpp
- *   static uint32_t permissionGroupFailureCount = 0;
- *   ++permissionGroupFailureCount;
- *   AGW_REPORT_METRIC(AGW_MARKER_PLUGIN_METRIC, permissionGroupFailureCount, AGW_UNIT_COUNT);
+ *   // This internally calls RecordTelemetryEvent (NOT RecordTelemetryMetric) with:
+ *   //   eventName = AGW_MARKER_PLUGIN_API_LATENCY
+ *   //   eventData = { "plugin": "<yourPluginName>", "api": "AuthorizeDataField", 
+ *   //                 "latency_ms": 125.5 }
+ *   //   (Plugin name comes from AGW_TELEMETRY_INIT initialization)
  *
- *   // This sends: { "plugin": "Badger", "metric": "PermissionGroupFailures", "value": <failureCount>, "unit": "count" }
  *
- * Example: Reporting a custom metric (gRPC failures) from OttServices plugin
+ * Example 4: Reporting external service latency
  *
- *   // In OttServicesImplementation.cpp
- *   static uint32_t grpcFailureCount = 0;
- *   ++grpcFailureCount;
- *   AGW_REPORT_METRIC(AGW_MARKER_PLUGIN_METRIC, grpcFailureCount, AGW_UNIT_COUNT);
+ *   #include "UtilsAppGatewayTelemetry.h"
  *
- *   // This sends: { "plugin": "OttServices", "metric": "GrpcFailureCount", "value": <grpcFailureCount>, "unit": "count" }
+ *   // In Initialize() method:
+ *   AGW_TELEMETRY_INIT(mService, AGW_PLUGIN_OTTSERVICES);
+ *
+ *   AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_THOR_PERMISSION, 85.3);  // latency in ms
+ *
+ *   // This internally calls RecordTelemetryMetric with:
+ *   //   metricName = "agw_OttServices_ThorPermissionService_Latency"
+ *   //   metricValue = 85.3
+ *   //   metricUnit = AGW_UNIT_MILLISECONDS
+ *   //
+ *   // AppGateway aggregates this metric and reports:
+ *   //   - sum, min, max, avg, count over the reporting interval
+ *   //   (Plugin name from AGW_TELEMETRY_INIT initialization)
+ *
+ *
+ * Example 5: Reporting a custom numeric metric using RecordTelemetryMetric
+ *
+ *   #include "UtilsAppGatewayTelemetry.h"
+ *
+ *   // Track a custom counter metric
+ *   static uint32_t permissionDeniedCount = 0;
+ *   permissionDeniedCount++;
+ *
+ *   AGW_REPORT_METRIC("agw_PermissionDeniedCount", 
+ *                     static_cast<double>(permissionDeniedCount), 
+ *                     AGW_UNIT_COUNT);
+ *
+ *   // This internally calls RecordTelemetryMetric with:
+ *   //   metricName = "agw_PermissionDeniedCount"
+ *   //   metricValue = <count>
+ *   //   metricUnit = "count"
+ *
+ *   // For aggregated metrics (sum/min/max/avg), AppGateway will compute:
+ *   //   - sum of all reported values
+ *   //   - min/max values
+ *   //   - average (sum/count)
+ *   //   - total number of reports
+ *
+ *
+ * Example 6: Direct COM-RPC interface usage (without helper macros)
+ *
+ *   // When UtilsAppGatewayTelemetry.h is not available
+ *   Exchange::IAppGatewayTelemetry* telemetry = ...;
+ *   Exchange::GatewayContext context;
+ *   context.appId = "MyPlugin";
+ *   
+ *   // Using RecordTelemetryEvent (for errors and events):
+ *   JsonObject eventData;
+ *   eventData["plugin"] = AGW_PLUGIN_BADGER;
+ *   eventData["api"] = "GetData";
+ *   eventData["error"] = AGW_ERROR_TIMEOUT;
+ *   std::string eventDataStr;
+ *   eventData.ToString(eventDataStr);
+ *
+ *   telemetry->RecordTelemetryEvent(context, 
+ *                                   AGW_MARKER_PLUGIN_API_ERROR, 
+ *                                   eventDataStr);
+ *
+ *   // Using RecordTelemetryMetric (for numeric metrics with aggregation):
+ *   telemetry->RecordTelemetryMetric(context,
+ *                                    "agw_MyPlugin_ThorPermissionService_Latency",
+ *                                    125.5,
+ *                                    AGW_UNIT_MILLISECONDS);
+ *   
+ *   // Metric will be aggregated (sum/min/max/avg/count) and reported periodically
+ *
  *
  * Adding a new plugin:
  * 1. Add plugin name constant: #define AGW_PLUGIN_MYPLUGIN "MyPlugin"
- * 2. Use the generic markers with your plugin name
- * 3. No need to create plugin-specific markers!
+ * 2. Use the existing generic markers (shown above)
+ * 3. Call helper macros with your plugin name constant
+ * 4. No need to create plugin-specific markers!
  */

@@ -238,25 +238,23 @@ namespace AppGatewayTelemetryHelper {
         }
 
         /**
-         * @brief Record an external service latency metric using generic marker
+         * @brief Record an external service latency metric
          * @param serviceName Predefined service name from AppGatewayTelemetryMarkers.h
          * @param latencyMs Latency in milliseconds
          * @return Core::hresult
+         * 
+         * Uses RecordTelemetryMetric with composite metric name: agw_<PluginName>_<ServiceName>_Latency
+         * This allows AppGateway to aggregate latency statistics (sum/min/max/avg) per service.
          */
         Core::hresult RecordServiceLatency(const std::string& serviceName, double latencyMs)
         {
-            JsonObject data;
-            data["plugin"] = mPluginName;
-            data["service"] = serviceName;
-            data["latency_ms"] = latencyMs;
+            // Create composite metric name: agw_<PluginName>_<ServiceName>_Latency
+            std::string metricName = "agw_" + mPluginName + "_" + serviceName + "_Latency";
 
-            std::string eventData;
-            data.ToString(eventData);
+            LOGTRACE("TelemetryClient: Recording service latency - plugin=%s, service=%s, latency=%.2fms, metric=%s",
+                     mPluginName.c_str(), serviceName.c_str(), latencyMs, metricName.c_str());
 
-            LOGTRACE("TelemetryClient: Recording service latency - plugin=%s, service=%s, latency=%.2fms",
-                     mPluginName.c_str(), serviceName.c_str(), latencyMs);
-
-            return RecordEvent(AGW_MARKER_PLUGIN_SERVICE_LATENCY, eventData);
+            return RecordMetric(metricName, latencyMs, AGW_UNIT_MILLISECONDS);
         }
 
         /**
@@ -391,11 +389,15 @@ namespace AppGatewayTelemetryHelper {
  * @param serviceName Predefined service name from AppGatewayTelemetryMarkers.h
  * @param latencyMs Latency in milliseconds
  * 
- * Uses generic marker AGW_MARKER_PLUGIN_SERVICE_LATENCY with plugin name from initialization.
+ * Uses RecordTelemetryMetric with composite metric name: agw_<PluginName>_<ServiceName>_Latency
+ * AppGateway will aggregate latency statistics (sum/min/max/avg/count) per service.
  * 
  * Example:
  *   AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_THOR_PERMISSION, 350.0)
+ *   // Creates metric: agw_<YourPlugin>_ThorPermissionService_Latency
+ *   
  *   AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_OTT_TOKEN, 200.0)
+ *   // Creates metric: agw_<YourPlugin>_OttTokenService_Latency
  */
 #define AGW_REPORT_SERVICE_LATENCY(serviceName, latencyMs) \
     do { \
