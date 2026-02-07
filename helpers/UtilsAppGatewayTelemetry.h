@@ -51,7 +51,7 @@
  */
 
 #include <interfaces/IAppGateway.h>
-#include <plugins/json/JsonData_Container.h>
+//#include <plugins/json/JsonData_Container.h>
 #include "UtilsLogging.h"
 #include "AppGatewayTelemetryMarkers.h"
 

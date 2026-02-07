@@ -20,7 +20,7 @@
 #include "AppGatewayTelemetry.h"
 #include "UtilsLogging.h"
 #include "UtilsTelemetry.h"
-#include <plugins/json/JsonData_Container.h>
+//#include <plugins/json/JsonData_Container.h>
 #include <limits>
 #include <sstream>
 #include <iomanip>
@@ -30,8 +30,8 @@ namespace Plugin {
 
     AppGatewayTelemetry& AppGatewayTelemetry::getInstance()
     {
-        static AppGatewayTelemetry instance;
-        return instance;
+        static Core::ProxyType<AppGatewayTelemetry> instance = Core::ProxyType<AppGatewayTelemetry>::Create();
+        return *instance;
     }
 
     AppGatewayTelemetry::AppGatewayTelemetry()
@@ -72,7 +72,7 @@ namespace Plugin {
         // Start the periodic reporting timer
         if (!mTimerRunning) {
             uint64_t intervalMs = static_cast<uint64_t>(mReportingIntervalSec) * 1000;
-            mTimerHandler.Schedule(Core::Time::Now().Add(intervalMs), Core::ProxyType<Core::IDispatch>(mTimer));
+            mTimerHandler.Schedule(Core::Time::Now().Add(intervalMs), *mTimer);
             mTimerRunning = true;
             LOGINFO("AppGatewayTelemetry: Started periodic reporting timer with interval %u seconds", mReportingIntervalSec);
         }
@@ -91,7 +91,7 @@ namespace Plugin {
 
         // Stop the timer
         if (mTimerRunning) {
-            mTimerHandler.Revoke(Core::ProxyType<Core::IDispatch>(mTimer));
+            mTimerHandler.Revoke(*mTimer);
             mTimerRunning = false;
         }
 
@@ -112,9 +112,9 @@ namespace Plugin {
 
         // Restart timer with new interval if running
         if (mTimerRunning) {
-            mTimerHandler.Revoke(Core::ProxyType<Core::IDispatch>(mTimer));
+            mTimerHandler.Revoke(*mTimer);
             uint64_t intervalMs = static_cast<uint64_t>(mReportingIntervalSec) * 1000;
-            mTimerHandler.Schedule(Core::Time::Now().Add(intervalMs), Core::ProxyType<Core::IDispatch>(mTimer));
+            mTimerHandler.Schedule(Core::Time::Now().Add(intervalMs), *mTimer);
         }
     }
 
@@ -198,7 +198,7 @@ namespace Plugin {
     // ============================================
 
     Core::hresult AppGatewayTelemetry::RecordTelemetryEvent(
-        const Exchange::IAppGatewayTelemetry::GatewayContext& context,
+        const Exchange::GatewayContext& context,
         const string& eventName,
         const string& eventData)
     {
@@ -237,24 +237,28 @@ namespace Plugin {
             RecordExternalServiceErrorInternal(serviceName);
         }
 
-        // Increment cached event count
+        // Increment cached event count and check threshold
+        bool shouldFlush = false;
         {
             Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
             mCachedEventCount++;
 
             // Check if we've reached the threshold
             if (mCachedEventCount >= mCacheThreshold) {
+                shouldFlush = true;
                 LOGINFO("Cache threshold reached (%u), flushing telemetry data", mCachedEventCount);
-                lock.Unlock();
-                FlushTelemetryData();
             }
+        }
+
+        if (shouldFlush) {
+            FlushTelemetryData();
         }
 
         return Core::ERROR_NONE;
     }
 
     Core::hresult AppGatewayTelemetry::RecordTelemetryMetric(
-        const Exchange::IAppGatewayTelemetry::GatewayContext& context,
+        const Exchange::GatewayContext& context,
         const string& metricName,
         const double metricValue,
         const string& metricUnit)
@@ -289,9 +293,12 @@ namespace Plugin {
             // Check if we've reached the threshold
             if (mCachedEventCount >= mCacheThreshold) {
                 LOGINFO("Cache threshold reached (%u), flushing telemetry data", mCachedEventCount);
-                lock.Unlock();
-                FlushTelemetryData();
             }
+        }
+
+        // Flush outside the lock if threshold reached
+        if (mCachedEventCount >= mCacheThreshold) {
+            FlushTelemetryData();
         }
 
         return Core::ERROR_NONE;
@@ -306,7 +313,7 @@ namespace Plugin {
         Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
         if (mTimerRunning && mInitialized) {
             uint64_t intervalMs = static_cast<uint64_t>(mReportingIntervalSec) * 1000;
-            mTimerHandler.Schedule(Core::Time::Now().Add(intervalMs), Core::ProxyType<Core::IDispatch>(mTimer));
+            mTimerHandler.Schedule(Core::Time::Now().Add(intervalMs), *mTimer);
         }
     }
 
@@ -371,10 +378,10 @@ namespace Plugin {
         payload["reporting_interval_sec"] = mReportingIntervalSec;
 
         JsonArray failures;
-        for (const auto& [api, count] : mApiErrorCounts) {
+        for (const auto& item : mApiErrorCounts) {
             JsonObject entry;
-            entry["api"] = api;
-            entry["count"] = count;
+            entry["api"] = item.first;
+            entry["count"] = item.second;
             failures.Add(entry);
         }
         payload["api_failures"] = failures;
@@ -395,10 +402,10 @@ namespace Plugin {
         payload["reporting_interval_sec"] = mReportingIntervalSec;
 
         JsonArray failures;
-        for (const auto& [service, count] : mExternalServiceErrorCounts) {
+        for (const auto& item : mExternalServiceErrorCounts) {
             JsonObject entry;
-            entry["service"] = service;
-            entry["count"] = count;
+            entry["service"] = item.first;
+            entry["count"] = item.second;
             failures.Add(entry);
         }
         payload["service_failures"] = failures;
@@ -417,7 +424,10 @@ namespace Plugin {
         }
 
         // Send each metric with its own marker (the metric name)
-        for (const auto& [metricName, data] : mMetricsCache) {
+        for (const auto& item : mMetricsCache) {
+            const std::string& metricName = item.first;
+            const MetricData& data = item.second;
+            
             if (data.count == 0) {
                 continue;
             }

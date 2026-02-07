@@ -98,7 +98,7 @@ namespace Plugin {
          * @param eventData Event data in JSON format
          * @return Core::hresult Success or error code
          */
-        Core::hresult RecordTelemetryEvent(const Exchange::IAppGatewayTelemetry::GatewayContext& context,
+        Core::hresult RecordTelemetryEvent(const Exchange::GatewayContext& context,
                                            const string& eventName,
                                            const string& eventData) override;
 
@@ -118,7 +118,7 @@ namespace Plugin {
          * @param metricUnit Metric unit (e.g., "ms", "kbps", "count")
          * @return Core::hresult Success or error code
          */
-        Core::hresult RecordTelemetryMetric(const Exchange::IAppGatewayTelemetry::GatewayContext& context,
+        Core::hresult RecordTelemetryMetric(const Exchange::GatewayContext& context,
                                             const string& metricName,
                                             const double metricValue,
                                             const string& metricUnit) override;
@@ -176,9 +176,10 @@ namespace Plugin {
         // ============================================
         void RecordExternalServiceErrorInternal(const std::string& serviceName);
 
-    private:
         AppGatewayTelemetry();
         ~AppGatewayTelemetry() override;
+
+    private:
         /**
          * @brief Metric data structure for aggregation
          */
@@ -217,6 +218,19 @@ namespace Plugin {
                 if (mParent) {
                     mParent->OnTimerExpired();
                 }
+            }
+
+            // Required by TimerType - return 0 to indicate no automatic rescheduling
+            uint64_t Timed(const uint64_t scheduledTime)
+            {
+                Dispatch();
+                return 0; // No automatic reschedule, we handle it manually in OnTimerExpired
+            }
+
+            // Required by TimerType::Revoke for comparison
+            bool operator==(const TelemetryTimer& other) const
+            {
+                return mParent == other.mParent;
             }
 
         private:
@@ -272,7 +286,7 @@ namespace Plugin {
 
         // Timer for periodic reporting
         Core::ProxyType<TelemetryTimer> mTimer;
-        Core::TimerType<Core::IDispatch> mTimerHandler;
+        Core::TimerType<TelemetryTimer> mTimerHandler;
         bool mTimerRunning;
 
         // Health statistics

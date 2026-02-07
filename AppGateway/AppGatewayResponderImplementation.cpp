@@ -160,7 +160,7 @@ namespace WPEFramework
                     }
 
                     // Track external service error - Authentication service failure
-                    AppGatewayTelemetry::getInstance().RecordExternalServiceError("AuthenticationService");
+                    AppGatewayTelemetry::getInstance().RecordExternalServiceErrorInternal("AuthenticationService");
 
                     return false;
                 });
