@@ -164,8 +164,6 @@ AGW_REPORT_API_ERROR("AuthorizeDataField", "PERMISSION_DENIED");
 
 #### `AGW_REPORT_EXTERNAL_SERVICE_ERROR(service, error)`
 
-#### `AGW_REPORT_EXTERNAL_SERVICE_ERROR(service, error)`
-
 Reports an external service error event to App Gateway for optional immediate forensics. The plugin name is automatically included. This is OPTIONAL - AppGateway will still track the error count and send it as a metric (`AppGwExtServiceErrorCount_<ServiceName>_split`) periodically.
 
 If enabled, the event uses the generic marker `AppGwPluginExtServiceError_split` internally.

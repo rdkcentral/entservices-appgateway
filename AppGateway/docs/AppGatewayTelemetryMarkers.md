@@ -29,6 +29,111 @@ This design provides both immediate forensics (events) and long-term trending (m
 
 ---
 
+## Metric Payload Format Explained
+
+All metrics sent to T2 use a standardized JSON payload format with the following fields:
+
+```json
+{
+  "sum": 15,
+  "count": 1,
+  "unit": "count",
+  "reporting_interval_sec": 3600
+}
+```
+
+### Field Descriptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sum` | number | **The aggregated value being reported**<br/>• For error counts: Total number of errors in the reporting period<br/>• For latency metrics: Sum of all latency measurements<br/>• For counters: Current count value |
+| `count` | integer | **Number of data points in this aggregation**<br/>• For error counts: Always `1` (single aggregated value per period)<br/>• For latency metrics: Number of samples collected (e.g., 25 API calls)<br/>• Used by T2 backend to calculate averages |
+| `unit` | string | **Unit of measurement for the sum value**<br/>• `"count"` - number of occurrences/errors<br/>• `"ms"` - milliseconds (for latency/duration)<br/>• `"percent"` - percentage values<br/>• See [Metric Units](#metric-units) section for all supported units |
+| `reporting_interval_sec` | integer | **Time period over which data was collected**<br/>• `3600` = 1 hour (default for periodic metrics)<br/>• `0` = immediate/one-time metric (e.g., bootstrap)<br/>• Tells T2: "This data covers X seconds of operation" |
+
+### Extended Format for Latency Metrics
+
+Latency metrics include additional statistical fields:
+
+```json
+{
+  "sum": 1250.5,
+  "min": 45.2,
+  "max": 350.8,
+  "count": 25,
+  "avg": 50.02,
+  "unit": "ms",
+  "reporting_interval_sec": 3600
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `min` | number | Minimum (fastest) value observed in the period |
+| `max` | number | Maximum (slowest) value observed in the period |
+| `avg` | number | Average value (`sum / count`) |
+
+### Real-World Example: Error Count Metric
+
+**Scenario**: API "GetSettings" failed 15 times during the last hour
+
+**What Happens**:
+1. Each API failure calls `RecordApiError("GetSettings")`
+2. AppGatewayTelemetry increments internal counter: `mApiErrorCounts["GetSettings"]++`
+3. After 1 hour, timer fires and sends this metric:
+
+```
+Marker: AppGwApiErrorCount_GetSettings_split
+Payload: {"sum": 15, "count": 1, "unit": "count", "reporting_interval_sec": 3600}
+```
+
+**T2 Backend Calculation**:
+- Error rate = 15 errors / 3600 seconds = **0.0042 errors/second**
+- Error rate = 15 errors / 60 minutes = **0.25 errors/minute**
+
+### Real-World Example: Latency Metric
+
+**Scenario**: API "GetDeviceSessionId" was called 25 times in the last hour
+
+**What Happens**:
+1. Each API call measures latency and calls `RecordApiLatency("GetDeviceSessionId", latencyMs)`
+2. AppGatewayTelemetry aggregates: sum, min, max, count
+3. After 1 hour, sends this metric:
+
+```
+Marker: AppGwBadger_GetDeviceSessionId_Latency_split
+Payload: {
+  "sum": 1250.5,
+  "min": 45.2,
+  "max": 350.8,
+  "count": 25,
+  "avg": 50.02,
+  "unit": "ms",
+  "reporting_interval_sec": 3600
+}
+```
+
+**T2 Backend Analysis**:
+- Average latency = 50.02 ms
+- Performance range: 45.2 ms (best) to 350.8 ms (worst)
+- Call volume: 25 calls/hour = 1 call every 144 seconds
+
+### Why This Design?
+
+This metric-based approach provides:
+
+**Efficiency**: One payload per hour instead of hundreds/thousands of individual events
+
+**Trending**: Track error rates and performance over time (hourly, daily, weekly)
+
+**Alerting**: Backend can trigger alerts when metrics exceed thresholds
+
+**Aggregation**: Multiple devices' data can be easily combined and analyzed
+
+**Statistical Analysis**: Min/max/avg values enable performance profiling
+
+---
+
 ## App Gateway Internal Metrics
 
 These metrics are aggregated and reported by App Gateway itself as individual numeric values.
@@ -198,26 +303,119 @@ Use these standard units when reporting metrics via `RecordTelemetryMetric()`.
 
 ## Data Format
 
-App Gateway supports two output formats for telemetry data:
+App Gateway supports two output formats for telemetry data, configurable via the `TelemetryFormat` enum.
 
 ### JSON Format (Default)
-Self-describing format with field names included.
+Self-describing format with field names included. **This is the standard format used for all metrics.**
 
+**Advantages:**
+- Self-documenting - field names are included
+- Easy to parse and debug
+- Standard format supported by all T2 backends
+
+**Example - Simple Metric:**
+```json
+{"sum":1250,"count":1,"unit":"ms","reporting_interval_sec":0}
+```
+
+**Example - Health Stats (multiple fields):**
 ```json
 {"websocket_connections":12,"total_calls":1543,"successful_calls":1520,"failed_calls":23,"reporting_interval_sec":3600}
 ```
 
 ### COMPACT Format
-Comma-separated values with parentheses grouping for arrays. Smaller payload size.
+Comma-separated values that extract only the values from JSON, omitting field names. **This format reduces payload size but requires the receiver to know the field order.**
 
+**Current Status:** Fully supported in the implementation via `TelemetryFormat::COMPACT` configuration. Currently, **JSON format is the active setting** for all deployments.
+
+**Advantages:**
+- Smaller payload size (reduces bandwidth)
+- Faster serialization
+- Useful for high-frequency telemetry in bandwidth-constrained environments
+
+**Disadvantages:**
+- Requires external schema knowledge to interpret
+- Less human-readable
+- Field order must be strictly maintained
+
+**Example - Simple Values:**
 ```
 12,1543,1520,23,3600
 ```
+*Represents: websocket_connections=12, total_calls=1543, successful_calls=1520, failed_calls=23, reporting_interval_sec=3600*
 
-For arrays:
+**To Enable:** Set `TelemetryFormat::COMPACT` in the AppGateway configuration if bandwidth optimization is required.
+
+---
+
+## Future Enhancement: Batch Metric Reporting
+
+**Note:** This capability is **not currently implemented**. The current architecture sends each metric individually with its own unique marker.
+
+### Proposed: Array-Based Batch Reporting
+
+**Concept:** Send multiple related metrics in a single payload to reduce the number of T2 events.
+
+**Example - Batch API Error Counts (COMPACT format):**
 ```
 3600,(GetData,5),(SetConfig,2),(LoadResource,1)
 ```
+
+**Interpretation:**
+- `3600` - reporting_interval_sec (1 hour)
+- `(GetData,5)` - API "GetData" had 5 errors
+- `(SetConfig,2)` - API "SetConfig" had 2 errors  
+- `(LoadResource,1)` - API "LoadResource" had 1 error
+
+**Example - Batch API Error Counts (JSON format):**
+```json
+{
+  "items": [
+    {"api": "GetData", "count": 5},
+    {"api": "SetConfig", "count": 2},
+    {"api": "LoadResource", "count": 1}
+  ],
+  "unit": "count",
+  "reporting_interval_sec": 3600
+}
+```
+
+### Why Not Currently Implemented
+
+**Current Design Benefits:**
+- Individual metrics provide better T2 backend support for per-API alerting and trending
+- Unique markers per statistic enable clearer analytics and dashboards
+- Simpler integration with existing T2 monitoring infrastructure
+- Each metric can be independently queried and visualized
+
+**Trade-offs:**
+- More T2 events generated (higher bandwidth)
+- More individual markers to manage in T2 backend
+
+### Implementation Requirements
+
+If batch reporting becomes necessary, it would require:
+
+1. **New API Method:**
+   ```cpp
+   Core::hresult RecordTelemetryBatch(
+       const char* markerName,
+       const std::vector<std::pair<std::string, double>>& items,
+       const char* unit
+   );
+   ```
+
+2. **Backend Changes:**
+   - T2 backend must parse array payloads
+   - Extract individual metrics for alerting/trending
+   - Map array items to individual time series
+
+3. **Use Cases:**
+   - Reporting all plugin bootstrap times together
+   - Sending cache statistics bundle (hits, misses, evictions)
+   - Collecting all service health checks in one payload
+
+**Future Consideration:** Evaluate if bandwidth savings justify the added complexity in T2 backend integration and loss of per-metric alerting simplicity.
 
 ---
 
