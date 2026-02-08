@@ -52,8 +52,8 @@
  */
 
 #include <interfaces/IAppGateway.h>
-#include <plugins/json/JsonData_Container.h>
 #include "UtilsLogging.h"
+#include "UtilsCallsign.h"
 #include "AppGatewayTelemetryMarkers.h"
 
 namespace WPEFramework {
@@ -114,7 +114,7 @@ namespace AppGatewayTelemetryHelper {
             mPluginName = pluginName;
 
             // Query for the AppGateway telemetry interface
-            mTelemetry = service->QueryInterfaceByCallsign<Exchange::IAppGatewayTelemetry>("AppGateway");
+            mTelemetry = service->QueryInterfaceByCallsign<Exchange::IAppGatewayTelemetry>(APP_GATEWAY_CALLSIGN);
             if (mTelemetry == nullptr) {
                 LOGWARN("TelemetryClient: AppGateway telemetry interface not available");
                 return false;
