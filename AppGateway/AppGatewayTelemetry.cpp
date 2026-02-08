@@ -197,10 +197,8 @@ namespace Plugin {
                  serviceName.c_str(), mExternalServiceErrorCounts[serviceName]);
     }
 
-    // ============================================
     // IAppGatewayTelemetry Interface Implementation
     // (Called by external plugins via COM-RPC)
-    // ============================================
 
     Core::hresult AppGatewayTelemetry::RecordTelemetryEvent(
         const Exchange::GatewayContext& context,
@@ -219,8 +217,8 @@ namespace Plugin {
         // Parse eventName to determine the type of telemetry
         // 
         // Supported event name patterns:
-        // - "agw_<PluginName>ApiError" - API errors from other plugins
-        // - "agw_<PluginName>ExternalServiceError" - External service errors
+        // - "AppGwPluginApiError_split" - API errors from other plugins
+        // - "AppGwPluginExtServiceError_split" - External service errors
         // - Any other event name - Generic telemetry event
 
         // Check if this is an API error event

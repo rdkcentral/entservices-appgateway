@@ -316,9 +316,7 @@ namespace AppGatewayTelemetryHelper {
 } // namespace WPEFramework
 
 
-// ============================================================================
 // CONVENIENCE MACROS FOR TELEMETRY REPORTING
-// ============================================================================
 
 /**
  * @brief Initialize the AppGateway telemetry client
@@ -482,14 +480,12 @@ namespace AppGatewayTelemetryHelper {
     do { \
         auto& client = WPEFramework::Plugin::AppGatewayTelemetryHelper::GetTelemetryClient(); \
         if (client.IsAvailable()) { \
-            std::string metricName = std::string("agw_") + client.GetPluginName() + "ApiLatency"; \
-            client.RecordMetric(metricName, static_cast<double>(durationMs), "ms"); \
+            std::string metricName = std::string("AppGw") + client.GetPluginName() + "_ApiLatency_split"; \
+            client.RecordMetric(metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS); \
         } \
     } while(0)
 
-// ============================================================================
 // SCOPED TIMER FOR AUTOMATIC LATENCY TRACKING
-// ============================================================================
 
 namespace WPEFramework {
 namespace Plugin {
@@ -526,11 +522,11 @@ namespace AppGatewayTelemetryHelper {
             if (client.IsAvailable()) {
                 if (mFailed) {
                     client.RecordApiError(mApiName, mErrorDetails);
-                    std::string metricName = "agw_" + client.GetPluginName() + "FailedApiLatency";
-                    client.RecordMetric(metricName, static_cast<double>(durationMs), "ms");
+                    std::string metricName = "AppGw" + client.GetPluginName() + "_FailedApiLatency_split";
+                    client.RecordMetric(metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
                 } else {
-                    std::string metricName = "agw_" + client.GetPluginName() + "ApiLatency";
-                    client.RecordMetric(metricName, static_cast<double>(durationMs), "ms");
+                    std::string metricName = "AppGw" + client.GetPluginName() + "_ApiLatency_split";
+                    client.RecordMetric(metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
                 }
             }
         }
