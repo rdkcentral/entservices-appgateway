@@ -90,13 +90,14 @@ uint32_t YourPlugin::Initialize(PluginHost::IShell* service)
 
 ### Step 3: Report Errors at Failure Points
 
-```cpp
-// Report API errors
-AGW_REPORT_API_ERROR(AGW_MARKER_YOURPLUGIN_API_ERROR, "GetData", "INVALID_PARAMETER");
+**Important:** Always use the predefined error constants from `AppGatewayTelemetryMarkers.h` instead of hardcoded strings.
 
-// Report external service errors
-AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_MARKER_YOURPLUGIN_EXT_SERVICE_ERROR, 
-                                   AGW_SERVICE_AUTH, "CONNECTION_TIMEOUT");
+```cpp
+// Report API errors - use AGW_ERROR_* constants
+AGW_REPORT_API_ERROR("GetData", AGW_ERROR_INVALID_REQUEST);
+
+// Report external service errors - use AGW_SERVICE_* and AGW_ERROR_* constants
+AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, AGW_ERROR_CONNECTION_TIMEOUT);
 ```
 
 ### Step 4: Deinitialize on Shutdown
@@ -288,16 +289,25 @@ Use these constants when reporting external service errors:
 
 ### Predefined Error Codes
 
-Use these for consistency in error reporting:
+**IMPORTANT:** Always use these predefined error constants instead of hardcoded strings. This ensures consistency across all telemetry reporting and enables proper aggregation in analytics.
 
-| Constant | Value |
-|----------|-------|
-| `AGW_ERROR_INTERFACE_UNAVAILABLE` | `"INTERFACE_UNAVAILABLE"` |
-| `AGW_ERROR_INTERFACE_NOT_FOUND` | `"INTERFACE_NOT_FOUND"` |
-| `AGW_ERROR_CLIENT_NOT_INITIALIZED` | `"CLIENT_NOT_INITIALIZED"` |
-| `AGW_ERROR_CONNECTION_REFUSED` | `"CONNECTION_REFUSED"` |
-| `AGW_ERROR_CONNECTION_TIMEOUT` | `"CONNECTION_TIMEOUT"` |
-| `AGW_ERROR_TIMEOUT` | `"TIMEOUT"` |
+| Constant | Value | When to Use |
+|----------|-------|-------------|
+| `AGW_ERROR_INTERFACE_UNAVAILABLE` | `"INTERFACE_UNAVAILABLE"` | COM-RPC interface is not available |
+| `AGW_ERROR_INTERFACE_NOT_FOUND` | `"INTERFACE_NOT_FOUND"` | COM-RPC interface could not be found |
+| `AGW_ERROR_CLIENT_NOT_INITIALIZED` | `"CLIENT_NOT_INITIALIZED"` | Service client not properly initialized |
+| `AGW_ERROR_CONNECTION_REFUSED` | `"CONNECTION_REFUSED"` | Connection to service was refused |
+| `AGW_ERROR_CONNECTION_TIMEOUT` | `"CONNECTION_TIMEOUT"` | Connection to service timed out |
+| `AGW_ERROR_TIMEOUT` | `"TIMEOUT"` | Operation timed out |
+| `AGW_ERROR_PERMISSION_DENIED` | `"PERMISSION_DENIED"` | Permission check failed |
+| `AGW_ERROR_INVALID_REQUEST` | `"INVALID_REQUEST"` | Invalid parameters or request format |
+| `AGW_ERROR_INVALID_RESPONSE` | `"INVALID_RESPONSE"` | Service returned invalid/unexpected response |
+| `AGW_ERROR_FETCH_FAILED` | `"FETCH_FAILED"` | Failed to fetch/retrieve data |
+| `AGW_ERROR_UPDATE_FAILED` | `"UPDATE_FAILED"` | Failed to update/store data |
+| `AGW_ERROR_NOT_AVAILABLE` | `"NOT_AVAILABLE"` | Service or resource not available |
+| `AGW_ERROR_GENERAL` | `"GENERAL_ERROR"` | General/unspecified error (use only when no specific constant applies) |
+
+**Note:** API names (e.g., "GetData", "SetSetting") can be string literals as they identify specific method names. Only error codes and service names should use predefined constants.
 
 ### Metric Units
 
@@ -319,7 +329,7 @@ Use these for consistency in error reporting:
 Core::hresult OttServicesImplementation::GetAppPermissions(const string& appId, ...) {
     if (!_perms) {
         LOGERR("PermissionsClient not initialized");
-        AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, "CLIENT_NOT_INITIALIZED");
+        AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CLIENT_NOT_INITIALIZED);
         return Core::ERROR_UNAVAILABLE;
     }
     // ... rest of implementation
@@ -365,6 +375,7 @@ std::string Badger::GetDeviceSessionId(const Exchange::GatewayContext& context, 
 
 ```cpp
 Core::hresult Badger::AuthorizeDataField(const std::string& appId, const char* requiredDataField) {
+    // API name can be a string (method-specific) but error codes should use constants
     AGW_SCOPED_API_TIMER(apiTimer, "AuthorizeDataField");
     
     // ... check cache first ...
@@ -375,6 +386,7 @@ Core::hresult Badger::AuthorizeDataField(const std::string& appId, const char* r
     Exchange::IOttServices* ottServices = GetOttServices();
     if (ottServices == nullptr) {
         LOGERR("OttServices interface not available");
+        // Use predefined service and error constants
         AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE);
         apiTimer.SetFailed(AGW_ERROR_INTERFACE_UNAVAILABLE);
         return Core::ERROR_UNAVAILABLE;
@@ -383,6 +395,7 @@ Core::hresult Badger::AuthorizeDataField(const std::string& appId, const char* r
     RPC::IStringIterator* permissionsIterator = nullptr;
     if (ottServices->GetAppPermissions(appId, false, permissionsIterator) != Core::ERROR_NONE) {
         LOGERR("GetAppPermissions failed");
+        // Use predefined error constant
         AGW_REPORT_API_ERROR("GetAppPermissions", AGW_ERROR_PERMISSION_DENIED);
         apiTimer.SetFailed(AGW_ERROR_PERMISSION_DENIED);
         return Core::ERROR_PRIVILIGED_REQUEST;
@@ -419,13 +432,13 @@ Core::hresult OttServicesImplementation::GetAppCIMAToken(const string& appId, st
     
     if (!FetchSat(sat, satExpiry)) {
         LOGERR("FetchSat failed");
-        AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, "FETCH_SAT_FAILED");
+        AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, AGW_ERROR_FETCH_FAILED);
         return Core::ERROR_UNAVAILABLE;
     }
     
     if (!FetchXact(appId, xact, xactExpiry)) {
         LOGERR("FetchXact failed");
-        AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, "FETCH_XACT_FAILED");
+        AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, AGW_ERROR_FETCH_FAILED);
         return Core::ERROR_UNAVAILABLE;
     }
     
@@ -589,10 +602,10 @@ namespace Plugin {
         
         // Initialize settings backend
         if (!InitializeBackend()) {
-            // Simple macro - no marker constant needed!
-            AGW_REPORT_EXTERNAL_SERVICE_ERROR("SettingsBackend", "INIT_FAILED");
+            // Use predefined error constant when available
+            AGW_REPORT_EXTERNAL_SERVICE_ERROR("SettingsBackend", AGW_ERROR_GENERAL);
             // Auto-reports to: AppGwPluginExtServiceError_split
-            // Payload: {"plugin":"FbSettings","service":"SettingsBackend","error":"INIT_FAILED"}
+            // Payload: {"plugin":"FbSettings","service":"SettingsBackend","error":"GENERAL_ERROR"}
             return Core::ERROR_UNAVAILABLE;
         }
         
@@ -612,15 +625,16 @@ namespace Plugin {
         // Auto-reports to: AppGwFbSettings_GetSetting_Latency_split when function exits
         
         if (key.empty()) {
-            // Simplified macro - no marker constant!
-            AGW_REPORT_API_ERROR("GetSetting", "INVALID_KEY");
+            // Always use predefined error constants
+            AGW_REPORT_API_ERROR("GetSetting", AGW_ERROR_INVALID_REQUEST);
             // Auto-reports to: AppGwPluginApiError_split
             // Auto-increments: AppGwApiErrorCount_GetSetting_split
             return Core::ERROR_BAD_REQUEST;
         }
 
         if (!_backend->Fetch(key, value)) {
-            AGW_REPORT_EXTERNAL_SERVICE_ERROR("SettingsBackend", "FETCH_FAILED");
+            // Use predefined error constant
+            AGW_REPORT_EXTERNAL_SERVICE_ERROR("SettingsBackend", AGW_ERROR_FETCH_FAILED);
             // Auto-increments: AppGwExtServiceErrorCount_SettingsBackend_split
             return Core::ERROR_UNAVAILABLE;
         }
@@ -633,14 +647,14 @@ namespace Plugin {
         AGW_SCOPED_API_TIMER(timer, "SetSetting");
         
         if (key.empty()) {
-            AGW_REPORT_API_ERROR("SetSetting", "INVALID_KEY");
+            AGW_REPORT_API_ERROR("SetSetting", AGW_ERROR_INVALID_REQUEST);
             return Core::ERROR_BAD_REQUEST;
         }
 
         auto start = std::chrono::steady_clock::now();
         
         if (!_backend->Store(key, value)) {
-            AGW_REPORT_EXTERNAL_SERVICE_ERROR("SettingsBackend", "STORE_FAILED");
+            AGW_REPORT_EXTERNAL_SERVICE_ERROR("SettingsBackend", AGW_ERROR_UPDATE_FAILED);
             return Core::ERROR_UNAVAILABLE;
         }
 
@@ -665,36 +679,49 @@ namespace Plugin {
 Place telemetry calls immediately after detecting a failure:
 
 ```cpp
-// ✓ Good - report at failure point
+// ✓ Good - report at failure point using predefined constants
 if (!service->Connect()) {
     LOGERR("Connection failed");
-    AGW_REPORT_EXTERNAL_SERVICE_ERROR(marker, service, "CONNECTION_FAILED");
+    AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, AGW_ERROR_CONNECTION_REFUSED);
     return Core::ERROR_UNAVAILABLE;
 }
 
 // ✗ Bad - reporting too late or in wrong location
 ```
 
-### 2. Use Consistent Error Codes
+### 2. Always Use Predefined Constants
 
-Use predefined error codes when applicable:
+**Always use predefined constants** for services and error codes. Only use string literals if no appropriate constant exists.
 
 ```cpp
-// ✓ Good - uses predefined constant
-AGW_REPORT_EXTERNAL_SERVICE_ERROR(marker, AGW_SERVICE_AUTH, AGW_ERROR_CONNECTION_TIMEOUT);
+// ✓ BEST - uses predefined constants for both service and error
+AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, AGW_ERROR_CONNECTION_TIMEOUT);
 
-// ✓ Also good - specific error when predefined doesn't exist
-AGW_REPORT_EXTERNAL_SERVICE_ERROR(marker, AGW_SERVICE_AUTH, "INVALID_TOKEN_FORMAT");
+// ✓ Acceptable - specific error when predefined constant doesn't exist
+AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, "INVALID_TOKEN_FORMAT");
+
+// ✗ BAD - hardcoded strings when constants exist
+AGW_REPORT_EXTERNAL_SERVICE_ERROR("AuthService", "CONNECTION_TIMEOUT");
 ```
+
+**Available Error Constants:** See `AppGatewayTelemetryMarkers.h` for:
+- `AGW_ERROR_CONNECTION_TIMEOUT`
+- `AGW_ERROR_CONNECTION_REFUSED`
+- `AGW_ERROR_INTERFACE_UNAVAILABLE`
+- `AGW_ERROR_TIMEOUT`
+- `AGW_ERROR_PERMISSION_DENIED`
+- `AGW_ERROR_INVALID_REQUEST`
+- `AGW_ERROR_FETCH_FAILED`
+- And more...
 
 ### 3. Don't Over-Report
 
 Report significant errors, not every minor issue:
 
 ```cpp
-// ✓ Good - report service unavailability
+// ✓ Good - report service unavailability using constants
 if (!interface) {
-    AGW_REPORT_EXTERNAL_SERVICE_ERROR(marker, service, AGW_ERROR_INTERFACE_UNAVAILABLE);
+    AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE);
 }
 
 // ✗ Bad - don't report expected/handled conditions
@@ -704,16 +731,19 @@ if (cache.empty()) {
 }
 ```
 
-### 4. Use Simplified Macros
+### 4. Use Predefined Constants and Simplified Macros
 
-Use the simplified macros that automatically include the plugin name:
+Use the simplified macros with predefined constants:
 
 ```cpp
-// ✓ Good - uses simplified macro
-AGW_REPORT_API_ERROR("GetData", "FAILED");
+// ✓ BEST - uses predefined error constant
+AGW_REPORT_API_ERROR("GetData", AGW_ERROR_GENERAL);
 
-// ✓ Good - uses service constant
-AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, "CONNECTION_REFUSED");
+// ✓ BEST - uses both service and error constants
+AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CONNECTION_REFUSED);
+
+// ✗ BAD - hardcoded error string when constant exists
+AGW_REPORT_API_ERROR("GetData", "FAILED");
 ```
 
 ### 5. Include Context in Logging
@@ -721,9 +751,9 @@ AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, "CONNECTION_REFUS
 The telemetry macros don't replace logging—use both:
 
 ```cpp
-// ✓ Good - log with context, then report telemetry
+// ✓ Good - log with context, then report telemetry using constants
 LOGERR("GetAppPermissions failed for appId='%s': %s", appId.c_str(), error.c_str());
-AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, error.c_str());
+AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_PERMISSION_DENIED);
 ```
 
 ---
