@@ -48,6 +48,7 @@
  * Generic markers are used with plugin/method names included in the data payload:
  * - AGW_MARKER_PLUGIN_API_ERROR: { "plugin": "Badger", "api": "GetSettings", "error": "TIMEOUT" }
  * - AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR: { "plugin": "OttServices", "service": "ThorPermissionService", "error": "CONNECTION_TIMEOUT" }
+ * - Latency metrics use composite names: AppGwBadger_GetSettings_Latency_split
  * - AGW_MARKER_PLUGIN_API_LATENCY: { "plugin": "Badger", "api": "GetSettings", "latency_ms": 123.45 }
  */
 
@@ -247,12 +248,13 @@ namespace AppGatewayTelemetryHelper {
          * This records a METRIC - values are aggregated (sum/count/min/max/avg)
          * and sent to T2 periodically. Use this to track API performance over time.
          * 
-         * Generates a composite metric name: "agw_<PluginName>_<ApiName>_Latency"
+         * Generates a composite metric name: AGW_METRIC_LATENCY_PREFIX + <PluginName> + "_" + <ApiName> + AGW_METRIC_LATENCY_SUFFIX
+         * Example: "AppGwBadger_GetSettings_Latency_split"
          * This allows each plugin-API combination to have its own aggregated metric.
          */
         Core::hresult RecordApiLatency(const std::string& apiName, double latencyMs)
         {
-            std::string metricName = "agw_" + mPluginName + "_" + apiName + "_Latency";
+            std::string metricName = std::string(AGW_METRIC_LATENCY_PREFIX) + mPluginName + "_" + apiName + AGW_METRIC_LATENCY_SUFFIX;
             
             LOGTRACE("TelemetryClient: Recording API latency - plugin=%s, api=%s, latency=%.2fms, metric=%s",
                      mPluginName.c_str(), apiName.c_str(), latencyMs, metricName.c_str());
@@ -269,12 +271,13 @@ namespace AppGatewayTelemetryHelper {
          * This records a METRIC - values are aggregated (sum/count/min/max/avg)
          * and sent to T2 periodically. Use this to track service performance over time.
          * 
-         * Generates a composite metric name: "agw_<PluginName>_<ServiceName>_Latency"
+         * Generates a composite metric name: AGW_METRIC_LATENCY_PREFIX + <PluginName> + "_" + <ServiceName> + AGW_METRIC_LATENCY_SUFFIX
+         * Example: "AppGwOttServices_ThorPermissionService_Latency_split"
          * This allows each plugin-service combination to have its own aggregated metric.
          */
         Core::hresult RecordServiceLatency(const std::string& serviceName, double latencyMs)
         {
-            std::string metricName = "agw_" + mPluginName + "_" + serviceName + "_Latency";
+            std::string metricName = std::string(AGW_METRIC_LATENCY_PREFIX) + mPluginName + "_" + serviceName + AGW_METRIC_LATENCY_SUFFIX;
             
             LOGTRACE("TelemetryClient: Recording service latency - plugin=%s, service=%s, latency=%.2fms, metric=%s",
                      mPluginName.c_str(), serviceName.c_str(), latencyMs, metricName.c_str());
@@ -395,14 +398,14 @@ namespace AppGatewayTelemetryHelper {
  * @param apiName Name of the API
  * @param latencyMs Latency in milliseconds
  * 
- * Generates a unique metric name "agw_<PluginName>_<ApiName>_Latency" and records
+ * Generates a unique metric name "AppGw<PluginName>_<ApiName>_Latency_split" and records
  * it as a numeric metric for statistical aggregation (sum, count, min, max, avg).
  * 
  * Example:
  *   AGW_REPORT_API_LATENCY("GetSettings", 150.5)
- *     -> Records metric "agw_Badger_GetSettings_Latency"
+ *     -> Records metric "AppGwBadger_GetSettings_Latency_split"
  *   AGW_REPORT_API_LATENCY("GetAppPermissions", 250.0)
- *     -> Records metric "agw_Badger_GetAppPermissions_Latency"
+ *     -> Records metric "AppGwBadger_GetAppPermissions_Latency_split"
  */
 #define AGW_REPORT_API_LATENCY(apiName, latencyMs) \
     do { \
@@ -417,14 +420,14 @@ namespace AppGatewayTelemetryHelper {
  * @param serviceName Predefined service name from AppGatewayTelemetryMarkers.h
  * @param latencyMs Latency in milliseconds
  * 
- * Generates a unique metric name "agw_<PluginName>_<ServiceName>_Latency" and records
+ * Generates a unique metric name "AppGw<PluginName>_<ServiceName>_Latency_split" and records
  * it as a numeric metric for statistical aggregation (sum, count, min, max, avg).
  * 
  * Example:
  *   AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_THOR_PERMISSION, 350.0)
- *     -> Records metric "agw_Badger_ThorPermissionService_Latency"
+ *     -> Records metric "AppGwBadger_ThorPermissionService_Latency_split"
  *   AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_OTT_TOKEN, 200.0)
- *     -> Records metric "agw_OttServices_OttTokenService_Latency"
+ *     -> Records metric "AppGwOttServices_OttTokenService_Latency_split"
  */
 #define AGW_REPORT_SERVICE_LATENCY(serviceName, latencyMs) \
     do { \

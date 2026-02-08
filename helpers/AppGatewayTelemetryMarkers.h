@@ -78,50 +78,134 @@
 #define AGW_UNIT_PERCENT                "percent"
 
 //=============================================================================
-// APP GATEWAY INTERNAL MARKERS (Used by AppGatewayTelemetry internally)
-// These are aggregated and reported by AppGateway itself, not by external plugins
+// TELEMETRY MARKER SUFFIX
+// Standard suffix for all T2 telemetry markers indicating structured/split format
 //=============================================================================
 
 /**
- * @brief Bootstrap time marker
- * @details Records total time taken to start all App Gateway plugins
- * Format: JSON or COMPACT (configurable via SetTelemetryFormat)
- * @payload JSON: { "duration_ms": <uint64>, "plugins_loaded": <uint32> }
- *          COMPACT: <duration_ms>,<plugins_loaded>
+ * @brief Standard T2 marker suffix
+ * @details All telemetry markers use _split suffix to indicate structured format for T2
+ */
+#define AGW_METRIC_SUFFIX                           "_split"
+
+//=============================================================================
+// APP GATEWAY INTERNAL METRICS (Used by AppGatewayTelemetry internally)
+// These are aggregated and reported by AppGateway itself as individual metrics
+//=============================================================================
+
+/**
+ * @brief Bootstrap duration metric (sent once on startup)
+ * @details Total time taken to start all App Gateway plugins
+ * @payload { "sum": <duration_ms>, "count": 1, "unit": "ms", "reporting_interval_sec": 0 }
+ */
+#define AGW_METRIC_BOOTSTRAP_DURATION               "AppGwBootstrapDuration_split"
+
+/**
+ * @brief Bootstrap plugin count metric (sent once on startup)
+ * @details Number of plugins successfully loaded
+ * @payload { "sum": <plugins_loaded>, "count": 1, "unit": "count", "reporting_interval_sec": 0 }
+ */
+#define AGW_METRIC_BOOTSTRAP_PLUGIN_COUNT           "AppGwBootstrapPluginCount_split"
+
+/**
+ * @brief DEPRECATED: Old aggregated bootstrap marker (no longer used)
+ * @details Replaced by AGW_METRIC_BOOTSTRAP_DURATION and AGW_METRIC_BOOTSTRAP_PLUGIN_COUNT
  */
 #define AGW_MARKER_BOOTSTRAP_TIME                   "AppGwBootstrapTime_split"
 
 /**
- * @brief Health statistics marker
- * @details Aggregate stats emitted at configurable intervals (default 1 hour)
- * @payload JSON: { "websocket_connections": <uint32>, "total_calls": <uint32>,
- *                  "successful_calls": <uint32>, "failed_calls": <uint32>,
- *                  "reporting_interval_sec": <uint32> }
- *          COMPACT: <websocket_connections>,<total_calls>,<successful_calls>,<failed_calls>,<interval_sec>
+ * @brief WebSocket connections metric (sent periodically)
+ * @details Current active WebSocket connections
+ * @payload { "sum": <connections>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
+ */
+#define AGW_METRIC_WEBSOCKET_CONNECTIONS            "AppGwWebSocketConnections_split"
+
+/**
+ * @brief Total API calls metric (sent periodically)
+ * @details Total number of API calls in reporting period
+ * @payload { "sum": <calls>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
+ */
+#define AGW_METRIC_TOTAL_CALLS                      "AppGwTotalCalls_split"
+
+/**
+ * @brief Successful API calls metric (sent periodically)
+ * @details Number of successful API calls in reporting period
+ * @payload { "sum": <calls>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
+ */
+#define AGW_METRIC_SUCCESSFUL_CALLS                 "AppGwSuccessfulCalls_split"
+
+/**
+ * @brief Failed API calls metric (sent periodically)
+ * @details Number of failed API calls in reporting period
+ * @payload { "sum": <calls>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
+ */
+#define AGW_METRIC_FAILED_CALLS                     "AppGwFailedCalls_split"
+
+/**
+ * @brief DEPRECATED: Old aggregated health stats marker (no longer used)
+ * @details Replaced by individual metrics: AGW_METRIC_WEBSOCKET_CONNECTIONS, AGW_METRIC_TOTAL_CALLS,
+ *          AGW_METRIC_SUCCESSFUL_CALLS, AGW_METRIC_FAILED_CALLS
  */
 #define AGW_MARKER_HEALTH_STATS                     "AppGwHealthStats_split"
 
 /**
- * @brief API error statistics marker
- * @details API failure counts aggregated over reporting interval
- * @payload JSON: { "reporting_interval_sec": <uint32>,
- *                  "api_failures": [{ "api": "<name>", "count": <uint32> }, ...] }
- *          COMPACT: <interval_sec>,(<api>,<count>),(<api>,<count>),...
+ * @brief API error count metric prefix
+ * @details Per-API error count metrics sent periodically
+ * @usage Metric name: AGW_METRIC_API_ERROR_COUNT_PREFIX + <ApiName> + AGW_METRIC_SUFFIX
+ * @example "AppGwApiErrorCount_GetSettings_split"
+ * @payload { "sum": <error_count>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
+ */
+#define AGW_METRIC_API_ERROR_COUNT_PREFIX           "AppGwApiErrorCount_"
+
+/**
+ * @brief DEPRECATED: Old aggregated API error stats marker (no longer used)
+ * @details Replaced by per-API metrics using AGW_METRIC_API_ERROR_COUNT_PREFIX + <ApiName>
  */
 #define AGW_MARKER_API_ERROR_STATS                  "AppGwApiErrorStats_split"
 
 /**
- * @brief External service error statistics marker
- * @details External service failure counts aggregated over reporting interval
- * @payload JSON: { "reporting_interval_sec": <uint32>,
- *                  "service_failures": [{ "service": "<name>", "count": <uint32> }, ...] }
- *          COMPACT: <interval_sec>,(<service>,<count>),(<service>,<count>),...
+ * @brief External service error count metric prefix
+ * @details Per-service error count metrics sent periodically
+ * @usage Metric name: AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX + <ServiceName> + AGW_METRIC_SUFFIX
+ * @example "AppGwExtServiceErrorCount_ThorPermissionService_split"
+ * @payload { "sum": <error_count>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
+ */
+#define AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX   "AppGwExtServiceErrorCount_"
+
+/**
+ * @brief DEPRECATED: Old aggregated external service error marker (no longer used)
+ * @details Replaced by per-service metrics using AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX + <ServiceName>
  */
 #define AGW_MARKER_EXT_SERVICE_ERROR_STATS          "AppGwExtServiceError_split"
 
 //=============================================================================
 // GENERIC PLUGIN TELEMETRY MARKERS
 // Used by all plugins - plugin/service name is included in the payload data
+// Plugins should use helper macros from UtilsAppGatewayTelemetry.h
+//=============================================================================
+
+//=============================================================================
+// LATENCY METRIC COMPONENTS
+// Components used to construct composite latency metric names
+//=============================================================================
+
+/**
+ * @brief Latency metric name prefix
+ * @details Used to construct composite latency metric names
+ * @usage AGW_METRIC_LATENCY_PREFIX + <PluginName> + "_" + <ApiOrService> + AGW_METRIC_LATENCY_SUFFIX
+ */
+#define AGW_METRIC_LATENCY_PREFIX                   "AppGw"
+
+/**
+ * @brief Latency metric name suffix
+ * @details Appended to latency metric names (includes _split)
+ * @usage AGW_METRIC_LATENCY_PREFIX + <PluginName> + "_" + <ApiOrService> + AGW_METRIC_LATENCY_SUFFIX
+ */
+#define AGW_METRIC_LATENCY_SUFFIX                   "_Latency_split"
+
+//=============================================================================
+// GENERIC PLUGIN EVENT MARKERS (OPTIONAL - for forensics)
+// Used by plugins for immediate error reporting with JSON context
 // Plugins should use helper macros from UtilsAppGatewayTelemetry.h
 //=============================================================================
 
@@ -327,7 +411,8 @@
  *   AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_THOR_PERMISSION, 85.3);  // latency in ms
  *
  *   // This internally calls RecordTelemetryMetric with:
- *   //   metricName = "agw_OttServices_ThorPermissionService_Latency"
+ *   //   metricName = AGW_METRIC_LATENCY_PREFIX + "OttServices_ThorPermissionService" + AGW_METRIC_LATENCY_SUFFIX
+ *   //              = "AppGwOttServices_ThorPermissionService_Latency_split"
  *   //   metricValue = 85.3
  *   //   metricUnit = AGW_UNIT_MILLISECONDS
  *   //
@@ -349,7 +434,7 @@
  *                     AGW_UNIT_COUNT);
  *
  *   // This internally calls RecordTelemetryMetric with:
- *   //   metricName = "agw_PermissionDeniedCount"
+ *   //   metricName = "AppGwPermissionDeniedCount"  // Use AppGw prefix for custom metrics
  *   //   metricValue = <count>
  *   //   metricUnit = "count"
  *
@@ -380,8 +465,11 @@
  *                                   eventDataStr);
  *
  *   // Using RecordTelemetryMetric (for numeric metrics with aggregation):
+ *   // Construct metric name using constants:
+ *   std::string metricName = std::string(AGW_METRIC_LATENCY_PREFIX) + "MyPlugin_ThorPermissionService" + AGW_METRIC_LATENCY_SUFFIX;
+ *   // Result: "AppGwMyPlugin_ThorPermissionService_Latency_split"
  *   telemetry->RecordTelemetryMetric(context,
- *                                    "agw_MyPlugin_ThorPermissionService_Latency",
+ *                                    metricName.c_str(),
  *                                    125.5,
  *                                    AGW_UNIT_MILLISECONDS);
  *   

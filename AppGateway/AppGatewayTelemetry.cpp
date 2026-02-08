@@ -146,9 +146,9 @@ namespace Plugin {
         context.connectionId = 0;
         context.appId = "AppGateway";
 
-        RecordTelemetryMetric(context, "agw_Bootstrap_Duration", 
+        RecordTelemetryMetric(context, AGW_METRIC_BOOTSTRAP_DURATION, 
                               static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
-        RecordTelemetryMetric(context, "agw_Bootstrap_PluginCount", 
+        RecordTelemetryMetric(context, AGW_METRIC_BOOTSTRAP_PLUGIN_COUNT, 
                               static_cast<double>(pluginsLoaded), AGW_UNIT_COUNT);
         
         LOGINFO("Bootstrap time recorded: %lu ms, plugins loaded: %u", durationMs, pluginsLoaded);
@@ -366,19 +366,19 @@ namespace Plugin {
         metricPayload["count"] = 1;
         metricPayload["unit"] = AGW_UNIT_COUNT;
         std::string wsPayload = FormatTelemetryPayload(metricPayload);
-        SendT2Event("agw_WebSocket_Connections", wsPayload);
+        SendT2Event(AGW_METRIC_WEBSOCKET_CONNECTIONS, wsPayload);
 
         metricPayload["sum"] = totalCalls;
         std::string totalPayload = FormatTelemetryPayload(metricPayload);
-        SendT2Event("agw_Total_Calls", totalPayload);
+        SendT2Event(AGW_METRIC_TOTAL_CALLS, totalPayload);
 
         metricPayload["sum"] = successfulCalls;
         std::string successPayload = FormatTelemetryPayload(metricPayload);
-        SendT2Event("agw_Successful_Calls", successPayload);
+        SendT2Event(AGW_METRIC_SUCCESSFUL_CALLS, successPayload);
 
         metricPayload["sum"] = failedCalls;
         std::string failedPayload = FormatTelemetryPayload(metricPayload);
-        SendT2Event("agw_Failed_Calls", failedPayload);
+        SendT2Event(AGW_METRIC_FAILED_CALLS, failedPayload);
 
         LOGINFO("Health stats sent as metrics: ws=%u, total=%u, success=%u, failed=%u",
                 wsConnections, totalCalls, successfulCalls, failedCalls);
@@ -393,7 +393,7 @@ namespace Plugin {
 
         // Send each API error count as a separate metric for proper aggregation
         for (const auto& item : mApiErrorCounts) {
-            std::string metricName = "agw_API_Error_Count_" + item.first;
+            std::string metricName = std::string(AGW_METRIC_API_ERROR_COUNT_PREFIX) + item.first + AGW_METRIC_SUFFIX;
             
             JsonObject metricPayload;
             metricPayload["reporting_interval_sec"] = mReportingIntervalSec;
@@ -419,7 +419,7 @@ namespace Plugin {
 
         // Send each external service error count as a separate metric for proper aggregation
         for (const auto& item : mExternalServiceErrorCounts) {
-            std::string metricName = "agw_External_Service_Error_Count_" + item.first;
+            std::string metricName = std::string(AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX) + item.first + AGW_METRIC_SUFFIX;
             
             JsonObject metricPayload;
             metricPayload["reporting_interval_sec"] = mReportingIntervalSec;
