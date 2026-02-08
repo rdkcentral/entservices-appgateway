@@ -11,10 +11,12 @@ This directory contains detailed sequence diagrams for all App Gateway telemetry
 | [03_API_Error_Reporting_Badger.md](./03_API_Error_Reporting_Badger.md) | API Errors | Badger | Example of reporting API failures using generic markers via COM-RPC |
 | [04_External_Service_Error_OttServices.md](./04_External_Service_Error_OttServices.md) | External Service Errors | OttServices | Example of reporting gRPC service errors with multi-plugin aggregation |
 | [05_Metric_Latency_Tracking.md](./05_Metric_Latency_Tracking.md) | Latency Metrics | Badger, OttServices | API and service latency tracking using scoped timers and manual timing |
+| [06_COM_RPC_Event_Telemetry.md](./06_COM_RPC_Event_Telemetry.md) | COM-RPC Event Reporting | All External Plugins | External plugins reporting telemetry events via COM-RPC interface |
+| [07_COM_RPC_Metric_Recording.md](./07_COM_RPC_Metric_Recording.md) | COM-RPC Metric Recording | All External Plugins | External plugins recording custom metrics via COM-RPC with statistical aggregation |
 
 ## Telemetry Architecture
 
-### Four Core Scenarios
+### Seven Core Scenarios
 
 1. **Bootstrap Time Tracking**
    - Measured once during AppGateway initialization
@@ -44,6 +46,20 @@ This directory contains detailed sequence diagrams for all App Gateway telemetry
    - Service latency: Manual timing of external service calls
    - Metrics: `AppGw<PluginName>_<ApiName>_Latency_split`, `AppGw<PluginName>_<ServiceName>_Latency_split`
    - Data Type: METRIC (for statistical aggregation)
+
+6. **COM-RPC Event Telemetry**
+   - External plugins report events (API errors, service errors) via COM-RPC
+   - Uses `RecordTelemetryEvent()` interface method
+   - Events parsed and aggregated by AppGatewayTelemetry
+   - Demonstrates cross-process telemetry communication
+   - Data Type: EVENT (immediate) + METRIC (aggregated counts)
+
+7. **COM-RPC Metric Recording**
+   - External plugins record custom numeric metrics via COM-RPC
+   - Uses `RecordTelemetryMetric()` interface method
+   - Statistical aggregation: min, max, avg, sum, count
+   - Supports any metric type: latencies, bitrates, custom KPIs
+   - Data Type: METRIC (aggregated statistics)
 
 ### Generic Marker System + Metrics
 

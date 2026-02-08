@@ -20,19 +20,19 @@ App Gateway provides a centralized telemetry collection mechanism that:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                          App Gateway Ecosystem                               │
+│                          App Gateway Ecosystem                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
+│                                                                             │
 │  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐                     │
 │  │    Badger    │   │ OttServices  │   │  YourPlugin  │                     │
 │  │    Plugin    │   │    Plugin    │   │   (New)      │                     │
 │  └──────┬───────┘   └──────┬───────┘   └──────┬───────┘                     │
-│         │                  │                  │                              │
+│         │                  │                  │                             │
 │         │  COM-RPC         │  COM-RPC         │  COM-RPC                    │
 │         │  (Events/Metrics)│  (Events/Metrics)│  (Events/Metrics)           │
-│         ▼                  ▼                  ▼                              │
+│         ▼                  ▼                  ▼                             │
 │  ┌─────────────────────────────────────────────────────────────┐            │
-│  │              IAppGatewayTelemetry Interface                  │            │
+│  │              IAppGatewayTelemetry Interface                 │            │
 │  │  ┌─────────────────────────────────────────────────────────┐│            │
 │  │  │ RecordTelemetryEvent(context, eventName, eventData)     ││            │
 │  │  │  → Optional: Immediate error reporting with JSON        ││            │
@@ -40,26 +40,26 @@ App Gateway provides a centralized telemetry collection mechanism that:
 │  │  │  → Required: Latency tracking (automatic aggregation)   ││            │
 │  │  └─────────────────────────────────────────────────────────┘│            │
 │  └─────────────────────────────────────────────────────────────┘            │
-│                              │                                               │
-│                              ▼                                               │
+│                              │                                              │
+│                              ▼                                              │
 │  ┌─────────────────────────────────────────────────────────────┐            │
-│  │         AppGatewayTelemetry (Aggregator + Reporter)          │            │
-│  │  • Counts API errors by API name (increments counters)       │            │
-│  │  • Counts external service errors by service name            │            │
-│  │  • Aggregates latency metrics (sum, count, min, max)         │            │
-│  │  • Tracks health stats (connections, calls)                  │            │
-│  │  • Sends individual numeric metrics to T2 periodically       │            │
-│  │    (default: 1 hour interval)                                │            │
+│  │         AppGatewayTelemetry (Aggregator + Reporter)         │            │
+│  │  • Counts API errors by API name (increments counters)      │            │
+│  │  • Counts external service errors by service name           │            │
+│  │  • Aggregates latency metrics (sum, count, min, max)        │            │
+│  │  • Tracks health stats (connections, calls)                 │            │
+│  │  • Sends individual numeric metrics to T2 periodically      │            │
+│  │    (default: 1 hour interval)                               │            │
 │  └──────────────────────────┬──────────────────────────────────┘            │
-│                              │                                               │
-│                              ▼                                               │
-│                     ┌────────────────┐                                       │
-│                     │   T2 Service   │                                       │
-│                     │  • AppGwTotalCalls_split                               │
-│                     │  • AppGwApiErrorCount_<Api>_split                      │
-│                     │  • AppGw<Plugin>_<Api>_Latency_split                   │
-│                     └────────────────┘                                       │
-│                                                                              │
+│                             │                                               │
+│                             ▼                                               │
+│          ┌─────────────────────────────────────────┐                        │
+│          │   T2 Service                            │                        │
+│          │  • AppGwTotalCalls_split                │                        │
+│          │  • AppGwApiErrorCount_<Api>_split       │                        │
+│          │  • AppGw<Plugin>_<Api>_Latency_split    │                        │
+│          └─────────────────────────────────────────┘                        │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
