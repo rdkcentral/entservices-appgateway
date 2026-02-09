@@ -107,35 +107,52 @@ namespace Plugin {
     }
 
             
-    // ...existing code...
-    // Static handler map definition
+    // Static handler map used to route GatewayContext requests to the corresponding AppGatewayCommon member handlers.
     const std::unordered_map<std::string, AppGatewayCommon::HandlerFunction> AppGatewayCommon::handlers = {
         { "device.make", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+        { "device.make", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetDeviceMake(result);
         }},
         { "device.name", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetDeviceName(result);
         }},
         { "device.sku", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetDeviceSku(result);
         }},
         { "localization.countrycode", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetCountryCode(result);
         }},
         { "localization.timezone", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetTimeZone(result);
         }},
         { "secondscreen.friendlyname", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetSecondScreenFriendlyName(result);
         }},
         { "localization.addadditionalinfo", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return ResponseUtils::SetNullResponseForSuccess(self->AddAdditionalInfo(payload, result), result);
         }},
         { "device.network", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetInternetConnectionStatus(result);
         }},
         { "voiceguidance.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            return self->GetVoiceGuidance(result);
+            (void)ctx;
+            (void)payload;
         }},
         { "device.version", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->GetFirmwareVersion(result);
