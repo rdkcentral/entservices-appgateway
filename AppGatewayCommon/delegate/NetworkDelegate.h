@@ -51,8 +51,11 @@ public:
     {
         if (mNetworkManager != nullptr)
         {
-            mNetworkManager->Unregister(&mNotificationHandler);
-            mNotificationHandler.SetRegistered(false);
+            if (mNotificationHandler.GetRegistered())
+            {
+                mNetworkManager->Unregister(&mNotificationHandler);
+                mNotificationHandler.SetRegistered(false);
+            }
             mNetworkManager->Release();
             mNetworkManager = nullptr;
         }
