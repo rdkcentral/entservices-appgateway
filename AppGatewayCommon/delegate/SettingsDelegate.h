@@ -23,6 +23,7 @@
 #include "UserSettingsDelegate.h"
 #include "SystemDelegate.h"
 #include "NetworkDelegate.h"
+#include "LifecycleDelegate.h"
 #include "UtilsLogging.h"
 #include <interfaces/IAppNotifications.h>
 
@@ -31,24 +32,25 @@ using namespace WPEFramework;
 
 class SettingsDelegate {
     public:
-        SettingsDelegate(): userSettings(nullptr), systemDelegate(nullptr), networkDelegate(nullptr) {}
+        SettingsDelegate(): userSettings(nullptr), systemDelegate(nullptr), networkDelegate(nullptr), lifecycleDelegate(nullptr) {}
 
         ~SettingsDelegate() {
             userSettings = nullptr;
             systemDelegate = nullptr;
             networkDelegate = nullptr;
+            lifecycleDelegate = nullptr;
         }
 
         void HandleAppEventNotifier(Exchange::IAppNotificationHandler::IEmitter *cb, const string event,
                                     const bool listen) {
             LOGDBG("Passing on HandleAppEventNotifier");
             bool registrationError;
-            if (userSettings==nullptr || systemDelegate==nullptr || networkDelegate==nullptr) {
+            if (userSettings==nullptr || systemDelegate==nullptr || networkDelegate==nullptr || lifecycleDelegate==nullptr) {
                 LOGERR("Services not available");
                 return;
             }
 
-            std::vector<std::shared_ptr<BaseEventDelegate>> delegates = {userSettings, systemDelegate, networkDelegate};
+            std::vector<std::shared_ptr<BaseEventDelegate>> delegates = {userSettings, systemDelegate, networkDelegate, lifecycleDelegate};
             bool handled = false;
 
             for (const auto& delegate : delegates) {
@@ -86,31 +88,40 @@ class SettingsDelegate {
             if (networkDelegate == nullptr) {
                 networkDelegate = std::make_shared<NetworkDelegate>(shell);
             }
+
+            if (lifecycleDelegate == nullptr) {
+                lifecycleDelegate = std::make_shared<LifecycleDelegate>(shell);
+            }
         }
 
         void Cleanup() {
             systemDelegate.reset();
             userSettings.reset();
             networkDelegate.reset();
+            lifecycleDelegate.reset();
         }
 
-	std::shared_ptr<SystemDelegate> getSystemDelegate() const {
+        std::shared_ptr<SystemDelegate> getSystemDelegate() const {
             return systemDelegate;
         }
 
-	std::shared_ptr<UserSettingsDelegate> getUserSettings() {
+        std::shared_ptr<UserSettingsDelegate> getUserSettings() {
             return userSettings;
         }
 
         std::shared_ptr<NetworkDelegate> getNetworkDelegate() const {
             return networkDelegate;
         }
+
+        std::shared_ptr<LifecycleDelegate> getLifecycleDelegate() const {
+            return lifecycleDelegate;
+        }
+
     private:
         std::shared_ptr<UserSettingsDelegate> userSettings;
         std::shared_ptr<SystemDelegate> systemDelegate;
         std::shared_ptr<NetworkDelegate> networkDelegate;
+        std::shared_ptr<LifecycleDelegate> lifecycleDelegate;
 };
 
 #endif
-
-

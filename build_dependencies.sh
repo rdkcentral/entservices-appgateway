@@ -35,6 +35,8 @@ git clone --branch main https://github.com/rdkcentral/entservices-apis.git
 
 git clone https://$GITHUB_TOKEN@github.com/rdkcentral/entservices-testframework.git
 
+git clone --branch main https://github.com/rdkcentral/networkmanager.git
+
 ############################
 # Build Thunder-Tools
 echo "======================================================================================"
@@ -178,5 +180,6 @@ echo "==========================================================================
 
 cd ../../
 cp -r /usr/include/gstreamer-1.0/gst /usr/include/glib-2.0/* /usr/lib/x86_64-linux-gnu/glib-2.0/include/* /usr/local/include/trower-base64/base64.h .
+cp -v $GITHUB_WORKSPACE/networkmanager/interface/INetworkManager.h $GITHUB_WORKSPACE/install/usr/include/WPEFramework/interfaces/
 
 ls -la ${GITHUB_WORKSPACE}
