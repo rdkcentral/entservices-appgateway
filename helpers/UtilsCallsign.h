@@ -18,6 +18,7 @@
 **/
 
 #pragma once
+#include "UtilsfileExists.h"
 
 #ifndef __UTILSCALLSIGN_H__
 #define __UTILSCALLSIGN_H__
@@ -29,4 +30,18 @@
 #define FB_PRIVACY_CALLSIGN "org.rdk.FbPrivacy"
 #define FB_METRICS_CALLSIGN "org.rdk.FbMetrics"
 #define ANALYTICS_PLUGIN_CALLSIGN "org.rdk.Analytics"
+#define AI2MANAGERS_PATH "/opt/ai2managers"
+
+// Use this class to check whether certain plugins are configured
+class ConfigUtils {
+    public:
+        // Use this class to check whether App Managers are required to be used
+        // Note: App Managers are not enabled by default in all build configurations.
+        static bool useAppManagers() {
+            if (Utils::fileExists(AI2MANAGERS_PATH)) {
+                return true;
+            }
+            return false;
+        }
+};
 #endif

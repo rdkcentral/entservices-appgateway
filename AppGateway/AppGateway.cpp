@@ -28,6 +28,7 @@
 #define API_VERSION_NUMBER_MINOR    APPGATEWAY_MINOR_VERSION
 #define API_VERSION_NUMBER_PATCH    APPGATEWAY_PATCH_VERSION
 
+//test comment to trigger coverity
 
 namespace WPEFramework {
 

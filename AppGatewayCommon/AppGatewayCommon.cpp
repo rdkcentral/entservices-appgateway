@@ -106,6 +106,120 @@ namespace Plugin {
             return Core::ERROR_NONE;
     }
 
+            
+    // ...existing code...
+    // Static handler map definition
+    const std::unordered_map<std::string, AppGatewayCommon::HandlerFunction> AppGatewayCommon::handlers = {
+        { "device.make", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetDeviceMake(result);
+        }},
+        { "device.name", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetDeviceName(result);
+        }},
+        { "device.sku", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetDeviceSku(result);
+        }},
+        { "localization.countrycode", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetCountryCode(result);
+        }},
+        { "localization.timezone", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetTimeZone(result);
+        }},
+        { "secondscreen.friendlyname", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetSecondScreenFriendlyName(result);
+        }},
+        { "localization.addadditionalinfo", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return ResponseUtils::SetNullResponseForSuccess(self->AddAdditionalInfo(payload, result), result);
+        }},
+        { "device.network", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetInternetConnectionStatus(result);
+        }},
+        { "voiceguidance.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetVoiceGuidance(result);
+        }},
+        { "device.version", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetFirmwareVersion(result);
+        }},
+        { "device.screenresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetScreenResolution(result);
+        }},
+        { "device.videoresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetVideoResolution(result);
+        }},
+        { "device.hdcp", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetHdcp(result);
+        }},
+        { "device.hdr", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetHdr(result);
+        }},
+        { "device.audio", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetAudio(result);
+        }},
+        { "voiceguidance.navigationhints", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetVoiceGuidanceHints(result);
+        }},
+        { "accessibility.voiceguidancesettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetVoiceGuidanceSettings(result);
+        }},
+        { "accessibility.voiceguidance", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetVoiceGuidanceSettings(result);
+        }},
+        { "accessibility.audiodescriptionsettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetAudioDescription(result);
+        }},
+        { "audiodescriptions.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetAudioDescriptionsEnabled(result);
+        }},
+        { "accessibility.highcontrastui", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetHighContrast(result);
+        }},
+        { "closedcaptions.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetCaptions(result);
+        }},
+        { "closedcaptions.preferredlanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetPreferredCaptionsLanguages(result);
+        }},
+        { "accessibility.closedcaptions", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetClosedCaptionsSettings(result);
+        }},
+        { "accessibility.closedcaptionssettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetClosedCaptionsSettings(result);
+        }},
+        { "localization.language", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetPresentationLanguage(result);
+        }},
+        { "localization.locale", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetLocale(result);
+        }},
+        { "localization.preferredaudiolanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetPreferredAudioLanguages(result);
+        }},
+        { "lifecycle2.close", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->Lifecycle2Close(ctx,payload,result);
+        }},
+        { "lifecycle.state", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->LifecycleState(ctx,payload,result);
+        }},
+        { "lifecycle2.state", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->Lifecycle2State(ctx,payload,result);
+        }},
+        { "lifecycle.close", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->LifecycleClose(ctx,payload,result);
+        }},
+        { "lifecycle.ready", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->LifecycleReady(ctx,payload,result);
+        }},
+        { "lifecycle.finished", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->LifecycleFinished(ctx,payload,result);
+        }},
+        { "commoninternal.dispatchintent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->DispatchLastIntent(ctx,payload,result);
+        }},
+        { "commoninternal.getlastintent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetLastIntent(ctx,payload,result);
+        }},
+    };
+
     Core::hresult AppGatewayCommon::HandleAppGatewayRequest(const Exchange::GatewayContext &context /* @in */,
                                           const string& method /* @in */,
                                           const string &payload /* @in @opaque */,
@@ -114,14 +228,10 @@ namespace Plugin {
             LOGTRACE("HandleAppGatewayRequest: method=%s, payload=%s, appId=%s",
                     method.c_str(), payload.c_str(), context.appId.c_str());
             std::string lowerMethod = StringUtils::toLower(method);
-            // Route System/Device methods
-            if (lowerMethod == "device.make")
-            {
-                return GetDeviceMake(result);
-            }
-            else if (lowerMethod == "device.name")
-            {
-                return GetDeviceName(result);
+
+            auto it = handlers.find(lowerMethod);
+            if (it != handlers.end()) {
+                return it->second(this, context, payload, result);
             }
             else if (lowerMethod == "device.setname")
             {
@@ -134,14 +244,6 @@ namespace Plugin {
                 result = "{\"error\":\"Invalid payload\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
-            else if (lowerMethod == "device.sku")
-            {
-                return GetDeviceSku(result);
-            }
-            else if (lowerMethod == "localization.countrycode")
-            {
-                return GetCountryCode(result);
-            }
             else if (lowerMethod == "localization.setcountrycode")
             {
                 JsonObject params;
@@ -153,10 +255,6 @@ namespace Plugin {
                 result = "{\"error\":\"Invalid payload\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
-            else if (lowerMethod == "localization.timezone")
-            {
-                return GetTimeZone(result);
-            }
             else if (lowerMethod == "localization.settimezone")
             {
                 JsonObject params;
@@ -167,26 +265,6 @@ namespace Plugin {
                 }
                 result = "{\"error\":\"Invalid payload\"}";
                 return Core::ERROR_BAD_REQUEST;
-            }
-            else if (lowerMethod == "secondscreen.friendlyname")
-            {
-                return GetSecondScreenFriendlyName(result);
-            }
-            else if (lowerMethod == "localization.addadditionalinfo")
-            {
-                return ResponseUtils::SetNullResponseForSuccess(AddAdditionalInfo(payload, result), result);
-            }
-
-            // Route network-related methods
-            else if (lowerMethod == "device.network")
-            {
-                return GetInternetConnectionStatus(result);
-            }
-
-            // Route voice guidance methods
-            else if (lowerMethod == "voiceguidance.enabled")
-            {
-                return GetVoiceGuidance(result);
             }
             else if (lowerMethod == "voiceguidance.setenabled")
             {
@@ -223,10 +301,6 @@ namespace Plugin {
                 result = "{\"error\":\"Invalid payload\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
-            else if (lowerMethod == "voiceguidance.navigationhints")
-            {
-                return GetVoiceGuidanceHints(result);
-            }
             else if (lowerMethod == "voiceguidance.setnavigationhints")
             {
                 JsonObject params;
@@ -237,24 +311,6 @@ namespace Plugin {
                 }
                 result = "{\"error\":\"Invalid payload\"}";
                 return Core::ERROR_BAD_REQUEST;
-            }
-            else if (lowerMethod == "accessibility.voiceguidancesettings")
-            {
-                return GetVoiceGuidanceSettings(result);
-            }
-            else if (lowerMethod == "accessibility.voiceguidance")
-            {
-                return GetVoiceGuidanceSettings(result);
-            }
-
-            // Route audio description methods
-            else if (lowerMethod == "accessibility.audiodescriptionsettings")
-            {
-                return GetAudioDescription(result);
-            }
-            else if (lowerMethod == "audiodescriptions.enabled")
-            {
-                return GetAudioDescriptionsEnabled(result);
             }
             else if (lowerMethod == "audiodescriptions.setenabled")
             {
@@ -267,18 +323,6 @@ namespace Plugin {
                 result = "{\"error\":\"Invalid payload\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
-
-            // Route accessibility methods
-            else if (lowerMethod == "accessibility.highcontrastui")
-            {
-                return GetHighContrast(result);
-            }
-
-            // Route closed captions methods
-            else if (lowerMethod == "closedcaptions.enabled")
-            {
-                return GetCaptions(result);
-            }
             else if (lowerMethod == "closedcaptions.setenabled")
             {
                 JsonObject params;
@@ -290,10 +334,7 @@ namespace Plugin {
                 result = "{\"error\":\"Invalid payload\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
-            else if (lowerMethod == "closedcaptions.preferredlanguages")
-            {
-                return GetPreferredCaptionsLanguages(result);
-            }
+            
             else if (lowerMethod == "closedcaptions.setpreferredlanguages")
             {
                 JsonObject params;
@@ -305,24 +346,7 @@ namespace Plugin {
                 result = "{\"error\":\"Invalid payload\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
-            else if (lowerMethod == "accessibility.closedcaptions")
-            {
-                return GetClosedCaptionsSettings(result);
-            }
-            else if (lowerMethod == "accessibility.closedcaptionssettings")
-            {
-                return GetClosedCaptionsSettings(result);
-            }
-
-            // Route localization methods
-            else if (lowerMethod == "localization.language")
-            {
-                return GetPresentationLanguage(result);
-            }
-            else if (lowerMethod == "localization.locale")
-            {
-                return GetLocale(result);
-            }
+            
             else if (lowerMethod == "localization.setlocale")
             {
                 JsonObject params;
@@ -334,10 +358,6 @@ namespace Plugin {
                 result = "{\"error\":\"Invalid payload\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
-            else if (lowerMethod == "localization.preferredaudiolanguages")
-            {
-                return GetPreferredAudioLanguages(result);
-            }
             else if (lowerMethod == "localization.setpreferredaudiolanguages")
             {
                 JsonObject params;
@@ -348,31 +368,7 @@ namespace Plugin {
                 }
                 result = "{\"error\":\"Invalid payload\"}";
                 return Core::ERROR_BAD_REQUEST;
-            }
-            else if (lowerMethod == "device.version")
-            {
-                return GetFirmwareVersion(result);
-            }
-            else if (lowerMethod == "device.screenresolution")
-            {
-                return GetScreenResolution(result);
-            }
-            else if (lowerMethod == "device.videoresolution")
-            {
-                return GetVideoResolution(result);
-            }            
-            else if (lowerMethod == "device.hdcp")
-            {
-                return GetHdcp(result);
-            }
-            else if (lowerMethod == "device.hdr")
-            {
-                return GetHdr(result);
-            }
-            else if (lowerMethod == "device.audio")
-            {
-                return GetAudio(result);
-            }
+            } 
 
             // If method not found, return error
             ErrorUtils::NotSupported(result);
@@ -956,12 +952,21 @@ namespace Plugin {
                 return languagesStatus;
             }
 
+            // Get closed captions styles from UserSettings delegate
+            string stylesResult = "{}";
+            Core::hresult stylesStatus = userSettingsDelegate->GetClosedCaptionsStyle(stylesResult);
+            if (stylesStatus != Core::ERROR_NONE)
+            {
+                LOGWARN("Couldn't get closed captions styles, using empty object");
+                stylesResult = "{}";
+            }
+
             // Construct the combined JSON response
-            // Format: {"enabled": <bool>, "preferredLanguages": <array>, "styles": {}}
+            // Format: {"enabled": <bool>, "preferredLanguages": <array>, "styles": {<style properties>}}
             std::ostringstream jsonStream;
             jsonStream << "{\"enabled\": " << enabledResult
                        << ", \"preferredLanguages\": " << languagesResult
-                       << ", \"styles\": {}}";
+                       << ", \"styles\": " << stylesResult << "}";
 
             result = jsonStream.str();
 
@@ -1081,7 +1086,80 @@ namespace Plugin {
             return systemDelegate->GetAudio(result);
         }
 
+        template <typename DelegateType, typename LifecycleType, typename Func, typename... Args>
+        Core::hresult InvokeLifecycleDelegate(const std::shared_ptr<DelegateType>& delegate,
+                                            std::shared_ptr<LifecycleType> (DelegateType::*getLifecycleDelegate)() const,
+                                            Func func, Args&&... args) {
+            if (!delegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            std::shared_ptr<LifecycleType> lifecycleDelegate = ((*delegate).*getLifecycleDelegate)();
+            if (!lifecycleDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return ((*lifecycleDelegate).*func)(std::forward<Args>(args)...);
+        }
+
+
+        Core::hresult AppGatewayCommon::Authenticate(const string &sessionId /* @in */, string &appId /* @out */)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Authenticate, sessionId, appId);
+        }
+
+        Core::hresult AppGatewayCommon::GetSessionId(const string &appId /* @in */, string &sessionId /* @out */)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetSessionId, appId, sessionId);
+        }
+
+        Core::hresult AppGatewayCommon::LifecycleFinished(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleFinished, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleReady, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::LifecycleClose(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleClose, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::Lifecycle2State(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Lifecycle2State, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::LifecycleState(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleState, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::Lifecycle2Close(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Lifecycle2Close, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::DispatchLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::DispatchLastIntent, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::GetLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetLastIntent, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::CheckPermissionGroup(const string &appId /* @in */, const string &permissionGroup /* @in */, bool &allowed /* @out */)
+        {
+            // Currently there are no permission groups defined so default is allowed
+            // This is not a security issue given all packages are signed and only non sensitive app methods are allowed to be accessed.
+            // TODO: In future when Permission groups are defined this interface will be implemented
+            // 
+            allowed = true;
+            return Core::ERROR_NONE;
+        }
 
 } // namespace Plugin
 } // namespace WPEFramework
-

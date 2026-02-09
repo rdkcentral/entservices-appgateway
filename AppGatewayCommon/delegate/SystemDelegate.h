@@ -1,4 +1,4 @@
-/**
+/*
  * If not stated otherwise in this file or this component's LICENSE
  * file the following copyright and licenses apply:
  *
@@ -51,12 +51,12 @@ class SystemDelegate: public BaseEventDelegate
 public:
 
     // Event names exposed by this delegate (consumer subscriptions may vary in case)
-    static constexpr const char* EVENT_ON_VIDEO_RES_CHANGED   = "device.onVideoResolutionChanged";
-    static constexpr const char* EVENT_ON_SCREEN_RES_CHANGED  = "device.onScreenResolutionChanged";
-    static constexpr const char* EVENT_ON_HDR_CHANGED         = "device.onHdrChanged";
-    static constexpr const char* EVENT_ON_HDCP_CHANGED        = "device.onHdcpChanged";
-    static constexpr const char* EVENT_ON_AUDIO_CHANGED       = "device.onAudioChanged";
-    static constexpr const char* EVENT_ON_NAME_CHANGED        = "device.onDeviceNameChanged";
+    static constexpr const char* EVENT_ON_VIDEO_RES_CHANGED   = "Device.onVideoResolutionChanged";
+    static constexpr const char* EVENT_ON_SCREEN_RES_CHANGED  = "Device.onScreenResolutionChanged";
+    static constexpr const char* EVENT_ON_HDR_CHANGED         = "Device.onHdrChanged";
+    static constexpr const char* EVENT_ON_HDCP_CHANGED        = "Device.onHdcpChanged";
+    static constexpr const char* EVENT_ON_AUDIO_CHANGED       = "Device.onAudioChanged";
+    static constexpr const char* EVENT_ON_NAME_CHANGED        = "Device.onDeviceNameChanged";
 
     SystemDelegate(PluginHost::IShell *shell)
         : BaseEventDelegate()
