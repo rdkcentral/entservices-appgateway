@@ -51,7 +51,8 @@ public:
     {
         if (mNetworkManager != nullptr)
         {
-            mNetworkManager->UnregisterInetStatNotify(mNotificationHandler.baseInterface<Exchange::INetworkManager::IInetStatNotify>());
+            mNetworkManager->Unregister(&mNotificationHandler);
+            mNotificationHandler.SetRegistered(false);
             mNetworkManager->Release();
             mNetworkManager = nullptr;
         }
@@ -73,7 +74,7 @@ public:
             if (!mNotificationHandler.GetRegistered())
             {
                 LOGINFO("Registering for NetworkManager notifications");
-                mNetworkManager->RegisterInetStatNotify(mNotificationHandler.baseInterface<Exchange::INetworkManager::IInetStatNotify>());
+                mNetworkManager->Register(&mNotificationHandler);
                 mNotificationHandler.SetRegistered(true);
                 return true;
             }
@@ -205,18 +206,11 @@ public:
     }
 
 private:
-    class NetworkNotificationHandler : public Exchange::INetworkManager::IInetStatNotify
+    class NetworkNotificationHandler : public Exchange::INetworkManager::INotification
     {
     public:
         NetworkNotificationHandler(NetworkDelegate &parent) : mParent(parent), registered(false) {}
         ~NetworkNotificationHandler() {}
-
-        template <typename T>
-        T* baseInterface()
-        {
-            static_assert(std::is_base_of<T, NetworkNotificationHandler>(), "base type mismatch");
-            return static_cast<T*>(this);
-        }
 
         void onInternetStatusChange(const Exchange::INetworkManager::InternetStatus prevState, const Exchange::INetworkManager::InternetStatus currState, const string interface)
         {
@@ -254,7 +248,7 @@ private:
         }
 
         BEGIN_INTERFACE_MAP(NotificationHandler)
-        INTERFACE_ENTRY(Exchange::INetworkManager::IInetStatNotify)
+        INTERFACE_ENTRY(Exchange::INetworkManager::INotification)
         END_INTERFACE_MAP
 
     private:
