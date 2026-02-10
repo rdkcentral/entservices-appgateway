@@ -26,6 +26,8 @@
 #include "UtilsLogging.h"
 #include "UtilsController.h"
 #include "delegate/SettingsDelegate.h"
+#include <unordered_map>
+#include <functional>
 
 namespace WPEFramework {
 
