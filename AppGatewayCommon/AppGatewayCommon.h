@@ -26,14 +26,18 @@
 #include "UtilsLogging.h"
 #include "UtilsController.h"
 #include "delegate/SettingsDelegate.h"
+#include <unordered_map>
+#include <functional>
 
 namespace WPEFramework {
 
     namespace Plugin {
 
 
-		class AppGatewayCommon : public PluginHost::IPlugin, Exchange::IAppGatewayRequestHandler, Exchange::IAppNotificationHandler{
+		class AppGatewayCommon : public PluginHost::IPlugin, Exchange::IAppGatewayRequestHandler, Exchange::IAppNotificationHandler, Exchange::IAppGatewayAuthenticator{
         private:
+            using HandlerFunction = std::function<Core::hresult(AppGatewayCommon*, const Exchange::GatewayContext&, const std::string&, std::string&)>;
+            static const std::unordered_map<std::string, HandlerFunction> handlers;
             // We do not allow this plugin to be copied !!
             AppGatewayCommon(const AppGatewayCommon&) = delete;
             AppGatewayCommon& operator=(const AppGatewayCommon&) = delete;
@@ -91,6 +95,7 @@ namespace WPEFramework {
             INTERFACE_ENTRY(PluginHost::IPlugin)
             INTERFACE_ENTRY(Exchange::IAppGatewayRequestHandler)
             INTERFACE_ENTRY(Exchange::IAppNotificationHandler)
+            INTERFACE_ENTRY(Exchange::IAppGatewayAuthenticator)
             END_INTERFACE_MAP
         
         public:
@@ -103,6 +108,13 @@ namespace WPEFramework {
                                           const string& method /* @in */,
                                           const string &payload /* @in @opaque */,
                                           string& result /*@out @opaque */) override;
+            
+            // IAppGatewayAuthenticator interface
+            virtual Core::hresult Authenticate(const string &sessionId /* @in */, string &appId /* @out */) override;
+            virtual Core::hresult GetSessionId(const string &appId /* @in */, string &sessionId /* @out */) override;
+            virtual Core::hresult CheckPermissionGroup(const string &appId /* @in */,
+                                               const string &permissionGroup /* @in */,
+                                               bool &allowed /* @out */) override;
 
         private:
             void Deactivated(RPC::IRemoteConnection* connection);
@@ -150,6 +162,14 @@ namespace WPEFramework {
             Core::hresult GetHdcp(string &result /* @out */);
             Core::hresult GetHdr(string &result /* @out */);
             Core::hresult GetAudio(string &result /* @out */);
+            Core::hresult LifecycleFinished(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult LifecycleClose(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult LifecycleState(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult Lifecycle2State(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult Lifecycle2Close(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult DispatchLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult GetLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
 
         private:
             PluginHost::IShell* mShell;

@@ -30,6 +30,7 @@
 // so we can use a simple in-memory registry to track connection IDs and their associated app IDs.
 #define APPGATEWAY_SOCKET_ADDRESS "127.0.0.1:3473"
 #define DEFAULT_CONFIG_PATH "/etc/app-gateway/resolution.base.json"
+#define COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN "org.rdk.AppGatewayCommon"
 
 namespace WPEFramework
 {
@@ -122,7 +123,11 @@ namespace WPEFramework
                     }
 
                     if ( mAuthenticator==nullptr ) {
-                        mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
+                        if (ConfigUtils::useAppManagers()) {
+                            mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN);
+                        } else {
+                            mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
+                        }
                         if (mAuthenticator == nullptr) {
                             LOGERR("Authenticator Not available");
                             return false;
@@ -133,7 +138,7 @@ namespace WPEFramework
                     if (Core::ERROR_NONE == mAuthenticator->Authenticate(sessionId,appId)) {
                         LOGTRACE("APP ID %s", appId.c_str());
                         mAppIdRegistry.Add(connectionId, appId);
-                        
+                        mCompliantJsonRpcRegistry.CheckAndAddCompliantJsonRpc(connectionId, token);
                         #ifdef ENABLE_APP_GATEWAY_AUTOMATION
                         // Check if this is the automation client
                         #ifdef AUTOMATION_APP_ID
@@ -165,6 +170,7 @@ namespace WPEFramework
                     }
                     
                     mAppIdRegistry.Remove(connectionId);
+                    mCompliantJsonRpcRegistry.CleanupConnectionId(connectionId);
                     Exchange::IAppNotifications* appNotifications = mService->QueryInterfaceByCallsign<Exchange::IAppNotifications>(APP_NOTIFICATIONS_CALLSIGN);
                     if (appNotifications != nullptr) {
                         if (Core::ERROR_NONE != appNotifications->Cleanup(connectionId, APP_GATEWAY_CALLSIGN)) {
@@ -187,7 +193,13 @@ namespace WPEFramework
 
         Core::hresult AppGatewayResponderImplementation::Emit(const Context& context /* @in */, 
                 const string& method /* @in */, const string& payload /* @in @opaque */) {
-            Core::IWorkerPool::Instance().Submit(EmitJob::Create(this, context.connectionId, method, payload));
+            // check if the connection is compliant with JSON RPC
+            if (mCompliantJsonRpcRegistry.IsCompliantJsonRpc(context.connectionId)) {
+                Core::IWorkerPool::Instance().Submit(EmitJob::Create(this, context.connectionId, method, payload));
+            }
+            else {
+                Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context.connectionId, context.requestId, payload));
+            }
             return Core::ERROR_NONE;
         }
 
