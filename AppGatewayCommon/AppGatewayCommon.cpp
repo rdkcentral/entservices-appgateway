@@ -110,7 +110,6 @@ namespace Plugin {
     // Static handler map used to route GatewayContext requests to the corresponding AppGatewayCommon member handlers.
     const std::unordered_map<std::string, AppGatewayCommon::HandlerFunction> AppGatewayCommon::handlers = {
         { "device.make", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-        { "device.make", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
             (void)payload;
             return self->GetDeviceMake(result);
