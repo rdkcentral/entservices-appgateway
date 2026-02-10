@@ -141,7 +141,6 @@ namespace Plugin {
         }},
         { "localization.addadditionalinfo", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
-            (void)payload;
             return ResponseUtils::SetNullResponseForSuccess(self->AddAdditionalInfo(payload, result), result);
         }},
         { "device.network", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
@@ -152,62 +151,101 @@ namespace Plugin {
         { "voiceguidance.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
             (void)payload;
+            return self->GetVoiceGuidance(result);
         }},
         { "device.version", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetFirmwareVersion(result);
         }},
         { "device.screenresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetScreenResolution(result);
         }},
         { "device.videoresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetVideoResolution(result);
         }},
         { "device.hdcp", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetHdcp(result);
         }},
         { "device.hdr", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetHdr(result);
         }},
         { "device.audio", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetAudio(result);
         }},
         { "voiceguidance.navigationhints", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetVoiceGuidanceHints(result);
         }},
         { "accessibility.voiceguidancesettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetVoiceGuidanceSettings(result);
         }},
         { "accessibility.voiceguidance", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetVoiceGuidanceSettings(result);
         }},
         { "accessibility.audiodescriptionsettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetAudioDescription(result);
         }},
         { "audiodescriptions.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetAudioDescriptionsEnabled(result);
         }},
         { "accessibility.highcontrastui", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetHighContrast(result);
         }},
         { "closedcaptions.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetCaptions(result);
         }},
         { "closedcaptions.preferredlanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetPreferredCaptionsLanguages(result);
         }},
         { "accessibility.closedcaptions", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetClosedCaptionsSettings(result);
         }},
         { "accessibility.closedcaptionssettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetClosedCaptionsSettings(result);
         }},
         { "localization.language", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetPresentationLanguage(result);
         }},
         { "localization.locale", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetLocale(result);
         }},
         { "localization.preferredaudiolanguages", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
             return self->GetPreferredAudioLanguages(result);
         }},
         { "lifecycle2.close", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
