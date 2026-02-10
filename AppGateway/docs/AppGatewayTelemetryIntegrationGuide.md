@@ -72,7 +72,24 @@ App Gateway provides a centralized telemetry collection mechanism that:
 #include "AppGatewayTelemetryMarkers.h"
 ```
 
-### Step 2: Initialize Telemetry in Your Plugin
+### Step 2: Define Telemetry Client Instance
+
+In your plugin's implementation file (`.cpp`), at the top level **before any namespace declarations**:
+
+```cpp
+#include "UtilsAppGatewayTelemetry.h"
+
+AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_YOURPLUGIN)
+
+namespace WPEFramework {
+namespace Plugin {
+    // ... your plugin implementation ...
+}}
+```
+
+**Important:** This macro creates a plugin-specific telemetry client instance. Each plugin gets its own isolated instance to prevent cross-plugin data contamination.
+
+### Step 3: Initialize Telemetry in Your Plugin
 
 In your plugin's `Initialize()` method:
 
@@ -88,7 +105,7 @@ uint32_t YourPlugin::Initialize(PluginHost::IShell* service)
 }
 ```
 
-### Step 3: Report Errors at Failure Points
+### Step 4: Report Errors at Failure Points
 
 **Important:** Always use the predefined error constants from `AppGatewayTelemetryMarkers.h` instead of hardcoded strings.
 
@@ -100,7 +117,7 @@ AGW_REPORT_API_ERROR("GetData", AGW_ERROR_INVALID_REQUEST);
 AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, AGW_ERROR_CONNECTION_TIMEOUT);
 ```
 
-### Step 4: Deinitialize on Shutdown
+### Step 5: Deinitialize on Shutdown
 
 In your plugin's `Deinitialize()` method:
 
@@ -120,6 +137,30 @@ void YourPlugin::Deinitialize(PluginHost::IShell* service)
 
 ### Macros
 
+#### `AGW_DEFINE_TELEMETRY_CLIENT(pluginName)`
+
+Defines a plugin-specific telemetry client instance. This macro **MUST** be called once in each plugin's implementation file.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `pluginName` | Constant | Plugin name constant from `AppGatewayTelemetryMarkers.h` (e.g., `AGW_PLUGIN_BADGER`) |
+
+**Placement:** Top of your plugin's `.cpp` file, **before** namespace declarations.
+
+**Example:**
+```cpp
+#include "UtilsAppGatewayTelemetry.h"
+
+AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_BADGER)
+
+namespace WPEFramework {
+namespace Plugin {
+    // ... implementation
+}}
+```
+
+**Purpose:** Creates an isolated telemetry client instance for this plugin. Each plugin gets its own instance to prevent cross-plugin data contamination.
+
 #### `AGW_TELEMETRY_INIT(service)`
 
 Initializes the telemetry client by querying the `IAppGatewayTelemetry` interface from App Gateway.
@@ -127,6 +168,8 @@ Initializes the telemetry client by querying the `IAppGatewayTelemetry` interfac
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `service` | `PluginHost::IShell*` | The service shell passed to `Initialize()` |
+
+**Prerequisites:** `AGW_DEFINE_TELEMETRY_CLIENT` must be called first in the same compilation unit.
 
 **Example:**
 ```cpp

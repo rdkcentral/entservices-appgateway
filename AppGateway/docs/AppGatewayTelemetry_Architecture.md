@@ -170,29 +170,35 @@ private:
 **Design Patterns:**
 - **RAII (Resource Acquisition Is Initialization)**: Automatic resource management
 - **Proxy Pattern**: Acts as proxy to remote AppGatewayTelemetry instance
+- **Per-Plugin Isolation**: Each plugin has its own TelemetryClient instance
 - **Template Metaprogramming**: Macro-based code generation for type safety
 
 **Key Features:**
 - Automatic interface acquisition and release
 - Automatic plugin name injection
+- Per-plugin instance isolation (prevents cross-plugin contamination)
 - Null-safe operations (checks availability before calls)
 - Zero-overhead when telemetry unavailable
 
 **Lifecycle:**
 ```cpp
-// Initialization (in plugin Initialize())
+// Step 1: Define client instance (top of .cpp file, before namespace)
+AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_BADGER)  // Creates plugin-specific instance
+
+// Step 2: Initialization (in plugin Initialize())
 AGW_TELEMETRY_INIT(service);  // Acquires IAppGatewayTelemetry via COM-RPC
 
-// Usage (automatic context management)
+// Step 3: Usage (automatic context management)
 AGW_REPORT_API_ERROR("GetSettings", "TIMEOUT");  // Single line, no boilerplate
 
-// Cleanup (in plugin Deinitialize())
+// Step 4: Cleanup (in plugin Deinitialize())
 AGW_TELEMETRY_DEINIT();  // Releases interface, RAII cleanup
 ```
 
 **Internal Mechanism:**
-- Stores plugin name as thread-local or static variable
-- Maintains weak reference to IAppGatewayTelemetry interface
+- Each plugin creates its own TelemetryClient instance via `AGW_DEFINE_TELEMETRY_CLIENT` macro
+- Instance stored in anonymous namespace (compilation-unit scoped, prevents cross-plugin access)
+- Maintains reference to IAppGatewayTelemetry interface
 - Constructs JSON payloads automatically
 - Composes metric names from plugin + API/service + suffix
 
@@ -594,14 +600,19 @@ TelemetryTimer ──observes──▶ Time Elapsed?
 
 **TelemetryClient Lifecycle:**
 ```cpp
-// Initialization
+// Step 1: Define plugin-specific instance (top of .cpp file)
+AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_BADGER);
+    ↓
+Creates instance in anonymous namespace (compilation-unit scoped)
+    ↓
+// Step 2: Initialization
 AGW_TELEMETRY_INIT(service);
     ↓
 QueryInterface<IAppGatewayTelemetry>(APPGATEWAY_CALLSIGN)  // AddRef() implicit
     ↓
-Store in static/thread-local variable
+Store in plugin's TelemetryClient instance
     ↓
-// Usage (multiple calls, same interface instance)
+// Step 3: Usage (multiple calls, same interface instance)
     ↓
 AGW_TELEMETRY_DEINIT();
     ↓
@@ -659,13 +670,18 @@ Plugin System (Thunder)
     │       │
     │       ├─▶ Load plugins (Badger, OttServices, etc.)
     │       │       │
-    │       │       └─▶ External Plugin::Initialize()
+    │       │       └─▶ External Plugin .cpp file loads
     │       │               │
-    │       │               └─▶ AGW_TELEMETRY_INIT(service)
+    │       │               ├─▶ AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_BADGER)
+    │       │               │       └─▶ Creates plugin-specific instance in anonymous namespace
+    │       │               │
+    │       │               └─▶ External Plugin::Initialize()
     │       │                       │
-    │       │                       └─▶ QueryInterface<IAppGatewayTelemetry>
+    │       │                       └─▶ AGW_TELEMETRY_INIT(service)
     │       │                               │
-    │       │                               └─▶ Returns COM-RPC proxy to AppGatewayTelemetry
+    │       │                               └─▶ QueryInterface<IAppGatewayTelemetry>
+    │       │                                       │
+    │       │                                       └─▶ Returns COM-RPC proxy to AppGatewayTelemetry
     │       │
     │       └─▶ RecordBootstrapTime(duration, pluginCount)
     │               │

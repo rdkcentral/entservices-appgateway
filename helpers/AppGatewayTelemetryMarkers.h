@@ -356,10 +356,13 @@
  *   // In Badger.cpp - Include the helper and initialize
  *   #include "UtilsAppGatewayTelemetry.h"
  *
- *   // In Initialize() method:
- *   AGW_TELEMETRY_INIT(mService, AGW_PLUGIN_BADGER);
+ *   // At top of file, before namespace:
+ *   AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_BADGER)
  *
- *   // Report the error (plugin name automatic from init):
+ *   // In Initialize() method:
+ *   AGW_TELEMETRY_INIT(mService);
+ *
+ *   // Report the error (plugin name automatic from AGW_DEFINE_TELEMETRY_CLIENT):
  *   AGW_REPORT_API_ERROR("GetAppSessionId", AGW_ERROR_INTERFACE_UNAVAILABLE);
  *
  *   // This internally calls RecordTelemetryEvent with:
@@ -374,10 +377,13 @@
  *   // In OttServicesImplementation.cpp
  *   #include "UtilsAppGatewayTelemetry.h"
  *
- *   // In Initialize() method:
- *   AGW_TELEMETRY_INIT(mService, AGW_PLUGIN_OTTSERVICES);
+ *   // At top of file, before namespace:
+ *   AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_OTTSERVICES)
  *
- *   // Report the service error (plugin name automatic from init):
+ *   // In Initialize() method:
+ *   AGW_TELEMETRY_INIT(mService);
+ *
+ *   // Report the service error (plugin name automatic from AGW_DEFINE_TELEMETRY_CLIENT):
  *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION,
  *                                      AGW_ERROR_CONNECTION_TIMEOUT);
  *
@@ -405,8 +411,11 @@
  *
  *   #include "UtilsAppGatewayTelemetry.h"
  *
+ *   // At top of file, before namespace:
+ *   AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_OTTSERVICES)
+ *
  *   // In Initialize() method:
- *   AGW_TELEMETRY_INIT(mService, AGW_PLUGIN_OTTSERVICES);
+ *   AGW_TELEMETRY_INIT(mService);
  *
  *   AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_THOR_PERMISSION, 85.3);  // latency in ms
  *

@@ -32,15 +32,18 @@
  * 1. Include this header in your plugin:
  *    #include "UtilsAppGatewayTelemetry.h"
  * 
- * 2. Initialize the telemetry client in your plugin's Initialize/Configure:
- *    AGW_TELEMETRY_INIT(mService, AGW_PLUGIN_BADGER)
+ * 2. Define the telemetry client in your plugin's .cpp file (top-level, before namespace):
+ *    AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_BADGER)
  * 
- * 3. Report events using the macros with GENERIC MARKERS and plugin/method as values:
+ * 3. Initialize the telemetry client in your plugin's Initialize/Configure:
+ *    AGW_TELEMETRY_INIT(mService)
+ * 
+ * 4. Report events using the macros:
  *    - AGW_REPORT_API_ERROR("GetSettings", AGW_ERROR_TIMEOUT)
  *    - AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE)
  *    - AGW_REPORT_API_LATENCY("GetSettings", 123.45)
  * 
- * 4. Cleanup in Deinitialize:
+ * 5. Cleanup in Deinitialize:
  *    AGW_TELEMETRY_DEINIT()
  * 
  * ## Marker Design
@@ -300,17 +303,6 @@ namespace AppGatewayTelemetryHelper {
         std::string mPluginName;
     };
 
-    /**
-     * @brief Global telemetry client instance (thread-local for safety)
-     * 
-     * Each plugin should have its own instance. Use the macros to access.
-     */
-    inline TelemetryClient& GetTelemetryClient()
-    {
-        static TelemetryClient instance;
-        return instance;
-    }
-
 } // namespace AppGatewayTelemetryHelper
 } // namespace Plugin
 } // namespace WPEFramework
@@ -319,17 +311,58 @@ namespace AppGatewayTelemetryHelper {
 // CONVENIENCE MACROS FOR TELEMETRY REPORTING
 
 /**
- * @brief Initialize the AppGateway telemetry client
- * @param service PluginHost::IShell* pointer
+ * @brief Define a telemetry client instance for this plugin
  * @param pluginName Plugin name constant from AppGatewayTelemetryMarkers.h (e.g., AGW_PLUGIN_BADGER)
  * 
- * Example:
- *   AGW_TELEMETRY_INIT(mService, AGW_PLUGIN_BADGER)
- *   AGW_TELEMETRY_INIT(mService, AGW_PLUGIN_OTTSERVICES)
+ * This macro MUST be called once in each plugin's implementation file (.cpp) to create
+ * a plugin-specific telemetry client instance. Each plugin gets its own separate instance
+ * to avoid conflicts when multiple plugins report telemetry simultaneously.
+ * 
+ * **IMPORTANT**: Place this macro at the top of your plugin's .cpp file, outside any class/function.
+ * 
+ * Example in Badger.cpp:
+ *   #include "UtilsAppGatewayTelemetry.h"
+ *   
+ *   AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_BADGER)
+ *   
+ *   namespace WPEFramework {
+ *   namespace Plugin {
+ *       // ... rest of implementation
+ *   }}
+ * 
+ * Example in OttServices.cpp:
+ *   #include "UtilsAppGatewayTelemetry.h"
+ *   
+ *   AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_OTTSERVICES)
+ *   
+ *   namespace WPEFramework {
+ *   namespace Plugin {
+ *       // ... rest of implementation
+ *   }}
  */
-#define AGW_TELEMETRY_INIT(service, pluginName) \
+#define AGW_DEFINE_TELEMETRY_CLIENT(pluginName) \
+    namespace { \
+        WPEFramework::Plugin::AppGatewayTelemetryHelper::TelemetryClient& GetLocalTelemetryClient() { \
+            static WPEFramework::Plugin::AppGatewayTelemetryHelper::TelemetryClient instance; \
+            return instance; \
+        } \
+        const char* GetLocalPluginName() { \
+            return pluginName; \
+        } \
+    }
+
+/**
+ * @brief Initialize the AppGateway telemetry client
+ * @param service PluginHost::IShell* pointer
+ * 
+ * **NOTE**: The plugin name was already specified in AGW_DEFINE_TELEMETRY_CLIENT macro.
+ * 
+ * Example:
+ *   AGW_TELEMETRY_INIT(mService)
+ */
+#define AGW_TELEMETRY_INIT(service) \
     do { \
-        WPEFramework::Plugin::AppGatewayTelemetryHelper::GetTelemetryClient().Initialize(service, pluginName); \
+        GetLocalTelemetryClient().Initialize(service, GetLocalPluginName()); \
     } while(0)
 
 /**
@@ -340,7 +373,7 @@ namespace AppGatewayTelemetryHelper {
  */
 #define AGW_TELEMETRY_DEINIT() \
     do { \
-        WPEFramework::Plugin::AppGatewayTelemetryHelper::GetTelemetryClient().Deinitialize(); \
+        GetLocalTelemetryClient().Deinitialize(); \
     } while(0)
 
 /**
@@ -351,14 +384,14 @@ namespace AppGatewayTelemetryHelper {
  *   if (AGW_TELEMETRY_AVAILABLE()) { ... }
  */
 #define AGW_TELEMETRY_AVAILABLE() \
-    WPEFramework::Plugin::AppGatewayTelemetryHelper::GetTelemetryClient().IsAvailable()
+    GetLocalTelemetryClient().IsAvailable()
 
 /**
  * @brief Report an API error to AppGateway telemetry
  * @param apiName Name of the API that failed
  * @param errorCode Predefined error code from AppGatewayTelemetryMarkers.h (e.g., AGW_ERROR_TIMEOUT)
  * 
- * Uses generic marker AGW_MARKER_PLUGIN_API_ERROR with plugin name from initialization.
+ * Uses generic marker AGW_MARKER_PLUGIN_API_ERROR with plugin name from AGW_DEFINE_TELEMETRY_CLIENT.
  * 
  * Example:
  *   AGW_REPORT_API_ERROR("GetSettings", AGW_ERROR_TIMEOUT)
@@ -366,7 +399,7 @@ namespace AppGatewayTelemetryHelper {
  */
 #define AGW_REPORT_API_ERROR(apiName, errorCode) \
     do { \
-        auto& client = WPEFramework::Plugin::AppGatewayTelemetryHelper::GetTelemetryClient(); \
+        auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
             client.RecordApiError(apiName, errorCode); \
         } \
@@ -377,7 +410,7 @@ namespace AppGatewayTelemetryHelper {
  * @param serviceName Predefined service name from AppGatewayTelemetryMarkers.h (e.g., AGW_SERVICE_OTT_SERVICES)
  * @param errorCode Predefined error code from AppGatewayTelemetryMarkers.h (e.g., AGW_ERROR_INTERFACE_UNAVAILABLE)
  * 
- * Uses generic marker AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR with plugin name from initialization.
+ * Uses generic marker AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR with plugin name from AGW_DEFINE_TELEMETRY_CLIENT.
  * 
  * Example:
  *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE)
@@ -385,7 +418,7 @@ namespace AppGatewayTelemetryHelper {
  */
 #define AGW_REPORT_EXTERNAL_SERVICE_ERROR(serviceName, errorCode) \
     do { \
-        auto& client = WPEFramework::Plugin::AppGatewayTelemetryHelper::GetTelemetryClient(); \
+        auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
             client.RecordExternalServiceError(serviceName, errorCode); \
         } \
@@ -407,7 +440,7 @@ namespace AppGatewayTelemetryHelper {
  */
 #define AGW_REPORT_API_LATENCY(apiName, latencyMs) \
     do { \
-        auto& client = WPEFramework::Plugin::AppGatewayTelemetryHelper::GetTelemetryClient(); \
+        auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
             client.RecordApiLatency(apiName, latencyMs); \
         } \
@@ -429,7 +462,7 @@ namespace AppGatewayTelemetryHelper {
  */
 #define AGW_REPORT_SERVICE_LATENCY(serviceName, latencyMs) \
     do { \
-        auto& client = WPEFramework::Plugin::AppGatewayTelemetryHelper::GetTelemetryClient(); \
+        auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
             client.RecordServiceLatency(serviceName, latencyMs); \
         } \
@@ -446,7 +479,7 @@ namespace AppGatewayTelemetryHelper {
  */
 #define AGW_REPORT_METRIC(metricName, value, unit) \
     do { \
-        auto& client = WPEFramework::Plugin::AppGatewayTelemetryHelper::GetTelemetryClient(); \
+        auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
             client.RecordMetric(metricName, value, unit); \
         } \
@@ -462,7 +495,7 @@ namespace AppGatewayTelemetryHelper {
  */
 #define AGW_REPORT_EVENT(eventName, eventData) \
     do { \
-        auto& client = WPEFramework::Plugin::AppGatewayTelemetryHelper::GetTelemetryClient(); \
+        auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
             client.RecordEvent(eventName, eventData); \
         } \
@@ -478,7 +511,7 @@ namespace AppGatewayTelemetryHelper {
  */
 #define AGW_REPORT_API_SUCCESS(apiName, durationMs) \
     do { \
-        auto& client = WPEFramework::Plugin::AppGatewayTelemetryHelper::GetTelemetryClient(); \
+        auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
             std::string metricName = std::string("AppGw") + client.GetPluginName() + "_ApiLatency_split"; \
             client.RecordMetric(metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS); \
@@ -518,7 +551,7 @@ namespace AppGatewayTelemetryHelper {
             auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
                 endTime - mStartTime).count();
 
-            auto& client = GetTelemetryClient();
+            auto& client = GetLocalTelemetryClient();
             if (client.IsAvailable()) {
                 if (mFailed) {
                     client.RecordApiError(mApiName, mErrorDetails);
