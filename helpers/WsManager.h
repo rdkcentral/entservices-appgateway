@@ -402,7 +402,7 @@ public:
 
     void SetAuthHandler(const AuthHandler& handler) { _authHandler = handler; }
 
-    void SetDisconnectHandler(DisconnectHandler handler) { _disconnectHandler = handler; }
+    void SetDisconnectHandler(DisconnectHandler handler) { _disconnectHandler = std::move(handler); }
 
     // NEW: Setter for automation ID
     void SetAutomationId(uint32_t automationId) { 

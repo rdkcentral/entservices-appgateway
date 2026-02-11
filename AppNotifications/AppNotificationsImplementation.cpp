@@ -282,14 +282,14 @@ namespace WPEFramework
             string lowerEvent = StringUtils::toLower(event);
             if (HandleNotifier(module, lowerEvent, false)) {
                 std::lock_guard<std::mutex> lock(mThunderSubscriberMutex);
-                mRegisteredNotifications.erase(std::remove(mRegisteredNotifications.begin(), mRegisteredNotifications.end(), NotificationKey{module, lowerEvent}), mRegisteredNotifications.end());
+                mRegisteredNotifications.erase(std::remove(mRegisteredNotifications.begin(), mRegisteredNotifications.end(), NotificationKey{module, std::move(lowerEvent)}), mRegisteredNotifications.end());
             }
         }
 
         bool AppNotificationsImplementation::ThunderSubscriptionManager::IsNotificationRegistered(const string& module, const string& notification) const {
             string lowerEvent = StringUtils::toLower(notification);
             std::lock_guard<std::mutex> lock(mThunderSubscriberMutex);
-            return std::find(mRegisteredNotifications.begin(), mRegisteredNotifications.end(), NotificationKey{module, lowerEvent}) != mRegisteredNotifications.end();
+            return std::find(mRegisteredNotifications.begin(), mRegisteredNotifications.end(), NotificationKey{module, std::move(lowerEvent)}) != mRegisteredNotifications.end();
         }
 
     }
