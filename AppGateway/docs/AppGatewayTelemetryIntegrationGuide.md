@@ -292,43 +292,22 @@ Core::hresult MyPlugin::GetData(const string& key, string& value) {
 
 ---
 
-## Generic Markers
+## Constants and Markers Reference
 
-All markers are defined in `AppGatewayTelemetryMarkers.h`. The system uses **generic category-based markers** where the plugin name is included in the payload data rather than the marker name.
+All telemetry markers, plugin names, service names, and units are defined in `AppGatewayTelemetryMarkers.h`.
 
-### Category Markers
+**For complete marker and constant reference, see:** [AppGatewayTelemetryMarkers.md](./AppGatewayTelemetryMarkers.md)
 
-| Marker | Description |
-|--------|-------------|
-| `AGW_MARKER_PLUGIN_API_ERROR` | API failures from any plugin (plugin name in payload) |
-| `AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR` | External service failures from any plugin |
-| `AGW_MARKER_PLUGIN_API_LATENCY` | API call latency metrics from any plugin |
+### Common Constants Quick Reference
 
-### Plugin Name Constants
+**Plugin Names** (use with `AGW_DEFINE_TELEMETRY_CLIENT`):
+- `AGW_PLUGIN_BADGER`, `AGW_PLUGIN_OTTSERVICES`, `AGW_PLUGIN_APPGATEWAY`
 
-Use these constants when defining the telemetry client:
+**Service Names** (use with `AGW_REPORT_EXTERNAL_SERVICE_ERROR`):
+- `AGW_SERVICE_THOR_PERMISSION`, `AGW_SERVICE_OTT_TOKEN`, `AGW_SERVICE_AUTH`
 
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `AGW_PLUGIN_APPGATEWAY` | `"AppGateway"` | App Gateway main plugin |
-| `AGW_PLUGIN_BADGER` | `"Badger"` | Badger plugin |
-| `AGW_PLUGIN_OTTSERVICES` | `"OttServices"` | OttServices plugin |
-
-### Service Name Constants
-
-Use these constants when reporting external service errors:
-
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `AGW_SERVICE_THOR_PERMISSION` | `"ThorPermissionService"` | Thor Permission gRPC service |
-| `AGW_SERVICE_OTT_TOKEN` | `"OttTokenService"` | OTT Token gRPC service |
-| `AGW_SERVICE_AUTH` | `"AuthService"` | Auth Service (COM-RPC) |
-| `AGW_SERVICE_AUTH_METADATA` | `"AuthMetadataService"` | Auth metadata collection |
-| `AGW_SERVICE_OTT_SERVICES` | `"OttServices"` | OttServices interface |
-| `AGW_SERVICE_LAUNCH_DELEGATE` | `"LaunchDelegate"` | Launch Delegate interface |
-| `AGW_SERVICE_LIFECYCLE_DELEGATE` | `"LifecycleDelegate"` | Lifecycle Delegate interface |
-| `AGW_SERVICE_PERMISSION` | `"PermissionService"` | Internal permission service |
-| `AGW_SERVICE_AUTHENTICATION` | `"AuthenticationService"` | WebSocket authentication |
+**Units** (use with `AGW_REPORT_METRIC`):
+- `AGW_UNIT_MILLISECONDS` (`"ms"`), `AGW_UNIT_COUNT` (`"count"`), `AGW_UNIT_PERCENT` (`"percent"`)
 
 ### Predefined Error Codes
 
@@ -351,16 +330,6 @@ Use these constants when reporting external service errors:
 | `AGW_ERROR_GENERAL` | `"GENERAL_ERROR"` | General/unspecified error (use only when no specific constant applies) |
 
 **Note:** API names (e.g., "GetData", "SetSetting") can be string literals as they identify specific method names. Only error codes and service names should use predefined constants.
-
-### Metric Units
-
-| Constant | Value |
-|----------|-------|
-| `AGW_UNIT_MILLISECONDS` | `"ms"` |
-| `AGW_UNIT_SECONDS` | `"sec"` |
-| `AGW_UNIT_COUNT` | `"count"` |
-| `AGW_UNIT_BYTES` | `"bytes"` |
-| `AGW_UNIT_PERCENT` | `"percent"` |
 
 ---
 
