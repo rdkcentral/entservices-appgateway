@@ -51,6 +51,11 @@ public:
     {
         if (mNetworkManager != nullptr)
         {
+            if (mNotificationHandler.GetRegistered())
+            {
+                mNetworkManager->Unregister(&mNotificationHandler);
+                mNotificationHandler.SetRegistered(false);
+            }
             mNetworkManager->Release();
             mNetworkManager = nullptr;
         }
@@ -210,21 +215,6 @@ private:
         NetworkNotificationHandler(NetworkDelegate &parent) : mParent(parent), registered(false) {}
         ~NetworkNotificationHandler() {}
 
-        void onInterfaceStateChange(const Exchange::INetworkManager::InterfaceState state, const string interface)
-        {
-            LOGDBG("onInterfaceStateChange: interface=%s, state=%d", interface.c_str(), state);
-        }
-
-        void onActiveInterfaceChange(const string prevActiveInterface, const string currentActiveInterface)
-        {
-            LOGDBG("onActiveInterfaceChange: prev=%s, current=%s", prevActiveInterface.c_str(), currentActiveInterface.c_str());
-        }
-
-        void onIPAddressChange(const string interface, const string ipversion, const string ipaddress, const Exchange::INetworkManager::IPStatus status)
-        {
-            LOGDBG("onIPAddressChange: interface=%s, ip=%s, status=%d", interface.c_str(), ipaddress.c_str(), status);
-        }
-
         void onInternetStatusChange(const Exchange::INetworkManager::InternetStatus prevState, const Exchange::INetworkManager::InternetStatus currState, const string interface)
         {
             LOGINFO("onInternetStatusChange: prevState=%d, currState=%d, interface=%s", prevState, currState, interface.c_str());
@@ -245,21 +235,6 @@ private:
             jsonStream << "{\"network\":{\"state\":\"" << statusToString(currState) 
                       << "\",\"prevState\":\"" << statusToString(prevState) << "\"}}";
             mParent.Dispatch("device.onNetworkChanged", jsonStream.str());
-        }
-
-        void onAvailableSSIDs(const string jsonOfScanResults)
-        {
-            LOGDBG("onAvailableSSIDs received");
-        }
-
-        void onWiFiStateChange(const Exchange::INetworkManager::WiFiState state)
-        {
-            LOGDBG("onWiFiStateChange: state=%d", state);
-        }
-
-        void onWiFiSignalQualityChange(const string ssid, const string strength, const string noise, const string snr, const Exchange::INetworkManager::WiFiSignalQuality quality)
-        {
-            LOGDBG("onWiFiSignalQualityChange: ssid=%s", ssid.c_str());
         }
 
         // Registration management methods
