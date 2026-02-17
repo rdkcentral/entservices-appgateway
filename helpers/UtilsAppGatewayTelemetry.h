@@ -56,9 +56,19 @@
  */
 
 #include <interfaces/IAppGateway.h>
+#include <chrono>
 #include "UtilsLogging.h"
 #include "UtilsCallsign.h"
 #include "AppGatewayTelemetryMarkers.h"
+
+// Ensure gDefaultLogLevel from utils.h (via UtilsCallsign.h) is considered used
+// by checking the log level at static initialization time
+namespace {
+    static inline bool __CheckLogLevelInitialized() {
+        return (gDefaultLogLevel >= FATAL_LEVEL);
+    }
+    static const bool __logLevelChecked [[maybe_unused]] = __CheckLogLevelInitialized();
+}
 
 namespace WPEFramework {
 namespace Plugin {
@@ -349,7 +359,29 @@ namespace AppGatewayTelemetryHelper {
         const char* GetLocalPluginName() { \
             return pluginName; \
         } \
-    }
+    } \
+    namespace WPEFramework { \
+    namespace Plugin { \
+    namespace AppGatewayTelemetryHelper { \
+        inline ScopedApiTimer::~ScopedApiTimer() \
+        { \
+            auto endTime = std::chrono::steady_clock::now(); \
+            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>( \
+                endTime - mStartTime).count(); \
+            auto& client = GetLocalTelemetryClient(); \
+            if (client.IsAvailable()) { \
+                if (mFailed) { \
+                    client.RecordApiError(mApiName, mErrorDetails); \
+                    std::string metricName = "AppGw" + client.GetPluginName() + "_FailedApiLatency_split"; \
+                    client.RecordMetric(metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS); \
+                } else { \
+                    std::string metricName = "AppGw" + client.GetPluginName() + "_ApiLatency_split"; \
+                    client.RecordMetric(metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS); \
+                } \
+            } \
+        } \
+    }}} \
+
 
 /**
  * @brief Initialize the AppGateway telemetry client
@@ -545,24 +577,7 @@ namespace AppGatewayTelemetryHelper {
         {
         }
 
-        ~ScopedApiTimer()
-        {
-            auto endTime = std::chrono::steady_clock::now();
-            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-                endTime - mStartTime).count();
-
-            auto& client = GetLocalTelemetryClient();
-            if (client.IsAvailable()) {
-                if (mFailed) {
-                    client.RecordApiError(mApiName, mErrorDetails);
-                    std::string metricName = "AppGw" + client.GetPluginName() + "_FailedApiLatency_split";
-                    client.RecordMetric(metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
-                } else {
-                    std::string metricName = "AppGw" + client.GetPluginName() + "_ApiLatency_split";
-                    client.RecordMetric(metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
-                }
-            }
-        }
+        ~ScopedApiTimer(); // Implementation provided below via macro expansion
 
         void SetFailed(const std::string& errorDetails)
         {
