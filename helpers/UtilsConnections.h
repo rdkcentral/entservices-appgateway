@@ -37,7 +37,7 @@ namespace WPEFramework
 
             // Find key position
             size_t pos = query.find(key);
-            if (pos == std::string::npos)
+            if (std::string::npos == pos)
             {
                 LOGWARN("%s not found in query: %s\n", key.c_str(), query.c_str());
                 return "";
@@ -53,7 +53,7 @@ namespace WPEFramework
 
             // Check if there any additional parameter keys
             size_t additional_param_key = value.find("&");
-            if (additional_param_key != std::string::npos)
+            if (std::string::npos != additional_param_key)
             {
                 std::string new_value = value.substr(0,additional_param_key);
                 if (new_value.empty()) {
