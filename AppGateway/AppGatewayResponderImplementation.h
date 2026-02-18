@@ -30,6 +30,7 @@
 #include <unordered_set>
 #include <sstream>
 #include <atomic>
+#include <memory>
 
 
 namespace WPEFramework {
@@ -37,6 +38,9 @@ namespace Plugin {
     using Context = Exchange::GatewayContext;
     class AppGatewayResponderImplementation : public Exchange::IConfiguration, public Exchange::IAppGatewayResponder
     {
+    public:
+        using SharedPtr = std::shared_ptr<AppGatewayResponderImplementation>;
+        using WeakPtr = std::weak_ptr<AppGatewayResponderImplementation>;
 
     public:
         AppGatewayResponderImplementation();
@@ -73,12 +77,12 @@ namespace Plugin {
         class EXTERNAL WsMsgJob : public Core::IDispatch
         {
         protected:
-            WsMsgJob(AppGatewayResponderImplementation *parent, 
+            WsMsgJob(WeakPtr parent, 
             const std::string& method,
             const std::string& params,
             const uint32_t requestId,
             const uint32_t connectionId)
-                : mParent(*parent), mMethod(method), mParams(params), mRequestId(requestId), mConnectionId(connectionId)
+                : mParent(parent), mMethod(method), mParams(params), mRequestId(requestId), mConnectionId(connectionId)
             {
             }
 
@@ -91,7 +95,7 @@ namespace Plugin {
             }
 
         public:
-            static Core::ProxyType<Core::IDispatch> Create(AppGatewayResponderImplementation *parent,
+            static Core::ProxyType<Core::IDispatch> Create(WeakPtr parent,
                 const std::string& method, const std::string& params, const uint32_t requestId,
                 const uint32_t connectionId)
             {
@@ -99,11 +103,13 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                mParent.DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
+                if (auto sharedParent = mParent.lock()) {
+                    sharedParent->DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
+                }
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            WeakPtr mParent;
             const std::string mMethod;
             const std::string mParams;
             const uint32_t mRequestId;
@@ -113,12 +119,12 @@ namespace Plugin {
         class EXTERNAL RespondJob : public Core::IDispatch
         {
         protected:
-            RespondJob(AppGatewayResponderImplementation *parent, 
+            RespondJob(WeakPtr parent, 
             const uint32_t connectionId,
             const uint32_t requestId,
             const std::string& payload
             )
-                : mParent(*parent), mPayload(payload), mRequestId(requestId), mConnectionId(connectionId)
+                : mParent(parent), mPayload(payload), mRequestId(requestId), mConnectionId(connectionId)
             {
             }
 
@@ -131,18 +137,20 @@ namespace Plugin {
             }
 
         public:
-            static Core::ProxyType<Core::IDispatch> Create(AppGatewayResponderImplementation *parent,
+            static Core::ProxyType<Core::IDispatch> Create(WeakPtr parent,
                 const uint32_t connectionId, const uint32_t requestId, const std::string& payload)
             {
                 return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<RespondJob>::Create(parent, connectionId, requestId, payload)));
             }
             virtual void Dispatch()
             {
-                mParent.ReturnMessageInSocket(mConnectionId, mRequestId, mPayload);                
+                if (auto sharedParent = mParent.lock()) {
+                    sharedParent->ReturnMessageInSocket(mConnectionId, mRequestId, mPayload);                
+                }
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            WeakPtr mParent;
             const std::string mPayload;
             const uint32_t mRequestId;
             const uint32_t mConnectionId;
@@ -151,12 +159,12 @@ namespace Plugin {
           class EXTERNAL EmitJob : public Core::IDispatch
         {
         protected:
-            EmitJob(AppGatewayResponderImplementation *parent, 
+            EmitJob(WeakPtr parent, 
             const uint32_t connectionId,
             const std::string& designator,
             const std::string& payload
             )
-                : mParent(*parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId)
+                : mParent(parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId)
             {
             }
 
@@ -169,18 +177,20 @@ namespace Plugin {
             }
 
         public:
-            static Core::ProxyType<Core::IDispatch> Create(AppGatewayResponderImplementation *parent,
+            static Core::ProxyType<Core::IDispatch> Create(WeakPtr parent,
                 const uint32_t connectionId, const std::string& designator, const std::string& payload)
             {
                 return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<EmitJob>::Create(parent, connectionId, designator, payload)));
             }
             virtual void Dispatch()
             {
-                mParent.mWsManager.DispatchNotificationToConnection(mConnectionId, mPayload, mDesignator);
+                if (auto sharedParent = mParent.lock()) {
+                    sharedParent->mWsManager.DispatchNotificationToConnection(mConnectionId, mPayload, mDesignator);
+                }
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            WeakPtr mParent;
             const std::string mPayload;
             const std::string mDesignator;
             const uint32_t mConnectionId;
@@ -189,13 +199,13 @@ namespace Plugin {
         class EXTERNAL RequestJob : public Core::IDispatch
         {
         protected:
-            RequestJob(AppGatewayResponderImplementation *parent, 
+            RequestJob(WeakPtr parent, 
             const uint32_t connectionId,
             const uint32_t requestId,
             const std::string& designator,
             const std::string& payload
             )
-                : mParent(*parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId), mRequestId(requestId)
+                : mParent(parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId), mRequestId(requestId)
             {
             }
 
@@ -208,18 +218,20 @@ namespace Plugin {
             }
 
         public:
-            static Core::ProxyType<Core::IDispatch> Create(AppGatewayResponderImplementation *parent,
+            static Core::ProxyType<Core::IDispatch> Create(WeakPtr parent,
                 const uint32_t connectionId, const uint32_t mRequestId, const std::string& designator, const std::string& payload)
             {
                 return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<RequestJob>::Create(parent, connectionId, mRequestId, designator, payload)));
             }
             virtual void Dispatch()
             {
-                mParent.mWsManager.SendRequestToConnection(mConnectionId, mDesignator, mRequestId, mPayload);
+                if (auto sharedParent = mParent.lock()) {
+                    sharedParent->mWsManager.SendRequestToConnection(mConnectionId, mDesignator, mRequestId, mPayload);
+                }
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            WeakPtr mParent;
             const std::string mPayload;
             const std::string mDesignator;
             const uint32_t mConnectionId;
@@ -229,12 +241,12 @@ namespace Plugin {
         class EXTERNAL ConnectionStatusNotificationJob : public Core::IDispatch
         {
         protected:
-            ConnectionStatusNotificationJob(AppGatewayResponderImplementation *parent,
+            ConnectionStatusNotificationJob(WeakPtr parent,
             const uint32_t connectionId,
             const std::string& appId,
             const bool connected
             )
-                : mParent(*parent), mConnectionId(connectionId), mAppId(appId), mConnected(connected)
+                : mParent(parent), mConnectionId(connectionId), mAppId(appId), mConnected(connected)
             {
             }
 
@@ -247,18 +259,20 @@ namespace Plugin {
             }
 
         public:
-            static Core::ProxyType<Core::IDispatch> Create(AppGatewayResponderImplementation *parent,
+            static Core::ProxyType<Core::IDispatch> Create(WeakPtr parent,
                 const uint32_t connectionId, const std::string& appId, const bool connected)
             {
                 return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<ConnectionStatusNotificationJob>::Create(parent, connectionId, appId, connected)));
             }
             virtual void Dispatch()
             {
-                mParent.OnConnectionStatusChanged(mAppId, mConnectionId, mConnected);
+                if (auto sharedParent = mParent.lock()) {
+                    sharedParent->OnConnectionStatusChanged(mAppId, mConnectionId, mConnected);
+                }
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            WeakPtr mParent;
             const uint32_t mConnectionId;
             const std::string mAppId;
             const bool mConnected;
@@ -362,6 +376,11 @@ namespace Plugin {
         bool mEnhancedLoggingEnabled;
         CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
         std::atomic<bool> mIsDestroyed;
+        SharedPtr mSelfWeakRef;
+        
+    public:
+        void SetSelfReference(SharedPtr self) { mSelfWeakRef = self; }
+        WeakPtr GetWeakSelf() { return mSelfWeakRef; }
     };
 } // namespace Plugin
 } // namespace WPEFramework

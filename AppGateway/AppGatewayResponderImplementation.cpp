@@ -67,6 +67,9 @@ namespace WPEFramework
             // Clean up WebSocket handlers before destroying the object
             CleanupWebsocket();
             
+            // Clear self-reference to prevent circular reference
+            mSelfWeakRef.reset();
+            
             if (nullptr != mService)
             {
                 mService->Release();
@@ -94,6 +97,10 @@ namespace WPEFramework
             ASSERT(shell != nullptr);
             mService = shell;
             mService->AddRef();
+            
+            // Create self-reference for safe job handling
+            SetSelfReference(SharedPtr(this, [](AppGatewayResponderImplementation*){})); // Custom deleter that does nothing since this is managed by Thunder framework
+            
             result = InitializeWebsocket();
 
             return result;
@@ -114,22 +121,32 @@ namespace WPEFramework
             LOGINFO("Connector: %s", config.Connector.Value().c_str());
             Core::NodeId source(config.Connector.Value().c_str());
             LOGINFO("Parsed port: %d", source.PortNumber());
+            
+            WeakPtr weakSelf = GetWeakSelf();
             mWsManager.SetMessageHandler(
-                [this](const std::string &method, const std::string &params, const int requestId, const uint32_t connectionId)
+                [weakSelf](const std::string &method, const std::string &params, const int requestId, const uint32_t connectionId)
                 {
-                    // Check if object is destroyed to prevent use-after-free
-                    if (mIsDestroyed.load()) {
-                        LOGERR("WebSocket message handler called after object destruction");
-                        return;
+                    if (auto sharedSelf = weakSelf.lock()) {
+                        // Check if object is destroyed to prevent use-after-free
+                        if (sharedSelf->mIsDestroyed.load()) {
+                            LOGERR("WebSocket message handler called after object destruction");
+                            return;
+                        }
+                        Core::IWorkerPool::Instance().Submit(WsMsgJob::Create(weakSelf, method, params, requestId, connectionId));
                     }
-                    Core::IWorkerPool::Instance().Submit(WsMsgJob::Create(this, method, params, requestId, connectionId));
                 });
 
             mWsManager.SetAuthHandler(
-                [this](const uint32_t connectionId, const std::string &token) -> bool
+                [weakSelf](const uint32_t connectionId, const std::string &token) -> bool
                 {
+                    auto sharedSelf = weakSelf.lock();
+                    if (!sharedSelf) {
+                        LOGERR("WebSocket auth handler called after object destruction");
+                        return false;
+                    }
+                    
                     // Check if object is destroyed to prevent use-after-free
-                    if (mIsDestroyed.load()) {
+                    if (sharedSelf->mIsDestroyed.load()) {
                         LOGERR("WebSocket auth handler called after object destruction");
                         return false;
                     }
@@ -141,34 +158,34 @@ namespace WPEFramework
                         return false;
                     }
 
-                    if ( mAuthenticator==nullptr ) {
+                    if ( sharedSelf->mAuthenticator==nullptr ) {
                         if (ConfigUtils::useAppManagers()) {
-                            mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN);
+                            sharedSelf->mAuthenticator = sharedSelf->mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN);
                         } else {
-                            mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
+                            sharedSelf->mAuthenticator = sharedSelf->mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
                         }
-                        if (mAuthenticator == nullptr) {
+                        if (sharedSelf->mAuthenticator == nullptr) {
                             LOGERR("Authenticator Not available");
                             return false;
                         }
                     }
 
                     string appId;
-                    if (Core::ERROR_NONE == mAuthenticator->Authenticate(sessionId,appId)) {
+                    if (Core::ERROR_NONE == sharedSelf->mAuthenticator->Authenticate(sessionId,appId)) {
                         LOGTRACE("APP ID %s", appId.c_str());
-                        mAppIdRegistry.Add(connectionId, appId);
-                        mCompliantJsonRpcRegistry.CheckAndAddCompliantJsonRpc(connectionId, token);
+                        sharedSelf->mAppIdRegistry.Add(connectionId, appId);
+                        sharedSelf->mCompliantJsonRpcRegistry.CheckAndAddCompliantJsonRpc(connectionId, token);
                         #ifdef ENABLE_APP_GATEWAY_AUTOMATION
                         // Check if this is the automation client
                         #ifdef AUTOMATION_APP_ID
                         if (appId == AUTOMATION_APP_ID) {
-                            mWsManager.SetAutomationId(connectionId);
+                            sharedSelf->mWsManager.SetAutomationId(connectionId);
                             LOGINFO("Automation server connected with ID: %d, appId: %s", connectionId, appId.c_str());
                         }
                         #endif
                         #endif
                         
-                        Core::IWorkerPool::Instance().Submit(ConnectionStatusNotificationJob::Create(this, connectionId, appId, true));
+                        Core::IWorkerPool::Instance().Submit(ConnectionStatusNotificationJob::Create(weakSelf, connectionId, appId, true));
 
                         return true;
                     }
@@ -177,26 +194,32 @@ namespace WPEFramework
                 });
 
             mWsManager.SetDisconnectHandler(
-                [this](const uint32_t connectionId)
+                [weakSelf](const uint32_t connectionId)
                 {
+                    auto sharedSelf = weakSelf.lock();
+                    if (!sharedSelf) {
+                        LOGERR("WebSocket disconnect handler called after object destruction");
+                        return;
+                    }
+                    
                     // Check if object is destroyed to prevent use-after-free
-                    if (mIsDestroyed.load()) {
+                    if (sharedSelf->mIsDestroyed.load()) {
                         LOGERR("WebSocket disconnect handler called after object destruction");
                         return;
                     }
                     
                     LOGINFO("Connection disconnected: %d", connectionId);
                     string appId;
-                    if (!mAppIdRegistry.Get(connectionId, appId)) {
+                    if (!sharedSelf->mAppIdRegistry.Get(connectionId, appId)) {
                         LOGERR("No App ID found for connection %d during disconnect", connectionId);
                     } else {
                         LOGINFO("App ID %s found for connection %d during disconnect", appId.c_str(), connectionId);
-                        Core::IWorkerPool::Instance().Submit(ConnectionStatusNotificationJob::Create(this, connectionId, appId, false));
+                        Core::IWorkerPool::Instance().Submit(ConnectionStatusNotificationJob::Create(weakSelf, connectionId, appId, false));
                     }
                     
-                    mAppIdRegistry.Remove(connectionId);
-                    mCompliantJsonRpcRegistry.CleanupConnectionId(connectionId);
-                    Exchange::IAppNotifications* appNotifications = mService->QueryInterfaceByCallsign<Exchange::IAppNotifications>(APP_NOTIFICATIONS_CALLSIGN);
+                    sharedSelf->mAppIdRegistry.Remove(connectionId);
+                    sharedSelf->mCompliantJsonRpcRegistry.CleanupConnectionId(connectionId);
+                    Exchange::IAppNotifications* appNotifications = sharedSelf->mService->QueryInterfaceByCallsign<Exchange::IAppNotifications>(APP_NOTIFICATIONS_CALLSIGN);
                     if (appNotifications != nullptr) {
                         if (Core::ERROR_NONE != appNotifications->Cleanup(connectionId, APP_GATEWAY_CALLSIGN)) {
                             LOGERR("AppNotifications Cleanup failed for connectionId: %d", connectionId);
@@ -212,7 +235,7 @@ namespace WPEFramework
 
         Core::hresult AppGatewayResponderImplementation::Respond(const Context& context, const string& payload)
         {
-            Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context.connectionId, context.requestId, payload));
+            Core::IWorkerPool::Instance().Submit(RespondJob::Create(GetWeakSelf(), context.connectionId, context.requestId, payload));
             return Core::ERROR_NONE;
         }
 
@@ -220,17 +243,17 @@ namespace WPEFramework
                 const string& method /* @in */, const string& payload /* @in @opaque */) {
             // check if the connection is compliant with JSON RPC
             if (mCompliantJsonRpcRegistry.IsCompliantJsonRpc(context.connectionId)) {
-                Core::IWorkerPool::Instance().Submit(EmitJob::Create(this, context.connectionId, method, payload));
+                Core::IWorkerPool::Instance().Submit(EmitJob::Create(GetWeakSelf(), context.connectionId, method, payload));
             }
             else {
-                Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context.connectionId, context.requestId, payload));
+                Core::IWorkerPool::Instance().Submit(RespondJob::Create(GetWeakSelf(), context.connectionId, context.requestId, payload));
             }
             return Core::ERROR_NONE;
         }
 
         Core::hresult AppGatewayResponderImplementation::Request(const uint32_t connectionId /* @in */, 
                 const uint32_t id /* @in */, const string& method /* @in */, const string& params /* @in @opaque */) {
-            Core::IWorkerPool::Instance().Submit(RequestJob::Create(this, connectionId, id, method, params));
+            Core::IWorkerPool::Instance().Submit(RequestJob::Create(GetWeakSelf(), connectionId, id, method, params));
             return Core::ERROR_NONE;
         }
 
@@ -341,11 +364,8 @@ namespace WPEFramework
         void AppGatewayResponderImplementation::CleanupWebsocket()
         {
             // If the WebSocket channel is still active, close it first to prevent new callbacks
-            if (true == mWsManager.HasActiveChannel())
-            {
-                mWsManager.CloseChannel();
-            }
-
+            // Note: mChannel will be cleaned up in WebSocketConnectionManager destructor
+            
             LOGINFO("Cleaning up WebSocket handlers to prevent use-after-free");
 
             // Clear all handlers by setting them to safe no-op lambdas to avoid use-after-free
