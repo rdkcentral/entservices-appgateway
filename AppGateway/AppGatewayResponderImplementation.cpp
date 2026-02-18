@@ -376,7 +376,7 @@ namespace WPEFramework
 
             // Clear all handlers by setting them to safe no-op lambdas to avoid use-after-free
             // when the WebSocket manager might still be holding lambda references
-            mWsManager.SetMessageHandler([](const std::string&, const std::string&, const uint32_t, const uint32_t) {
+            mWsManager.SetMessageHandler([](const std::string&, const std::string&, const int, const uint32_t) {
                 // No-op handler to replace the original lambda that captured 'this'
             });
 
