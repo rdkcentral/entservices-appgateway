@@ -29,6 +29,7 @@
 #include <map>
 #include <unordered_set>
 #include <sstream>
+#include <atomic>
 
 
 namespace WPEFramework {
@@ -355,10 +356,12 @@ namespace Plugin {
         Exchange::IAppGatewayResolver *mResolver; // Shared pointer to InternalGatewayResolver
         AppIdRegistry mAppIdRegistry;
         uint32_t InitializeWebsocket();
+        void CleanupWebsocket();
         mutable Core::CriticalSection mConnectionStatusImplLock;
         std::list<Exchange::IAppGatewayResponder::INotification*> mConnectionStatusNotification;
         bool mEnhancedLoggingEnabled;
         CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
+        std::atomic<bool> mIsDestroyed;
     };
 } // namespace Plugin
 } // namespace WPEFramework

@@ -44,7 +44,8 @@ namespace WPEFramework
             mAuthenticator(nullptr),
             mResolver(nullptr),
             mConnectionStatusImplLock(),
-            mEnhancedLoggingEnabled(false)
+            mEnhancedLoggingEnabled(false),
+            mIsDestroyed(false)
         {
             LOGINFO("AppGatewayResponderImplementation constructor");
 #ifdef ENABLE_APP_GATEWAY_AUTOMATION
@@ -59,6 +60,13 @@ namespace WPEFramework
         AppGatewayResponderImplementation::~AppGatewayResponderImplementation()
         {
             LOGINFO("AppGatewayResponderImplementation destructor");
+            
+            // Mark object as destroyed to prevent lambda callbacks from accessing invalid memory
+            mIsDestroyed = true;
+            
+            // Clean up WebSocket handlers before destroying the object
+            CleanupWebsocket();
+            
             if (nullptr != mService)
             {
                 mService->Release();
@@ -109,12 +117,23 @@ namespace WPEFramework
             mWsManager.SetMessageHandler(
                 [this](const std::string &method, const std::string &params, const int requestId, const uint32_t connectionId)
                 {
+                    // Check if object is destroyed to prevent use-after-free
+                    if (mIsDestroyed.load()) {
+                        LOGERR("WebSocket message handler called after object destruction");
+                        return;
+                    }
                     Core::IWorkerPool::Instance().Submit(WsMsgJob::Create(this, method, params, requestId, connectionId));
                 });
 
             mWsManager.SetAuthHandler(
                 [this](const uint32_t connectionId, const std::string &token) -> bool
                 {
+                    // Check if object is destroyed to prevent use-after-free
+                    if (mIsDestroyed.load()) {
+                        LOGERR("WebSocket auth handler called after object destruction");
+                        return false;
+                    }
+                    
                     string sessionId = Utils::ResolveQuery(token, "session");
                     if (sessionId.empty())
                     {
@@ -160,6 +179,12 @@ namespace WPEFramework
             mWsManager.SetDisconnectHandler(
                 [this](const uint32_t connectionId)
                 {
+                    // Check if object is destroyed to prevent use-after-free
+                    if (mIsDestroyed.load()) {
+                        LOGERR("WebSocket disconnect handler called after object destruction");
+                        return;
+                    }
+                    
                     LOGINFO("Connection disconnected: %d", connectionId);
                     string appId;
                     if (!mAppIdRegistry.Get(connectionId, appId)) {
@@ -222,7 +247,6 @@ namespace WPEFramework
                                                      const uint32_t requestId,
                                                      const uint32_t connectionId)
         {
-            std::string resolution;
             string appId;
 
             if (mAppIdRegistry.Get(connectionId, appId)) {
@@ -312,6 +336,26 @@ namespace WPEFramework
             // Notify automation server of connection status change
             mWsManager.UpdateConnection(connectionId, appId, connected);
             #endif
+        }
+
+        void AppGatewayResponderImplementation::CleanupWebsocket()
+        {
+            LOGINFO("Cleaning up WebSocket handlers to prevent use-after-free");
+            
+            // Clear all handlers by setting them to safe no-op lambdas to avoid use-after-free
+            // when the WebSocket manager might still be holding lambda references
+            mWsManager.SetMessageHandler([](const std::string&, const std::string&, const uint32_t, const uint32_t) {
+                // No-op handler to replace the original lambda that captured 'this'
+            });
+            
+            mWsManager.SetAuthHandler([](const uint32_t, const std::string&) -> bool {
+                // No-op handler - reject all authentication attempts
+                return false;
+            });
+            
+            mWsManager.SetDisconnectHandler([](const uint32_t) {
+                // No-op handler to replace the original lambda that captured 'this'
+            });
         }
 
     } // namespace Plugin
