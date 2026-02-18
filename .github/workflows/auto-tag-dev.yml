@@ -9,8 +9,8 @@ on:
 jobs:
   auto-tag:
     runs-on: ubuntu-latest
-    # Only run when PR is merged, not just closed
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    # Only run when PR is merged, not just closed, or when manually dispatched
+    if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write  # Required to read repository contents and push tags
     
