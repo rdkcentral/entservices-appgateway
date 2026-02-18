@@ -104,7 +104,9 @@ namespace Plugin {
             virtual void Dispatch()
             {
                 if (auto sharedParent = mParent.lock()) {
-                    sharedParent->DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
+                    if (!sharedParent->mIsDestroyed) {
+                        sharedParent->DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
+                    }
                 }
             }
 
