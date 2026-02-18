@@ -31,6 +31,7 @@
 #include <sstream>
 #include <atomic>
 #include <memory>
+#include <utility>
 
 
 namespace WPEFramework {
@@ -379,9 +380,8 @@ namespace Plugin {
         CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
         std::atomic<bool> mIsDestroyed;
         SharedPtr mSelfRef;
-        
     public:
-        void SetSelfReference(SharedPtr self) { mSelfRef = self; }
+        void SetSelfReference(SharedPtr self) { mSelfRef = std::move(self); }
         WeakPtr GetWeakSelf() const { return WeakPtr(mSelfRef); }
     };
 } // namespace Plugin

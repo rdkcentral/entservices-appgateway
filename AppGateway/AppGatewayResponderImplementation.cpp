@@ -165,7 +165,7 @@ namespace WPEFramework
                         } else {
                             sharedSelf->mAuthenticator = sharedSelf->mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
                         }
-                        if (sharedSelf->mAuthenticator == nullptr) {
+                        if (nullptr == sharedSelf->mAuthenticator) {
                             LOGERR("Authenticator Not available");
                             return false;
                         }
