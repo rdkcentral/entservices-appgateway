@@ -34,7 +34,7 @@
 namespace WPEFramework {
 namespace Plugin {
     using Context = Exchange::GatewayContext;
-    class AppGatewayResponderImplementation : public Exchange::IConfiguration, public Exchange::IAppGatewayResponder
+    class AppGatewayResponderImplementation : public Exchange::IConfiguration, public Exchange::IAppGatewayResponder, public std::enable_shared_from_this<AppGatewayResponderImplementation>
     {
 
     public:

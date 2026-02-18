@@ -106,14 +106,20 @@ namespace WPEFramework
             LOGINFO("Connector: %s", config.Connector.Value().c_str());
             Core::NodeId source(config.Connector.Value().c_str());
             LOGINFO("Parsed port: %d", source.PortNumber());
+
+            std::weak_ptr<AppGatewayResponderImplementation> weakThis = shared_from_this();
+
             mWsManager.SetMessageHandler(
-                [this](const std::string &method, const std::string &params, const int requestId, const uint32_t connectionId)
+                [weakThis](const std::string &method, const std::string &params, const int requestId, const uint32_t connectionId)
                 {
-                    Core::IWorkerPool::Instance().Submit(WsMsgJob::Create(this, method, params, requestId, connectionId));
+                    if (auto sharedThis = weakThis.lock())
+                    {
+                        Core::IWorkerPool::Instance().Submit(WsMsgJob::Create(sharedThis.get(), method, params, requestId, connectionId));
+                    }
                 });
 
             mWsManager.SetAuthHandler(
-                [this](const uint32_t connectionId, const std::string &token) -> bool
+                [weakThis](const uint32_t connectionId, const std::string &token) -> bool
                 {
                     string sessionId = Utils::ResolveQuery(token, "session");
                     if (sessionId.empty())
@@ -148,8 +154,11 @@ namespace WPEFramework
                         }
                         #endif
                         #endif
-                        
-                        Core::IWorkerPool::Instance().Submit(ConnectionStatusNotificationJob::Create(this, connectionId, appId, true));
+
+                        if (auto sharedThis = weakThis.lock())
+                        {
+                            Core::IWorkerPool::Instance().Submit(ConnectionStatusNotificationJob::Create(sharedThis.get(), connectionId, appId, true));
+                        }
 
                         return true;
                     }
@@ -158,7 +167,7 @@ namespace WPEFramework
                 });
 
             mWsManager.SetDisconnectHandler(
-                [this](const uint32_t connectionId)
+                [weakThis](const uint32_t connectionId)
                 {
                     LOGINFO("Connection disconnected: %d", connectionId);
                     string appId;
@@ -166,7 +175,10 @@ namespace WPEFramework
                         LOGERR("No App ID found for connection %d during disconnect", connectionId);
                     } else {
                         LOGINFO("App ID %s found for connection %d during disconnect", appId.c_str(), connectionId);
-                        Core::IWorkerPool::Instance().Submit(ConnectionStatusNotificationJob::Create(this, connectionId, appId, false));
+                        if (auto sharedThis = weakThis.lock())
+                        {
+                            Core::IWorkerPool::Instance().Submit(ConnectionStatusNotificationJob::Create(sharedThis.get(), connectionId, appId, false));
+                        }
                     }
                     
                     mAppIdRegistry.Remove(connectionId);
