@@ -132,12 +132,7 @@ namespace WPEFramework
             mWsManager.SetMessageHandler(
                 [weakSelf](const std::string &method, const std::string &params, const int requestId, const uint32_t connectionId)
                 {
-                    if (auto sharedSelf = weakSelf.lock()) {
-                        // Check if object is destroyed to prevent use-after-free
-                        if (sharedSelf->mIsDestroyed.load()) {
-                            LOGERR("WebSocket message handler called after object destruction");
-                            return;
-                        }
+                    if (weakSelf.lock()) {
                         Core::IWorkerPool::Instance().Submit(WsMsgJob::Create(weakSelf, method, params, requestId, connectionId));
                     }
                 });
