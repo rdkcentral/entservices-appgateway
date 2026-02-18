@@ -98,9 +98,15 @@ namespace WPEFramework
             mService = shell;
             mService->AddRef();
             
-            // Create self-reference for safe job handling
-            SetSelfReference(SharedPtr(this, [](AppGatewayResponderImplementation*){})); // Custom deleter that does nothing since this is managed by Thunder framework
-            
+            // Create self-reference for safe job handling.
+            // Take an additional reference that will be released when the last shared_ptr goes out of scope,
+            // so the shared_ptr lifetime matches the Thunder framework lifetime management.
+            AddRef();
+            SetSelfReference(SharedPtr(this, [](AppGatewayResponderImplementation* instance){
+                if (instance != nullptr) {
+                    instance->Release();
+                }
+            }));
             result = InitializeWebsocket();
 
             return result;
