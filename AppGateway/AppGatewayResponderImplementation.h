@@ -378,11 +378,11 @@ namespace Plugin {
         bool mEnhancedLoggingEnabled;
         CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
         std::atomic<bool> mIsDestroyed;
-        SharedPtr mSelfWeakRef;
+        SharedPtr mSelfRef;
         
     public:
-        void SetSelfReference(SharedPtr self) { mSelfWeakRef = self; }
-        WeakPtr GetWeakSelf() { return mSelfWeakRef; }
+        void SetSelfReference(SharedPtr self) { mSelfRef = self; }
+        WeakPtr GetWeakSelf() const { return WeakPtr(mSelfRef); }
     };
 } // namespace Plugin
 } // namespace WPEFramework
