@@ -62,7 +62,7 @@ namespace WPEFramework
             LOGINFO("AppGatewayResponderImplementation destructor");
             
             // Mark object as destroyed to prevent lambda callbacks from accessing invalid memory
-            mIsDestroyed = true;
+            mIsDestroyed.store(true, std::memory_order_release);
             
             // Clean up WebSocket handlers before destroying the object
             CleanupWebsocket();
