@@ -340,19 +340,24 @@ namespace WPEFramework
 
         void AppGatewayResponderImplementation::CleanupWebsocket()
         {
+            // If the WebSocket channel is still active, close it first to prevent new callbacks
+            if (true == mWsManager.HasActiveChannel())
+            {
+                mWsManager.CloseChannel();
+            }
+
             LOGINFO("Cleaning up WebSocket handlers to prevent use-after-free");
-            
+
             // Clear all handlers by setting them to safe no-op lambdas to avoid use-after-free
             // when the WebSocket manager might still be holding lambda references
             mWsManager.SetMessageHandler([](const std::string&, const std::string&, const uint32_t, const uint32_t) {
                 // No-op handler to replace the original lambda that captured 'this'
             });
-            
+
             mWsManager.SetAuthHandler([](const uint32_t, const std::string&) -> bool {
                 // No-op handler - reject all authentication attempts
                 return false;
             });
-            
             mWsManager.SetDisconnectHandler([](const uint32_t) {
                 // No-op handler to replace the original lambda that captured 'this'
             });
