@@ -20,7 +20,6 @@
 #include "AppGatewayTelemetry.h"
 #include "UtilsLogging.h"
 #include "UtilsTelemetry.h"
-//#include <plugins/json/JsonData_Container.h>
 #include <limits>
 #include <sstream>
 #include <iomanip>
@@ -31,6 +30,7 @@ namespace Plugin {
     AppGatewayTelemetry& AppGatewayTelemetry::getInstance()
     {
         static Core::ProxyType<AppGatewayTelemetry> instance = Core::ProxyType<AppGatewayTelemetry>::Create();
+        ASSERT(instance.IsValid());
         return *instance;
     }
 
@@ -475,19 +475,10 @@ namespace Plugin {
 
     void AppGatewayTelemetry::SendT2Event(const char* marker, const std::string& payload)
     {
-        // Use the Utils::Telemetry helper which wraps T2 calls
-        // sendMessage takes non-const char* so we need to make copies
-        char* markerCopy = strdup(marker);
-        char* payloadCopy = strdup(payload.c_str());
-
-        if (markerCopy && payloadCopy) {
-            Utils::Telemetry::sendMessage(markerCopy, payloadCopy);
-            free(payloadCopy);
-        }
-
-        if (markerCopy) {
-            free(markerCopy);
-        }
+        // The T2 API signature takes non-const char* but doesn't modify the strings
+        // Safe to use const_cast to avoid unnecessary malloc/copy overhead
+        Utils::Telemetry::sendMessage(const_cast<char*>(marker), 
+                                       const_cast<char*>(payload.c_str()));
     }
 
     void AppGatewayTelemetry::ResetHealthStats()
