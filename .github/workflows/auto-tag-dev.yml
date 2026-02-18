@@ -6,6 +6,10 @@ on:
     types: [ closed ]
   workflow_dispatch: 
 
+concurrency:
+  group: auto-tag-develop
+  cancel-in-progress: false
+
 jobs:
   auto-tag:
     runs-on: ubuntu-latest
