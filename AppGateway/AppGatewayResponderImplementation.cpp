@@ -259,8 +259,8 @@ namespace WPEFramework
                     return;
                 }
 
-                string resolution;
-                if (Core::ERROR_NONE != mResolver->Resolve(context, APP_GATEWAY_CALLSIGN, method, params, resolution)) {
+                string resolverResolution;
+                if (Core::ERROR_NONE != mResolver->Resolve(context, APP_GATEWAY_CALLSIGN, method, params, resolverResolution)) {
                     LOGERR("Resolver Failure");
                 }
             } else {
