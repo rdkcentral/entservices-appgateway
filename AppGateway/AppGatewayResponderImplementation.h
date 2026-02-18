@@ -29,12 +29,13 @@
 #include <map>
 #include <unordered_set>
 #include <sstream>
+#include <atomic>
 
 
 namespace WPEFramework {
 namespace Plugin {
     using Context = Exchange::GatewayContext;
-    class AppGatewayResponderImplementation : public Exchange::IConfiguration, public Exchange::IAppGatewayResponder, public std::enable_shared_from_this<AppGatewayResponderImplementation>
+    class AppGatewayResponderImplementation : public Exchange::IConfiguration, public Exchange::IAppGatewayResponder
     {
 
     public:
@@ -355,10 +356,12 @@ namespace Plugin {
         Exchange::IAppGatewayResolver *mResolver; // Shared pointer to InternalGatewayResolver
         AppIdRegistry mAppIdRegistry;
         uint32_t InitializeWebsocket();
+        void CleanupWebsocket();
         mutable Core::CriticalSection mConnectionStatusImplLock;
         std::list<Exchange::IAppGatewayResponder::INotification*> mConnectionStatusNotification;
         bool mEnhancedLoggingEnabled;
         CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
+        std::atomic<bool> mIsDestroyed;
     };
 } // namespace Plugin
 } // namespace WPEFramework
