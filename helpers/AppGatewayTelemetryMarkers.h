@@ -265,6 +265,7 @@
 #define AGW_PLUGIN_FBENTOS                          "FbEntos"
 #define AGW_PLUGIN_FBMETRICS                        "FbMetrics"
 #define AGW_PLUGIN_FBPRIVACY                        "FbPrivacy"
+#define AGW_PLUGIN_LAUNCH_DELEGATE                  "LaunchDelegate"
 
 //=============================================================================
 // PREDEFINED EXTERNAL SERVICE NAMES
@@ -324,6 +325,24 @@
  * @details AppGateway WebSocket authentication
  */
 #define AGW_SERVICE_AUTHENTICATION                  "AuthenticationService"
+
+/**
+ * @brief AppNotifications Interface (COM-RPC)
+ * @details Used for event notifications and subscriptions
+ */
+#define AGW_SERVICE_APP_NOTIFICATIONS               "AppNotifications"
+
+/**
+ * @brief FbMetrics Interface (COM-RPC)
+ * @details Used for metrics and analytics reporting
+ */
+#define AGW_SERVICE_FB_METRICS                      "FbMetrics"
+
+/**
+ * @brief User Grant Provider
+ * @details Used for user consent and grant management
+ */
+#define AGW_SERVICE_USER_GRANT_PROVIDER             "UserGrantProvider"
 
 //=============================================================================
 // PREDEFINED ERROR CODES
