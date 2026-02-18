@@ -68,7 +68,7 @@ namespace WPEFramework
             CleanupWebsocket();
             
             // Clear self-reference to prevent circular reference
-            mSelfWeakRef.reset();
+            mSelfRef.reset();
             
             if (nullptr != mService)
             {
