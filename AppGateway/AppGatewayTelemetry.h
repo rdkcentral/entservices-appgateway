@@ -29,7 +29,7 @@
 #include "AppGatewayTelemetryMarkers.h"
 
 // Default reporting interval in seconds (1 hour)
-#define TELEMETRY_DEFAULT_REPORTING_INTERVAL_SEC             3600
+#define TELEMETRY_DEFAULT_REPORTING_INTERVAL_SEC             30
 
 // Default cache threshold (number of records before forced flush)
 #define TELEMETRY_DEFAULT_CACHE_THRESHOLD                    1000
