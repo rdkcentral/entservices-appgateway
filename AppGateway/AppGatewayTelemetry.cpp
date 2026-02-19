@@ -430,6 +430,151 @@ namespace Plugin {
         return true;
     }
 
+    void AppGatewayTelemetry::RecordApiMethodMetric(
+        const std::string& pluginName,
+        const std::string& methodName,
+        double latencyMs,
+        bool isError)
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+        
+        std::string apiKey = pluginName + "_" + methodName;
+        ApiMethodStats& stats = mApiMethodStats[apiKey];
+        
+        // Initialize plugin and method names on first use
+        if (stats.pluginName.empty()) {
+            stats.pluginName = pluginName;
+            stats.methodName = methodName;
+        }
+        
+        // Track counters
+        IncrementTotalCalls();
+        
+        if (isError) {
+            // Error case
+            IncrementFailedCalls();
+            stats.errorCount++;
+            stats.totalErrorLatencyMs += latencyMs;
+            
+            if (latencyMs < stats.minErrorLatencyMs) {
+                stats.minErrorLatencyMs = latencyMs;
+            }
+            if (latencyMs > stats.maxErrorLatencyMs) {
+                stats.maxErrorLatencyMs = latencyMs;
+            }
+            
+            LOGTRACE("API error tracked: %s::%s (error_count=%u, latency=%.2f ms)",
+                     pluginName.c_str(), methodName.c_str(), stats.errorCount, latencyMs);
+        } else {
+            // Success case
+            IncrementSuccessfulCalls();
+            stats.successCount++;
+            stats.totalSuccessLatencyMs += latencyMs;
+            
+            if (latencyMs < stats.minSuccessLatencyMs) {
+                stats.minSuccessLatencyMs = latencyMs;
+            }
+            if (latencyMs > stats.maxSuccessLatencyMs) {
+                stats.maxSuccessLatencyMs = latencyMs;
+            }
+            
+            LOGTRACE("API success tracked: %s::%s (success_count=%u, latency=%.2f ms)",
+                     pluginName.c_str(), methodName.c_str(), stats.successCount, latencyMs);
+        }
+        
+        mCachedEventCount++;
+    }
+
+    void AppGatewayTelemetry::RecordApiLatencyMetric(
+        const std::string& pluginName,
+        const std::string& apiName,
+        double latencyMs)
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+        
+        std::string latencyKey = pluginName + "_" + apiName;
+        ApiLatencyStats& stats = mApiLatencyStats[latencyKey];
+        
+        // Initialize plugin and API names on first use
+        if (stats.pluginName.empty()) {
+            stats.pluginName = pluginName;
+            stats.apiName = apiName;
+        }
+        
+        // Track latency
+        stats.count++;
+        stats.totalLatencyMs += latencyMs;
+        
+        if (latencyMs < stats.minLatencyMs) {
+            stats.minLatencyMs = latencyMs;
+        }
+        if (latencyMs > stats.maxLatencyMs) {
+            stats.maxLatencyMs = latencyMs;
+        }
+        
+        LOGTRACE("API latency tracked: %s::%s (count=%u, latency=%.2f ms)",
+                 pluginName.c_str(), apiName.c_str(), stats.count, latencyMs);
+        
+        mCachedEventCount++;
+    }
+
+    void AppGatewayTelemetry::RecordServiceLatencyMetric(
+        const std::string& pluginName,
+        const std::string& serviceName,
+        double latencyMs)
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+        
+        std::string latencyKey = pluginName + "_" + serviceName;
+        ServiceLatencyStats& stats = mServiceLatencyStats[latencyKey];
+        
+        // Initialize plugin and service names on first use
+        if (stats.pluginName.empty()) {
+            stats.pluginName = pluginName;
+            stats.serviceName = serviceName;
+        }
+        
+        // Track latency
+        stats.count++;
+        stats.totalLatencyMs += latencyMs;
+        
+        if (latencyMs < stats.minLatencyMs) {
+            stats.minLatencyMs = latencyMs;
+        }
+        if (latencyMs > stats.maxLatencyMs) {
+            stats.maxLatencyMs = latencyMs;
+        }
+        
+        LOGTRACE("Service latency tracked: %s::%s (count=%u, latency=%.2f ms)",
+                 pluginName.c_str(), serviceName.c_str(), stats.count, latencyMs);
+        
+        mCachedEventCount++;
+    }
+
+    void AppGatewayTelemetry::RecordGenericMetric(
+        const std::string& metricName,
+        double metricValue,
+        const std::string& metricUnit)
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+        
+        MetricData& data = mMetricsCache[metricName];
+        data.sum += metricValue;
+        data.count++;
+        
+        if (metricValue < data.min) {
+            data.min = metricValue;
+        }
+        if (metricValue > data.max) {
+            data.max = metricValue;
+        }
+        if (data.unit.empty()) {
+            data.unit = metricUnit;
+        }
+        
+        mCachedEventCount++;
+    }
+
     Core::hresult AppGatewayTelemetry::RecordTelemetryMetric(
         const Exchange::GatewayContext& context,
         const string& metricName,
@@ -444,149 +589,26 @@ namespace Plugin {
         LOGTRACE("RecordTelemetryMetric from %s: metric=%s, value=%f, unit=%s",
                  context.appId.c_str(), metricName.c_str(), metricValue, metricUnit.c_str());
 
-        // Parse the metric name to check if it's an API method metric
-        std::string pluginName, methodName;
+        // Determine metric type and record accordingly
+        std::string pluginName, apiOrMethodName;
         bool isError = false;
         
-        if (ParseApiMetricName(metricName, pluginName, methodName, isError)) {
-            // This is a per-API method metric, track it separately
-            Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
-            
-            std::string apiKey = pluginName + "_" + methodName;
-            ApiMethodStats& stats = mApiMethodStats[apiKey];
-            
-            // Initialize plugin and method names on first use
-            if (stats.pluginName.empty()) {
-                stats.pluginName = pluginName;
-                stats.methodName = methodName;
-            }
-            
-            // Track counters
-            IncrementTotalCalls();
-            
-            if (isError) {
-                // Error case
-                IncrementFailedCalls();
-                stats.errorCount++;
-                stats.totalErrorLatencyMs += metricValue;
-                
-                if (metricValue < stats.minErrorLatencyMs) {
-                    stats.minErrorLatencyMs = metricValue;
-                }
-                if (metricValue > stats.maxErrorLatencyMs) {
-                    stats.maxErrorLatencyMs = metricValue;
-                }
-                
-                LOGTRACE("API error tracked: %s::%s (error_count=%u, latency=%.2f ms)",
-                         pluginName.c_str(), methodName.c_str(), 
-                         stats.errorCount, metricValue);
-            } else {
-                // Success case
-                IncrementSuccessfulCalls();
-                stats.successCount++;
-                stats.totalSuccessLatencyMs += metricValue;
-                
-                if (metricValue < stats.minSuccessLatencyMs) {
-                    stats.minSuccessLatencyMs = metricValue;
-                }
-                if (metricValue > stats.maxSuccessLatencyMs) {
-                    stats.maxSuccessLatencyMs = metricValue;
-                }
-                
-                LOGTRACE("API success tracked: %s::%s (success_count=%u, latency=%.2f ms)",
-                         pluginName.c_str(), methodName.c_str(), 
-                         stats.successCount, metricValue);
-            }
-            
-            mCachedEventCount++;
+        if (ParseApiMetricName(metricName, pluginName, apiOrMethodName, isError)) {
+            // API method metric (success/error with latency tracking)
+            RecordApiMethodMetric(pluginName, apiOrMethodName, metricValue, isError);
+        } else if (ParseApiLatencyMetricName(metricName, pluginName, apiOrMethodName)) {
+            // API latency metric (deprecated, but still supported)
+            RecordApiLatencyMetric(pluginName, apiOrMethodName, metricValue);
+        } else if (ParseServiceLatencyMetricName(metricName, pluginName, apiOrMethodName)) {
+            // External service latency metric
+            RecordServiceLatencyMetric(pluginName, apiOrMethodName, metricValue);
         } else {
-            // Check if it's an API latency metric
-            std::string pluginName, apiOrServiceName;
-            
-            if (ParseApiLatencyMetricName(metricName, pluginName, apiOrServiceName)) {
-                // This is an API latency metric, track it separately
-                Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
-                
-                std::string latencyKey = pluginName + "_" + apiOrServiceName;
-                ApiLatencyStats& stats = mApiLatencyStats[latencyKey];
-                
-                // Initialize plugin and API names on first use
-                if (stats.pluginName.empty()) {
-                    stats.pluginName = pluginName;
-                    stats.apiName = apiOrServiceName;
-                }
-                
-                // Track latency
-                stats.count++;
-                stats.totalLatencyMs += metricValue;
-                
-                if (metricValue < stats.minLatencyMs) {
-                    stats.minLatencyMs = metricValue;
-                }
-                if (metricValue > stats.maxLatencyMs) {
-                    stats.maxLatencyMs = metricValue;
-                }
-                
-                LOGTRACE("API latency tracked: %s::%s (count=%u, latency=%.2f ms)",
-                         pluginName.c_str(), apiOrServiceName.c_str(), 
-                         stats.count, metricValue);
-                
-                mCachedEventCount++;
-            } else if (ParseServiceLatencyMetricName(metricName, pluginName, apiOrServiceName)) {
-                // This is a service latency metric, track it separately
-                Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
-                
-                std::string latencyKey = pluginName + "_" + apiOrServiceName;
-                ServiceLatencyStats& stats = mServiceLatencyStats[latencyKey];
-                
-                // Initialize plugin and service names on first use
-                if (stats.pluginName.empty()) {
-                    stats.pluginName = pluginName;
-                    stats.serviceName = apiOrServiceName;
-                }
-                
-                // Track latency
-                stats.count++;
-                stats.totalLatencyMs += metricValue;
-                
-                if (metricValue < stats.minLatencyMs) {
-                    stats.minLatencyMs = metricValue;
-                }
-                if (metricValue > stats.maxLatencyMs) {
-                    stats.maxLatencyMs = metricValue;
-                }
-                
-                LOGTRACE("Service latency tracked: %s::%s (count=%u, latency=%.2f ms)",
-                         pluginName.c_str(), apiOrServiceName.c_str(), 
-                         stats.count, metricValue);
-                
-                mCachedEventCount++;
-            } else {
-                // Not a per-API metric or latency metric, use existing generic metric aggregation
-                Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
-                
-                MetricData& data = mMetricsCache[metricName];
-                data.sum += metricValue;
-                data.count++;
-                if (metricValue < data.min) {
-                    data.min = metricValue;
-                }
-                if (metricValue > data.max) {
-                    data.max = metricValue;
-                }
-                if (data.unit.empty()) {
-                    data.unit = metricUnit;
-                }
-
-                mCachedEventCount++;
-            }
+            // Generic metric aggregation (bootstrap time, etc.)
+            RecordGenericMetric(metricName, metricValue, metricUnit);
         }
 
-        // Check if we've reached the threshold (outside lock)
-        bool shouldFlush = (mCachedEventCount >= mCacheThreshold);
-        
-        // Flush outside the lock if threshold reached
-        if (shouldFlush) {
+        // Check if cache threshold reached and flush if needed
+        if (mCachedEventCount >= mCacheThreshold) {
             FlushTelemetryData();
         }
 

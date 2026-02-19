@@ -329,6 +329,24 @@ namespace Plugin {
         void ResetApiLatencyStats();
         void ResetServiceLatencyStats();
 
+        // Metric recording helpers (called by RecordTelemetryMetric)
+        void RecordApiMethodMetric(const std::string& pluginName,
+                                  const std::string& methodName,
+                                  double latencyMs,
+                                  bool isError);
+        
+        void RecordApiLatencyMetric(const std::string& pluginName,
+                                   const std::string& apiName,
+                                   double latencyMs);
+        
+        void RecordServiceLatencyMetric(const std::string& pluginName,
+                                       const std::string& serviceName,
+                                       double latencyMs);
+        
+        void RecordGenericMetric(const std::string& metricName,
+                                double metricValue,
+                                const std::string& metricUnit);
+
         // Helper to parse metric name format: "AppGw<Plugin>_<Method>_<Success|Error>_split"
         bool ParseApiMetricName(const std::string& metricName,
                                std::string& pluginName,
