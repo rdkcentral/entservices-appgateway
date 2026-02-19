@@ -351,6 +351,8 @@ namespace Plugin {
 
         PluginHost::IShell* mService;
         WebSocketConnectionManager mWsManager;
+        mutable Core::CriticalSection mAuthenticatorLock;
+        mutable Core::CriticalSection mResolverLock;
         Exchange::IAppGatewayAuthenticator *mAuthenticator; // Shared pointer to Authenticator
         Exchange::IAppGatewayResolver *mResolver; // Shared pointer to InternalGatewayResolver
         AppIdRegistry mAppIdRegistry;

@@ -104,13 +104,20 @@ namespace Plugin {
         Core::hresult HandleEvent(const Context &context, const string &alias, const string &event, const string &origin,  const bool listen);
                 
         void ReturnMessageInSocket(const Context& context, const string payload ) {
-            if (mAppGatewayResponder==nullptr) {
-                mAppGatewayResponder = mService->QueryInterface<Exchange::IAppGatewayResponder>();
-            }
-
             if (mAppGatewayResponder == nullptr) {
-                LOGERR("AppGateway Responder not available");
-                return;
+                Core::SafeSyncType<Core::CriticalSection> lock(mAppGatewayResponderLock);
+                //Need one more Null check to confirm no other thread has created the instance
+                if (mAppGatewayResponder == nullptr) {
+                    mAppGatewayResponder = mService->QueryInterface<Exchange::IAppGatewayResponder>();
+                    if (mAppGatewayResponder == nullptr) {
+                        LOGERR("AppGateway Responder not available");
+                        return;
+                    } else {
+                        LOGINFO("AppGateway Responder interface acquired");
+                    }
+                } else {
+                    LOGINFO("AppGateway Responder interface already acquired");
+                }
             }
             if (Core::ERROR_NONE != mAppGatewayResponder->Respond(context, payload)) {
                 LOGERR("Failed to Respond in Gateway");
@@ -119,6 +126,10 @@ namespace Plugin {
 
         PluginHost::IShell* mService;
         ResolverPtr mResolverPtr;
+        mutable Core::CriticalSection mAppNotificationsLock;
+        mutable Core::CriticalSection mAppGatewayResponderLock;
+        mutable Core::CriticalSection mInternalGatewayResponderLock;
+        mutable Core::CriticalSection mAuthenticatorLock;
         Exchange::IAppNotifications *mAppNotifications; // Shared pointer to AppNotifications
         Exchange::IAppGatewayResponder *mAppGatewayResponder;
         Exchange::IAppGatewayResponder *mInternalGatewayResponder; // Shared pointer to InternalGatewayResponder
@@ -131,7 +142,7 @@ namespace Plugin {
         Core::hresult InternalResolve(const Context &context, const string &method, const string &params, const string &origin, string& resolution);
         Core::hresult FetchResolvedData(const Context &context, const string &method, const string &params, const string &origin, string& resolution);
         Core::hresult InternalResolutionConfigure(std::vector<std::string>&& configPaths);
-        bool SetupAppGatewayAuthenticator();
+        Core::hresult InternalCheckPermissionGroup(const string& appId, const string& permissionGroup, bool& allowed);
         void SendToLaunchDelegate(const Context& context, const string& payload);
         std::string ReadCountryFromConfigFile();
     };

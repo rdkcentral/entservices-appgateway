@@ -107,10 +107,17 @@ public:
     {
         if (mNetworkManager == nullptr && mShell != nullptr)
         {
-            mNetworkManager = mShell->QueryInterfaceByCallsign<Exchange::INetworkManager>(NETWORKMANAGER_CALLSIGN);
-            if (mNetworkManager == nullptr)
-            {
-                LOGERR("Failed to get NetworkManager COM interface");
+            Core::SafeSyncType<Core::CriticalSection> lock(mNetworkManagerLock);
+            //Need one more Null check to confirm no other thread has created the instance
+            if (mNetworkManager == nullptr) {
+                mNetworkManager = mShell->QueryInterfaceByCallsign<Exchange::INetworkManager>(NETWORKMANAGER_CALLSIGN);
+                if (mNetworkManager == nullptr) {
+                    LOGERR("Failed to get NetworkManager COM interface");
+                } else {
+                    LOGINFO("NetworkManager COM interface acquired successfully");
+                }
+            } else {
+                LOGTRACE("NetworkManager COM interface already acquired");
             }
         }
         return mNetworkManager;
@@ -284,7 +291,7 @@ private:
         bool registered;
         std::mutex registerMutex;
     };
-
+    mutable Core::CriticalSection mNetworkManagerLock;
     Exchange::INetworkManager *mNetworkManager;
     PluginHost::IShell *mShell;
     Core::Sink<NetworkNotificationHandler> mNotificationHandler;

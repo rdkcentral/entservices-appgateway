@@ -190,10 +190,18 @@ namespace WPEFramework
 
         void AppNotificationsImplementation::SubscriberMap::DispatchToGateway(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload) {
             if (nullptr == mAppGateway) {
-                mAppGateway = mParent.mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(APP_GATEWAY_CALLSIGN);
-                if (mAppGateway == nullptr) {
-                    LOGERR("Failed to get IAppGateway interface");
-                    return;
+                Core::SafeSyncType<Core::CriticalSection> lock(mAppGatewayLock);
+                //Need one more Null check to confirm no other thread has created the instance
+                if (nullptr == mAppGateway) {
+                    mAppGateway = mParent.mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(APP_GATEWAY_CALLSIGN);
+                    if (mAppGateway == nullptr) {
+                        LOGERR("Failed to get AppGateway Responder interface");
+                        return;
+                    } else {
+                        LOGINFO("AppGateway Responder interface acquired successfully");
+                    }
+                } else {
+                    LOGINFO("AppGateway Responder interface already acquired");
                 }
             }
             Exchange::GatewayContext gatewayContext = ContextUtils::ConvertNotificationToAppGatewayContext(context);
@@ -202,10 +210,18 @@ namespace WPEFramework
 
         void AppNotificationsImplementation::SubscriberMap::DispatchToLaunchDelegate(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload) {
             if (nullptr == mInternalGatewayNotifier) {
-                mInternalGatewayNotifier = mParent.mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
-                if (mInternalGatewayNotifier == nullptr) {
-                    LOGERR("Failed to get ILaunchDelegate interface");
-                    return;
+                Core::SafeSyncType<Core::CriticalSection> lock(mInternalGatewayNotifierLock);
+                //Need one more Null check to confirm no other thread has created the instance
+                if (nullptr == mInternalGatewayNotifier) {
+                    mInternalGatewayNotifier = mParent.mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
+                    if (mInternalGatewayNotifier == nullptr) {
+                        LOGERR("Failed to get InternalGatewayNotifier interface");
+                        return;
+                    } else {
+                        LOGINFO("InternalGatewayNotifier interface acquired successfully");
+                    }
+                } else {
+                    LOGINFO("InternalGatewayNotifier interface already acquired");
                 }
             }
             Exchange::GatewayContext gatewayContext = ContextUtils::ConvertNotificationToAppGatewayContext(context);
