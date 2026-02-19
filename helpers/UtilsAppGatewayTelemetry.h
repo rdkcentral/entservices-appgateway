@@ -374,30 +374,7 @@ namespace AppGatewayTelemetryHelper {
         const char* GetLocalPluginName() { \
             return pluginName; \
         } \
-    } \
-    namespace WPEFramework { \
-    namespace Plugin { \
-    namespace AppGatewayTelemetryHelper { \
-        inline ScopedApiTimer::~ScopedApiTimer() \
-        { \
-            auto endTime = std::chrono::steady_clock::now(); \
-            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>( \
-                endTime - mStartTime).count(); \
-            auto& client = GetLocalTelemetryClient(); \
-            if (client.IsAvailable()) { \
-                if (mFailed) { \
-                    client.RecordApiError(mContext, mApiName, mErrorDetails); \
-                    std::string metricName = "AppGw_PluginName_" + client.GetPluginName() + \
-                                             "_MethodName_" + mApiName + "_Error_split"; \
-                    client.RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS); \
-                } else { \
-                    std::string metricName = "AppGw_PluginName_" + client.GetPluginName() + \
-                                             "_MethodName_" + mApiName + "_Success_split"; \
-                    client.RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS); \
-                } \
-            } \
-        } \
-    }}} \
+    }
 
 
 /**
@@ -585,7 +562,7 @@ namespace AppGatewayTelemetryHelper {
      * 
      * Usage:
      *   {
-     *       ScopedApiTimer timer(context, "GetSettings");
+     *       ScopedApiTimer timer(&GetLocalTelemetryClient(), context, "GetSettings");
      *       // ... do API work ...
      *       if (failed) timer.SetFailed("TIMEOUT");
      *   } // Timer automatically reports on destruction
@@ -593,8 +570,9 @@ namespace AppGatewayTelemetryHelper {
     class ScopedApiTimer
     {
     public:
-        ScopedApiTimer(const Exchange::GatewayContext& context, const std::string& apiName)
-            : mContext(context)
+        ScopedApiTimer(TelemetryClient* client, const Exchange::GatewayContext& context, const std::string& apiName)
+            : mClient(client)
+            , mContext(context)
             , mApiName(apiName)
             , mFailed(false)
             , mErrorDetails()
@@ -602,7 +580,27 @@ namespace AppGatewayTelemetryHelper {
         {
         }
 
-        ~ScopedApiTimer(); // Implementation provided via macro expansion
+        ~ScopedApiTimer()
+        {
+            if (!mClient || !mClient->IsAvailable()) {
+                return;
+            }
+
+            auto endTime = std::chrono::steady_clock::now();
+            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                endTime - mStartTime).count();
+            
+            if (mFailed) {
+                mClient->RecordApiError(mContext, mApiName, mErrorDetails);
+                std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
+                                         "_MethodName_" + mApiName + "_Error_split";
+                mClient->RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+            } else {
+                std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
+                                         "_MethodName_" + mApiName + "_Success_split";
+                mClient->RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+            }
+        }
 
         void SetFailed(const std::string& errorDetails)
         {
@@ -616,6 +614,7 @@ namespace AppGatewayTelemetryHelper {
         }
 
     private:
+        TelemetryClient* mClient;
         Exchange::GatewayContext mContext;
         std::string mApiName;
         bool mFailed;
@@ -648,4 +647,4 @@ namespace AppGatewayTelemetryHelper {
  *   } // Timer automatically reports success/failure with timing
  */
 #define AGW_SCOPED_API_TIMER(varName, context, apiName) \
-    WPEFramework::Plugin::AppGatewayTelemetryHelper::ScopedApiTimer varName(context, apiName)
+    WPEFramework::Plugin::AppGatewayTelemetryHelper::ScopedApiTimer varName(&GetLocalTelemetryClient(), context, apiName)
