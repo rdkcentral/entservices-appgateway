@@ -178,6 +178,76 @@
  */
 #define AGW_MARKER_EXT_SERVICE_ERROR_STATS          "AppGwExtServiceError_split"
 
+/**
+ * @brief Per-API method statistics marker (common marker for all plugin/method combinations)
+ * @details Used to report detailed per-API statistics including counters and latency metrics
+ * @usage Single marker for all: "AppGwApiMethod_split"
+ * @payload {
+ *   "plugin_name": "<PluginName>",
+ *   "method_name": "<MethodName>",
+ *   "reporting_interval_sec": 3600,
+ *   "total_count": <total_calls>,
+ *   "success_count": <success_count>,
+ *   "success_rate_percent": <success_rate>,
+ *   "success_latency_avg_ms": <avg>,
+ *   "success_latency_min_ms": <min>,
+ *   "success_latency_max_ms": <max>,
+ *   "success_latency_total_ms": <total>,
+ *   "error_count": <error_count>,
+ *   "error_latency_avg_ms": <avg>,
+ *   "error_latency_min_ms": <min>,
+ *   "error_latency_max_ms": <max>,
+ *   "error_latency_total_ms": <total>,
+ *   "unit": "Milliseconds"
+ * }
+ * @example For LaunchDelegate.session():
+ *   Marker: "AppGwApiMethod_split"
+ *   Payload includes: "plugin_name": "LaunchDelegate", "method_name": "session"
+ */
+#define AGW_METRIC_API_METHOD                       "AppGwApiMethod_split"
+
+/**
+ * @brief API latency statistics marker (common marker for all plugin/API combinations)
+ * @details Used to report aggregated API latency metrics from plugins
+ * @usage Single marker for all: "AppGwApiLatency_split"
+ * @payload {
+ *   "plugin_name": "<PluginName>",
+ *   "api_name": "<ApiName>",
+ *   "reporting_interval_sec": 3600,
+ *   "count": <total_calls>,
+ *   "avg_ms": <average_latency>,
+ *   "min_ms": <minimum_latency>,
+ *   "max_ms": <maximum_latency>,
+ *   "total_ms": <total_latency>,
+ *   "unit": "Milliseconds"
+ * }
+ * @example For Badger.GetSettings():
+ *   Marker: "AppGwApiLatency_split"
+ *   Payload includes: "plugin_name": "Badger", "api_name": "GetSettings"
+ */
+#define AGW_METRIC_API_LATENCY                      "AppGwApiLatency_split"
+
+/**
+ * @brief Service latency statistics marker (common marker for all plugin/service combinations)
+ * @details Used to report aggregated external service latency metrics from plugins
+ * @usage Single marker for all: "AppGwServiceLatency_split"
+ * @payload {
+ *   "plugin_name": "<PluginName>",
+ *   "service_name": "<ServiceName>",
+ *   "reporting_interval_sec": 3600,
+ *   "count": <total_calls>,
+ *   "avg_ms": <average_latency>,
+ *   "min_ms": <minimum_latency>,
+ *   "max_ms": <maximum_latency>,
+ *   "total_ms": <total_latency>,
+ *   "unit": "Milliseconds"
+ * }
+ * @example For OttServices calling ThorPermissionService:
+ *   Marker: "AppGwServiceLatency_split"
+ *   Payload includes: "plugin_name": "OttServices", "service_name": "ThorPermissionService"
+ */
+#define AGW_METRIC_SERVICE_LATENCY                  "AppGwServiceLatency_split"
+
 //=============================================================================
 // GENERIC PLUGIN TELEMETRY MARKERS
 // Used by all plugins - plugin/service name is included in the payload data

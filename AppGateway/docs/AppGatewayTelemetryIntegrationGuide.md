@@ -229,7 +229,9 @@ AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, "CONNECTION_REFUS
 
 #### `AGW_REPORT_API_LATENCY(apiName, latencyMs)`
 
-Reports API call latency metric to App Gateway. Sends a metric with composite name: `AppGw<PluginName>_<ApiName>_Latency_split`. The plugin name is automatically included. AppGateway aggregates these metrics over the reporting period and sends statistical data to T2.
+**⚠️ DEPRECATED for plugin methods - Use `AGW_SCOPED_API_TIMER` instead**
+
+Reports API call latency metric to App Gateway. **This macro should NOT be used for your plugin's own API methods** as it creates duplicate tracking with `AGW_SCOPED_API_TIMER`. Reserved for future specialized use cases.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -237,12 +239,19 @@ Reports API call latency metric to App Gateway. Sends a metric with composite na
 | `latencyMs` | `double` | Latency in milliseconds |
 
 **What it does:**
-- Sends metric to AppGatewayTelemetry with composite name
+- Sends metric to AppGatewayTelemetry with tagged format: `AppGw_PluginName_<Plugin>_ApiName_<Api>_ApiLatency_split`
 - AppGateway aggregates: sum, count, min, max
-- Periodic metric: `AppGw<Plugin>_<Api>_Latency_split` (e.g., `AppGwBadger_GetDeviceSessionId_Latency_split`)
+- Periodic metric sent using common marker: `AppGwApiLatency_split`
 
-**Example:**
+**⚠️ WARNING:** Do NOT use with `AGW_SCOPED_API_TIMER` for the same operation—this creates duplicate telemetry. See Best Practices section for details.
+
+**Recommended Usage:**
+- Use `AGW_SCOPED_API_TIMER` for automatic latency tracking of plugin methods (includes success/error tracking)
+- This macro is retained for compatibility but is generally not needed
+
+**Example (if needed for special cases):**
 ```cpp
+// ⚠️ Only use if NOT using AGW_SCOPED_API_TIMER for this method
 AGW_REPORT_API_LATENCY("GetAppPermissions", 150.5);
 ```
 
@@ -267,21 +276,36 @@ AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_OTT_TOKEN, 200.0);
 
 #### `AGW_SCOPED_API_TIMER(varName, apiName)`
 
-Creates an RAII-style timer that automatically tracks API latency. On destruction, it reports the elapsed time. If an error occurs, call `SetFailed(errorCode)` to mark the API call as failed.
+** RECOMMENDED for all plugin API methods**
+
+Creates an RAII-style timer that automatically tracks API latency and success/error counts. On destruction, it reports comprehensive statistics including latency metrics. If an error occurs, call `SetFailed(errorCode)` to mark the API call as failed.
+
+**This is the preferred way to track plugin method performance** as it provides:
+- Automatic latency tracking (no manual timing needed)
+- Success and error counts
+- Separate success/error latency statistics
+- Min/max/avg latency aggregation
+- Success rate calculation
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `varName` | identifier | Variable name for the timer |
 | `apiName` | `const char*` | Name of the API being timed |
 
+**What it does:**
+- Automatically starts timing when declared
+- On destruction, reports to AppGatewayTelemetry with tagged format: `AppGw_PluginName_<Plugin>_MethodName_<Method>_Success/Error_split`
+- Tracks both success and error latencies separately
+- Aggregated data sent using common marker: `AppGwApiMethod_split`
+
 **Example:**
 ```cpp
 Core::hresult MyPlugin::GetData(const string& key, string& value) {
-    AGW_SCOPED_API_TIMER(timer, "GetData");
+    AGW_SCOPED_API_TIMER(timer, "GetData");  // Automatic latency tracking
     
     auto result = FetchFromCache(key, value);
     if (result != Core::ERROR_NONE) {
-        timer.SetFailed(AGW_ERROR_NOT_FOUND);
+        timer.SetFailed(AGW_ERROR_NOT_FOUND);  // Mark as error
         return result;
     }
     
@@ -289,6 +313,8 @@ Core::hresult MyPlugin::GetData(const string& key, string& value) {
     // Timer automatically reports success latency on destruction
 }
 ```
+
+**⚠️ Do NOT combine with `AGW_REPORT_API_LATENCY`** for the same method—this creates duplicate telemetry. See Best Practices section for details.
 
 ---
 
@@ -768,6 +794,107 @@ LOGERR("GetAppPermissions failed for appId='%s': %s", appId.c_str(), error.c_str
 AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_PERMISSION_DENIED);
 ```
 
+### 6. Avoid Duplicate Latency Tracking
+
+**IMPORTANT:** Do **NOT** mix `AGW_SCOPED_API_TIMER` with manual latency reporting for the same operation—this creates duplicate telemetry data.
+
+#### Understanding the Telemetry Types
+
+The system tracks three types of statistics:
+
+| Telemetry Type | Source | T2 Marker | Purpose | Tracks |
+|----------------|--------|-----------|---------|---------|
+| **API Method Stats** | `AGW_SCOPED_API_TIMER` | `AppGwApiMethod_split` | Per-API method tracking | Success/error counts, success/error latency (min/max/avg) |
+| **API Latency Stats** | `AGW_REPORT_API_LATENCY` | `AppGwApiLatency_split` | Generic API latency | Latency only (min/max/avg) |
+| **Service Latency Stats** | `AGW_REPORT_SERVICE_LATENCY` | `AppGwServiceLatency_split` | External service latency | Latency only (min/max/avg) |
+
+#### Rules for Latency Tracking
+
+1. **For your plugin's own API methods**: Use `AGW_SCOPED_API_TIMER` **only**
+   - Automatically tracks both success and error cases with latency
+   - Reports comprehensive statistics including success rate
+   - No need to manually report latency
+
+2. **For external service calls**: Use `AGW_REPORT_SERVICE_LATENCY`
+   - Tracks latency of calls to external services (gRPC, REST APIs, etc.)
+   - Separate from your plugin's API methods
+
+3. **Never use both for the same operation**
+
+#### Examples
+
+```cpp
+// ✓ CORRECT - Use AGW_SCOPED_API_TIMER for plugin's own methods
+Core::hresult MyPlugin::GetData(const string& key, string& value) {
+    AGW_SCOPED_API_TIMER(timer, "GetData");  // ← Tracks latency automatically
+    
+    auto result = FetchFromDatabase(key, value);
+    if (result != Core::ERROR_NONE) {
+        timer.SetFailed(AGW_ERROR_FETCH_FAILED);
+        return result;
+    }
+    
+    return Core::ERROR_NONE;
+    // ✓ Timer reports success latency automatically
+}
+
+// ✗ WRONG - Do NOT add manual latency reporting
+Core::hresult MyPlugin::GetData(const string& key, string& value) {
+    AGW_SCOPED_API_TIMER(timer, "GetData");  // ← Already tracks latency
+    
+    auto start = std::chrono::steady_clock::now();
+    auto result = FetchFromDatabase(key, value);
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - start).count();
+    
+    AGW_REPORT_API_LATENCY("GetData", duration);  // ✗ DUPLICATE! Scoped timer already reports this
+    
+    return result;
+}
+
+// ✓ CORRECT - Use AGW_REPORT_SERVICE_LATENCY for external service calls
+Core::hresult MyPlugin::CallExternalService() {
+    auto start = std::chrono::steady_clock::now();
+    
+    auto result = mGrpcClient->MakeRequest();
+    
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - start).count();
+    
+    AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_THOR_PERMISSION, duration);  // ✓ Correct - external service
+    
+    return result;
+}
+
+// ✓ CORRECT - Nested scenario: Plugin method calls external service
+Core::hresult MyPlugin::GetUserPermissions(const string& userId) {
+    AGW_SCOPED_API_TIMER(apiTimer, "GetUserPermissions");  // ← Tracks plugin's API method
+    
+    // Call external service and track its latency separately
+    auto serviceStart = std::chrono::steady_clock::now();
+    auto result = mPermissionClient->CheckPermissions(userId);
+    auto serviceDuration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - serviceStart).count();
+    
+    AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_THOR_PERMISSION, serviceDuration);  // ✓ External service timing
+    
+    if (result != Core::ERROR_NONE) {
+        apiTimer.SetFailed(AGW_ERROR_PERMISSION_DENIED);
+        return result;
+    }
+    
+    return Core::ERROR_NONE;
+    // ✓ apiTimer tracks total GetUserPermissions latency (including service call)
+    // ✓ Service latency tracked separately for service-specific metrics
+}
+```
+
+#### Summary
+
+- **Plugin API methods** → `AGW_SCOPED_API_TIMER` only (automatic latency + success/error tracking)
+- **External service calls** → `AGW_REPORT_SERVICE_LATENCY` (manual timing for specific service visibility)
+- **Never report the same latency twice through different mechanisms**
+
 ---
 
 ## Troubleshooting
@@ -814,3 +941,4 @@ For questions or issues with telemetry integration:
 | Version | Date | Description |
 |---------|------|-------------|
 | 1.0 | 2026-01-31 | Initial release |
+| 1.1 | 2026-02-18 | Added best practice #6: Avoid duplicate latency tracking. Clarified AGW_SCOPED_API_TIMER vs AGW_REPORT_API_LATENCY usage. Deprecated AGW_REPORT_API_LATENCY for plugin methods. |

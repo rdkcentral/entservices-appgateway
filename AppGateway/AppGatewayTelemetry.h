@@ -198,6 +198,83 @@ namespace Plugin {
             std::atomic<uint32_t> failedCalls{0};
         };
 
+        /**
+         * @brief Per-Plugin/API method statistics structure
+         * 
+         * Tracks detailed counters and latency metrics for each plugin/method combination.
+         * This enables per-API visibility into performance and reliability.
+         */
+        struct ApiMethodStats
+        {
+            std::string pluginName;
+            std::string methodName;
+            uint32_t successCount;
+            uint32_t errorCount;
+            double totalSuccessLatencyMs;
+            double totalErrorLatencyMs;
+            double minSuccessLatencyMs;
+            double maxSuccessLatencyMs;
+            double minErrorLatencyMs;
+            double maxErrorLatencyMs;
+            
+            ApiMethodStats()
+                : successCount(0)
+                , errorCount(0)
+                , totalSuccessLatencyMs(0.0)
+                , totalErrorLatencyMs(0.0)
+                , minSuccessLatencyMs(std::numeric_limits<double>::max())
+                , maxSuccessLatencyMs(std::numeric_limits<double>::lowest())
+                , minErrorLatencyMs(std::numeric_limits<double>::max())
+                , maxErrorLatencyMs(std::numeric_limits<double>::lowest())
+            {}
+        };
+
+        /**
+         * @brief API latency statistics structure
+         * 
+         * Tracks aggregated latency metrics for each plugin/API combination.
+         * Used for RecordApiLatency() calls from plugins.
+         */
+        struct ApiLatencyStats
+        {
+            std::string pluginName;
+            std::string apiName;
+            uint32_t count;
+            double totalLatencyMs;
+            double minLatencyMs;
+            double maxLatencyMs;
+            
+            ApiLatencyStats()
+                : count(0)
+                , totalLatencyMs(0.0)
+                , minLatencyMs(std::numeric_limits<double>::max())
+                , maxLatencyMs(std::numeric_limits<double>::lowest())
+            {}
+        };
+
+        /**
+         * @brief Service latency statistics structure
+         * 
+         * Tracks aggregated latency metrics for each plugin/service combination.
+         * Used for RecordServiceLatency() calls from plugins.
+         */
+        struct ServiceLatencyStats
+        {
+            std::string pluginName;
+            std::string serviceName;
+            uint32_t count;
+            double totalLatencyMs;
+            double minLatencyMs;
+            double maxLatencyMs;
+            
+            ServiceLatencyStats()
+                : count(0)
+                , totalLatencyMs(0.0)
+                , minLatencyMs(std::numeric_limits<double>::max())
+                , maxLatencyMs(std::numeric_limits<double>::lowest())
+            {}
+        };
+
         // Timer callback for periodic reporting
         class TelemetryTimer : public Core::IDispatch
         {
@@ -237,6 +314,9 @@ namespace Plugin {
         void SendApiErrorStats();
         void SendExternalServiceErrorStats();
         void SendAggregatedMetrics();
+        void SendApiMethodStats();
+        void SendApiLatencyStats();
+        void SendServiceLatencyStats();
 
         // Helper to send telemetry via T2
         void SendT2Event(const char* marker, const std::string& payload);
@@ -245,6 +325,25 @@ namespace Plugin {
         void ResetHealthStats();
         void ResetApiErrorStats();
         void ResetExternalServiceErrorStats();
+        void ResetApiMethodStats();
+        void ResetApiLatencyStats();
+        void ResetServiceLatencyStats();
+
+        // Helper to parse metric name format: "AppGw<Plugin>_<Method>_<Success|Error>_split"
+        bool ParseApiMetricName(const std::string& metricName,
+                               std::string& pluginName,
+                               std::string& methodName,
+                               bool& isError);
+
+        // Helper to parse API latency metric: "AppGw_PluginName_<Plugin>_ApiName_<Api>_ApiLatency_split"
+        bool ParseApiLatencyMetricName(const std::string& metricName,
+                                      std::string& pluginName,
+                                      std::string& apiName);
+
+        // Helper to parse service latency metric: "AppGw_PluginName_<Plugin>_ServiceName_<Service>_ServiceLatency_split"
+        bool ParseServiceLatencyMetricName(const std::string& metricName,
+                                          std::string& pluginName,
+                                          std::string& serviceName);
 
         /**
          * @brief Format JSON payload based on current format setting
@@ -279,6 +378,13 @@ namespace Plugin {
         // Timer for periodic reporting
         Core::ProxyType<TelemetryTimer> mTimer;
         Core::TimerType<TelemetryTimer> mTimerHandler;
+        // Per-Plugin/API latency statistics: map<"PluginName_ApiName", ApiLatencyStats>
+        std::map<std::string, ApiLatencyStats> mApiLatencyStats;
+
+        // Per-Plugin/Service latency statistics: map<"PluginName_ServiceName", ServiceLatencyStats>
+        std::map<std::string, ServiceLatencyStats> mServiceLatencyStats;
+
+        // Timer running state
         bool mTimerRunning;
 
         // Health statistics
@@ -289,6 +395,9 @@ namespace Plugin {
 
         // External service error counts: map<serviceName, count>
         std::map<std::string, uint32_t> mExternalServiceErrorCounts;
+
+        // Per-Plugin/API method statistics: map<"PluginName_MethodName", ApiMethodStats>
+        std::map<std::string, ApiMethodStats> mApiMethodStats;
 
         // Cached metrics: map<metricName, MetricData>
         std::map<std::string, MetricData> mMetricsCache;

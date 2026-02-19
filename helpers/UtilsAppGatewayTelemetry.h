@@ -259,15 +259,18 @@ namespace AppGatewayTelemetryHelper {
          * @return Core::hresult
          * 
          * This records a METRIC - values are aggregated (sum/count/min/max/avg)
-         * and sent to T2 periodically. Use this to track API performance over time.
+         * and sent to T2 periodically using common marker AGW_METRIC_API_LATENCY.
          * 
-         * Generates a composite metric name: AGW_METRIC_LATENCY_PREFIX + <PluginName> + "_" + <ApiName> + AGW_METRIC_LATENCY_SUFFIX
-         * Example: "AppGwBadger_GetSettings_Latency_split"
-         * This allows each plugin-API combination to have its own aggregated metric.
+         * Generates a tagged metric name with explicit structure:
+         *   "AppGw_PluginName_" + <PluginName> + "_ApiName_" + <ApiName> + "_ApiLatency_split"
+         * Example: "AppGw_PluginName_Badger_ApiName_GetSettings_ApiLatency_split"
+         * 
+         * The explicit tags (PluginName_, ApiName_) make the metric unambiguous and
+         * allow precise parsing to extract plugin/API names for aggregation.
          */
         Core::hresult RecordApiLatency(const std::string& apiName, double latencyMs)
         {
-            std::string metricName = std::string(AGW_METRIC_LATENCY_PREFIX) + mPluginName + "_" + apiName + AGW_METRIC_LATENCY_SUFFIX;
+            std::string metricName = "AppGw_PluginName_" + mPluginName + "_ApiName_" + apiName + "_ApiLatency_split";
             
             LOGTRACE("TelemetryClient: Recording API latency - plugin=%s, api=%s, latency=%.2fms, metric=%s",
                      mPluginName.c_str(), apiName.c_str(), latencyMs, metricName.c_str());
@@ -282,15 +285,18 @@ namespace AppGatewayTelemetryHelper {
          * @return Core::hresult
          * 
          * This records a METRIC - values are aggregated (sum/count/min/max/avg)
-         * and sent to T2 periodically. Use this to track service performance over time.
+         * and sent to T2 periodically using common marker AGW_METRIC_SERVICE_LATENCY.
          * 
-         * Generates a composite metric name: AGW_METRIC_LATENCY_PREFIX + <PluginName> + "_" + <ServiceName> + AGW_METRIC_LATENCY_SUFFIX
-         * Example: "AppGwOttServices_ThorPermissionService_Latency_split"
-         * This allows each plugin-service combination to have its own aggregated metric.
+         * Generates a tagged metric name with explicit structure:
+         *   "AppGw_PluginName_" + <PluginName> + "_ServiceName_" + <ServiceName> + "_ServiceLatency_split"
+         * Example: "AppGw_PluginName_OttServices_ServiceName_ThorPermissionService_ServiceLatency_split"
+         * 
+         * The explicit tags (PluginName_, ServiceName_) make the metric unambiguous and
+         * allow precise parsing to extract plugin/service names for aggregation.
          */
         Core::hresult RecordServiceLatency(const std::string& serviceName, double latencyMs)
         {
-            std::string metricName = std::string(AGW_METRIC_LATENCY_PREFIX) + mPluginName + "_" + serviceName + AGW_METRIC_LATENCY_SUFFIX;
+            std::string metricName = "AppGw_PluginName_" + mPluginName + "_ServiceName_" + serviceName + "_ServiceLatency_split";
             
             LOGTRACE("TelemetryClient: Recording service latency - plugin=%s, service=%s, latency=%.2fms, metric=%s",
                      mPluginName.c_str(), serviceName.c_str(), latencyMs, metricName.c_str());
@@ -372,10 +378,12 @@ namespace AppGatewayTelemetryHelper {
             if (client.IsAvailable()) { \
                 if (mFailed) { \
                     client.RecordApiError(mApiName, mErrorDetails); \
-                    std::string metricName = "AppGw" + client.GetPluginName() + "_FailedApiLatency_split"; \
+                    std::string metricName = "AppGw_PluginName_" + client.GetPluginName() + \
+                                             "_MethodName_" + mApiName + "_Error_split"; \
                     client.RecordMetric(metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS); \
                 } else { \
-                    std::string metricName = "AppGw" + client.GetPluginName() + "_ApiLatency_split"; \
+                    std::string metricName = "AppGw_PluginName_" + client.GetPluginName() + \
+                                             "_MethodName_" + mApiName + "_Success_split"; \
                     client.RecordMetric(metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS); \
                 } \
             } \
