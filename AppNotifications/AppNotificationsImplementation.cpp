@@ -27,7 +27,8 @@ namespace WPEFramework
             return lhs.requestId == rhs.requestId &&
                 lhs.connectionId == rhs.connectionId &&
                 lhs.appId == rhs.appId &&
-                lhs.origin == rhs.origin;
+                lhs.origin == rhs.origin &&
+                lhs.version == rhs.version;
         }
     }
     namespace Plugin
@@ -56,22 +57,25 @@ namespace WPEFramework
                                             bool listen /* @in */,
                                             const string &module /* @in */,
                                             const string &event /* @in */) {
-            LOGTRACE("Subscribe [requestId=%d appId=%s connectionId=%d] register=%s, module=%s, event=%s",
+            LOGTRACE("Subscribe [requestId=%d appId=%s connectionId=%d] register=%s, module=%s, event=%s, version=%s",
                     context.requestId, context.appId.c_str(), context.connectionId,
-                    listen ? "true" : "false", module.c_str(), event.c_str());
+                    listen ? "true" : "false", module.c_str(), event.c_str(), context.version.c_str());
+            string eventName = ContextUtils::GetEventNameFromContextBasedonVersion(context, event);
+            LOGTRACE("Resolved event name: %s", eventName.c_str());
+             // If the origin is gateway we need to check if the appId is valid for the
             if (listen) {
-                if (!mSubMap.Exists(module)) {
+                if (!mSubMap.Exists(eventName)) {
                     // Thunder subscription
-                    Core::IWorkerPool::Instance().Submit(SubscriberJob::Create(this, module, event, listen));
+                    Core::IWorkerPool::Instance().Submit(SubscriberJob::Create(this, module, eventName, listen));
                 }
-                mSubMap.Add(event, context);
+                mSubMap.Add(eventName, context);
             } else {
-                mSubMap.Remove(event, context);
+                mSubMap.Remove(eventName, context);
                 // If all elements are removed the entry is erased automatically
                 // This can be used to measure unsubscribe
-                if (!mSubMap.Exists(event)) {
+                if (!mSubMap.Exists(eventName)) {
                     // Thunder unsubscription
-                    Core::IWorkerPool::Instance().Submit(SubscriberJob::Create(this, module, event, listen));
+                    Core::IWorkerPool::Instance().Submit(SubscriberJob::Create(this, module, eventName, listen));
                 }
             }
             return Core::ERROR_NONE;
@@ -158,6 +162,8 @@ namespace WPEFramework
 
             std::lock_guard<std::mutex> lock(mSubscriberMutex);
             string lowerKey = StringUtils::toLower(key);
+            // Remove version information from the event key to match subscription keys
+            string clearKey = ContextUtils::GetBaseEventNameFromVersionedEvent(key);
             auto it = mSubscribers.find(lowerKey);
             if (it != mSubscribers.end()) {
                 for (const auto& context : it->second) {
@@ -166,12 +172,12 @@ namespace WPEFramework
 
                         if(context.appId == appId) {
                             // Dispatch the event to the subscriber
-                            Dispatch(key, context, payloadStr);
+                            Dispatch(clearKey, context, payloadStr);
                         }
                         
                     } else {
                         // Dispatch the event to the subscriber
-                        Dispatch(key, context, payloadStr);
+                        Dispatch(clearKey, context, payloadStr);
                     }
                 }
             } else {

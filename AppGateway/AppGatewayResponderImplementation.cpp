@@ -231,11 +231,17 @@ namespace WPEFramework
                     LOGDBG("%s-->[[a-%d-%d]] method=%s, params=%s",
                            appId.c_str(),connectionId, requestId, method.c_str(), params.c_str());
                 }
+
+                string version  = LEGACY_FIREBOLT_VERSION;
+                if (mCompliantJsonRpcRegistry.IsCompliantJsonRpc(context.connectionId)) {
+                    version = RDK8_FIREBOLT_VERSION;
+                }
                 // App Id is available
                 Context context = {
                     requestId,
                     connectionId,
-                    appId
+                    appId,
+                    version
                 };
 
                 if (mResolver == nullptr) {

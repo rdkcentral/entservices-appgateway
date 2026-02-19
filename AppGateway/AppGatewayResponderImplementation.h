@@ -175,7 +175,7 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                mParent.mWsManager.DispatchNotificationToConnection(mConnectionId, mPayload, mDesignator);
+                mParent.mWsManager.DispatchNotificationToConnection(mConnectionId, mDesignator, mPayload);
             }
 
         private:

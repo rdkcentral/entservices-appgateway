@@ -30,6 +30,7 @@
 #include "UtilsController.h"
 #include "BaseEventDelegate.h"
 #include <algorithm>
+#include "ContextUtils.h"
 
 using namespace WPEFramework;
 
@@ -775,8 +776,6 @@ public:
         }
         // Transform to rpcv2_event wrapper: { "videoResolution": $event_handler_response }
         const std::string wrapped = std::string("{\"videoResolution\":") + payload + "}";
-        LOGINFO("[AppGatewayCommon|VideoResolutionChanged] Final rpcv2_event payload=%s", wrapped.c_str());
-        LOGDBG("[AppGatewayCommon|VideoResolutionChanged] Emitting event: %s", EVENT_ON_VIDEO_RES_CHANGED);
         Dispatch(EVENT_ON_VIDEO_RES_CHANGED, wrapped);
             return true;
     }
@@ -791,8 +790,6 @@ public:
         }
         // Transform to rpcv2_event wrapper: { "screenResolution": $event }
         const std::string wrapped = std::string("{\"screenResolution\":") + payload + "}";
-        LOGINFO("[AppGatewayCommon|ScreenResolutionChanged] Final rpcv2_event payload=%s", wrapped.c_str());
-        LOGDBG("[AppGatewayCommon|ScreenResolutionChanged] Emitting event: %s", EVENT_ON_SCREEN_RES_CHANGED);
         Dispatch(EVENT_ON_SCREEN_RES_CHANGED, wrapped);
         return true;
 
@@ -806,8 +803,6 @@ public:
             LOGERR("[AppGatewayCommon|HdcpChanged] handler=GetHdcp failed to compute payload");
             return false;
         }
-        LOGINFO("[AppGatewayCommon|HdcpChanged] Final rpcv2_event payload=%s", payload.c_str());
-        LOGDBG("[AppGatewayCommon|HdcpChanged] Emitting event: %s", EVENT_ON_HDCP_CHANGED);
         Dispatch(EVENT_ON_HDCP_CHANGED, payload);
         return true;
 
@@ -821,9 +816,10 @@ public:
             LOGERR("[AppGatewayCommon|HdrChanged] handler=GetHdr failed to compute payload");
             return false;
         }
-        LOGINFO("[AppGatewayCommon|HdrChanged] Final rpcv2_event payload=%s", payload.c_str());
-        LOGDBG("[AppGatewayCommon|HdrChanged] Emitting event: %s", EVENT_ON_HDR_CHANGED);
+        // Legacy payload 
         Dispatch(EVENT_ON_HDR_CHANGED, payload);
+        Dispatch(ContextUtils::GetRDK8VersionedEventName(EVENT_ON_HDR_CHANGED), payload);
+        
         return true;
 
     }
@@ -838,8 +834,6 @@ public:
         }
         // Transform to rpcv2_event wrapper: { "friendlyName": $event }
         const std::string wrapped = std::string("{\"friendlyName\":") + payload + "}";
-        LOGINFO("[AppGatewayCommon|NameChanged] Final rpcv2_event payload=%s", wrapped.c_str());
-        LOGDBG("[AppGatewayCommon|NameChanged] Emitting event: %s", EVENT_ON_NAME_CHANGED);
         Dispatch(EVENT_ON_NAME_CHANGED, wrapped);
         return true;
     }
@@ -852,8 +846,6 @@ public:
             LOGERR("[AppGatewayCommon|AudioChanged] handler=GetAudio failed to compute payload");
             return false;
         }
-        LOGINFO("[AppGatewayCommon|AudioChanged] Final rpcv2_event payload=%s", payload.c_str());
-        LOGDBG("[AppGatewayCommon|AudioChanged] Emitting event: %s", EVENT_ON_AUDIO_CHANGED);
         Dispatch(EVENT_ON_AUDIO_CHANGED, payload);
         return true;
     }

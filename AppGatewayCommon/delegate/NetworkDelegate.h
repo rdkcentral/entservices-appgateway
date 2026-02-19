@@ -29,6 +29,9 @@
 #include <algorithm>
 #include <sstream>
 #include <set>
+#include "ContextUtils.h"
+#include "ObjectUtils.h"
+#include "UtilsFirebolt.h"
 
 using namespace WPEFramework;
 
@@ -36,7 +39,8 @@ using namespace WPEFramework;
 
 // Valid network events that can be subscribed to
 static const std::set<string> VALID_NETWORK_EVENT = {
-    "device.onnetworkchanged"
+    "device.onnetworkchanged",
+    "network.onconnectedchanged"
 };
 
 class NetworkDelegate : public BaseEventDelegate
@@ -51,9 +55,16 @@ public:
     {
         if (mNetworkManager != nullptr)
         {
+            if (mNotificationHandler.GetRegistered() && mNetworkManager != nullptr)
+            {
+                mNetworkManager->Unregister(&mNotificationHandler);
+                mNotificationHandler->Release();
+            }
             mNetworkManager->Release();
             mNetworkManager = nullptr;
         }
+
+        
     }
 
     bool HandleSubscription(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen)
@@ -114,6 +125,31 @@ public:
             }
         }
         return mNetworkManager;
+    }
+
+    Core::hresult GetNetworkConnected(const Exchange::GatewayContext& context, string &result) {
+        LOGINFO("GetNetworkConnected via NetworkManager");
+        result.clear();
+
+        Exchange::INetworkManager *networkManager = GetNetworkManagerInterface();
+        if (networkManager == nullptr) {
+            LOGERR("NetworkManager interface not available");
+            result = "{\"error\":\"NetworkManager not available\"}";
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        string interface;
+        Core::hresult rc = networkManager->GetPrimaryInterface(interface);
+        if (rc == Core::ERROR_NONE) {
+            // Transform the response: return_or_error(.result, "couldn't get network connected status")
+            // Return the boolean result directly as per transform specification
+            result = interface.empty() ? "false" : "true";
+            return Core::ERROR_NONE;
+        } else {
+            LOGERR("Failed to get primary interface on NetworkManager, error: %u", rc);
+            ErrorUtils::CustomInternal("Failed to get NetworkInfo", result);
+            return Core::ERROR_GENERAL;
+        }
     }
 
     // PUBLIC_INTERFACE
@@ -218,6 +254,7 @@ private:
         void onActiveInterfaceChange(const string prevActiveInterface, const string currentActiveInterface)
         {
             LOGDBG("onActiveInterfaceChange: prev=%s, current=%s", prevActiveInterface.c_str(), currentActiveInterface.c_str());
+            mParent.Dispatch(ContextUtils::GetRDK8VersionedEventName("Network.onConnectedChanged"), ObjectUtils::CreateBooleanJsonString("value", currentActiveInterface.empty() ? false : true) );
         }
 
         void onIPAddressChange(const string interface, const string ipversion, const string ipaddress, const Exchange::INetworkManager::IPStatus status)

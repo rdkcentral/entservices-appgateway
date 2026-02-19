@@ -25,6 +25,9 @@
 #include "UtilsCallsign.h"
 using namespace WPEFramework;
 using namespace std;
+
+#define LEGACY_FIREBOLT_VERSION "0"
+#define RDK8_FIREBOLT_VERSION "8"
 class ContextUtils {
     public:
         // Implement a static method which accepts a Exchange::IAppNotifications::Context object and
@@ -35,6 +38,7 @@ class ContextUtils {
             appGatewayContext.requestId = notificationsContext.requestId;
             appGatewayContext.connectionId = notificationsContext.connectionId;
             appGatewayContext.appId = notificationsContext.appId;
+            appGatewayContext.version = notificationsContext.version;
             return appGatewayContext;
         }
 
@@ -47,11 +51,34 @@ class ContextUtils {
             notificationsContext.connectionId = appGatewayContext.connectionId;
             notificationsContext.appId = appGatewayContext.appId;
             notificationsContext.origin = origin;
+            notificationsContext.version = appGatewayContext.version;
             return notificationsContext;
         }
 
         static bool IsOriginGateway(const string& origin) {
             return origin == APP_GATEWAY_CALLSIGN;
+        }
+
+        static bool IsRDK8Compliant(const string& version) {
+            return version == RDK8_FIREBOLT_VERSION;
+        }
+
+        static string GetEventNameFromContextBasedonVersion(const Exchange::IAppNotifications::AppNotificationContext& context, const string& baseEventName) {
+            if (context.version == RDK8_FIREBOLT_VERSION) {
+                return GetRDK8VersionedEventName(baseEventName);
+            }
+            return baseEventName;
+        }
+
+        static string GetRDK8VersionedEventName(const string& baseEventName) {
+            return baseEventName + ".v8";
+        }
+
+        static string GetBaseEventNameFromVersionedEvent(const string& versionedEventName) {
+            if (versionedEventName.size() > 3 && versionedEventName.substr(versionedEventName.size() - 3) == ".v8") {
+                return versionedEventName.substr(0, versionedEventName.size() - 3);
+            }
+            return versionedEventName;
         }
 };
 #endif
