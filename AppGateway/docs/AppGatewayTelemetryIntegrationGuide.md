@@ -111,10 +111,10 @@ uint32_t YourPlugin::Initialize(PluginHost::IShell* service)
 
 ```cpp
 // Report API errors - use AGW_ERROR_* constants
-AGW_REPORT_API_ERROR("GetData", AGW_ERROR_INVALID_REQUEST);
+AGW_REPORT_API_ERROR(context, "GetData", AGW_ERROR_INVALID_REQUEST);
 
 // Report external service errors - use AGW_SERVICE_* and AGW_ERROR_* constants
-AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, AGW_ERROR_CONNECTION_TIMEOUT);
+AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_AUTH, AGW_ERROR_CONNECTION_TIMEOUT);
 ```
 
 ### Step 5: Deinitialize on Shutdown
@@ -185,7 +185,7 @@ Releases the telemetry client and cleans up resources.
 AGW_TELEMETRY_DEINIT();
 ```
 
-#### `AGW_REPORT_API_ERROR(api, error)`
+#### `AGW_REPORT_API_ERROR(context, api, error)`
 
 Reports an API error event to App Gateway for optional immediate forensics. The plugin name is automatically included. This is OPTIONAL - AppGateway will still track the error count and send it as a metric (`AppGwApiErrorCount_<ApiName>_split`) periodically.
 
@@ -193,20 +193,15 @@ If enabled, the event uses the generic marker `AppGwPluginApiError_split` intern
 
 | Parameter | Type | Description |
 |-----------|------|-------------|  
-| `api` | `const char*` | Name of the API that failed |
-| `error` | `const char*` | Error code or description |
-
-**What it does:**
-- Optional: Sends immediate event with full context to T2 (if enabled)
-- Always: Increments error counter in AppGatewayTelemetry
+| `context` | `const Exchange::GatewayContext&` | Gateway context (requestId, connectionId, appId) for request correlation |
 - AppGateway sends periodic metric: `AppGwApiErrorCount_<ApiName>_split`
 
 **Example:**
 ```cpp
-AGW_REPORT_API_ERROR("AuthorizeDataField", "PERMISSION_DENIED");
+AGW_REPORT_API_ERROR(context, "AuthorizeDataField", "PERMISSION_DENIED");
 ```
 
-#### `AGW_REPORT_EXTERNAL_SERVICE_ERROR(service, error)`
+#### `AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, service, error)`
 
 Reports an external service error event to App Gateway for optional immediate forensics. The plugin name is automatically included. This is OPTIONAL - AppGateway will still track the error count and send it as a metric (`AppGwExtServiceErrorCount_<ServiceName>_split`) periodically.
 
@@ -214,44 +209,50 @@ If enabled, the event uses the generic marker `AppGwPluginExtServiceError_split`
 
 | Parameter | Type | Description |
 |-----------|------|-------------|  
-| `service` | `const char*` | Name of the external service (use `AGW_SERVICE_*` constants) |
-| `error` | `const char*` | Error code or description |
-
-**What it does:**
-- Optional: Sends immediate event with full context to T2 (if enabled)
-- Always: Increments error counter in AppGatewayTelemetry
+| `context` | `const Exchange::GatewayContext&` | Gateway context (requestId, connectionId, appId) for request correlation |
 - AppGateway sends periodic metric: `AppGwExtServiceErrorCount_<ServiceName>_split`
 
 **Example:**
 ```cpp
-AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, "CONNECTION_REFUSED");
+AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION, "CONNECTION_REFUSED");
 ```
 
-#### `AGW_REPORT_API_LATENCY(apiName, latencyMs)`
+#### `AGW_REPORT_API_LATENCY(context, apiName, latencyMs)`
 
-Reports API call latency metric to App Gateway. Sends a metric with composite name: `AppGw<PluginName>_<ApiName>_Latency_split`. The plugin name is automatically included. AppGateway aggregates these metrics over the reporting period and sends statistical data to T2.
+**⚠️ DEPRECATED for plugin methods - Use `AGW_SCOPED_API_TIMER` instead**
+
+Reports API call latency metric to App Gateway. **This macro should NOT be used for your plugin's own API methods** as it creates duplicate tracking with `AGW_SCOPED_API_TIMER`. Reserved for future specialized use cases.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
+| `context` | `const Exchange::GatewayContext&` | Gateway context (requestId, connectionId, appId) for request correlation |
 | `apiName` | `const char*` | Name of the API |
 | `latencyMs` | `double` | Latency in milliseconds |
 
 **What it does:**
-- Sends metric to AppGatewayTelemetry with composite name
+- Sends metric to AppGatewayTelemetry with tagged format: `AppGw_PluginName_<Plugin>_ApiName_<Api>_ApiLatency_split`
 - AppGateway aggregates: sum, count, min, max
-- Periodic metric: `AppGw<Plugin>_<Api>_Latency_split` (e.g., `AppGwBadger_GetDeviceSessionId_Latency_split`)
+- Periodic metric sent using common marker: `AppGwApiLatency_split`
 
-**Example:**
+**⚠️ WARNING:** Do NOT use with `AGW_SCOPED_API_TIMER` for the same operation—this creates duplicate telemetry. See Best Practices section for details.
+
+**Recommended Usage:**
+- Use `AGW_SCOPED_API_TIMER` for automatic latency tracking of plugin methods (includes success/error tracking)
+- This macro is retained for compatibility but is generally not needed
+
+**Example (if needed for special cases):**
 ```cpp
-AGW_REPORT_API_LATENCY("GetAppPermissions", 150.5);
+// ⚠️ Only use if NOT using AGW_SCOPED_API_TIMER for this method
+AGW_REPORT_API_LATENCY(context, "GetAppPermissions", 150.5);
 ```
 
-#### `AGW_REPORT_SERVICE_LATENCY(serviceName, latencyMs)`
+#### `AGW_REPORT_SERVICE_LATENCY(context, serviceName, latencyMs)`
 
 Reports external service call latency metric to App Gateway. Sends a metric with composite name: `AppGw<PluginName>_<ServiceName>_Latency_split`. AppGateway aggregates these metrics and sends statistical data to T2.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
+| `context` | `const Exchange::GatewayContext&` | Gateway context (requestId, connectionId, appId) for request correlation |
 | `serviceName` | `const char*` | Predefined service name from `AppGatewayTelemetryMarkers.h` |
 | `latencyMs` | `double` | Latency in milliseconds |
 
@@ -262,26 +263,42 @@ Reports external service call latency metric to App Gateway. Sends a metric with
 
 **Example:**
 ```cpp
-AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_OTT_TOKEN, 200.0);
+AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_OTT_TOKEN, 200.0);
 ```
 
-#### `AGW_SCOPED_API_TIMER(varName, apiName)`
+#### `AGW_SCOPED_API_TIMER(varName, context, apiName)`
 
-Creates an RAII-style timer that automatically tracks API latency. On destruction, it reports the elapsed time. If an error occurs, call `SetFailed(errorCode)` to mark the API call as failed.
+** RECOMMENDED for all plugin API methods**
+
+Creates an RAII-style timer that automatically tracks API latency and success/error counts. On destruction, it reports comprehensive statistics including latency metrics. If an error occurs, call `SetFailed(errorCode)` to mark the API call as failed.
+
+**This is the preferred way to track plugin method performance** as it provides:
+- Automatic latency tracking (no manual timing needed)
+- Success and error counts
+- Separate success/error latency statistics
+- Min/max/avg latency aggregation
+- Success rate calculation
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `varName` | identifier | Variable name for the timer |
+| `context` | `const Exchange::GatewayContext&` | Gateway context (requestId, connectionId, appId) for request correlation |
 | `apiName` | `const char*` | Name of the API being timed |
+
+**What it does:**
+- Automatically starts timing when declared
+- On destruction, reports to AppGatewayTelemetry with tagged format: `AppGw_PluginName_<Plugin>_MethodName_<Method>_Success/Error_split`
+- Tracks both success and error latencies separately
+- Aggregated data sent using common marker: `AppGwApiMethod_split`
 
 **Example:**
 ```cpp
-Core::hresult MyPlugin::GetData(const string& key, string& value) {
-    AGW_SCOPED_API_TIMER(timer, "GetData");
+Core::hresult MyPlugin::GetData(const Exchange::GatewayContext& context, const string& key, string& value) {
+    AGW_SCOPED_API_TIMER(timer, context, "GetData");  // Automatic latency tracking
     
     auto result = FetchFromCache(key, value);
     if (result != Core::ERROR_NONE) {
-        timer.SetFailed(AGW_ERROR_NOT_FOUND);
+        timer.SetFailed(AGW_ERROR_NOT_FOUND);  // Mark as error
         return result;
     }
     
@@ -289,6 +306,8 @@ Core::hresult MyPlugin::GetData(const string& key, string& value) {
     // Timer automatically reports success latency on destruction
 }
 ```
+
+**⚠️ Do NOT combine with `AGW_REPORT_API_LATENCY`** for the same method—this creates duplicate telemetry. See Best Practices section for details.
 
 ---
 
@@ -339,9 +358,12 @@ All telemetry markers, plugin names, service names, and units are defined in `Ap
 
 ```cpp
 Core::hresult OttServicesImplementation::GetAppPermissions(const string& appId, ...) {
+    // Create context for telemetry tracking
+    Exchange::GatewayContext context{0, 0, appId};
+    
     if (!_perms) {
         LOGERR("PermissionsClient not initialized");
-        AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CLIENT_NOT_INITIALIZED);
+        AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CLIENT_NOT_INITIALIZED);
         return Core::ERROR_UNAVAILABLE;
     }
     // ... rest of implementation
@@ -353,7 +375,7 @@ Core::hresult OttServicesImplementation::GetAppPermissions(const string& appId, 
 ```cpp
 std::string Badger::GetDeviceSessionId(const Exchange::GatewayContext& context, const string& appId) {
     // Track API latency using scoped timer
-    AGW_SCOPED_API_TIMER(timer, "GetDeviceSessionId");
+    AGW_SCOPED_API_TIMER(timer, context, "GetDeviceSessionId");
     
     string deviceSessionId = "app_session_id.not.set";
 
@@ -366,14 +388,14 @@ std::string Badger::GetDeviceSessionId(const Exchange::GatewayContext& context, 
     auto lifecycle = mDelegateFactory->getDelegate<LifecycleDelegate>();
     if (!lifecycle) {
         LOGERR("LifecycleDelegate not available.");
-        AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_LIFECYCLE_DELEGATE, AGW_ERROR_NOT_AVAILABLE);
+        AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_LIFECYCLE_DELEGATE, AGW_ERROR_NOT_AVAILABLE);
         timer.SetFailed(AGW_ERROR_NOT_AVAILABLE);
         return deviceSessionId;
     }
     
     if (lifecycle->GetDeviceSessionId(context, deviceSessionId) != Core::ERROR_NONE) {
         LOGERR("Failed to get device session ID");
-        AGW_REPORT_API_ERROR("GetDeviceSessionId", AGW_ERROR_FETCH_FAILED);
+        AGW_REPORT_API_ERROR(context, "GetDeviceSessionId", AGW_ERROR_FETCH_FAILED);
         timer.SetFailed(AGW_ERROR_FETCH_FAILED);
         return deviceSessionId;
     }
@@ -386,9 +408,9 @@ std::string Badger::GetDeviceSessionId(const Exchange::GatewayContext& context, 
 ### Example 3: Manual Service Latency Tracking
 
 ```cpp
-Core::hresult Badger::AuthorizeDataField(const std::string& appId, const char* requiredDataField) {
+Core::hresult Badger::AuthorizeDataField(const Exchange::GatewayContext& context, const std::string& appId, const char* requiredDataField) {
     // API name can be a string (method-specific) but error codes should use constants
-    AGW_SCOPED_API_TIMER(apiTimer, "AuthorizeDataField");
+    AGW_SCOPED_API_TIMER(apiTimer, context, "AuthorizeDataField");
     
     // ... check cache first ...
     
@@ -399,7 +421,7 @@ Core::hresult Badger::AuthorizeDataField(const std::string& appId, const char* r
     if (ottServices == nullptr) {
         LOGERR("OttServices interface not available");
         // Use predefined service and error constants
-        AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE);
+        AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE);
         apiTimer.SetFailed(AGW_ERROR_INTERFACE_UNAVAILABLE);
         return Core::ERROR_UNAVAILABLE;
     }
@@ -408,7 +430,7 @@ Core::hresult Badger::AuthorizeDataField(const std::string& appId, const char* r
     if (ottServices->GetAppPermissions(appId, false, permissionsIterator) != Core::ERROR_NONE) {
         LOGERR("GetAppPermissions failed");
         // Use predefined error constant
-        AGW_REPORT_API_ERROR("GetAppPermissions", AGW_ERROR_PERMISSION_DENIED);
+        AGW_REPORT_API_ERROR(context, "GetAppPermissions", AGW_ERROR_PERMISSION_DENIED);
         apiTimer.SetFailed(AGW_ERROR_PERMISSION_DENIED);
         return Core::ERROR_PRIVILIGED_REQUEST;
     }
@@ -417,7 +439,7 @@ Core::hresult Badger::AuthorizeDataField(const std::string& appId, const char* r
     auto serviceCallEnd = std::chrono::steady_clock::now();
     auto serviceLatencyMs = std::chrono::duration_cast<std::chrono::milliseconds>(
         serviceCallEnd - serviceCallStart).count();
-    AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_OTT_SERVICES, static_cast<double>(serviceLatencyMs));
+    AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_OTT_SERVICES, static_cast<double>(serviceLatencyMs));
     
     // ... process permissions ...
     
@@ -429,6 +451,9 @@ Core::hresult Badger::AuthorizeDataField(const std::string& appId, const char* r
 
 ```cpp
 Core::hresult OttServicesImplementation::GetAppCIMAToken(const string& appId, string& token) {
+    // Create context for telemetry tracking
+    Exchange::GatewayContext context{0, 0, appId};
+    
     // Check cache first
     const std::string cacheKey = std::string("platform:") + appId;
     if (_tokenCache.Get(cacheKey, token)) {
@@ -444,13 +469,13 @@ Core::hresult OttServicesImplementation::GetAppCIMAToken(const string& appId, st
     
     if (!FetchSat(sat, satExpiry)) {
         LOGERR("FetchSat failed");
-        AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, AGW_ERROR_FETCH_FAILED);
+        AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_AUTH, AGW_ERROR_FETCH_FAILED);
         return Core::ERROR_UNAVAILABLE;
     }
     
     if (!FetchXact(appId, xact, xactExpiry)) {
         LOGERR("FetchXact failed");
-        AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, AGW_ERROR_FETCH_FAILED);
+        AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_AUTH, AGW_ERROR_FETCH_FAILED);
         return Core::ERROR_UNAVAILABLE;
     }
     
@@ -460,7 +485,7 @@ Core::hresult OttServicesImplementation::GetAppCIMAToken(const string& appId, st
     const bool ok = _token->GetPlatformToken(appId, xact, sat, token, expiresInSec, err);
     if (!ok) {
         LOGERR("GetPlatformToken failed: %s", err.c_str());
-        AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_OTT_TOKEN, err.c_str());
+        AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_OTT_TOKEN, err.c_str());
         return Core::ERROR_UNAVAILABLE;
     }
     
@@ -468,7 +493,7 @@ Core::hresult OttServicesImplementation::GetAppCIMAToken(const string& appId, st
     auto tokenServiceEnd = std::chrono::steady_clock::now();
     auto tokenLatencyMs = std::chrono::duration_cast<std::chrono::milliseconds>(
         tokenServiceEnd - tokenServiceStart).count();
-    AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_OTT_TOKEN, static_cast<double>(tokenLatencyMs));
+    AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_OTT_TOKEN, static_cast<double>(tokenLatencyMs));
     
     // Cache the token
     // ...
@@ -615,7 +640,9 @@ namespace Plugin {
         // Initialize settings backend
         if (!InitializeBackend()) {
             // Use predefined error constant when available
-            AGW_REPORT_EXTERNAL_SERVICE_ERROR("SettingsBackend", AGW_ERROR_GENERAL);
+            // Create default context for initialization errors
+            Exchange::GatewayContext initContext{0, 0, "FbSettings"};
+            AGW_REPORT_EXTERNAL_SERVICE_ERROR(initContext, "SettingsBackend", AGW_ERROR_GENERAL);
             // Auto-reports to: AppGwPluginExtServiceError_split
             // Payload: {"plugin":"FbSettings","service":"SettingsBackend","error":"GENERAL_ERROR"}
             return Core::ERROR_UNAVAILABLE;
@@ -630,15 +657,15 @@ namespace Plugin {
         // ... cleanup ...
     }
 
-    uint32_t FbSettingsImplementation::GetSetting(const string& key, string& value)
+    uint32_t FbSettingsImplementation::GetSetting(const Exchange::GatewayContext& context, const string& key, string& value)
     {
         // Auto-track latency with scoped timer
-        AGW_SCOPED_API_TIMER(timer, "GetSetting");
+        AGW_SCOPED_API_TIMER(timer, context, "GetSetting");
         // Auto-reports to: AppGwFbSettings_GetSetting_Latency_split when function exits
         
         if (key.empty()) {
             // Always use predefined error constants
-            AGW_REPORT_API_ERROR("GetSetting", AGW_ERROR_INVALID_REQUEST);
+            AGW_REPORT_API_ERROR(context, "GetSetting", AGW_ERROR_INVALID_REQUEST);
             // Auto-reports to: AppGwPluginApiError_split
             // Auto-increments: AppGwApiErrorCount_GetSetting_split
             return Core::ERROR_BAD_REQUEST;
@@ -646,7 +673,7 @@ namespace Plugin {
 
         if (!_backend->Fetch(key, value)) {
             // Use predefined error constant
-            AGW_REPORT_EXTERNAL_SERVICE_ERROR("SettingsBackend", AGW_ERROR_FETCH_FAILED);
+            AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, "SettingsBackend", AGW_ERROR_FETCH_FAILED);
             // Auto-increments: AppGwExtServiceErrorCount_SettingsBackend_split
             return Core::ERROR_UNAVAILABLE;
         }
@@ -654,25 +681,25 @@ namespace Plugin {
         return Core::ERROR_NONE;
     }
 
-    uint32_t FbSettingsImplementation::SetSetting(const string& key, const string& value)
+    uint32_t FbSettingsImplementation::SetSetting(const Exchange::GatewayContext& context, const string& key, const string& value)
     {
-        AGW_SCOPED_API_TIMER(timer, "SetSetting");
+        AGW_SCOPED_API_TIMER(timer, context, "SetSetting");
         
         if (key.empty()) {
-            AGW_REPORT_API_ERROR("SetSetting", AGW_ERROR_INVALID_REQUEST);
+            AGW_REPORT_API_ERROR(context, "SetSetting", AGW_ERROR_INVALID_REQUEST);
             return Core::ERROR_BAD_REQUEST;
         }
 
         auto start = std::chrono::steady_clock::now();
         
         if (!_backend->Store(key, value)) {
-            AGW_REPORT_EXTERNAL_SERVICE_ERROR("SettingsBackend", AGW_ERROR_UPDATE_FAILED);
+            AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, "SettingsBackend", AGW_ERROR_UPDATE_FAILED);
             return Core::ERROR_UNAVAILABLE;
         }
 
         auto end = std::chrono::steady_clock::now();
         double latencyMs = std::chrono::duration<double, std::milli>(end - start).count();
-        AGW_REPORT_SERVICE_LATENCY("SettingsBackend", latencyMs);
+        AGW_REPORT_SERVICE_LATENCY(context, "SettingsBackend", latencyMs);
         // Auto-reports to: AppGwFbSettings_SettingsBackend_Latency_split
 
         return Core::ERROR_NONE;
@@ -694,7 +721,7 @@ Place telemetry calls immediately after detecting a failure:
 // ✓ Good - report at failure point using predefined constants
 if (!service->Connect()) {
     LOGERR("Connection failed");
-    AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, AGW_ERROR_CONNECTION_REFUSED);
+    AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_AUTH, AGW_ERROR_CONNECTION_REFUSED);
     return Core::ERROR_UNAVAILABLE;
 }
 
@@ -707,13 +734,13 @@ if (!service->Connect()) {
 
 ```cpp
 // ✓ BEST - uses predefined constants for both service and error
-AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, AGW_ERROR_CONNECTION_TIMEOUT);
+AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_AUTH, AGW_ERROR_CONNECTION_TIMEOUT);
 
 // ✓ Acceptable - specific error when predefined constant doesn't exist
-AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_AUTH, "INVALID_TOKEN_FORMAT");
+AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_AUTH, "INVALID_TOKEN_FORMAT");
 
 // ✗ BAD - hardcoded strings when constants exist
-AGW_REPORT_EXTERNAL_SERVICE_ERROR("AuthService", "CONNECTION_TIMEOUT");
+AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, "AuthService", "CONNECTION_TIMEOUT");
 ```
 
 **Available Error Constants:** See `AppGatewayTelemetryMarkers.h` for:
@@ -733,7 +760,7 @@ Report significant errors, not every minor issue:
 ```cpp
 // ✓ Good - report service unavailability using constants
 if (!interface) {
-    AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE);
+    AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE);
 }
 
 // ✗ Bad - don't report expected/handled conditions
@@ -749,13 +776,13 @@ Use the simplified macros with predefined constants:
 
 ```cpp
 // ✓ BEST - uses predefined error constant
-AGW_REPORT_API_ERROR("GetData", AGW_ERROR_GENERAL);
+AGW_REPORT_API_ERROR(context, "GetData", AGW_ERROR_GENERAL);
 
 // ✓ BEST - uses both service and error constants
-AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CONNECTION_REFUSED);
+AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CONNECTION_REFUSED);
 
 // ✗ BAD - hardcoded error string when constant exists
-AGW_REPORT_API_ERROR("GetData", "FAILED");
+AGW_REPORT_API_ERROR(context, "GetData", "FAILED");
 ```
 
 ### 5. Include Context in Logging
@@ -765,8 +792,109 @@ The telemetry macros don't replace logging—use both:
 ```cpp
 // ✓ Good - log with context, then report telemetry using constants
 LOGERR("GetAppPermissions failed for appId='%s': %s", appId.c_str(), error.c_str());
-AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_PERMISSION_DENIED);
+AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_PERMISSION_DENIED);
 ```
+
+### 6. Avoid Duplicate Latency Tracking
+
+**IMPORTANT:** Do **NOT** mix `AGW_SCOPED_API_TIMER` with manual latency reporting for the same operation—this creates duplicate telemetry data.
+
+#### Understanding the Telemetry Types
+
+The system tracks three types of statistics:
+
+| Telemetry Type | Source | T2 Marker | Purpose | Tracks |
+|----------------|--------|-----------|---------|---------|
+| **API Method Stats** | `AGW_SCOPED_API_TIMER` | `AppGwApiMethod_split` | Per-API method tracking | Success/error counts, success/error latency (min/max/avg) |
+| **API Latency Stats** | `AGW_REPORT_API_LATENCY` | `AppGwApiLatency_split` | Generic API latency | Latency only (min/max/avg) |
+| **Service Latency Stats** | `AGW_REPORT_SERVICE_LATENCY` | `AppGwServiceLatency_split` | External service latency | Latency only (min/max/avg) |
+
+#### Rules for Latency Tracking
+
+1. **For your plugin's own API methods**: Use `AGW_SCOPED_API_TIMER` **only**
+   - Automatically tracks both success and error cases with latency
+   - Reports comprehensive statistics including success rate
+   - No need to manually report latency
+
+2. **For external service calls**: Use `AGW_REPORT_SERVICE_LATENCY`
+   - Tracks latency of calls to external services (gRPC, REST APIs, etc.)
+   - Separate from your plugin's API methods
+
+3. **Never use both for the same operation**
+
+#### Examples
+
+```cpp
+// ✓ CORRECT - Use AGW_SCOPED_API_TIMER for plugin's own methods
+Core::hresult MyPlugin::GetData(const Exchange::GatewayContext& context, const string& key, string& value) {
+    AGW_SCOPED_API_TIMER(timer, context, "GetData");  // ← Tracks latency automatically
+    
+    auto result = FetchFromDatabase(key, value);
+    if (result != Core::ERROR_NONE) {
+        timer.SetFailed(AGW_ERROR_FETCH_FAILED);
+        return result;
+    }
+    
+    return Core::ERROR_NONE;
+    // ✓ Timer reports success latency automatically
+}
+
+// ✗ WRONG - Do NOT add manual latency reporting
+Core::hresult MyPlugin::GetData(const Exchange::GatewayContext& context, const string& key, string& value) {
+    AGW_SCOPED_API_TIMER(timer, context, "GetData");  // ← Already tracks latency
+    
+    auto start = std::chrono::steady_clock::now();
+    auto result = FetchFromDatabase(key, value);
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - start).count();
+    
+    AGW_REPORT_API_LATENCY(context, "GetData", duration);  // ✗ DUPLICATE! Scoped timer already reports this
+    
+    return result;
+}
+
+// ✓ CORRECT - Use AGW_REPORT_SERVICE_LATENCY for external service calls
+Core::hresult MyPlugin::CallExternalService(const Exchange::GatewayContext& context) {
+    auto start = std::chrono::steady_clock::now();
+    
+    auto result = mGrpcClient->MakeRequest();
+    
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - start).count();
+    
+    AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_THOR_PERMISSION, duration);  // ✓ Correct - external service
+    
+    return result;
+}
+
+// ✓ CORRECT - Nested scenario: Plugin method calls external service
+Core::hresult MyPlugin::GetUserPermissions(const Exchange::GatewayContext& context, const string& userId) {
+    AGW_SCOPED_API_TIMER(apiTimer, context, "GetUserPermissions");  // ← Tracks plugin's API method
+    
+    // Call external service and track its latency separately
+    auto serviceStart = std::chrono::steady_clock::now();
+    auto result = mPermissionClient->CheckPermissions(userId);
+    auto serviceDuration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - serviceStart).count();
+    
+    AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_THOR_PERMISSION, serviceDuration);  // ✓ External service timing
+    
+    if (result != Core::ERROR_NONE) {
+        apiTimer.SetFailed(AGW_ERROR_PERMISSION_DENIED);
+        return result;
+    }
+    
+    return Core::ERROR_NONE;
+    // ✓ apiTimer tracks total GetUserPermissions latency (including service call)
+    // ✓ Service latency tracked separately for service-specific metrics
+}
+```
+
+#### Summary
+
+- **Plugin API methods** → `AGW_SCOPED_API_TIMER` only (automatic latency + success/error tracking)
+- **External service calls** → `AGW_REPORT_SERVICE_LATENCY` (manual timing for specific service visibility)
+- **Never report the same latency twice through different mechanisms**
 
 ---
 
@@ -814,3 +942,5 @@ For questions or issues with telemetry integration:
 | Version | Date | Description |
 |---------|------|-------------|
 | 1.0 | 2026-01-31 | Initial release |
+| 1.1 | 2026-02-18 | Updated all macros to require `context` parameter for request correlation |
+| 1.1 | 2026-02-18 | Added best practice #6: Avoid duplicate latency tracking. Clarified AGW_SCOPED_API_TIMER vs AGW_REPORT_API_LATENCY usage. Deprecated AGW_REPORT_API_LATENCY for plugin methods. |

@@ -178,6 +178,76 @@
  */
 #define AGW_MARKER_EXT_SERVICE_ERROR_STATS          "AppGwExtServiceError_split"
 
+/**
+ * @brief Per-API method statistics marker (common marker for all plugin/method combinations)
+ * @details Used to report detailed per-API statistics including counters and latency metrics
+ * @usage Single marker for all: "AppGwApiMethod_split"
+ * @payload {
+ *   "plugin_name": "<PluginName>",
+ *   "method_name": "<MethodName>",
+ *   "reporting_interval_sec": 3600,
+ *   "total_count": <total_calls>,
+ *   "success_count": <success_count>,
+ *   "success_rate_percent": <success_rate>,
+ *   "success_latency_avg_ms": <avg>,
+ *   "success_latency_min_ms": <min>,
+ *   "success_latency_max_ms": <max>,
+ *   "success_latency_total_ms": <total>,
+ *   "error_count": <error_count>,
+ *   "error_latency_avg_ms": <avg>,
+ *   "error_latency_min_ms": <min>,
+ *   "error_latency_max_ms": <max>,
+ *   "error_latency_total_ms": <total>,
+ *   "unit": "Milliseconds"
+ * }
+ * @example For LaunchDelegate.session():
+ *   Marker: "AppGwApiMethod_split"
+ *   Payload includes: "plugin_name": "LaunchDelegate", "method_name": "session"
+ */
+#define AGW_METRIC_API_METHOD                       "AppGwApiMethod_split"
+
+/**
+ * @brief API latency statistics marker (common marker for all plugin/API combinations)
+ * @details Used to report aggregated API latency metrics from plugins
+ * @usage Single marker for all: "AppGwApiLatency_split"
+ * @payload {
+ *   "plugin_name": "<PluginName>",
+ *   "api_name": "<ApiName>",
+ *   "reporting_interval_sec": 3600,
+ *   "count": <total_calls>,
+ *   "avg_ms": <average_latency>,
+ *   "min_ms": <minimum_latency>,
+ *   "max_ms": <maximum_latency>,
+ *   "total_ms": <total_latency>,
+ *   "unit": "Milliseconds"
+ * }
+ * @example For Badger.GetSettings():
+ *   Marker: "AppGwApiLatency_split"
+ *   Payload includes: "plugin_name": "Badger", "api_name": "GetSettings"
+ */
+#define AGW_METRIC_API_LATENCY                      "AppGwApiLatency_split"
+
+/**
+ * @brief Service latency statistics marker (common marker for all plugin/service combinations)
+ * @details Used to report aggregated external service latency metrics from plugins
+ * @usage Single marker for all: "AppGwServiceLatency_split"
+ * @payload {
+ *   "plugin_name": "<PluginName>",
+ *   "service_name": "<ServiceName>",
+ *   "reporting_interval_sec": 3600,
+ *   "count": <total_calls>,
+ *   "avg_ms": <average_latency>,
+ *   "min_ms": <minimum_latency>,
+ *   "max_ms": <maximum_latency>,
+ *   "total_ms": <total_latency>,
+ *   "unit": "Milliseconds"
+ * }
+ * @example For OttServices calling ThorPermissionService:
+ *   Marker: "AppGwServiceLatency_split"
+ *   Payload includes: "plugin_name": "OttServices", "service_name": "ThorPermissionService"
+ */
+#define AGW_METRIC_SERVICE_LATENCY                  "AppGwServiceLatency_split"
+
 //=============================================================================
 // GENERIC PLUGIN TELEMETRY MARKERS
 // Used by all plugins - plugin/service name is included in the payload data
@@ -212,9 +282,9 @@
 /**
  * @brief Plugin API error event marker
  * @details Reports API failures from any plugin. Plugin name included in payload.
- * @usage Use AGW_REPORT_API_ERROR() helper macro from UtilsAppGatewayTelemetry.h
+ * @usage Use AGW_REPORT_API_ERROR(context, api, error) helper macro from UtilsAppGatewayTelemetry.h
  * @payload { "plugin": "<pluginName>", "api": "<apiName>", "error": "<errorCode>" }
- * @example AGW_REPORT_API_ERROR("GetAppSessionId", AGW_ERROR_TIMEOUT)
+ * @example AGW_REPORT_API_ERROR(context, "GetAppSessionId", AGW_ERROR_TIMEOUT)
  * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
  */
 #define AGW_MARKER_PLUGIN_API_ERROR                 "AppGwPluginApiError_split"
@@ -222,9 +292,9 @@
 /**
  * @brief Plugin external service error event marker
  * @details Reports external service failures from any plugin. Plugin name included in payload.
- * @usage Use AGW_REPORT_EXTERNAL_SERVICE_ERROR() helper macro from UtilsAppGatewayTelemetry.h
+ * @usage Use AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, service, error) helper macro from UtilsAppGatewayTelemetry.h
  * @payload { "plugin": "<pluginName>", "service": "<serviceName>", "error": "<errorCode>" }
- * @example AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CONNECTION_TIMEOUT)
+ * @example AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CONNECTION_TIMEOUT)
  * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
  */
 #define AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR         "AppGwPluginExtServiceError_split"
@@ -232,9 +302,9 @@
 /**
  * @brief Plugin API latency metric marker
  * @details Reports API call latency from any plugin using RecordTelemetryEvent with JSON payload.
- * @usage Use AGW_REPORT_API_LATENCY() helper macro from UtilsAppGatewayTelemetry.h
+ * @usage Use AGW_REPORT_API_LATENCY(context, api, latencyMs) helper macro from UtilsAppGatewayTelemetry.h
  * @payload { "plugin": "<pluginName>", "api": "<apiName>", "latency_ms": <double> }
- * @example AGW_REPORT_API_LATENCY("AuthorizeDataField", 125.5)
+ * @example AGW_REPORT_API_LATENCY(context, "AuthorizeDataField", 125.5)
  * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
  */
 #define AGW_MARKER_PLUGIN_API_LATENCY               "AppGwPluginApiLatency_split"
@@ -243,11 +313,11 @@
  * @brief Plugin external service latency metric marker (DEPRECATED - not used)
  * @details This marker is no longer used. Service latency is now reported using RecordTelemetryMetric
  *          with composite metric names in the format: agw_<PluginName>_<ServiceName>_Latency
- * @usage Use AGW_REPORT_SERVICE_LATENCY() helper macro from UtilsAppGatewayTelemetry.h
+ * @usage Use AGW_REPORT_SERVICE_LATENCY(context, service, latencyMs) helper macro from UtilsAppGatewayTelemetry.h
  * @metric_name agw_<PluginName>_<ServiceName>_Latency (e.g., agw_OttServices_ThorPermissionService_Latency)
  * @metric_value Latency in milliseconds
  * @metric_unit AGW_UNIT_MILLISECONDS
- * @example AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_THOR_PERMISSION, 85.3)
+ * @example AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_THOR_PERMISSION, 85.3)
  * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
  */
 #define AGW_MARKER_PLUGIN_SERVICE_LATENCY           "AppGwPluginServiceLatency_split"
@@ -363,7 +433,8 @@
  *   AGW_TELEMETRY_INIT(mService);
  *
  *   // Report the error (plugin name automatic from AGW_DEFINE_TELEMETRY_CLIENT):
- *   AGW_REPORT_API_ERROR("GetAppSessionId", AGW_ERROR_INTERFACE_UNAVAILABLE);
+ *   // Note: context parameter contains requestId, connectionId, appId for request correlation
+ *   AGW_REPORT_API_ERROR(context, "GetAppSessionId", AGW_ERROR_INTERFACE_UNAVAILABLE);
  *
  *   // This internally calls RecordTelemetryEvent with:
  *   //   eventName = AGW_MARKER_PLUGIN_API_ERROR
@@ -384,7 +455,8 @@
  *   AGW_TELEMETRY_INIT(mService);
  *
  *   // Report the service error (plugin name automatic from AGW_DEFINE_TELEMETRY_CLIENT):
- *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION,
+ *   // Note: context parameter contains requestId, connectionId, appId for request correlation
+ *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION,
  *                                      AGW_ERROR_CONNECTION_TIMEOUT);
  *
  *   // This internally calls RecordTelemetryEvent with:
@@ -398,7 +470,8 @@
  *
  *   #include "UtilsAppGatewayTelemetry.h"
  *
- *   AGW_REPORT_API_LATENCY("AuthorizeDataField", 125.5);  // latency in ms
+ *   // Note: context parameter contains requestId, connectionId, appId for request correlation
+ *   AGW_REPORT_API_LATENCY(context, "AuthorizeDataField", 125.5);  // latency in ms
  *
  *   // This internally calls RecordTelemetryEvent (NOT RecordTelemetryMetric) with:
  *   //   eventName = AGW_MARKER_PLUGIN_API_LATENCY
@@ -417,7 +490,8 @@
  *   // In Initialize() method:
  *   AGW_TELEMETRY_INIT(mService);
  *
- *   AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_THOR_PERMISSION, 85.3);  // latency in ms
+ *   // Note: context parameter contains requestId, connectionId, appId for request correlation
+ *   AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_THOR_PERMISSION, 85.3);  // latency in ms
  *
  *   // This internally calls RecordTelemetryMetric with:
  *   //   metricName = AGW_METRIC_LATENCY_PREFIX + "OttServices_ThorPermissionService" + AGW_METRIC_LATENCY_SUFFIX

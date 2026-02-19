@@ -38,10 +38,11 @@
  * 3. Initialize the telemetry client in your plugin's Initialize/Configure:
  *    AGW_TELEMETRY_INIT(mService)
  * 
- * 4. Report events using the macros:
- *    - AGW_REPORT_API_ERROR("GetSettings", AGW_ERROR_TIMEOUT)
- *    - AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE)
- *    - AGW_REPORT_API_LATENCY("GetSettings", 123.45)
+ * 4. Report events using the macros (all require context parameter):
+ *    - AGW_REPORT_API_ERROR(context, "GetSettings", AGW_ERROR_TIMEOUT)
+ *    - AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE)
+ *    - AGW_REPORT_API_LATENCY(context, "GetSettings", 123.45)
+ *    - AGW_SCOPED_API_TIMER(timer, context, "GetSettings")  // RECOMMENDED for API methods
  * 
  * 5. Cleanup in Deinitialize:
  *    AGW_TELEMETRY_DEINIT()
@@ -162,47 +163,45 @@ namespace AppGatewayTelemetryHelper {
 
         /**
          * @brief Record a telemetry event
+         * @param context Gateway context with request/connection/app info
          * @param eventName Event name (used as T2 marker)
          * @param eventData JSON string with event details
          * @return Core::hresult
          */
-        Core::hresult RecordEvent(const std::string& eventName, const std::string& eventData)
+        Core::hresult RecordEvent(const Exchange::GatewayContext& context,
+                                  const std::string& eventName, 
+                                  const std::string& eventData)
         {
             if (!IsAvailable()) {
                 return Core::ERROR_UNAVAILABLE;
             }
-
-            Exchange::GatewayContext context;
-            context.requestId = 0;
-            context.connectionId = 0;
-            context.appId = mPluginName.c_str();
 
             return mTelemetry->RecordTelemetryEvent(context, eventName, eventData);
         }
 
         /**
          * @brief Record a telemetry metric
+         * @param context Gateway context with request/connection/app info
          * @param metricName Metric name (used as T2 marker)
          * @param value Numeric value
          * @param unit Unit of measurement
          * @return Core::hresult
          */
-        Core::hresult RecordMetric(const std::string& metricName, double value, const std::string& unit)
+        Core::hresult RecordMetric(const Exchange::GatewayContext& context,
+                                   const std::string& metricName, 
+                                   double value, 
+                                   const std::string& unit)
         {
             if (!IsAvailable()) {
                 return Core::ERROR_UNAVAILABLE;
             }
-
-            Exchange::GatewayContext context;
-            context.requestId = 0;
-            context.connectionId = 0;
-            context.appId = mPluginName.c_str();
 
             return mTelemetry->RecordTelemetryMetric(context, metricName, value, unit);
         }
 
         /**
          * @brief Record an API error event (individual occurrence)
+         * @param context Gateway context with request/connection/app info
          * @param apiName Name of the API that failed
          * @param errorCode Predefined error code from AppGatewayTelemetryMarkers.h
          * @return Core::hresult
@@ -210,7 +209,9 @@ namespace AppGatewayTelemetryHelper {
          * This records an EVENT - each error occurrence is sent individually to T2.
          * Use this to track WHAT errors happened, not how many.
          */
-        Core::hresult RecordApiError(const std::string& apiName, const std::string& errorCode)
+        Core::hresult RecordApiError(const Exchange::GatewayContext& context,
+                                     const std::string& apiName, 
+                                     const std::string& errorCode)
         {
             JsonObject data;
             data["plugin"] = mPluginName;
@@ -223,11 +224,12 @@ namespace AppGatewayTelemetryHelper {
             LOGTRACE("TelemetryClient: Recording API error - plugin=%s, api=%s, error=%s",
                      mPluginName.c_str(), apiName.c_str(), errorCode.c_str());
 
-            return RecordEvent(AGW_MARKER_PLUGIN_API_ERROR, eventData);
+            return RecordEvent(context, AGW_MARKER_PLUGIN_API_ERROR, eventData);
         }
 
         /**
          * @brief Record an external service error event (individual occurrence)
+         * @param context Gateway context with request/connection/app info
          * @param serviceName Predefined service name from AppGatewayTelemetryMarkers.h
          * @param errorCode Predefined error code from AppGatewayTelemetryMarkers.h
          * @return Core::hresult
@@ -235,7 +237,8 @@ namespace AppGatewayTelemetryHelper {
          * This records an EVENT - each error occurrence is sent individually to T2.
          * Use this to track WHAT service errors happened, not how many.
          */
-        Core::hresult RecordExternalServiceError(const std::string& serviceName, 
+        Core::hresult RecordExternalServiceError(const Exchange::GatewayContext& context,
+                                                  const std::string& serviceName, 
                                                   const std::string& errorCode)
         {
             JsonObject data;
@@ -249,53 +252,65 @@ namespace AppGatewayTelemetryHelper {
             LOGINFO("TelemetryClient: Recording external service error - plugin=%s, service=%s, error=%s",
                     mPluginName.c_str(), serviceName.c_str(), errorCode.c_str());
 
-            return RecordEvent(AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR, eventData);
+            return RecordEvent(context, AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR, eventData);
         }
 
         /**
          * @brief Record an API latency metric (aggregated value)
+         * @param context Gateway context with request/connection/app info
          * @param apiName Name of the API
          * @param latencyMs Latency in milliseconds
          * @return Core::hresult
          * 
          * This records a METRIC - values are aggregated (sum/count/min/max/avg)
-         * and sent to T2 periodically. Use this to track API performance over time.
+         * and sent to T2 periodically using common marker AGW_METRIC_API_LATENCY.
          * 
-         * Generates a composite metric name: AGW_METRIC_LATENCY_PREFIX + <PluginName> + "_" + <ApiName> + AGW_METRIC_LATENCY_SUFFIX
-         * Example: "AppGwBadger_GetSettings_Latency_split"
-         * This allows each plugin-API combination to have its own aggregated metric.
+         * Generates a tagged metric name with explicit structure:
+         *   "AppGw_PluginName_" + <PluginName> + "_ApiName_" + <ApiName> + "_ApiLatency_split"
+         * Example: "AppGw_PluginName_Badger_ApiName_GetSettings_ApiLatency_split"
+         * 
+         * The explicit tags (PluginName_, ApiName_) make the metric unambiguous and
+         * allow precise parsing to extract plugin/API names for aggregation.
          */
-        Core::hresult RecordApiLatency(const std::string& apiName, double latencyMs)
+        Core::hresult RecordApiLatency(const Exchange::GatewayContext& context,
+                                       const std::string& apiName, 
+                                       double latencyMs)
         {
-            std::string metricName = std::string(AGW_METRIC_LATENCY_PREFIX) + mPluginName + "_" + apiName + AGW_METRIC_LATENCY_SUFFIX;
+            std::string metricName = "AppGw_PluginName_" + mPluginName + "_ApiName_" + apiName + "_ApiLatency_split";
             
             LOGTRACE("TelemetryClient: Recording API latency - plugin=%s, api=%s, latency=%.2fms, metric=%s",
                      mPluginName.c_str(), apiName.c_str(), latencyMs, metricName.c_str());
 
-            return RecordMetric(metricName, latencyMs, AGW_UNIT_MILLISECONDS);
+            return RecordMetric(context, metricName, latencyMs, AGW_UNIT_MILLISECONDS);
         }
 
         /**
          * @brief Record an external service latency metric (aggregated value)
+         * @param context Gateway context with request/connection/app info
          * @param serviceName Predefined service name from AppGatewayTelemetryMarkers.h
          * @param latencyMs Latency in milliseconds
          * @return Core::hresult
          * 
          * This records a METRIC - values are aggregated (sum/count/min/max/avg)
-         * and sent to T2 periodically. Use this to track service performance over time.
+         * and sent to T2 periodically using common marker AGW_METRIC_SERVICE_LATENCY.
          * 
-         * Generates a composite metric name: AGW_METRIC_LATENCY_PREFIX + <PluginName> + "_" + <ServiceName> + AGW_METRIC_LATENCY_SUFFIX
-         * Example: "AppGwOttServices_ThorPermissionService_Latency_split"
-         * This allows each plugin-service combination to have its own aggregated metric.
+         * Generates a tagged metric name with explicit structure:
+         *   "AppGw_PluginName_" + <PluginName> + "_ServiceName_" + <ServiceName> + "_ServiceLatency_split"
+         * Example: "AppGw_PluginName_OttServices_ServiceName_ThorPermissionService_ServiceLatency_split"
+         * 
+         * The explicit tags (PluginName_, ServiceName_) make the metric unambiguous and
+         * allow precise parsing to extract plugin/service names for aggregation.
          */
-        Core::hresult RecordServiceLatency(const std::string& serviceName, double latencyMs)
+        Core::hresult RecordServiceLatency(const Exchange::GatewayContext& context,
+                                           const std::string& serviceName, 
+                                           double latencyMs)
         {
-            std::string metricName = std::string(AGW_METRIC_LATENCY_PREFIX) + mPluginName + "_" + serviceName + AGW_METRIC_LATENCY_SUFFIX;
+            std::string metricName = "AppGw_PluginName_" + mPluginName + "_ServiceName_" + serviceName + "_ServiceLatency_split";
             
             LOGTRACE("TelemetryClient: Recording service latency - plugin=%s, service=%s, latency=%.2fms, metric=%s",
                      mPluginName.c_str(), serviceName.c_str(), latencyMs, metricName.c_str());
 
-            return RecordMetric(metricName, latencyMs, AGW_UNIT_MILLISECONDS);
+            return RecordMetric(context, metricName, latencyMs, AGW_UNIT_MILLISECONDS);
         }
 
         /**
@@ -359,28 +374,7 @@ namespace AppGatewayTelemetryHelper {
         const char* GetLocalPluginName() { \
             return pluginName; \
         } \
-    } \
-    namespace WPEFramework { \
-    namespace Plugin { \
-    namespace AppGatewayTelemetryHelper { \
-        inline ScopedApiTimer::~ScopedApiTimer() \
-        { \
-            auto endTime = std::chrono::steady_clock::now(); \
-            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>( \
-                endTime - mStartTime).count(); \
-            auto& client = GetLocalTelemetryClient(); \
-            if (client.IsAvailable()) { \
-                if (mFailed) { \
-                    client.RecordApiError(mApiName, mErrorDetails); \
-                    std::string metricName = "AppGw" + client.GetPluginName() + "_FailedApiLatency_split"; \
-                    client.RecordMetric(metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS); \
-                } else { \
-                    std::string metricName = "AppGw" + client.GetPluginName() + "_ApiLatency_split"; \
-                    client.RecordMetric(metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS); \
-                } \
-            } \
-        } \
-    }}} \
+    }
 
 
 /**
@@ -420,44 +414,47 @@ namespace AppGatewayTelemetryHelper {
 
 /**
  * @brief Report an API error to AppGateway telemetry
+ * @param context Gateway context with request/connection/app info
  * @param apiName Name of the API that failed
  * @param errorCode Predefined error code from AppGatewayTelemetryMarkers.h (e.g., AGW_ERROR_TIMEOUT)
  * 
  * Uses generic marker AGW_MARKER_PLUGIN_API_ERROR with plugin name from AGW_DEFINE_TELEMETRY_CLIENT.
  * 
  * Example:
- *   AGW_REPORT_API_ERROR("GetSettings", AGW_ERROR_TIMEOUT)
- *   AGW_REPORT_API_ERROR("GetAppPermissions", AGW_ERROR_PERMISSION_DENIED)
+ *   AGW_REPORT_API_ERROR(context, "GetSettings", AGW_ERROR_TIMEOUT)
+ *   AGW_REPORT_API_ERROR(context, "GetAppPermissions", AGW_ERROR_PERMISSION_DENIED)
  */
-#define AGW_REPORT_API_ERROR(apiName, errorCode) \
+#define AGW_REPORT_API_ERROR(context, apiName, errorCode) \
     do { \
         auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
-            client.RecordApiError(apiName, errorCode); \
+            client.RecordApiError(context, apiName, errorCode); \
         } \
     } while(0)
 
 /**
  * @brief Report an external service error to AppGateway telemetry
+ * @param context Gateway context with request/connection/app info
  * @param serviceName Predefined service name from AppGatewayTelemetryMarkers.h (e.g., AGW_SERVICE_OTT_SERVICES)
  * @param errorCode Predefined error code from AppGatewayTelemetryMarkers.h (e.g., AGW_ERROR_INTERFACE_UNAVAILABLE)
  * 
  * Uses generic marker AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR with plugin name from AGW_DEFINE_TELEMETRY_CLIENT.
  * 
  * Example:
- *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE)
- *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CONNECTION_TIMEOUT)
+ *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE)
+ *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CONNECTION_TIMEOUT)
  */
-#define AGW_REPORT_EXTERNAL_SERVICE_ERROR(serviceName, errorCode) \
+#define AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, serviceName, errorCode) \
     do { \
         auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
-            client.RecordExternalServiceError(serviceName, errorCode); \
+            client.RecordExternalServiceError(context, serviceName, errorCode); \
         } \
     } while(0)
 
 /**
  * @brief Report an API latency metric to AppGateway telemetry
+ * @param context Gateway context with request/connection/app info
  * @param apiName Name of the API
  * @param latencyMs Latency in milliseconds
  * 
@@ -465,21 +462,22 @@ namespace AppGatewayTelemetryHelper {
  * it as a numeric metric for statistical aggregation (sum, count, min, max, avg).
  * 
  * Example:
- *   AGW_REPORT_API_LATENCY("GetSettings", 150.5)
+ *   AGW_REPORT_API_LATENCY(context, "GetSettings", 150.5)
  *     -> Records metric "AppGwBadger_GetSettings_Latency_split"
- *   AGW_REPORT_API_LATENCY("GetAppPermissions", 250.0)
+ *   AGW_REPORT_API_LATENCY(context, "GetAppPermissions", 250.0)
  *     -> Records metric "AppGwBadger_GetAppPermissions_Latency_split"
  */
-#define AGW_REPORT_API_LATENCY(apiName, latencyMs) \
+#define AGW_REPORT_API_LATENCY(context, apiName, latencyMs) \
     do { \
         auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
-            client.RecordApiLatency(apiName, latencyMs); \
+            client.RecordApiLatency(context, apiName, latencyMs); \
         } \
     } while(0)
 
 /**
  * @brief Report an external service latency metric to AppGateway telemetry
+ * @param context Gateway context with request/connection/app info
  * @param serviceName Predefined service name from AppGatewayTelemetryMarkers.h
  * @param latencyMs Latency in milliseconds
  * 
@@ -487,66 +485,69 @@ namespace AppGatewayTelemetryHelper {
  * it as a numeric metric for statistical aggregation (sum, count, min, max, avg).
  * 
  * Example:
- *   AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_THOR_PERMISSION, 350.0)
+ *   AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_THOR_PERMISSION, 350.0)
  *     -> Records metric "AppGwBadger_ThorPermissionService_Latency_split"
- *   AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_OTT_TOKEN, 200.0)
+ *   AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_OTT_TOKEN, 200.0)
  *     -> Records metric "AppGwOttServices_OttTokenService_Latency_split"
  */
-#define AGW_REPORT_SERVICE_LATENCY(serviceName, latencyMs) \
+#define AGW_REPORT_SERVICE_LATENCY(context, serviceName, latencyMs) \
     do { \
         auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
-            client.RecordServiceLatency(serviceName, latencyMs); \
+            client.RecordServiceLatency(context, serviceName, latencyMs); \
         } \
     } while(0)
 
 /**
  * @brief Report a custom numeric metric to AppGateway telemetry
+ * @param context Gateway context with request/connection/app info
  * @param metricName Custom metric name
  * @param value Numeric value
  * @param unit Predefined unit from AppGatewayTelemetryMarkers.h (e.g., AGW_UNIT_MILLISECONDS)
  * 
  * Example:
- *   AGW_REPORT_METRIC("agw_CustomMetric", 150.5, AGW_UNIT_MILLISECONDS)
+ *   AGW_REPORT_METRIC(context, "agw_CustomMetric", 150.5, AGW_UNIT_MILLISECONDS)
  */
-#define AGW_REPORT_METRIC(metricName, value, unit) \
+#define AGW_REPORT_METRIC(context, metricName, value, unit) \
     do { \
         auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
-            client.RecordMetric(metricName, value, unit); \
+            client.RecordMetric(context, metricName, value, unit); \
         } \
     } while(0)
 
 /**
  * @brief Report a custom telemetry event to AppGateway
+ * @param context Gateway context with request/connection/app info
  * @param eventName Event name (becomes T2 marker)
  * @param eventData JSON string with event data
  * 
  * Example:
- *   AGW_REPORT_EVENT("agw_UserLogin", "{\"userId\":\"123\"}")
+ *   AGW_REPORT_EVENT(context, "agw_UserLogin", "{\"userId\":\"123\"}")
  */
-#define AGW_REPORT_EVENT(eventName, eventData) \
+#define AGW_REPORT_EVENT(context, eventName, eventData) \
     do { \
         auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
-            client.RecordEvent(eventName, eventData); \
+            client.RecordEvent(context, eventName, eventData); \
         } \
     } while(0)
 
 /**
  * @brief Report a successful API call with timing information
+ * @param context Gateway context with request/connection/app info
  * @param apiName Name of the API
  * @param durationMs Duration of the call in milliseconds
  * 
  * Example:
- *   AGW_REPORT_API_SUCCESS("GetSettings", 45)
+ *   AGW_REPORT_API_SUCCESS(context, "GetSettings", 45)
  */
-#define AGW_REPORT_API_SUCCESS(apiName, durationMs) \
+#define AGW_REPORT_API_SUCCESS(context, apiName, durationMs) \
     do { \
         auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
             std::string metricName = std::string("AppGw") + client.GetPluginName() + "_ApiLatency_split"; \
-            client.RecordMetric(metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS); \
+            client.RecordMetric(context, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS); \
         } \
     } while(0)
 
@@ -561,7 +562,7 @@ namespace AppGatewayTelemetryHelper {
      * 
      * Usage:
      *   {
-     *       ScopedApiTimer timer("GetSettings");
+     *       ScopedApiTimer timer(&GetLocalTelemetryClient(), context, "GetSettings");
      *       // ... do API work ...
      *       if (failed) timer.SetFailed("TIMEOUT");
      *   } // Timer automatically reports on destruction
@@ -569,15 +570,37 @@ namespace AppGatewayTelemetryHelper {
     class ScopedApiTimer
     {
     public:
-        ScopedApiTimer(const std::string& apiName)
-            : mApiName(apiName)
+        ScopedApiTimer(TelemetryClient* client, const Exchange::GatewayContext& context, const std::string& apiName)
+            : mClient(client)
+            , mContext(context)
+            , mApiName(apiName)
             , mFailed(false)
             , mErrorDetails()
             , mStartTime(std::chrono::steady_clock::now())
         {
         }
 
-        ~ScopedApiTimer(); // Implementation provided below via macro expansion
+        ~ScopedApiTimer()
+        {
+            if (!mClient || !mClient->IsAvailable()) {
+                return;
+            }
+
+            auto endTime = std::chrono::steady_clock::now();
+            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                endTime - mStartTime).count();
+            
+            if (mFailed) {
+                mClient->RecordApiError(mContext, mApiName, mErrorDetails);
+                std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
+                                         "_MethodName_" + mApiName + "_Error_split";
+                mClient->RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+            } else {
+                std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
+                                         "_MethodName_" + mApiName + "_Success_split";
+                mClient->RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+            }
+        }
 
         void SetFailed(const std::string& errorDetails)
         {
@@ -591,6 +614,8 @@ namespace AppGatewayTelemetryHelper {
         }
 
     private:
+        TelemetryClient* mClient;
+        Exchange::GatewayContext mContext;
         std::string mApiName;
         bool mFailed;
         std::string mErrorDetails;
@@ -604,12 +629,13 @@ namespace AppGatewayTelemetryHelper {
 /**
  * @brief Create a scoped timer for automatic API latency tracking
  * @param varName Variable name for the timer
+ * @param context Gateway context with request/connection/app info
  * @param apiName Name of the API being timed
  * 
  * Example:
  *   Core::hresult MyPlugin::SomeMethod()
  *   {
- *       AGW_SCOPED_API_TIMER(timer, "SomeMethod");
+ *       AGW_SCOPED_API_TIMER(timer, context, "SomeMethod");
  *       
  *       auto result = DoWork();
  *       if (result != Core::ERROR_NONE) {
@@ -620,5 +646,5 @@ namespace AppGatewayTelemetryHelper {
  *       return Core::ERROR_NONE;
  *   } // Timer automatically reports success/failure with timing
  */
-#define AGW_SCOPED_API_TIMER(varName, apiName) \
-    WPEFramework::Plugin::AppGatewayTelemetryHelper::ScopedApiTimer varName(apiName)
+#define AGW_SCOPED_API_TIMER(varName, context, apiName) \
+    WPEFramework::Plugin::AppGatewayTelemetryHelper::ScopedApiTimer varName(&GetLocalTelemetryClient(), context, apiName)

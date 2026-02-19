@@ -205,10 +205,12 @@ These metrics use composite naming with plugin and API/service names.
 
 **Do not reference markers directly in your code.** Use the helper macros from `UtilsAppGatewayTelemetry.h` instead:
 
-- `AGW_REPORT_API_ERROR(api, error)` - Uses `AppGwPluginApiError_split` internally
-- `AGW_REPORT_EXTERNAL_SERVICE_ERROR(service, error)` - Uses `AppGwPluginExtServiceError_split` internally
-- `AGW_REPORT_API_LATENCY(api, latencyMs)` - Generates `AppGw<Plugin>_<Api>_Latency_split`
-- `AGW_REPORT_SERVICE_LATENCY(service, latencyMs)` - Generates `AppGw<Plugin>_<Service>_Latency_split`
+- `AGW_REPORT_API_ERROR(context, api, error)` - Uses `AppGwPluginApiError_split` internally
+- `AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, service, error)` - Uses `AppGwPluginExtServiceError_split` internally
+- `AGW_REPORT_API_LATENCY(context, api, latencyMs)` - Generates `AppGw<Plugin>_<Api>_Latency_split`
+- `AGW_REPORT_SERVICE_LATENCY(context, service, latencyMs)` - Generates `AppGw<Plugin>_<Service>_Latency_split`
+
+All macros now require a `context` parameter (type: `Exchange::GatewayContext`) for request correlation tracking.
 
 **For complete integration instructions, see:**
 [AppGatewayTelemetryIntegrationGuide.md](./AppGatewayTelemetryIntegrationGuide.md)
