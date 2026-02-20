@@ -68,11 +68,11 @@ namespace WPEFramework
         {
             LOGINFO("Deinitializing AppGatewayResponderImplementation");
             
-            // Set destruction flag to prevent lambda execution after destruction
+            // Set destruction flag to prevent new job submissions  
             mIsDestructing.store(true);
             
-            // Clear all handlers to prevent use-after-free scenarios
-            mWsManager.ClearHandlers();
+            // Stop WebSocket server and clear handlers safely (prevents new callbacks)
+            mWsManager.Stop();
 
             if (nullptr != mService)
             {
@@ -123,20 +123,17 @@ namespace WPEFramework
             mWsManager.SetMessageHandler(
                 [this](const std::string &method, const std::string &params, const int requestId, const uint32_t connectionId)
                 {
-                    // Check if object is being destructed to prevent use-after-free
-                    if (mIsDestructing.load()) {
-                        LOGWARN("Message handler called during destruction, ignoring request");
-                        return;
+                    // Only submit jobs if not destructing to avoid UAF
+                    if (!mIsDestructing.load()) {
+                        Core::IWorkerPool::Instance().Submit(WsMsgJob::Create(this, method, params, requestId, connectionId));
                     }
-                    Core::IWorkerPool::Instance().Submit(WsMsgJob::Create(this, method, params, requestId, connectionId));
                 });
 
             mWsManager.SetAuthHandler(
                 [this](const uint32_t connectionId, const std::string &token) -> bool
                 {
-                    // Check if object is being destructed to prevent use-after-free
+                    // Reject authentication if destructing 
                     if (mIsDestructing.load()) {
-                        LOGWARN("Auth handler called during destruction, rejecting authentication");
                         return false;
                     }
                     string sessionId = Utils::ResolveQuery(token, "session");
@@ -184,9 +181,8 @@ namespace WPEFramework
             mWsManager.SetDisconnectHandler(
                 [this](const uint32_t connectionId)
                 {
-                    // Check if object is being destructed to prevent use-after-free
+                    // Skip disconnect processing if destructing
                     if (mIsDestructing.load()) {
-                        LOGWARN("Disconnect handler called during destruction, skipping cleanup");
                         return;
                     }
                     LOGINFO("Connection disconnected: %d", connectionId);

@@ -81,8 +81,12 @@ namespace Plugin {
             const std::string& params,
             const uint32_t requestId,
             const uint32_t connectionId)
-                : mParent(*parent), mMethod(method), mParams(params), mRequestId(requestId), mConnectionId(connectionId)
+                : mParent(parent), mMethod(method), mParams(params), mRequestId(requestId), mConnectionId(connectionId)
             {
+                // Keep parent alive during job execution
+                if (mParent != nullptr) {
+                    mParent->AddRef();
+                }
             }
 
         public:
@@ -91,6 +95,10 @@ namespace Plugin {
             WsMsgJob &operator=(const WsMsgJob &) = delete;
             ~WsMsgJob()
             {
+                // Release parent reference
+                if (mParent != nullptr) {
+                    mParent->Release();
+                }
             }
 
         public:
@@ -102,15 +110,14 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                // Check if parent object is being destructed to prevent use-after-free
-                if (mParent.mIsDestructing.load()) {
-                    return;
+                // Safely check if parent is still valid
+                if (mParent != nullptr && !mParent->mIsDestructing.load()) {
+                    mParent->DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
                 }
-                mParent.DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            AppGatewayResponderImplementation *mParent; // Changed to pointer for null-checking
             const std::string mMethod;
             const std::string mParams;
             const uint32_t mRequestId;
@@ -125,8 +132,12 @@ namespace Plugin {
             const uint32_t requestId,
             const std::string& payload
             )
-                : mParent(*parent), mPayload(payload), mRequestId(requestId), mConnectionId(connectionId)
+                : mParent(parent), mPayload(payload), mRequestId(requestId), mConnectionId(connectionId)
             {
+                // Keep parent alive during job execution
+                if (mParent != nullptr) {
+                    mParent->AddRef();
+                }
             }
 
         public:
@@ -135,6 +146,10 @@ namespace Plugin {
             RespondJob &operator=(const RespondJob &) = delete;
             ~RespondJob()
             {
+                // Release parent reference
+                if (mParent != nullptr) {
+                    mParent->Release();
+                }
             }
 
         public:
@@ -145,15 +160,14 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                // Check if parent object is being destructed to prevent use-after-free
-                if (mParent.mIsDestructing.load()) {
-                    return;
+                // Safely check if parent is still valid
+                if (mParent != nullptr && !mParent->mIsDestructing.load()) {
+                    mParent->ReturnMessageInSocket(mConnectionId, mRequestId, mPayload);
                 }
-                mParent.ReturnMessageInSocket(mConnectionId, mRequestId, mPayload);                
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            AppGatewayResponderImplementation *mParent; // Changed to pointer for null-checking
             const std::string mPayload;
             const uint32_t mRequestId;
             const uint32_t mConnectionId;
@@ -167,8 +181,12 @@ namespace Plugin {
             const std::string& designator,
             const std::string& payload
             )
-                : mParent(*parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId)
+                : mParent(parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId)
             {
+                // Keep parent alive during job execution
+                if (mParent != nullptr) {
+                    mParent->AddRef();
+                }
             }
 
         public:
@@ -177,6 +195,10 @@ namespace Plugin {
             EmitJob &operator=(const EmitJob &) = delete;
             ~EmitJob()
             {
+                // Release parent reference
+                if (mParent != nullptr) {
+                    mParent->Release();
+                }
             }
 
         public:
@@ -187,15 +209,14 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                // Check if parent object is being destructed to prevent use-after-free
-                if (mParent.mIsDestructing.load()) {
-                    return;
+                // Safely check if parent is still valid
+                if (mParent != nullptr && !mParent->mIsDestructing.load()) {
+                    mParent->mWsManager.DispatchNotificationToConnection(mConnectionId, mPayload, mDesignator);
                 }
-                mParent.mWsManager.DispatchNotificationToConnection(mConnectionId, mPayload, mDesignator);
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            AppGatewayResponderImplementation *mParent; // Changed to pointer for null-checking
             const std::string mPayload;
             const std::string mDesignator;
             const uint32_t mConnectionId;
@@ -210,8 +231,12 @@ namespace Plugin {
             const std::string& designator,
             const std::string& payload
             )
-                : mParent(*parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId), mRequestId(requestId)
+                : mParent(parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId), mRequestId(requestId)
             {
+                // Keep parent alive during job execution
+                if (mParent != nullptr) {
+                    mParent->AddRef();
+                }
             }
 
         public:
@@ -220,6 +245,10 @@ namespace Plugin {
             RequestJob &operator=(const RequestJob &) = delete;
             ~RequestJob()
             {
+                // Release parent reference
+                if (mParent != nullptr) {
+                    mParent->Release();
+                }
             }
 
         public:
@@ -230,15 +259,14 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                // Check if parent object is being destructed to prevent use-after-free
-                if (mParent.mIsDestructing.load()) {
-                    return;
+                // Safely check if parent is still valid
+                if (mParent != nullptr && !mParent->mIsDestructing.load()) {
+                    mParent->mWsManager.SendRequestToConnection(mConnectionId, mDesignator, mRequestId, mPayload);
                 }
-                mParent.mWsManager.SendRequestToConnection(mConnectionId, mDesignator, mRequestId, mPayload);
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            AppGatewayResponderImplementation *mParent; // Changed to pointer for null-checking
             const std::string mPayload;
             const std::string mDesignator;
             const uint32_t mConnectionId;
@@ -253,8 +281,12 @@ namespace Plugin {
             const std::string& appId,
             const bool connected
             )
-                : mParent(*parent), mConnectionId(connectionId), mAppId(appId), mConnected(connected)
+                : mParent(parent), mConnectionId(connectionId), mAppId(appId), mConnected(connected)
             {
+                // Keep parent alive during job execution
+                if (mParent != nullptr) {
+                    mParent->AddRef();
+                }
             }
 
         public:
@@ -263,6 +295,10 @@ namespace Plugin {
             ConnectionStatusNotificationJob &operator=(const ConnectionStatusNotificationJob &) = delete;
             ~ConnectionStatusNotificationJob()
             {
+                // Release parent reference
+                if (mParent != nullptr) {
+                    mParent->Release();
+                }
             }
 
         public:
@@ -273,15 +309,14 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                // Check if parent object is being destructed to prevent use-after-free
-                if (mParent.mIsDestructing.load()) {
-                    return;
+                // Safely check if parent is still valid
+                if (mParent != nullptr && !mParent->mIsDestructing.load()) {
+                    mParent->OnConnectionStatusChanged(mAppId, mConnectionId, mConnected);
                 }
-                mParent.OnConnectionStatusChanged(mAppId, mConnectionId, mConnected);
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            AppGatewayResponderImplementation *mParent; // Changed to pointer for null-checking
             const uint32_t mConnectionId;
             const std::string mAppId;
             const bool mConnected;
@@ -364,11 +399,6 @@ namespace Plugin {
 
 
         void ReturnMessageInSocket(const uint32_t connectionId, const int requestId, const string payload ) {
-            // Check if object is being destructed to prevent use-after-free
-            if (mIsDestructing.load()) {
-                return;
-            }
-            
             if (mEnhancedLoggingEnabled) {
                 LOGDBG("<--[[a-%d-%d]] payload=%s",
                         connectionId, requestId, payload.c_str());
