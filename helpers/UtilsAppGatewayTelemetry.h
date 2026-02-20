@@ -38,6 +38,11 @@
  * 3. Initialize the telemetry client in your plugin's Initialize/Configure:
  *    AGW_TELEMETRY_INIT(mService)
  * 
+ *    (Optional) Record plugin bootstrap time using RAII:
+ *    AGW_RECORD_BOOTSTRAP_TIME();  // Timer starts here
+ *    // ... plugin initialization code ...
+ *    // Timer automatically records on scope exit
+ * 
  * 4. Report events using the macros (all require context parameter):
  *    - AGW_REPORT_API_ERROR(context, "GetSettings", AGW_ERROR_TIMEOUT)
  *    - AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE)
@@ -314,6 +319,30 @@ namespace AppGatewayTelemetryHelper {
         }
 
         /**
+         * @brief Record plugin bootstrap time
+         * @param durationMs Bootstrap duration in milliseconds
+         * @return Core::hresult
+         * 
+         * Reports the time taken for this plugin to initialize.
+         * Uses standard bootstrap metric marker. AppGatewayTelemetry aggregates
+         * all plugin bootstrap times and increments the plugin counter automatically.
+         */
+        Core::hresult RecordBootstrapTime(uint64_t durationMs)
+        {
+            Exchange::GatewayContext context;
+            context.requestId = 0;
+            context.connectionId = 0;
+            context.appId = mPluginName;  // Plugin identity in context
+
+            LOGINFO("TelemetryClient: Recording bootstrap time - plugin=%s, duration=%llums",
+                    mPluginName.c_str(), (unsigned long long)durationMs);
+
+            // Use standard bootstrap metric - AppGatewayTelemetry will handle cumulative tracking
+            return RecordMetric(context, AGW_METRIC_BOOTSTRAP_DURATION, 
+                              static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+        }
+
+        /**
          * @brief Get the plugin name
          * @return The plugin name
          */
@@ -401,6 +430,25 @@ namespace AppGatewayTelemetryHelper {
     do { \
         GetLocalTelemetryClient().Deinitialize(); \
     } while(0)
+
+/**
+ * @brief Record plugin bootstrap time using RAII
+ * 
+ * Creates a scoped timer that automatically measures bootstrap time from
+ * invocation until the end of the current scope (typically end of Initialize).
+ * Reports the bootstrap time via TelemetryClient to AppGateway.
+ * 
+ * Example:
+ *   const string MyPlugin::Initialize(PluginHost::IShell* service) {
+ *       AGW_RECORD_BOOTSTRAP_TIME();  // Timer starts here
+ *       
+ *       // ... plugin initialization code ...
+ *       
+ *       return EMPTY_STRING;
+ *   } // Timer automatically records on scope exit
+ */
+#define AGW_RECORD_BOOTSTRAP_TIME() \
+    WPEFramework::Plugin::AppGatewayTelemetryHelper::ScopedBootstrapTimer __bootstrapTimer(&GetLocalTelemetryClient())
 
 /**
  * @brief Check if telemetry is available
@@ -556,6 +604,39 @@ namespace AppGatewayTelemetryHelper {
 namespace WPEFramework {
 namespace Plugin {
 namespace AppGatewayTelemetryHelper {
+
+    /**
+     * @brief RAII timer for automatic bootstrap time tracking
+     * 
+     * Takes a TelemetryClient pointer to report bootstrap time via COM-RPC.
+     */
+    class ScopedBootstrapTimer
+    {
+    public:
+        ScopedBootstrapTimer(TelemetryClient* client)
+            : mClient(client)
+            , mStartTime(std::chrono::steady_clock::now())
+        {
+        }
+
+        ~ScopedBootstrapTimer()
+        {
+            if (!mClient || !mClient->IsAvailable()) {
+                return;
+            }
+
+            auto endTime = std::chrono::steady_clock::now();
+            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                endTime - mStartTime).count();
+            
+            // Report bootstrap time via TelemetryClient (COM-RPC to AppGateway)
+            mClient->RecordBootstrapTime(static_cast<uint64_t>(durationMs));
+        }
+
+    private:
+        TelemetryClient* mClient;
+        std::chrono::steady_clock::time_point mStartTime;
+    };
 
     /**
      * @brief RAII timer for automatic API latency tracking

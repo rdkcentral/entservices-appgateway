@@ -149,8 +149,9 @@ namespace Plugin {
         void FlushTelemetryData();
 
         // Scenario 1: Bootstrap Time Recording
-        // Records bootstrap duration and plugin count as METRICS
-        void RecordBootstrapTime(uint64_t durationMs, uint32_t pluginsLoaded);
+        // Each plugin reports its own bootstrap duration. AppGatewayTelemetry tracks
+        // the cumulative total and increments the plugin count automatically.
+        void RecordBootstrapTime(uint64_t durationMs);
 
         // Scenario 2: Health Stats Tracking
         // Counters are incremented during operation, then sent as METRICS periodically
@@ -425,6 +426,10 @@ namespace Plugin {
 
         // Reporting start time (for interval calculation)
         std::chrono::steady_clock::time_point mReportingStartTime;
+
+        // Bootstrap tracking (cumulative across all plugins)
+        std::atomic<uint32_t> mBootstrapPluginsLoaded{0};
+        std::atomic<uint64_t> mTotalBootstrapTimeMs{0};
 
         // Initialization state
         bool mInitialized;

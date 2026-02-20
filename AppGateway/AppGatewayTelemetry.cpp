@@ -138,20 +138,26 @@ namespace Plugin {
         return mTelemetryFormat;
     }
 
-    void AppGatewayTelemetry::RecordBootstrapTime(uint64_t durationMs, uint32_t pluginsLoaded)
+    void AppGatewayTelemetry::RecordBootstrapTime(uint64_t durationMs)
     {
-        // Record bootstrap metrics (numeric values for aggregation)
+        // Increment plugin counter and accumulate total bootstrap time
+        uint32_t pluginCount = mBootstrapPluginsLoaded.fetch_add(1, std::memory_order_relaxed) + 1;
+        uint64_t totalTime = mTotalBootstrapTimeMs.fetch_add(durationMs, std::memory_order_relaxed) + durationMs;
+        
+        LOGINFO("Plugin bootstrap time recorded: %lu ms (Plugin #%u, Cumulative total: %lu ms)",
+                durationMs, pluginCount, totalTime);
+        
+        // Record individual plugin bootstrap metric
         Exchange::GatewayContext context;
         context.requestId = 0;
         context.connectionId = 0;
         context.appId = "AppGateway";
 
+        // Record cumulative metrics (will be overwritten with latest totals)
         RecordTelemetryMetric(context, AGW_METRIC_BOOTSTRAP_DURATION, 
-                              static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+                              static_cast<double>(totalTime), AGW_UNIT_MILLISECONDS);
         RecordTelemetryMetric(context, AGW_METRIC_BOOTSTRAP_PLUGIN_COUNT, 
-                              static_cast<double>(pluginsLoaded), AGW_UNIT_COUNT);
-        
-        LOGINFO("Bootstrap time recorded: %lu ms, plugins loaded: %u", durationMs, pluginsLoaded);
+                              static_cast<double>(pluginCount), AGW_UNIT_COUNT);
     }
 
     void AppGatewayTelemetry::IncrementWebSocketConnections()
@@ -588,6 +594,12 @@ namespace Plugin {
 
         LOGTRACE("RecordTelemetryMetric from %s: metric=%s, value=%f, unit=%s",
                  context.appId.c_str(), metricName.c_str(), metricValue, metricUnit.c_str());
+
+        // Check for bootstrap duration metric - route to internal RecordBootstrapTime
+        if (metricName == AGW_METRIC_BOOTSTRAP_DURATION) {
+            RecordBootstrapTime(static_cast<uint64_t>(metricValue));
+            return Core::ERROR_NONE;
+        }
 
         // Determine metric type and record accordingly
         std::string pluginName, apiOrMethodName;
