@@ -412,19 +412,17 @@ namespace WPEFramework
 
             std::string permissionGroup;
             if (mResolverPtr->HasPermissionGroup(method, permissionGroup)) {
+                bool allowed = false;
                 LOGTRACE("Method '%s' requires permission group '%s'", method.c_str(), permissionGroup.c_str());
-                if (SetupAppGatewayAuthenticator()) {
-                    bool allowed = false;
-                    if (Core::ERROR_NONE != mAuthenticator->CheckPermissionGroup(context.appId, permissionGroup, allowed)) {
-                        LOGERR("Failed to check permission group '%s' for appId '%s'", permissionGroup.c_str(), context.appId.c_str());
-                        ErrorUtils::NotPermitted(resolution);
-                        return Core::ERROR_GENERAL;
-                    }
-                    if (!allowed) {
-                        LOGERR("AppId '%s' not allowed in permission group '%s'", context.appId.c_str(), permissionGroup.c_str());
-                        ErrorUtils::NotPermitted(resolution);
-                        return Core::ERROR_GENERAL;
-                    }
+                if (Core::ERROR_NONE != InternalCheckPermissionGroup(context.appId, permissionGroup, allowed)) {
+                    LOGERR("Failed to check permission group '%s' for appId '%s'", permissionGroup.c_str(), context.appId.c_str());
+                    ErrorUtils::NotPermitted(resolution);
+                    return Core::ERROR_GENERAL;
+                }
+                if (!allowed) {
+                    LOGERR("AppId '%s' not allowed in permission group '%s'", context.appId.c_str(), permissionGroup.c_str());
+                    ErrorUtils::NotPermitted(resolution);
+                    return Core::ERROR_GENERAL;
                 }
             }
             LOGTRACE("Resolved method '%s' to alias '%s'", method.c_str(), alias.c_str());            
@@ -537,10 +535,18 @@ namespace WPEFramework
 
         Core::hresult AppGatewayImplementation::HandleEvent(const Context &context, const string &alias,  const string &event, const string &origin, const bool listen) {
             if (mAppNotifications == nullptr) {
-                mAppNotifications = mService->QueryInterfaceByCallsign<Exchange::IAppNotifications>(APP_NOTIFICATIONS_CALLSIGN);
+                Core::SafeSyncType<Core::CriticalSection> lock(mAppNotificationsLock);
+                //Need one more Null check to confirm no other thread has created the instance
                 if (mAppNotifications == nullptr) {
-                    LOGERR("IAppNotifications interface not available");
-                    return Core::ERROR_GENERAL;
+                    mAppNotifications = mService->QueryInterfaceByCallsign<Exchange::IAppNotifications>(APP_NOTIFICATIONS_CALLSIGN);
+                    if (mAppNotifications == nullptr) {
+                        LOGERR("Failed to get IAppNotifications interface");
+                        return Core::ERROR_GENERAL;
+                    } else {
+                        LOGINFO("IAppNotifications interface acquired");
+                    }
+                } else {
+                    LOGINFO("IAppNotifications interface already acquired");
                 }
             }
 
@@ -549,28 +555,47 @@ namespace WPEFramework
 
         void AppGatewayImplementation::SendToLaunchDelegate(const Context& context, const string& payload)
         {
-            if ( mInternalGatewayResponder==nullptr ) {
-                mInternalGatewayResponder = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
+            if (mInternalGatewayResponder == nullptr) {
+                Core::SafeSyncType<Core::CriticalSection> lock(mInternalGatewayResponderLock);
+                //Need one more Null check to confirm no other thread has created the instance
                 if (mInternalGatewayResponder == nullptr) {
-                    LOGERR("Internal Responder not available Not available");
-                    return;
+                    mInternalGatewayResponder = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
+                    if (mInternalGatewayResponder == nullptr) {
+                        LOGERR("Failed to get Internal Responder interface");
+                        return;
+                    } else {
+                        LOGINFO("Internal Responder interface acquired");
+                    }
+                } else {
+                    LOGINFO("Internal Responder interface already acquired");
                 }
             }
-
             mInternalGatewayResponder->Respond(context, payload);
-
         }
 
-        bool AppGatewayImplementation::SetupAppGatewayAuthenticator() {
-            if ( mAuthenticator==nullptr ) {
-                mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
-                if (mAuthenticator == nullptr) {
-                    LOGERR("AppGateway Authenticator not available");
-                    return false;
-                }
-            }
-            return true;
-        }
+        Core::hresult AppGatewayImplementation::InternalCheckPermissionGroup(const string& appId /* @in */,
+                                                    const string& permissionGroup /* @in */,
+                                                    bool& allowed /* @out */)
+        {
+            Core::hresult result = Core::ERROR_GENERAL;
+            if (mAuthenticator == nullptr) {
+                Core::SafeSyncType<Core::CriticalSection> lock(mAuthenticatorLock);
+                //Need one more Null check to confirm no other thread has created the instance
+                 if (mAuthenticator == nullptr) {
+                    mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(INTERNAL_GATEWAY_CALLSIGN);
+                    if (mAuthenticator == nullptr) {
+                        LOGERR("AFailed to get AppGateway Authenticator");
+                        return result;
+                    } else {
+                        LOGINFO("AppGateway Authenticator interface acquired");
+                    }
+                } else {
+                    LOGINFO("AppGateway Authenticator interface already acquired");
+                 }
+             }
+            result = mAuthenticator->CheckPermissionGroup(appId, permissionGroup, allowed);
+            return result;
+         }
 
         // Helper: read a string key from a JSON file; returns empty if any step fails.
         static std::string ReadJsonStringKey(const std::string& filePath, const std::string& key, const char* tag) {
