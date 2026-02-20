@@ -63,11 +63,12 @@ namespace WPEFramework
         {
             LOGINFO("AppGatewayResponderImplementation destructor");
             
-            // Clean up WebSocket handlers first to prevent race conditions during shutdown
-            CleanupWebsocket();
-            
-            // Clear weak self reference to prevent any remaining jobs from accessing this object
+            // Clear weak self reference FIRST to prevent any remaining jobs from accessing this object
+            // This must happen before cleaning up WebSocket handlers to ensure jobs fail gracefully
             ClearWeakSelf();
+            
+            // Clean up WebSocket handlers to prevent new events from submitting jobs
+            CleanupWebsocket();
             
             if (nullptr != mService)
             {
@@ -134,7 +135,7 @@ namespace WPEFramework
                 [weakSelf](const uint32_t connectionId, const std::string &token) -> bool
                 {
                     auto sharedSelf = weakSelf.lock();
-                    if (!sharedSelf) {
+                    if (nullptr == sharedSelf) {
                         // Object destroyed during shutdown - this is expected
                         return false;
                     }
@@ -185,7 +186,7 @@ namespace WPEFramework
                 [weakSelf](const uint32_t connectionId)
                 {
                     auto sharedSelf = weakSelf.lock();
-                    if (!sharedSelf) {
+                    if (nullptr == sharedSelf) {
                         // Object destroyed during shutdown - this is expected
                         return;
                     }
@@ -345,18 +346,37 @@ namespace WPEFramework
 
         void AppGatewayResponderImplementation::CleanupWebsocket()
         {
-            // Intentionally avoid modifying WebSocket handlers during shutdown to prevent
-            // unsynchronized concurrent access between the WebSocketConnectionManager thread
-            // and this plugin. Rely on the connection manager's own shutdown/destruction
-            // semantics to stop threads and clean up handlers safely.
-            LOGINFO("CleanupWebsocket called - relying on WebSocketConnectionManager for thread-safe shutdown");
+            LOGINFO("Cleaning up WebSocket handlers to prevent new job submissions during shutdown");
+
+            // Replace handlers with no-op implementations that won't submit new jobs
+            // Since ClearWeakSelf() has already been called, any attempts by lambdas to 
+            // capture weakSelf will fail safely when they try to lock()
+            mWsManager.SetMessageHandler([](const std::string&, const std::string&, const int, const uint32_t) {
+                // No-op - prevent new WsMsgJob submissions during shutdown
+            });
+
+            mWsManager.SetAuthHandler([](const uint32_t, const std::string&) -> bool {
+                // Reject all authentication attempts during shutdown
+                return false;
+            });
+            
+            mWsManager.SetDisconnectHandler([](const uint32_t) {
+                // No-op - prevent new ConnectionStatusNotificationJob submissions during shutdown
+            });
+
+            // Give pending jobs a brief moment to execute with expired weak_ptr
+            // Jobs will safely fail when they try to lock() and find the weak_ptr expired
+            LOGINFO("Allowing brief period for pending worker pool jobs to complete with expired weak_ptr");
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            
+            LOGINFO("WebSocket cleanup completed - handlers neutralized and pending job window closed");
         }
 
         void AppGatewayResponderImplementation::CreateWeakSelf()
         {
             Core::SafeSyncType<Core::CriticalSection> lock(mWeakSelfLock);
-            
-            if (!mWeakSelfHolder) {
+
+            if (nullptr == mWeakSelfHolder) {
                 // Create a shared_ptr that manages the object lifetime via COM reference counting
                 // This avoids circular reference by not storing a strong reference to self
                 SharedPtr tempShared(this, [](AppGatewayResponderImplementation*){
