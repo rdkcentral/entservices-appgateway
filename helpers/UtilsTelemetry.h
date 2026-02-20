@@ -18,6 +18,7 @@
 **/
 
 #pragma once
+#include "UtilsLogging.h"
 
 // telemetry
 #ifdef ENABLE_TELEMETRY_LOGGING
@@ -30,20 +31,24 @@ namespace Utils
     {
         static void init()
         {
+        LOGINFO("[Telemetry2] Initializing telemetry for AppGateway");
 #ifdef ENABLE_TELEMETRY_LOGGING
-            t2_init((char *) "Thunder_Plugins");
+        LOGINFO("[Telemetry2] Initializing telemetry for AppGateway FLAG ENABLE_TELEMETRY_LOGGING is defined");
+            t2_init((char *) "appgateway");
 #endif
+        LOGINFO("[Telemetry2] Telemetry initialized");
         };
 
         static void sendMessage(char* message)
         {
 #ifdef ENABLE_TELEMETRY_LOGGING
-            t2_event_s((char *)"THUNDER_MESSAGE", message);
+            t2_event_s((char *)"APPGATEWAY_MESSAGE", message);
 #endif
         };
 
         static void sendMessage(char *marker, char* message)
         {
+        LOGINFO("[Telemetry2] Sending telemetry message: %s: %s", marker, message);
 #ifdef ENABLE_TELEMETRY_LOGGING
             t2_event_s(marker, message);
 #endif
@@ -51,6 +56,7 @@ namespace Utils
 
         static void sendError(const char* format, ...)
         {
+        LOGINFO("[Telemetry2] Sending telemetry error: %s", format);
 #ifdef ENABLE_TELEMETRY_LOGGING
             va_list parameters;
             va_start(parameters, format);
@@ -60,7 +66,7 @@ namespace Utils
 
             // get rid of const for t2_event_s
             char* error = strdup(message.c_str());
-            t2_event_s((char *)"THUNDER_ERROR", error);
+            t2_event_s((char *)"APPGATEWAY_ERROR", error);
             if (error)
             {
                 free(error);

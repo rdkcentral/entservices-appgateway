@@ -19,6 +19,7 @@
 
 #include "AppGateway.h"
 #include "AppGatewayTelemetry.h"
+#include "UtilsTelemetry.h"
 #include <interfaces/IConfiguration.h>
 #include <interfaces/json/JsonData_AppGatewayResolver.h>
 #include <interfaces/json/JAppGatewayResolver.h>
@@ -68,7 +69,12 @@ namespace Plugin {
 
         LOGINFO("AppGateway::Initialize: PID=%u", getpid());
 
-        // Start bootstrap time measurement
+    #ifdef ENABLE_TELEMETRY_LOGGING
+        LOGINFO("Initializing telemetry2 for AppGateway");
+        Utils::Telemetry::init();
+    #endif   
+
+        // Measure bootstrap time
         auto bootstrapStart = std::chrono::steady_clock::now();
         uint32_t pluginsLoaded = 0;
 
