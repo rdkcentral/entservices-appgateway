@@ -80,6 +80,18 @@ target_link_libraries(${MODULE_NAME}
         ${NAMESPACE}Plugins::${NAMESPACE}Plugins
         ${NAMESPACE}Definitions::${NAMESPACE}Definitions)
 
+# Link telemetry_msgsender library if telemetry logging is enabled
+if(BUILD_ENABLE_TELEMETRY_LOGGING)
+        find_library(TELEMETRY_MSGSENDER_LIB telemetry_msgsender)
+        if(NOT TELEMETRY_MSGSENDER_LIB)
+                message(FATAL_ERROR "telemetry_msgsender library not found while BUILD_ENABLE_TELEMETRY_LOGGING is enabled")
+        endif()
+
+        target_link_libraries(${MODULE_NAME}
+                        PRIVATE
+                        ${TELEMETRY_MSGSENDER_LIB})
+endif()
+
 # To error any missing links
 target_link_options(${MODULE_NAME} PRIVATE -Wl,-z,defs)
 
