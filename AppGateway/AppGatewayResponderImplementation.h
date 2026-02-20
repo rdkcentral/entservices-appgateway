@@ -29,7 +29,6 @@
 #include <map>
 #include <unordered_set>
 #include <sstream>
-#include <atomic>
 #include <memory>
 #include <utility>
 
@@ -220,9 +219,9 @@ namespace Plugin {
 
         public:
             static Core::ProxyType<Core::IDispatch> Create(WeakPtr parent,
-                const uint32_t connectionId, const uint32_t mRequestId, const std::string& designator, const std::string& payload)
+                const uint32_t connectionId, const uint32_t requestId, const std::string& designator, const std::string& payload)
             {
-                return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<RequestJob>::Create(parent, connectionId, mRequestId, designator, payload)));
+                return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<RequestJob>::Create(parent, connectionId, requestId, designator, payload)));
             }
             virtual void Dispatch()
             {
@@ -376,10 +375,14 @@ namespace Plugin {
         std::list<Exchange::IAppGatewayResponder::INotification*> mConnectionStatusNotification;
         bool mEnhancedLoggingEnabled;
         CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
-        SharedPtr mSelfRef;
     public:
-        void SetSelfReference(SharedPtr self) { mSelfRef = std::move(self); }
-        WeakPtr GetWeakSelf() const { return WeakPtr(mSelfRef); }
+        WeakPtr GetWeakSelf() const;
+        void CreateWeakSelf();
+        void ClearWeakSelf();
+
+    private:
+        mutable Core::CriticalSection mWeakSelfLock;
+        std::shared_ptr<WeakPtr> mWeakSelfHolder;
     };
 } // namespace Plugin
 } // namespace WPEFramework

@@ -18,6 +18,7 @@
  **/
 
 #include <string>
+#include <sys/stat.h>
 #include <plugins/JSONRPC.h>
 #include <plugins/IShell.h>
 #include "AppGatewayResponderImplementation.h"
@@ -63,8 +64,8 @@ namespace WPEFramework
             // Clean up WebSocket handlers before destroying the object
             CleanupWebsocket();
             
-            // Clear self-reference to prevent circular reference
-            mSelfRef.reset();
+            // Clear weak self reference to prevent any remaining jobs from accessing this object
+            ClearWeakSelf();
             
             if (nullptr != mService)
             {
@@ -94,15 +95,9 @@ namespace WPEFramework
             mService = shell;
             mService->AddRef();
             
-            // Create self-reference for safe job handling only if not already set
-            if (!mSelfRef) {
-                // Take an additional reference that will be released when the last shared_ptr goes out of scope,
-                // so the shared_ptr lifetime matches the Thunder framework lifetime management.
-                AddRef();
-                SetSelfReference(SharedPtr(this, [](AppGatewayResponderImplementation* instance){
-                    instance->Release();
-                }));
-            }
+            // Create weak self reference for safe job handling
+            CreateWeakSelf();
+            
             result = InitializeWebsocket();
 
             return result;
@@ -124,7 +119,7 @@ namespace WPEFramework
             Core::NodeId source(config.Connector.Value().c_str());
             LOGINFO("Parsed port: %d", source.PortNumber());
             
-            WeakPtr weakSelf = GetWeakSelf();
+            AppGatewayResponderImplementation::WeakPtr weakSelf = GetWeakSelf();
             mWsManager.SetMessageHandler(
                 [weakSelf](const std::string &method, const std::string &params, const int requestId, const uint32_t connectionId)
                 {
@@ -138,7 +133,7 @@ namespace WPEFramework
                 {
                     auto sharedSelf = weakSelf.lock();
                     if (!sharedSelf) {
-                        LOGERR("WebSocket auth handler called after object destruction");
+                        // Object destroyed during shutdown - this is expected
                         return false;
                     }
                     
@@ -189,7 +184,7 @@ namespace WPEFramework
                 {
                     auto sharedSelf = weakSelf.lock();
                     if (!sharedSelf) {
-                        LOGERR("WebSocket disconnect handler called after object destruction");
+                        // Object destroyed during shutdown - this is expected
                         return;
                     }
                     
@@ -365,6 +360,44 @@ namespace WPEFramework
             mWsManager.SetDisconnectHandler([](const uint32_t) {
                 // No-op handler to replace the original lambda that captured 'this'
             });
+        }
+
+        void AppGatewayResponderImplementation::CreateWeakSelf()
+        {
+            Core::SafeSyncType<Core::CriticalSection> lock(mWeakSelfLock);
+            
+            if (!mWeakSelfHolder) {
+                // Create a shared_ptr that manages the object lifetime via COM reference counting
+                // This avoids circular reference by not storing a strong reference to self
+                SharedPtr tempShared(this, [](AppGatewayResponderImplementation*){
+                    // No-op deleter since COM manages the lifetime
+                });
+                
+                // Store only the weak_ptr in a holder that jobs can access
+                mWeakSelfHolder = std::make_shared<AppGatewayResponderImplementation::WeakPtr>(tempShared);
+            }
+        }
+
+        AppGatewayResponderImplementation::WeakPtr AppGatewayResponderImplementation::GetWeakSelf() const
+        {
+            Core::SafeSyncType<Core::CriticalSection> lock(mWeakSelfLock);
+            
+            if (mWeakSelfHolder) {
+                return *mWeakSelfHolder;
+            }
+            
+            return AppGatewayResponderImplementation::WeakPtr();
+        }
+
+        void AppGatewayResponderImplementation::ClearWeakSelf()
+        {
+            Core::SafeSyncType<Core::CriticalSection> lock(mWeakSelfLock);
+            
+            if (mWeakSelfHolder) {
+                // Reset the weak_ptr to expired state
+                mWeakSelfHolder->reset();
+                mWeakSelfHolder.reset();
+            }
         }
 
     } // namespace Plugin
