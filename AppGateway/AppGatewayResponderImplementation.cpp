@@ -345,29 +345,11 @@ namespace WPEFramework
 
         void AppGatewayResponderImplementation::CleanupWebsocket()
         {
-            LOGINFO("Cleaning up WebSocket to prevent race conditions during shutdown");
-
-            // First, replace handlers with thread-safe no-op implementations
-            // This ensures that any pending callbacks won't access the object being destroyed
-            mWsManager.SetMessageHandler([](const std::string&, const std::string&, const int, const uint32_t) {
-                // No-op handler - safe during shutdown
-            });
-
-            mWsManager.SetAuthHandler([](const uint32_t, const std::string&) -> bool {
-                // No-op handler - reject all authentication attempts during shutdown
-                return false;
-            });
-            
-            mWsManager.SetDisconnectHandler([](const uint32_t) {
-                // No-op handler - safe during shutdown  
-            });
-
-            // Give a brief moment for any in-flight callbacks to complete with the new handlers
-            // This reduces the race condition window, though the WebSocketConnectionManager
-            // destructor will ultimately handle the final cleanup synchronously
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            
-            LOGINFO("WebSocket cleanup completed - handlers replaced and brief stabilization period completed");
+            // Intentionally avoid modifying WebSocket handlers during shutdown to prevent
+            // unsynchronized concurrent access between the WebSocketConnectionManager thread
+            // and this plugin. Rely on the connection manager's own shutdown/destruction
+            // semantics to stop threads and clean up handlers safely.
+            LOGINFO("CleanupWebsocket called - relying on WebSocketConnectionManager for thread-safe shutdown");
         }
 
         void AppGatewayResponderImplementation::CreateWeakSelf()
