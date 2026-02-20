@@ -68,6 +68,11 @@ namespace Plugin {
 
         LOGINFO("AppGateway::Initialize: PID=%u", getpid());
 
+    #ifdef ENABLE_TELEMETRY_LOGGING
+        LOGINFO("Initializing telemetry2 for AppGateway");
+        Utils::Telemetry::init();
+    #endif   
+
         // Measure bootstrap time
         auto bootstrapStart = std::chrono::steady_clock::now();
 
