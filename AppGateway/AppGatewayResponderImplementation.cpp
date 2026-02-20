@@ -44,8 +44,7 @@ namespace WPEFramework
             mAuthenticator(nullptr),
             mResolver(nullptr),
             mConnectionStatusImplLock(),
-            mEnhancedLoggingEnabled(false),
-            mIsDestroyed(false)
+            mEnhancedLoggingEnabled(false)
         {
             LOGINFO("AppGatewayResponderImplementation constructor");
 #ifdef ENABLE_APP_GATEWAY_AUTOMATION
@@ -60,9 +59,6 @@ namespace WPEFramework
         AppGatewayResponderImplementation::~AppGatewayResponderImplementation()
         {
             LOGINFO("AppGatewayResponderImplementation destructor");
-            
-            // Mark object as destroyed to prevent lambda callbacks from accessing invalid memory
-            mIsDestroyed.store(true, std::memory_order_release);
             
             // Clean up WebSocket handlers before destroying the object
             CleanupWebsocket();
@@ -98,15 +94,15 @@ namespace WPEFramework
             mService = shell;
             mService->AddRef();
             
-            // Create self-reference for safe job handling.
-            // Take an additional reference that will be released when the last shared_ptr goes out of scope,
-            // so the shared_ptr lifetime matches the Thunder framework lifetime management.
-            AddRef();
-            SetSelfReference(SharedPtr(this, [](AppGatewayResponderImplementation* instance){
-                if (instance != nullptr) {
+            // Create self-reference for safe job handling only if not already set
+            if (!mSelfRef) {
+                // Take an additional reference that will be released when the last shared_ptr goes out of scope,
+                // so the shared_ptr lifetime matches the Thunder framework lifetime management.
+                AddRef();
+                SetSelfReference(SharedPtr(this, [](AppGatewayResponderImplementation* instance){
                     instance->Release();
-                }
-            }));
+                }));
+            }
             result = InitializeWebsocket();
 
             return result;
@@ -132,7 +128,7 @@ namespace WPEFramework
             mWsManager.SetMessageHandler(
                 [weakSelf](const std::string &method, const std::string &params, const int requestId, const uint32_t connectionId)
                 {
-                    if (weakSelf.lock()) {
+                    if (auto sharedSelf = weakSelf.lock()) {
                         Core::IWorkerPool::Instance().Submit(WsMsgJob::Create(weakSelf, method, params, requestId, connectionId));
                     }
                 });
@@ -146,12 +142,6 @@ namespace WPEFramework
                         return false;
                     }
                     
-                    // Check if object is destroyed to prevent use-after-free
-                    if (sharedSelf->mIsDestroyed.load()) {
-                        LOGERR("WebSocket auth handler called after object destruction");
-                        return false;
-                    }
-                    
                     string sessionId = Utils::ResolveQuery(token, "session");
                     if (sessionId.empty())
                     {
@@ -159,7 +149,7 @@ namespace WPEFramework
                         return false;
                     }
 
-                    if ( sharedSelf->mAuthenticator==nullptr ) {
+                    if (nullptr == sharedSelf->mAuthenticator) {
                         if (ConfigUtils::useAppManagers()) {
                             sharedSelf->mAuthenticator = sharedSelf->mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN);
                         } else {
@@ -199,12 +189,6 @@ namespace WPEFramework
                 {
                     auto sharedSelf = weakSelf.lock();
                     if (!sharedSelf) {
-                        LOGERR("WebSocket disconnect handler called after object destruction");
-                        return;
-                    }
-                    
-                    // Check if object is destroyed to prevent use-after-free
-                    if (sharedSelf->mIsDestroyed.load()) {
                         LOGERR("WebSocket disconnect handler called after object destruction");
                         return;
                     }
@@ -364,13 +348,12 @@ namespace WPEFramework
 
         void AppGatewayResponderImplementation::CleanupWebsocket()
         {
-            // If the WebSocket channel is still active, close it first to prevent new callbacks
-            // Note: mChannel will be cleaned up in WebSocketConnectionManager destructor
-            
             LOGINFO("Cleaning up WebSocket handlers to prevent use-after-free");
 
             // Clear all handlers by setting them to safe no-op lambdas to avoid use-after-free
             // when the WebSocket manager might still be holding lambda references
+            // Note: We don't attempt to stop the WebSocket manager here as it will be cleaned up
+            // in the WebSocketConnectionManager destructor
             mWsManager.SetMessageHandler([](const std::string&, const std::string&, const int, const uint32_t) {
                 // No-op handler to replace the original lambda that captured 'this'
             });

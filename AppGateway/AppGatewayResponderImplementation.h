@@ -105,9 +105,7 @@ namespace Plugin {
             virtual void Dispatch()
             {
                 if (auto sharedParent = mParent.lock()) {
-                    if (!sharedParent->mIsDestroyed) {
-                        sharedParent->DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
-                    }
+                    sharedParent->DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
                 }
             }
 
@@ -378,7 +376,6 @@ namespace Plugin {
         std::list<Exchange::IAppGatewayResponder::INotification*> mConnectionStatusNotification;
         bool mEnhancedLoggingEnabled;
         CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
-        std::atomic<bool> mIsDestroyed;
         SharedPtr mSelfRef;
     public:
         void SetSelfReference(SharedPtr self) { mSelfRef = std::move(self); }
