@@ -30,7 +30,6 @@
 #include <unordered_set>
 #include <sstream>
 #include <memory>
-#include <utility>
 
 
 namespace WPEFramework {
