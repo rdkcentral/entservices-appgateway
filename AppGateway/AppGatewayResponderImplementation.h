@@ -29,6 +29,7 @@
 #include <map>
 #include <unordered_set>
 #include <sstream>
+#include <atomic>
 
 
 namespace WPEFramework {
@@ -68,6 +69,9 @@ namespace Plugin {
         // IConfiguration interface
         uint32_t Configure(PluginHost::IShell* service) override;
 
+        // Cleanup method to safely deinitialize
+        void Deinitialize();
+
     private:
         class EXTERNAL WsMsgJob : public Core::IDispatch
         {
@@ -98,6 +102,10 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                // Check if parent object is being destructed to prevent use-after-free
+                if (mParent.mIsDestructing.load()) {
+                    return;
+                }
                 mParent.DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
             }
 
@@ -137,6 +145,10 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                // Check if parent object is being destructed to prevent use-after-free
+                if (mParent.mIsDestructing.load()) {
+                    return;
+                }
                 mParent.ReturnMessageInSocket(mConnectionId, mRequestId, mPayload);                
             }
 
@@ -175,6 +187,10 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                // Check if parent object is being destructed to prevent use-after-free
+                if (mParent.mIsDestructing.load()) {
+                    return;
+                }
                 mParent.mWsManager.DispatchNotificationToConnection(mConnectionId, mPayload, mDesignator);
             }
 
@@ -214,6 +230,10 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                // Check if parent object is being destructed to prevent use-after-free
+                if (mParent.mIsDestructing.load()) {
+                    return;
+                }
                 mParent.mWsManager.SendRequestToConnection(mConnectionId, mDesignator, mRequestId, mPayload);
             }
 
@@ -253,6 +273,10 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                // Check if parent object is being destructed to prevent use-after-free
+                if (mParent.mIsDestructing.load()) {
+                    return;
+                }
                 mParent.OnConnectionStatusChanged(mAppId, mConnectionId, mConnected);
             }
 
@@ -340,6 +364,11 @@ namespace Plugin {
 
 
         void ReturnMessageInSocket(const uint32_t connectionId, const int requestId, const string payload ) {
+            // Check if object is being destructed to prevent use-after-free
+            if (mIsDestructing.load()) {
+                return;
+            }
+            
             if (mEnhancedLoggingEnabled) {
                 LOGDBG("<--[[a-%d-%d]] payload=%s",
                         connectionId, requestId, payload.c_str());
@@ -359,6 +388,9 @@ namespace Plugin {
         std::list<Exchange::IAppGatewayResponder::INotification*> mConnectionStatusNotification;
         bool mEnhancedLoggingEnabled;
         CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
+        
+        // Safety flag to prevent use-after-free in lambda callbacks
+        std::atomic<bool> mIsDestructing{false};
     };
 } // namespace Plugin
 } // namespace WPEFramework

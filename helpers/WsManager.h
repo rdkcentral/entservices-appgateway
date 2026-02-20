@@ -404,6 +404,13 @@ public:
 
     void SetDisconnectHandler(DisconnectHandler handler) { _disconnectHandler = handler; }
 
+    // Clear all handlers to prevent use-after-free
+    void ClearHandlers() {
+        _messageHandler = nullptr;
+        _authHandler = nullptr; 
+        _disconnectHandler = nullptr;
+    }
+
     // NEW: Setter for automation ID
     void SetAutomationId(uint32_t automationId) { 
         _automationId = automationId; 
