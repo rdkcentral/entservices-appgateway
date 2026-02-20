@@ -18,6 +18,8 @@
  **/
 
 #include <string>
+#include <thread>
+#include <chrono>
 #include <plugins/JSONRPC.h>
 #include <plugins/IShell.h>
 #include "AppGatewayResponderImplementation.h"
@@ -59,6 +61,38 @@ namespace WPEFramework
         AppGatewayResponderImplementation::~AppGatewayResponderImplementation()
         {
             LOGINFO("AppGatewayResponderImplementation destructor");
+            
+            // Clean up to prevent use-after-free
+            Deinitialize();
+        }
+
+        void AppGatewayResponderImplementation::Deinitialize()
+        {
+            LOGINFO("Deinitializing AppGatewayResponderImplementation");
+            
+            // Set destruction flag to prevent new job submissions  
+            mIsDestructing.store(true);
+            
+            // Stop WebSocket server and clear handlers safely (prevents new callbacks)
+            mWsManager.Stop();
+
+            // Wait for all jobs to complete before releasing interfaces
+            uint32_t waitCount = 0;
+            const uint32_t maxWaitMs = 5000; // 5 second timeout
+            const uint32_t pollIntervalMs = 10;
+            
+            while (mOutstandingJobs.load() > 0 && waitCount < (maxWaitMs / pollIntervalMs)) {
+                LOGINFO("Waiting for %d outstanding jobs to complete...", mOutstandingJobs.load());
+                std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalMs));
+                waitCount++;
+            }
+            
+            if (mOutstandingJobs.load() > 0) {
+                LOGWARN("Timeout waiting for %d jobs to complete, proceeding with cleanup", mOutstandingJobs.load());
+            } else {
+                LOGINFO("All jobs completed successfully");
+            }
+
             if (nullptr != mService)
             {
                 mService->Release();
@@ -76,7 +110,11 @@ namespace WPEFramework
                 mAuthenticator->Release();
                 mAuthenticator = nullptr;
             }
+        }
 
+        bool AppGatewayResponderImplementation::AllJobsCompleted() const
+        {
+            return mOutstandingJobs.load() == 0;
         }
 
         uint32_t AppGatewayResponderImplementation::Configure(PluginHost::IShell *shell)
@@ -109,12 +147,19 @@ namespace WPEFramework
             mWsManager.SetMessageHandler(
                 [this](const std::string &method, const std::string &params, const int requestId, const uint32_t connectionId)
                 {
-                    Core::IWorkerPool::Instance().Submit(WsMsgJob::Create(this, method, params, requestId, connectionId));
+                    // Only submit jobs if not destructing to avoid UAF
+                    if (!mIsDestructing.load()) {
+                        Core::IWorkerPool::Instance().Submit(WsMsgJob::Create(this, method, params, requestId, connectionId));
+                    }
                 });
 
             mWsManager.SetAuthHandler(
                 [this](const uint32_t connectionId, const std::string &token) -> bool
                 {
+                    // Reject authentication if destructing 
+                    if (mIsDestructing.load()) {
+                        return false;
+                    }
                     string sessionId = Utils::ResolveQuery(token, "session");
                     if (sessionId.empty())
                     {
@@ -160,6 +205,10 @@ namespace WPEFramework
             mWsManager.SetDisconnectHandler(
                 [this](const uint32_t connectionId)
                 {
+                    // Skip disconnect processing if destructing
+                    if (mIsDestructing.load()) {
+                        return;
+                    }
                     LOGINFO("Connection disconnected: %d", connectionId);
                     string appId;
                     if (!mAppIdRegistry.Get(connectionId, appId)) {
@@ -222,7 +271,6 @@ namespace WPEFramework
                                                      const uint32_t requestId,
                                                      const uint32_t connectionId)
         {
-            std::string resolution;
             string appId;
 
             if (mAppIdRegistry.Get(connectionId, appId)) {

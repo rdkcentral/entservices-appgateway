@@ -36,6 +36,11 @@ using namespace WPEFramework;
 class WebSocketConnectionManager
 {
 public:
+    // Handler types must be declared before WebSocketServer uses them
+    using MessageHandler = std::function<void(const std::string& method, const std::string& params, const uint32_t requestId, const uint32_t connectionId)>;
+    using AuthHandler = std::function<bool(const uint32_t connectionId, const std::string& token)>;
+    using DisconnectHandler = std::function<void(const uint32_t connectionId)>;
+
     ~WebSocketConnectionManager() {
         if (mChannel) {
             delete mChannel;
@@ -152,8 +157,16 @@ public:
             {
                 LOGTRACE("Open - OK");
                 const std::string &query = Link().Query();
-                if (_parent.Interface()._authHandler != nullptr) {
-                    bool authResult = _parent.Interface()._authHandler(_id, query);
+                
+                // Copy handler under lock to prevent race with ClearHandlers()
+                AuthHandler authHandler;
+                {
+                    std::lock_guard<std::mutex> lock(_parent.Interface()._handlerMutex);
+                    authHandler = _parent.Interface()._authHandler;
+                }
+                
+                if (authHandler != nullptr) {
+                    bool authResult = authHandler(_id, query);
                     if (!authResult) {
                         LOGERR("Authentication failed for query: %s", query.c_str());
                         this->Close(0);
@@ -167,8 +180,14 @@ public:
             else if(this->IsSuspended())
             {
                 LOGTRACE("Closed - %s", this->IsSuspended() ? _T("SUSPENDED") : _T("OK"));
-                if (_parent.Interface()._disconnectHandler != nullptr) {
-                    _parent.Interface()._disconnectHandler(Id());
+                // Copy handler under lock to prevent race with ClearHandlers()
+                DisconnectHandler disconnectHandler;
+                {
+                    std::lock_guard<std::mutex> lock(_parent.Interface()._handlerMutex);
+                    disconnectHandler = _parent.Interface()._disconnectHandler;
+                }
+                if (disconnectHandler != nullptr) {
+                    disconnectHandler(Id());
                 }
             }
         }
@@ -260,9 +279,14 @@ public:
                     // SYNCHRONOUS PROCESSING
                     try
                     {
-                        auto& manager = _parent.Interface();
-                        if (manager._messageHandler) {
-                            manager._messageHandler(methodName, params, requestId, _id);
+                        // Copy handler under lock to prevent race with ClearHandlers()
+                        MessageHandler messageHandler;
+                        {
+                            std::lock_guard<std::mutex> lock(_parent.Interface()._handlerMutex);
+                            messageHandler = _parent.Interface()._messageHandler;
+                        }
+                        if (messageHandler) {
+                            messageHandler(methodName, params, requestId, _id);
                         } else {
                             SendJSONRPCResponse(R"({"error": "Message handler not set"})", requestId, connectionId);
                         }
@@ -359,11 +383,6 @@ public:
     };
 
 public:
-        // Message handler callback type
-    using MessageHandler = std::function<void(const std::string& method, const std::string& params, const uint32_t requestId, const uint32_t connectionId)>;
-    using AuthHandler = std::function<bool(const uint32_t connectionId, const std::string& token)>;
-    using DisconnectHandler = std::function<void(const uint32_t connectionId)>;
-
 #ifdef ENABLE_APP_GATEWAY_AUTOMATION
     // JSON container classes for automation messages
     class AutomationMessage : public Core::JSON::Container {
@@ -398,11 +417,40 @@ public:
 #endif
 
     // New method to add a message Handler into ProcessMessage method
-    void SetMessageHandler(const MessageHandler& handler) { _messageHandler = handler; }
+    void SetMessageHandler(const MessageHandler& handler) { 
+        std::lock_guard<std::mutex> lock(_handlerMutex);
+        _messageHandler = handler; 
+    }
 
-    void SetAuthHandler(const AuthHandler& handler) { _authHandler = handler; }
+    void SetAuthHandler(const AuthHandler& handler) { 
+        std::lock_guard<std::mutex> lock(_handlerMutex);
+        _authHandler = handler; 
+    }
 
-    void SetDisconnectHandler(DisconnectHandler handler) { _disconnectHandler = handler; }
+    void SetDisconnectHandler(DisconnectHandler handler) { 
+        std::lock_guard<std::mutex> lock(_handlerMutex);
+        _disconnectHandler = handler; 
+    }
+
+    // Stop the WebSocket server and clear all handlers safely
+    void Stop() {
+        // First stop the channel to prevent new callbacks
+        if (mChannel != nullptr) {
+            delete mChannel;
+            mChannel = nullptr;
+        }
+        
+        // Now safely clear handlers after channel is stopped
+        ClearHandlers();
+    }
+
+    // Clear all handlers to prevent use-after-free
+    void ClearHandlers() {
+        std::lock_guard<std::mutex> lock(_handlerMutex);
+        _messageHandler = nullptr;
+        _authHandler = nullptr; 
+        _disconnectHandler = nullptr;
+    }
 
     // NEW: Setter for automation ID
     void SetAutomationId(uint32_t automationId) { 
@@ -583,4 +631,5 @@ private:
     DisconnectHandler _disconnectHandler;
     WebSocketChannel *mChannel = nullptr;
     uint32_t _automationId = 0;
+    mutable std::mutex _handlerMutex; // Protects handler access/modification
 };
