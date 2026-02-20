@@ -184,7 +184,7 @@ namespace Plugin {
             virtual void Dispatch()
             {
                 if (auto sharedParent = mParent.lock()) {
-                    sharedParent->mWsManager.DispatchNotificationToConnection(mConnectionId, mPayload, mDesignator);
+                    sharedParent->mWsManager.DispatchNotificationToConnection(mConnectionId, mDesignator, mPayload);
                 }
             }
 
