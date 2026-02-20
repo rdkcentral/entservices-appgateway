@@ -71,6 +71,9 @@ namespace Plugin {
 
         // Cleanup method to safely deinitialize
         void Deinitialize();
+        
+        // Method to check if all jobs have completed (for safe shutdown)
+        bool AllJobsCompleted() const;
 
     private:
         class EXTERNAL WsMsgJob : public Core::IDispatch
@@ -86,6 +89,7 @@ namespace Plugin {
                 // Keep parent alive during job execution
                 if (mParent != nullptr) {
                     mParent->AddRef();
+                    mParent->mOutstandingJobs.fetch_add(1);
                 }
             }
 
@@ -95,8 +99,9 @@ namespace Plugin {
             WsMsgJob &operator=(const WsMsgJob &) = delete;
             ~WsMsgJob()
             {
-                // Release parent reference
+                // Release parent reference and decrement job counter
                 if (mParent != nullptr) {
+                    mParent->mOutstandingJobs.fetch_sub(1);
                     mParent->Release();
                 }
             }
@@ -137,6 +142,7 @@ namespace Plugin {
                 // Keep parent alive during job execution
                 if (mParent != nullptr) {
                     mParent->AddRef();
+                    mParent->mOutstandingJobs.fetch_add(1);
                 }
             }
 
@@ -146,8 +152,9 @@ namespace Plugin {
             RespondJob &operator=(const RespondJob &) = delete;
             ~RespondJob()
             {
-                // Release parent reference
+                // Release parent reference and decrement job counter
                 if (mParent != nullptr) {
+                    mParent->mOutstandingJobs.fetch_sub(1);
                     mParent->Release();
                 }
             }
@@ -186,6 +193,7 @@ namespace Plugin {
                 // Keep parent alive during job execution
                 if (mParent != nullptr) {
                     mParent->AddRef();
+                    mParent->mOutstandingJobs.fetch_add(1);
                 }
             }
 
@@ -195,8 +203,9 @@ namespace Plugin {
             EmitJob &operator=(const EmitJob &) = delete;
             ~EmitJob()
             {
-                // Release parent reference
+                // Release parent reference and decrement job counter
                 if (mParent != nullptr) {
+                    mParent->mOutstandingJobs.fetch_sub(1);
                     mParent->Release();
                 }
             }
@@ -236,6 +245,7 @@ namespace Plugin {
                 // Keep parent alive during job execution
                 if (mParent != nullptr) {
                     mParent->AddRef();
+                    mParent->mOutstandingJobs.fetch_add(1);
                 }
             }
 
@@ -245,8 +255,9 @@ namespace Plugin {
             RequestJob &operator=(const RequestJob &) = delete;
             ~RequestJob()
             {
-                // Release parent reference
+                // Release parent reference and decrement job counter
                 if (mParent != nullptr) {
+                    mParent->mOutstandingJobs.fetch_sub(1);
                     mParent->Release();
                 }
             }
@@ -286,6 +297,7 @@ namespace Plugin {
                 // Keep parent alive during job execution
                 if (mParent != nullptr) {
                     mParent->AddRef();
+                    mParent->mOutstandingJobs.fetch_add(1);
                 }
             }
 
@@ -295,8 +307,9 @@ namespace Plugin {
             ConnectionStatusNotificationJob &operator=(const ConnectionStatusNotificationJob &) = delete;
             ~ConnectionStatusNotificationJob()
             {
-                // Release parent reference
+                // Release parent reference and decrement job counter
                 if (mParent != nullptr) {
+                    mParent->mOutstandingJobs.fetch_sub(1);
                     mParent->Release();
                 }
             }
@@ -421,6 +434,9 @@ namespace Plugin {
         
         // Safety flag to prevent use-after-free in lambda callbacks
         std::atomic<bool> mIsDestructing{false};
+        
+        // Track outstanding jobs for safe shutdown
+        mutable std::atomic<uint32_t> mOutstandingJobs{0};
     };
 } // namespace Plugin
 } // namespace WPEFramework

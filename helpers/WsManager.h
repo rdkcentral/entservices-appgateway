@@ -36,6 +36,11 @@ using namespace WPEFramework;
 class WebSocketConnectionManager
 {
 public:
+    // Handler types must be declared before WebSocketServer uses them
+    using MessageHandler = std::function<void(const std::string& method, const std::string& params, const uint32_t requestId, const uint32_t connectionId)>;
+    using AuthHandler = std::function<bool(const uint32_t connectionId, const std::string& token)>;
+    using DisconnectHandler = std::function<void(const uint32_t connectionId)>;
+
     ~WebSocketConnectionManager() {
         if (mChannel) {
             delete mChannel;
@@ -152,26 +157,22 @@ public:
             {
                 LOGTRACE("Open - OK");
                 const std::string &query = Link().Query();
-                if (_parent.Interface()._authHandler != nullptr) {
-                    // Copy handler under lock to prevent race with ClearHandlers()
-                    AuthHandler authHandler;
-                    {
-                        std::lock_guard<std::mutex> lock(_parent.Interface()._handlerMutex);
-                        authHandler = _parent.Interface()._authHandler;
-                    }
-                    if (authHandler != nullptr) {
-                        bool authResult = authHandler(_id, query);
-                        if (!authResult) {
-                            LOGERR("Authentication failed for query: %s", query.c_str());
-                            this->Close(0);
-                            return;
-                        }
-                        LOGTRACE("Authentication succeeded");
-                    } else {
-                        LOGERR("Authentication handler was cleared during processing, rejecting connection");
+                
+                // Copy handler under lock to prevent race with ClearHandlers()
+                AuthHandler authHandler;
+                {
+                    std::lock_guard<std::mutex> lock(_parent.Interface()._handlerMutex);
+                    authHandler = _parent.Interface()._authHandler;
+                }
+                
+                if (authHandler != nullptr) {
+                    bool authResult = authHandler(_id, query);
+                    if (!authResult) {
+                        LOGERR("Authentication failed for query: %s", query.c_str());
                         this->Close(0);
                         return;
                     }
+                    LOGTRACE("Authentication succeeded");
                 } else {
                     LOGWARN("No authentication handler set, proceeding without authentication");
                 }
@@ -382,11 +383,6 @@ public:
     };
 
 public:
-        // Message handler callback type
-    using MessageHandler = std::function<void(const std::string& method, const std::string& params, const uint32_t requestId, const uint32_t connectionId)>;
-    using AuthHandler = std::function<bool(const uint32_t connectionId, const std::string& token)>;
-    using DisconnectHandler = std::function<void(const uint32_t connectionId)>;
-
 #ifdef ENABLE_APP_GATEWAY_AUTOMATION
     // JSON container classes for automation messages
     class AutomationMessage : public Core::JSON::Container {

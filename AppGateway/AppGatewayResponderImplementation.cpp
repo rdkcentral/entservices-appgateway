@@ -18,6 +18,8 @@
  **/
 
 #include <string>
+#include <thread>
+#include <chrono>
 #include <plugins/JSONRPC.h>
 #include <plugins/IShell.h>
 #include "AppGatewayResponderImplementation.h"
@@ -74,6 +76,23 @@ namespace WPEFramework
             // Stop WebSocket server and clear handlers safely (prevents new callbacks)
             mWsManager.Stop();
 
+            // Wait for all jobs to complete before releasing interfaces
+            uint32_t waitCount = 0;
+            const uint32_t maxWaitMs = 5000; // 5 second timeout
+            const uint32_t pollIntervalMs = 10;
+            
+            while (mOutstandingJobs.load() > 0 && waitCount < (maxWaitMs / pollIntervalMs)) {
+                LOGINFO("Waiting for %d outstanding jobs to complete...", mOutstandingJobs.load());
+                std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalMs));
+                waitCount++;
+            }
+            
+            if (mOutstandingJobs.load() > 0) {
+                LOGWARN("Timeout waiting for %d jobs to complete, proceeding with cleanup", mOutstandingJobs.load());
+            } else {
+                LOGINFO("All jobs completed successfully");
+            }
+
             if (nullptr != mService)
             {
                 mService->Release();
@@ -91,6 +110,11 @@ namespace WPEFramework
                 mAuthenticator->Release();
                 mAuthenticator = nullptr;
             }
+        }
+
+        bool AppGatewayResponderImplementation::AllJobsCompleted() const
+        {
+            return mOutstandingJobs.load() == 0;
         }
 
         uint32_t AppGatewayResponderImplementation::Configure(PluginHost::IShell *shell)
