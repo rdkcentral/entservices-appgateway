@@ -372,41 +372,64 @@ namespace WPEFramework
             LOGINFO("WebSocket cleanup completed - handlers neutralized and pending job window closed");
         }
 
+        // Helper to hold a long-lived shared_ptr control block backing our WeakPtr.
+        // The shared_ptr participates in COM lifetime management via AddRef/Release.
+        static AppGatewayResponderImplementation::SharedPtr& SelfSharedHolder()
+        {
+            static AppGatewayResponderImplementation::SharedPtr holder;
+            return holder;
+        }
+
         void AppGatewayResponderImplementation::CreateWeakSelf()
         {
             Core::SafeSyncType<Core::CriticalSection> lock(mWeakSelfLock);
 
-            if (nullptr == mWeakSelfHolder) {
-                // Create a shared_ptr that manages the object lifetime via COM reference counting
-                // This avoids circular reference by not storing a strong reference to self
-                SharedPtr tempShared(this, [](AppGatewayResponderImplementation*){
-                    // No-op deleter since COM manages the lifetime
-                });
-                
+            if (!mWeakSelfHolder) {
+                AppGatewayResponderImplementation::SharedPtr& selfHolder = SelfSharedHolder();
+
+                // Initialize the long-lived shared_ptr only once. It will be cleared in ClearWeakSelf().
+                if (!selfHolder) {
+                    // Take an extra COM reference that will be released when selfHolder is reset.
+                    AddRef();
+                    selfHolder = AppGatewayResponderImplementation::SharedPtr(
+                        this,
+                        [](AppGatewayResponderImplementation* self) {
+                            if (nullptr != self) {
+                                self->Release();
+                            }
+                        });
+                }
+
                 // Store only the weak_ptr in a holder that jobs can access
-                mWeakSelfHolder = std::make_shared<AppGatewayResponderImplementation::WeakPtr>(tempShared);
+                mWeakSelfHolder = std::make_shared<AppGatewayResponderImplementation::WeakPtr>(selfHolder);
             }
         }
 
         AppGatewayResponderImplementation::WeakPtr AppGatewayResponderImplementation::GetWeakSelf() const
         {
             Core::SafeSyncType<Core::CriticalSection> lock(mWeakSelfLock);
-            
+
             if (mWeakSelfHolder) {
                 return *mWeakSelfHolder;
             }
-            
+
             return AppGatewayResponderImplementation::WeakPtr();
         }
 
         void AppGatewayResponderImplementation::ClearWeakSelf()
         {
             Core::SafeSyncType<Core::CriticalSection> lock(mWeakSelfLock);
-            
+
             if (mWeakSelfHolder) {
                 // Reset the weak_ptr to expired state
                 mWeakSelfHolder->reset();
                 mWeakSelfHolder.reset();
+            }
+
+            // Release the extra COM reference held by the shared_ptr control block, if any.
+            AppGatewayResponderImplementation::SharedPtr& selfHolder = SelfSharedHolder();
+            if (selfHolder) {
+                selfHolder.reset();
             }
         }
 
