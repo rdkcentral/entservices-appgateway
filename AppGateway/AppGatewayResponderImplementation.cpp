@@ -19,6 +19,8 @@
 
 #include <string>
 #include <sys/stat.h>
+#include <thread>
+#include <chrono>
 #include <plugins/JSONRPC.h>
 #include <plugins/IShell.h>
 #include "AppGatewayResponderImplementation.h"
@@ -61,7 +63,7 @@ namespace WPEFramework
         {
             LOGINFO("AppGatewayResponderImplementation destructor");
             
-            // Clean up WebSocket handlers before destroying the object
+            // Clean up WebSocket handlers first to prevent race conditions during shutdown
             CleanupWebsocket();
             
             // Clear weak self reference to prevent any remaining jobs from accessing this object
@@ -343,23 +345,29 @@ namespace WPEFramework
 
         void AppGatewayResponderImplementation::CleanupWebsocket()
         {
-            LOGINFO("Cleaning up WebSocket handlers to prevent use-after-free");
+            LOGINFO("Cleaning up WebSocket to prevent race conditions during shutdown");
 
-            // Clear all handlers by setting them to safe no-op lambdas to avoid use-after-free
-            // when the WebSocket manager might still be holding lambda references
-            // Note: We don't attempt to stop the WebSocket manager here as it will be cleaned up
-            // in the WebSocketConnectionManager destructor
+            // First, replace handlers with thread-safe no-op implementations
+            // This ensures that any pending callbacks won't access the object being destroyed
             mWsManager.SetMessageHandler([](const std::string&, const std::string&, const int, const uint32_t) {
-                // No-op handler to replace the original lambda that captured 'this'
+                // No-op handler - safe during shutdown
             });
 
             mWsManager.SetAuthHandler([](const uint32_t, const std::string&) -> bool {
-                // No-op handler - reject all authentication attempts
+                // No-op handler - reject all authentication attempts during shutdown
                 return false;
             });
+            
             mWsManager.SetDisconnectHandler([](const uint32_t) {
-                // No-op handler to replace the original lambda that captured 'this'
+                // No-op handler - safe during shutdown  
             });
+
+            // Give a brief moment for any in-flight callbacks to complete with the new handlers
+            // This reduces the race condition window, though the WebSocketConnectionManager
+            // destructor will ultimately handle the final cleanup synchronously
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            
+            LOGINFO("WebSocket cleanup completed - handlers replaced and brief stabilization period completed");
         }
 
         void AppGatewayResponderImplementation::CreateWeakSelf()
