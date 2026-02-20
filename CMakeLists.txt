@@ -25,6 +25,11 @@ find_package(WPEFramework)
 # are located in the cmake directory. Include it in the search.
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
+if (BUILD_ENABLE_TELEMETRY_LOGGING)
+    message("Building with telemetry logging")
+    add_definitions (-DENABLE_TELEMETRY_LOGGING)
+endif()
+
 # Product configuration dir
 set(PRODUCT_CONFIG_DIR "/etc/entservices")
 
