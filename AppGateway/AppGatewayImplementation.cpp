@@ -21,6 +21,7 @@
 #include <plugins/JSONRPC.h>
 #include <plugins/IShell.h>
 #include "AppGatewayImplementation.h"
+#include "AppGatewayTelemetry.h"
 #include "UtilsLogging.h"
 #include "ContextUtils.h"
 #include "ObjectUtils.h"
@@ -369,8 +370,24 @@ namespace WPEFramework
 
         Core::hresult AppGatewayImplementation::Resolve(const Context& context, const string& origin, const string& method, const string& params, string& resolution)
         {
+            // AppGateway reports telemetry directly to its own singleton (not via COM-RPC)
+            // Example: Manual latency tracking using direct singleton access
+            auto startTime = std::chrono::steady_clock::now();
+
             LOGTRACE("method=%s params=%s", method.c_str(), params.c_str());
-            return InternalResolve(context, method, params, origin, resolution);
+            Core::hresult result = InternalResolve(context, method, params, origin, resolution);
+
+            // Record latency metric directly to telemetry singleton
+            auto endTime = std::chrono::steady_clock::now();
+            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+
+            std::string metricName = std::string("AppGw_PluginName_AppGateway_MethodName_Resolve_") + 
+                                    (result == Core::ERROR_NONE ? "Success" : "Error") + "_split";
+            AppGatewayTelemetry::getInstance().RecordTelemetryMetric(
+                context, metricName, static_cast<double>(durationMs), "ms"
+            );
+
+            return result;
         }
 
         Core::hresult AppGatewayImplementation::InternalResolve(const Context& context, const string& method, const string& params, const string& origin, string& resolution)
@@ -417,6 +434,8 @@ namespace WPEFramework
                     bool allowed = false;
                     if (Core::ERROR_NONE != mAuthenticator->CheckPermissionGroup(context.appId, permissionGroup, allowed)) {
                         LOGERR("Failed to check permission group '%s' for appId '%s'", permissionGroup.c_str(), context.appId.c_str());
+                        // Track external service error - Permission service failure
+                        AppGatewayTelemetry::getInstance().RecordExternalServiceErrorInternal("PermissionService");
                         ErrorUtils::NotPermitted(resolution);
                         return Core::ERROR_GENERAL;
                     }
@@ -491,13 +510,23 @@ namespace WPEFramework
             Exchange::IAppGatewayRequestHandler *requestHandler = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayRequestHandler>(alias);
             if (requestHandler != nullptr) {
                 std::string finalParams = UpdateContext(context, method, params, origin, true);
+                
+                // Track telemetry for AppGatewayCommon request handling
+                AppGatewayTelemetry::getInstance().IncrementTotalCalls();
+                
                 if (Core::ERROR_NONE != requestHandler->HandleAppGatewayRequest(context, method, finalParams, resolution)) {
                     LOGERR("HandleAppGatewayRequest failed for callsign: %s", alias.c_str());
+                    
+                    // Record API error and increment failed calls
+                    AppGatewayTelemetry::getInstance().RecordApiError(method);
+                    AppGatewayTelemetry::getInstance().IncrementFailedCalls();
+                    
                     if (resolution.empty()){
                         ErrorUtils::CustomInternal("HandleAppGatewayRequest failed", resolution);
                     }
                 } else {
                     result = Core::ERROR_NONE;
+                    AppGatewayTelemetry::getInstance().IncrementSuccessfulCalls();
                 }
                 requestHandler->Release();
             } else {

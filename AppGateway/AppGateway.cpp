@@ -18,10 +18,12 @@
  */
 
 #include "AppGateway.h"
+#include "AppGatewayTelemetry.h"
 #include <interfaces/IConfiguration.h>
 #include <interfaces/json/JsonData_AppGatewayResolver.h>
 #include <interfaces/json/JAppGatewayResolver.h>
 #include "UtilsLogging.h"
+#include <chrono>
 
 
 #define API_VERSION_NUMBER_MAJOR    APPGATEWAY_MAJOR_VERSION
@@ -48,7 +50,7 @@ namespace Plugin {
     SERVICE_REGISTRATION(AppGateway, API_VERSION_NUMBER_MAJOR, API_VERSION_NUMBER_MINOR, API_VERSION_NUMBER_PATCH);
 
     AppGateway::AppGateway()
-            : PluginHost::JSONRPC(), mService(nullptr), mAppGateway(nullptr), mResponder(nullptr), mConnectionId(0)
+            : PluginHost::JSONRPC(), mService(nullptr), mAppGateway(nullptr), mResponder(nullptr), mTelemetry(nullptr), mConnectionId(0)
         {
 
         LOGINFO("AppGateway Constructor");
@@ -66,8 +68,18 @@ namespace Plugin {
 
         LOGINFO("AppGateway::Initialize: PID=%u", getpid());
 
+        // Measure bootstrap time
+        auto bootstrapStart = std::chrono::steady_clock::now();
+
         mService = service;
         mService->AddRef();
+
+        // Initialize telemetry aggregator first (singleton)
+        AppGatewayTelemetry::getInstance().Initialize(service);
+        // Set the telemetry interface pointer for COM-RPC exposure
+        mTelemetry = &AppGatewayTelemetry::getInstance();
+        mTelemetry->AddRef();
+
         mAppGateway = service->Root<Exchange::IAppGatewayResolver>(mConnectionId, 2000, _T("AppGatewayImplementation"));
        
         if (mAppGateway != nullptr) {
@@ -98,6 +110,11 @@ namespace Plugin {
             LOGERR("Failed to initialise AppGatewayResponder plugin!");
         }
    
+        // Record bootstrap time (AppGateway uses direct singleton access)
+        auto bootstrapEnd = std::chrono::steady_clock::now();
+        uint64_t durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            bootstrapEnd - bootstrapStart).count();
+        AppGatewayTelemetry::getInstance().RecordBootstrapTime(durationMs);
             
         // On success return empty, to indicate there is no error text.
         return ((mAppGateway != nullptr) && (mResponder != nullptr))
@@ -115,6 +132,14 @@ namespace Plugin {
         if ((mAppGateway != nullptr) || (mResponder != nullptr)) {
             connection = service->RemoteConnection(mConnectionId);
         }
+
+        // Deinitialize telemetry first (singleton - just call Deinitialize)
+        AppGatewayTelemetry::getInstance().Deinitialize();
+        if (mTelemetry != nullptr) {
+            mTelemetry->Release();
+            mTelemetry = nullptr;
+        }
+        LOGINFO("AppGatewayTelemetry deinitialized");
 
         if (mResponder != nullptr) {
             result = mResponder->Release();
