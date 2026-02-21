@@ -23,7 +23,6 @@
 #include <limits>
 #include <sstream>
 #include <iomanip>
-#include <json/json.h> // jsoncpp for pretty printing
 
 namespace WPEFramework {
 namespace Plugin {
@@ -335,10 +334,10 @@ namespace Plugin {
         }
         
         // Extract plugin name (everything before "_MethodName_")
-        pluginName = middle.substr(0, methodTag_pos);
+        pluginName = middle.substr(0, methodTagPos);
         
         // Extract method name (everything after "_MethodName_")
-        methodName = middle.substr(methodTag_pos + methodTag.length());
+        methodName = middle.substr(methodTagPos + methodTag.length());
         
         // Validate that both names are non-empty
         if (pluginName.empty() || methodName.empty()) {
@@ -386,10 +385,10 @@ namespace Plugin {
         }
         
         // Extract plugin name (everything before "_ApiName_")
-        pluginName = middle.substr(0, apiTag_pos);
+        pluginName = middle.substr(0, apiTagPos);
         
         // Extract API name (everything after "_ApiName_")
-        apiName = middle.substr(apiTag_pos + apiTag.length());
+        apiName = middle.substr(apiTagPos + apiTag.length());
         
         // Validate that both names are non-empty
         if (pluginName.empty() || apiName.empty()) {
@@ -437,10 +436,10 @@ namespace Plugin {
         }
         
         // Extract plugin name (everything before "_ServiceName_")
-        pluginName = middle.substr(0, serviceTag_pos);
+        pluginName = middle.substr(0, serviceTagPos);
         
         // Extract service name (everything after "_ServiceName_")
-        serviceName = middle.substr(serviceTag_pos + serviceTag.length());
+        serviceName = middle.substr(serviceTagPos + serviceTag.length());
         
         // Validate that both names are non-empty
         if (pluginName.empty() || serviceName.empty()) {
@@ -500,15 +499,15 @@ namespace Plugin {
         
         // Find "_ServiceName_" tag
         size_t serviceTagPos = middle.find(serviceTag);
-        if (serviceTagPos == std::string::npos || serviceTag_pos == 0) {
+        if (serviceTagPos == std::string::npos || serviceTagPos == 0) {
             return false;
         }
         
         // Extract plugin name (everything before "_ServiceName_")
-        pluginName = middle.substr(0, serviceTag_pos);
+        pluginName = middle.substr(0, serviceTagPos);
         
         // Extract service name (everything after "_ServiceName_")
-        serviceName = middle.substr(serviceTag_pos + serviceTag.length());
+        serviceName = middle.substr(serviceTagPos + serviceTag.length());
         
         // Validate that both names are non-empty
         if (pluginName.empty() || serviceName.empty()) {
@@ -1164,11 +1163,12 @@ namespace Plugin {
 
     void AppGatewayTelemetry::SendT2Event(const char* marker, const std::string& payload)
     {
-        // Pretty-print the JSON payload for logging
-        std::string prettyPayload = PrettyPrintJson(payload);
-        LOGINFO("SendT2Event: marker='%s', payload=\n%s", marker, prettyPayload.c_str());
-        Utils::Telemetry::sendMessage(const_cast<char*>(marker),
-                                  const_cast<char*>(payload.c_str()));
+        // The T2 API signature takes non-const char* but doesn't modify the strings
+        // Safe to use const_cast to avoid unnecessary malloc/copy overhead
+
+        LOGINFO("Sending T2 event: marker=%s, payload=%s", marker, payload.c_str());
+        Utils::Telemetry::sendMessage(const_cast<char*>(marker), 
+                                       const_cast<char*>(payload.c_str()));
     }
 
     void AppGatewayTelemetry::ResetHealthStats()
@@ -1290,20 +1290,6 @@ namespace Plugin {
         }
 
         return oss.str();
-    }
-
-    // Helper to pretty-print JSON string
-    static std::string PrettyPrintJson(const std::string& jsonStr) {
-        Json::Value root;
-        Json::CharReaderBuilder builder;
-        std::string errs;
-        std::istringstream s(jsonStr);
-        if (Json::parseFromStream(builder, s, &root, &errs)) {
-            Json::StreamWriterBuilder writer;
-            writer["indentation"] = "  ";
-            return Json::writeString(writer, root);
-        }
-        return jsonStr;
     }
 
 } // namespace Plugin
