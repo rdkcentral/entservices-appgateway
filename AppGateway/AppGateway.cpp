@@ -114,7 +114,6 @@ namespace Plugin {
         auto bootstrapEnd = std::chrono::steady_clock::now();
         uint64_t durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
             bootstrapEnd - bootstrapStart).count();
-        LOGINFO("AppGateway bootstrap completed in %llu ms", durationMs);
         AppGatewayTelemetry::getInstance().RecordBootstrapTime(durationMs);
             
         // On success return empty, to indicate there is no error text.
