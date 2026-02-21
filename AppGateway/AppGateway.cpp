@@ -112,9 +112,9 @@ namespace Plugin {
    
         // Record bootstrap time (AppGateway uses direct singleton access)
         auto bootstrapEnd = std::chrono::steady_clock::now();
-        auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        uint64_t durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
             bootstrapEnd - bootstrapStart).count();
-        AppGatewayTelemetry::getInstance().RecordBootstrapTime(static_cast<uint64_t>(durationMs));
+        AppGatewayTelemetry::getInstance().RecordBootstrapTime(durationMs);
             
         // On success return empty, to indicate there is no error text.
         return ((mAppGateway != nullptr) && (mResponder != nullptr))

@@ -147,17 +147,10 @@ namespace Plugin {
         LOGINFO("Plugin bootstrap time recorded: %lu ms (Plugin #%u, Cumulative total: %lu ms)",
                 durationMs, pluginCount, totalTime);
         
-        // Record individual plugin bootstrap metric
-        Exchange::GatewayContext context;
-        context.requestId = 0;
-        context.connectionId = 0;
-        context.appId = "AppGateway";
-
-        // Record cumulative metrics (will be overwritten with latest totals)
-        RecordTelemetryMetric(context, AGW_MARKER_BOOTSTRAP_DURATION, 
-                              static_cast<double>(totalTime), AGW_UNIT_MILLISECONDS);
-        RecordTelemetryMetric(context, AGW_MARKER_BOOTSTRAP_PLUGIN_COUNT, 
-                              static_cast<double>(pluginCount), AGW_UNIT_COUNT);
+        RecordGenericMetric(AGW_MARKER_BOOTSTRAP_DURATION,
+                            static_cast<double>(totalTime), AGW_UNIT_MILLISECONDS);
+        RecordGenericMetric(AGW_MARKER_BOOTSTRAP_PLUGIN_COUNT,
+                            static_cast<double>(pluginCount), AGW_UNIT_COUNT);
     }
 
     void AppGatewayTelemetry::IncrementWebSocketConnections()
@@ -166,7 +159,7 @@ namespace Plugin {
     }
 
     void AppGatewayTelemetry::DecrementWebSocketConnections()
-    {
+        {
         uint32_t current = mHealthStats.websocketConnections.load(std::memory_order_relaxed);
         if (current > 0) {
             mHealthStats.websocketConnections.fetch_sub(1, std::memory_order_relaxed);
