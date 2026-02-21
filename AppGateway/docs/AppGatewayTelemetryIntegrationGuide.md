@@ -219,9 +219,9 @@ AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION, "CONNECT
 
 #### `AGW_REPORT_API_LATENCY(context, apiName, latencyMs)`
 
-**⚠️ DEPRECATED for plugin methods - Use `AGW_SCOPED_API_TIMER` instead**
+**⚠️ DEPRECATED for plugin methods - Use `AGW_TRACK_API_CALL` instead**
 
-Reports API call latency metric to App Gateway. **This macro should NOT be used for your plugin's own API methods** as it creates duplicate tracking with `AGW_SCOPED_API_TIMER`. Reserved for future specialized use cases.
+Reports API call latency metric to App Gateway. **This macro should NOT be used for your plugin's own API methods** as it creates duplicate tracking with `AGW_TRACK_API_CALL`. Reserved for future specialized use cases.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -234,15 +234,15 @@ Reports API call latency metric to App Gateway. **This macro should NOT be used 
 - AppGateway aggregates: sum, count, min, max
 - Periodic metric sent using common marker: `AppGwApiLatency_split`
 
-**⚠️ WARNING:** Do NOT use with `AGW_SCOPED_API_TIMER` for the same operation—this creates duplicate telemetry. See Best Practices section for details.
+**⚠️ WARNING:** Do NOT use with `AGW_TRACK_API_CALL` for the same operation—this creates duplicate telemetry. See Best Practices section for details.
 
 **Recommended Usage:**
-- Use `AGW_SCOPED_API_TIMER` for automatic latency tracking of plugin methods (includes success/error tracking)
+- Use `AGW_TRACK_API_CALL` for automatic latency tracking of plugin methods (includes success/error tracking)
 - This macro is retained for compatibility but is generally not needed
 
 **Example (if needed for special cases):**
 ```cpp
-// ⚠️ Only use if NOT using AGW_SCOPED_API_TIMER for this method
+// ⚠️ Only use if NOT using AGW_TRACK_API_CALL for this method
 AGW_REPORT_API_LATENCY(context, "GetAppPermissions", 150.5);
 ```
 
@@ -266,11 +266,11 @@ Reports external service call latency metric to App Gateway. Sends a metric with
 AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_OTT_TOKEN, 200.0);
 ```
 
-#### `AGW_SCOPED_API_TIMER(varName, context, apiName)`
+#### `AGW_TRACK_API_CALL(varName, context, apiName)`
 
 ** RECOMMENDED for all plugin API methods**
 
-Creates an RAII-style timer that automatically tracks API latency and success/error counts. On destruction, it reports comprehensive statistics including latency metrics. If an error occurs, call `SetFailed(errorCode)` to mark the API call as failed.
+Creates an RAII-style tracker that automatically tracks API latency and success/error counts. On destruction, it reports comprehensive statistics including latency metrics. If an error occurs, call `SetFailed(errorCode)` to mark the API call as failed.
 
 **This is the preferred way to track plugin method performance** as it provides:
 - Automatic latency tracking (no manual timing needed)
@@ -281,7 +281,7 @@ Creates an RAII-style timer that automatically tracks API latency and success/er
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `varName` | identifier | Variable name for the timer |
+| `varName` | identifier | Variable name for the tracker |
 | `context` | `const Exchange::GatewayContext&` | Gateway context (requestId, connectionId, appId) for request correlation |
 | `apiName` | `const char*` | Name of the API being timed |
 
@@ -294,16 +294,16 @@ Creates an RAII-style timer that automatically tracks API latency and success/er
 **Example:**
 ```cpp
 Core::hresult MyPlugin::GetData(const Exchange::GatewayContext& context, const string& key, string& value) {
-    AGW_SCOPED_API_TIMER(timer, context, "GetData");  // Automatic latency tracking
+    AGW_TRACK_API_CALL(tracker, context, "GetData");  // Automatic latency tracking
     
     auto result = FetchFromCache(key, value);
     if (result != Core::ERROR_NONE) {
-        timer.SetFailed(AGW_ERROR_NOT_FOUND);  // Mark as error
+        tracker.SetFailed(AGW_ERROR_NOT_FOUND);  // Mark as error
         return result;
     }
     
     return Core::ERROR_NONE;
-    // Timer automatically reports success latency on destruction
+    // tracker automatically reports success latency on destruction
 }
 ```
 
@@ -375,13 +375,13 @@ Core::hresult OttServicesImplementation::GetAppPermissions(const string& appId, 
 ```cpp
 std::string Badger::GetDeviceSessionId(const Exchange::GatewayContext& context, const string& appId) {
     // Track API latency using scoped timer
-    AGW_SCOPED_API_TIMER(timer, context, "GetDeviceSessionId");
+    AGW_TRACK_API_CALL(tracker, context, "GetDeviceSessionId");
     
     string deviceSessionId = "app_session_id.not.set";
 
     if (!mDelegateFactory) {
         LOGERR("DelegateFactory not initialized.");
-        timer.SetFailed(AGW_ERROR_NOT_AVAILABLE);
+        tracker.SetFailed(AGW_ERROR_NOT_AVAILABLE);
         return deviceSessionId;
     }
     
@@ -389,19 +389,19 @@ std::string Badger::GetDeviceSessionId(const Exchange::GatewayContext& context, 
     if (!lifecycle) {
         LOGERR("LifecycleDelegate not available.");
         AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_LIFECYCLE_DELEGATE, AGW_ERROR_NOT_AVAILABLE);
-        timer.SetFailed(AGW_ERROR_NOT_AVAILABLE);
+        tracker.SetFailed(AGW_ERROR_NOT_AVAILABLE);
         return deviceSessionId;
     }
     
     if (lifecycle->GetDeviceSessionId(context, deviceSessionId) != Core::ERROR_NONE) {
         LOGERR("Failed to get device session ID");
         AGW_REPORT_API_ERROR(context, "GetDeviceSessionId", AGW_ERROR_FETCH_FAILED);
-        timer.SetFailed(AGW_ERROR_FETCH_FAILED);
+        tracker.SetFailed(AGW_ERROR_FETCH_FAILED);
         return deviceSessionId;
     }
     
     return deviceSessionId;
-    // Timer automatically reports success latency on destruction
+    // tracker automatically reports success latency on destruction
 }
 ```
 
@@ -410,7 +410,7 @@ std::string Badger::GetDeviceSessionId(const Exchange::GatewayContext& context, 
 ```cpp
 Core::hresult Badger::AuthorizeDataField(const Exchange::GatewayContext& context, const std::string& appId, const char* requiredDataField) {
     // API name can be a string (method-specific) but error codes should use constants
-    AGW_SCOPED_API_TIMER(apiTimer, context, "AuthorizeDataField");
+    AGW_TRACK_API_CALL(apiTracker, context, "AuthorizeDataField");
     
     // ... check cache first ...
     
@@ -422,7 +422,7 @@ Core::hresult Badger::AuthorizeDataField(const Exchange::GatewayContext& context
         LOGERR("OttServices interface not available");
         // Use predefined service and error constants
         AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE);
-        apiTimer.SetFailed(AGW_ERROR_INTERFACE_UNAVAILABLE);
+        apiTracker.SetFailed(AGW_ERROR_INTERFACE_UNAVAILABLE);
         return Core::ERROR_UNAVAILABLE;
     }
     
@@ -431,7 +431,7 @@ Core::hresult Badger::AuthorizeDataField(const Exchange::GatewayContext& context
         LOGERR("GetAppPermissions failed");
         // Use predefined error constant
         AGW_REPORT_API_ERROR(context, "GetAppPermissions", AGW_ERROR_PERMISSION_DENIED);
-        apiTimer.SetFailed(AGW_ERROR_PERMISSION_DENIED);
+        apiTracker.SetFailed(AGW_ERROR_PERMISSION_DENIED);
         return Core::ERROR_PRIVILIGED_REQUEST;
     }
     
@@ -660,7 +660,7 @@ namespace Plugin {
     uint32_t FbSettingsImplementation::GetSetting(const Exchange::GatewayContext& context, const string& key, string& value)
     {
         // Auto-track latency with scoped timer
-        AGW_SCOPED_API_TIMER(timer, context, "GetSetting");
+        AGW_TRACK_API_CALL(tracker, context, "GetSetting");
         // Auto-reports to: AppGwFbSettings_GetSetting_Latency_split when function exits
         
         if (key.empty()) {
@@ -683,7 +683,7 @@ namespace Plugin {
 
     uint32_t FbSettingsImplementation::SetSetting(const Exchange::GatewayContext& context, const string& key, const string& value)
     {
-        AGW_SCOPED_API_TIMER(timer, context, "SetSetting");
+        AGW_TRACK_API_CALL(tracker, context, "SetSetting");
         
         if (key.empty()) {
             AGW_REPORT_API_ERROR(context, "SetSetting", AGW_ERROR_INVALID_REQUEST);
@@ -797,7 +797,7 @@ AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION, AGW_ERRO
 
 ### 6. Avoid Duplicate Latency Tracking
 
-**IMPORTANT:** Do **NOT** mix `AGW_SCOPED_API_TIMER` with manual latency reporting for the same operation—this creates duplicate telemetry data.
+**IMPORTANT:** Do **NOT** mix `AGW_TRACK_API_CALL` with manual latency reporting for the same operation—this creates duplicate telemetry data.
 
 #### Understanding the Telemetry Types
 
@@ -805,13 +805,13 @@ The system tracks three types of statistics:
 
 | Telemetry Type | Source | T2 Marker | Purpose | Tracks |
 |----------------|--------|-----------|---------|---------|
-| **API Method Stats** | `AGW_SCOPED_API_TIMER` | `AppGwApiMethod_split` | Per-API method tracking | Success/error counts, success/error latency (min/max/avg) |
+| **API Method Stats** | `AGW_TRACK_API_CALL` | `AppGwApiMethod_split` | Per-API method tracking | Success/error counts, success/error latency (min/max/avg) |
 | **API Latency Stats** | `AGW_REPORT_API_LATENCY` | `AppGwApiLatency_split` | Generic API latency | Latency only (min/max/avg) |
 | **Service Latency Stats** | `AGW_REPORT_SERVICE_LATENCY` | `AppGwServiceLatency_split` | External service latency | Latency only (min/max/avg) |
 
 #### Rules for Latency Tracking
 
-1. **For your plugin's own API methods**: Use `AGW_SCOPED_API_TIMER` **only**
+1. **For your plugin's own API methods**: Use `AGW_TRACK_API_CALL` **only**
    - Automatically tracks both success and error cases with latency
    - Reports comprehensive statistics including success rate
    - No need to manually report latency
@@ -825,23 +825,23 @@ The system tracks three types of statistics:
 #### Examples
 
 ```cpp
-// ✓ CORRECT - Use AGW_SCOPED_API_TIMER for plugin's own methods
+// ✓ CORRECT - Use AGW_TRACK_API_CALL for plugin's own methods
 Core::hresult MyPlugin::GetData(const Exchange::GatewayContext& context, const string& key, string& value) {
-    AGW_SCOPED_API_TIMER(timer, context, "GetData");  // ← Tracks latency automatically
+    AGW_TRACK_API_CALL(tracker, context, "GetData");  // ← Tracks latency automatically
     
     auto result = FetchFromDatabase(key, value);
     if (result != Core::ERROR_NONE) {
-        timer.SetFailed(AGW_ERROR_FETCH_FAILED);
+        tracker.SetFailed(AGW_ERROR_FETCH_FAILED);
         return result;
     }
     
     return Core::ERROR_NONE;
-    // ✓ Timer reports success latency automatically
+    // ✓ tracker reports success latency automatically
 }
 
 // ✗ WRONG - Do NOT add manual latency reporting
 Core::hresult MyPlugin::GetData(const Exchange::GatewayContext& context, const string& key, string& value) {
-    AGW_SCOPED_API_TIMER(timer, context, "GetData");  // ← Already tracks latency
+    AGW_TRACK_API_CALL(tracker, context, "GetData");  // ← Already tracks latency
     
     auto start = std::chrono::steady_clock::now();
     auto result = FetchFromDatabase(key, value);
@@ -869,7 +869,7 @@ Core::hresult MyPlugin::CallExternalService(const Exchange::GatewayContext& cont
 
 // ✓ CORRECT - Nested scenario: Plugin method calls external service
 Core::hresult MyPlugin::GetUserPermissions(const Exchange::GatewayContext& context, const string& userId) {
-    AGW_SCOPED_API_TIMER(apiTimer, context, "GetUserPermissions");  // ← Tracks plugin's API method
+    AGW_TRACK_API_CALL(apiTracker, context, "GetUserPermissions");  // ← Tracks plugin's API method
     
     // Call external service and track its latency separately
     auto serviceStart = std::chrono::steady_clock::now();
@@ -880,19 +880,19 @@ Core::hresult MyPlugin::GetUserPermissions(const Exchange::GatewayContext& conte
     AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_THOR_PERMISSION, serviceDuration);  // ✓ External service timing
     
     if (result != Core::ERROR_NONE) {
-        apiTimer.SetFailed(AGW_ERROR_PERMISSION_DENIED);
+        apiTracker.SetFailed(AGW_ERROR_PERMISSION_DENIED);
         return result;
     }
     
     return Core::ERROR_NONE;
-    // ✓ apiTimer tracks total GetUserPermissions latency (including service call)
+    // ✓ apiTracker tracks total GetUserPermissions latency (including service call)
     // ✓ Service latency tracked separately for service-specific metrics
 }
 ```
 
 #### Summary
 
-- **Plugin API methods** → `AGW_SCOPED_API_TIMER` only (automatic latency + success/error tracking)
+- **Plugin API methods** → `AGW_TRACK_API_CALL` only (automatic latency + success/error tracking)
 - **External service calls** → `AGW_REPORT_SERVICE_LATENCY` (manual timing for specific service visibility)
 - **Never report the same latency twice through different mechanisms**
 
@@ -943,4 +943,4 @@ For questions or issues with telemetry integration:
 |---------|------|-------------|
 | 1.0 | 2026-01-31 | Initial release |
 | 1.1 | 2026-02-18 | Updated all macros to require `context` parameter for request correlation |
-| 1.1 | 2026-02-18 | Added best practice #6: Avoid duplicate latency tracking. Clarified AGW_SCOPED_API_TIMER vs AGW_REPORT_API_LATENCY usage. Deprecated AGW_REPORT_API_LATENCY for plugin methods. |
+| 1.1 | 2026-02-18 | Added best practice #6: Avoid duplicate latency tracking. Clarified AGW_TRACK_API_CALL vs AGW_REPORT_API_LATENCY usage. Deprecated AGW_REPORT_API_LATENCY for plugin methods. |
