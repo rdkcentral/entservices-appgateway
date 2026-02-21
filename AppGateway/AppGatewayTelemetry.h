@@ -162,6 +162,7 @@ namespace Plugin {
         void IncrementWebSocketConnections();
         void DecrementWebSocketConnections();
         void IncrementTotalCalls();
+        void IncrementTotalResponses();
         void IncrementSuccessfulCalls();
         void IncrementFailedCalls();
 
