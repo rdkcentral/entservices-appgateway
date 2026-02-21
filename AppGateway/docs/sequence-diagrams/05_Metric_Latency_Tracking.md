@@ -23,7 +23,7 @@ sequenceDiagram
     activate Badger
     
     Note over Badger: Start automatic API timer
-    Badger->>Badger: AGW_SCOPED_API_TIMER(apiTimer, "AuthorizeDataField")
+    Badger->>Badger: AGW_TRACK_API_CALL(apiTimer, "AuthorizeDataField")
     Note over Badger: apiStart = now()
     
     Badger->>Badger: Check permissions cache
@@ -127,7 +127,7 @@ sequenceDiagram
 
 ```cpp
 Core::hresult Badger::AuthorizeDataField(...) {
-    AGW_SCOPED_API_TIMER(apiTimer, "AuthorizeDataField");
+    AGW_TRACK_API_CALL(apiTimer, "AuthorizeDataField");
     
     // ... API implementation ...
     

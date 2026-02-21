@@ -128,7 +128,7 @@ Plugins use convenience macros from `UtilsAppGatewayTelemetry.h`:
 | `AGW_REPORT_EXTERNAL_SERVICE_ERROR(service, error)` | Report service failure |
 | `AGW_REPORT_API_LATENCY(api, latencyMs)` | Report API latency |
 | `AGW_REPORT_SERVICE_LATENCY(service, latencyMs)` | Report service latency |
-| `AGW_SCOPED_API_TIMER(var, apiName)` | Auto-track API latency (RAII) |
+| `AGW_TRACK_API_CALL(var, apiName)` | Auto-track API latency (RAII) |
 
 ## Reference Plugins
 

@@ -68,9 +68,8 @@ namespace Plugin {
 
         LOGINFO("AppGateway::Initialize: PID=%u", getpid());
 
-        // Start bootstrap time measurement
+        // Measure bootstrap time
         auto bootstrapStart = std::chrono::steady_clock::now();
-        uint32_t pluginsLoaded = 0;
 
         mService = service;
         mService->AddRef();
@@ -92,7 +91,6 @@ namespace Plugin {
 
             //Invoking Plugin API register to wpeframework
             Exchange::JAppGatewayResolver::Register(*this, mAppGateway);
-            pluginsLoaded++;
         }
         else
         {
@@ -106,19 +104,17 @@ namespace Plugin {
                 configConnectionResponder->Configure(service);
                 configConnectionResponder->Release();
             }
-            pluginsLoaded++;
         }
         else
         {
             LOGERR("Failed to initialise AppGatewayResponder plugin!");
         }
-
-        // Calculate and record bootstrap time
-        auto bootstrapEnd = std::chrono::steady_clock::now();
-        uint64_t bootstrapDurationMs = std::chrono::duration_cast<std::chrono::milliseconds>(bootstrapEnd - bootstrapStart).count();
-        AppGatewayTelemetry::getInstance().RecordBootstrapTime(bootstrapDurationMs, pluginsLoaded);
-        LOGINFO("AppGateway bootstrap completed in %lu ms, %u plugins loaded", bootstrapDurationMs, pluginsLoaded);
    
+        // Record bootstrap time (AppGateway uses direct singleton access)
+        auto bootstrapEnd = std::chrono::steady_clock::now();
+        auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            bootstrapEnd - bootstrapStart).count();
+        AppGatewayTelemetry::getInstance().RecordBootstrapTime(static_cast<uint64_t>(durationMs));
             
         // On success return empty, to indicate there is no error text.
         return ((mAppGateway != nullptr) && (mResponder != nullptr))
