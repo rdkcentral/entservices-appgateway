@@ -47,7 +47,7 @@
  *    - AGW_REPORT_API_ERROR(context, "GetSettings", AGW_ERROR_TIMEOUT)
  *    - AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE)
  *    - AGW_REPORT_API_LATENCY(context, "GetSettings", 123.45)
- *    - AGW_SCOPED_API_TIMER(timer, context, "GetSettings")  // RECOMMENDED for API methods
+ *    - AGW_TRACK_API_CALL(tracker, context, "GetSettings")  // RECOMMENDED for API methods
  * 
  * 5. Cleanup in Deinitialize:
  *    AGW_TELEMETRY_DEINIT()
@@ -268,7 +268,7 @@ namespace AppGatewayTelemetryHelper {
          * @return Core::hresult
          * 
          * This records a METRIC - values are aggregated (sum/count/min/max/avg)
-         * and sent to T2 periodically using common marker AGW_METRIC_API_LATENCY.
+         * and sent to T2 periodically using common marker AGW_MARKER_API_LATENCY.
          * 
          * Generates a tagged metric name with explicit structure:
          *   "AppGw_PluginName_" + <PluginName> + "_ApiName_" + <ApiName> + "_ApiLatency_split"
@@ -297,7 +297,7 @@ namespace AppGatewayTelemetryHelper {
          * @return Core::hresult
          * 
          * This records a METRIC - values are aggregated (sum/count/min/max/avg)
-         * and sent to T2 periodically using common marker AGW_METRIC_SERVICE_LATENCY.
+         * and sent to T2 periodically using common marker AGW_MARKER_SERVICE_LATENCY.
          * 
          * Generates a tagged metric name with explicit structure:
          *   "AppGw_PluginName_" + <PluginName> + "_ServiceName_" + <ServiceName> + "_ServiceLatency_split"
@@ -338,7 +338,7 @@ namespace AppGatewayTelemetryHelper {
                     mPluginName.c_str(), (unsigned long long)durationMs);
 
             // Use standard bootstrap metric - AppGatewayTelemetry will handle cumulative tracking
-            return RecordMetric(context, AGW_METRIC_BOOTSTRAP_DURATION, 
+            return RecordMetric(context, AGW_MARKER_BOOTSTRAP_DURATION, 
                               static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
         }
 
@@ -407,13 +407,13 @@ namespace AppGatewayTelemetryHelper {
     };
 
     /**
-     * @brief RAII timer for automatic API latency and error tracking
+     * @brief RAII tracker for automatic API latency and error tracking
      * 
      * Times an API call from construction to destruction, automatically reporting:
      * - Success latency metric (if SetFailed() not called)
      * - Error event + error latency metric (if SetFailed() called)
      * 
-     * @note This class is used by AGW_SCOPED_API_TIMER() macro.
+     * @note This class is used by AGW_TRACK_API_CALL() macro.
      *       Direct instantiation is not recommended.
      * 
      * Usage:
@@ -473,6 +473,78 @@ namespace AppGatewayTelemetryHelper {
         TelemetryClient* mClient;
         Exchange::GatewayContext mContext;
         std::string mApiName;
+        bool mFailed;
+        std::string mErrorDetails;
+        std::chrono::steady_clock::time_point mStartTime;
+    };
+
+    /**
+     * @brief RAII tracker for automatic external service latency and error tracking
+     * 
+     * Times an external service call from construction to destruction, automatically reporting:
+     * - Success latency metric (if SetFailed() not called)
+     * - Error event + error latency metric (if SetFailed() called)
+     * 
+     * @note This class is used by AGW_TRACK_SERVICE_CALL() macro.
+     *       Direct instantiation is not recommended.
+     * 
+     * Usage:
+     *   {
+     *       ScopedServiceTimer timer(&GetLocalTelemetryClient(), context, AGW_SERVICE_THOR_PERMISSION);
+     *       // ... make external service call ...
+     *       if (failed) timer.SetFailed(AGW_ERROR_CONNECTION_TIMEOUT);
+     *   } // Timer automatically reports on destruction
+     */
+    class ScopedServiceTimer
+    {
+    public:
+        ScopedServiceTimer(TelemetryClient* client, const Exchange::GatewayContext& context, const std::string& serviceName)
+            : mClient(client)
+            , mContext(context)
+            , mServiceName(serviceName)
+            , mFailed(false)
+            , mErrorDetails()
+            , mStartTime(std::chrono::steady_clock::now())
+        {
+        }
+
+        ~ScopedServiceTimer()
+        {
+            if (!mClient || !mClient->IsAvailable()) {
+                return;
+            }
+
+            auto endTime = std::chrono::steady_clock::now();
+            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                endTime - mStartTime).count();
+            
+            if (mFailed) {
+                mClient->RecordExternalServiceError(mContext, mServiceName, mErrorDetails);
+                std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
+                                         "_ServiceName_" + mServiceName + "_Error_split";
+                mClient->RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+            } else {
+                std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
+                                         "_ServiceName_" + mServiceName + "_Success_split";
+                mClient->RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+            }
+        }
+
+        void SetFailed(const std::string& errorDetails)
+        {
+            mFailed = true;
+            mErrorDetails = errorDetails;
+        }
+
+        void SetSuccess()
+        {
+            mFailed = false;
+        }
+
+    private:
+        TelemetryClient* mClient;
+        Exchange::GatewayContext mContext;
+        std::string mServiceName;
         bool mFailed;
         std::string mErrorDetails;
         std::chrono::steady_clock::time_point mStartTime;
@@ -621,7 +693,7 @@ namespace AppGatewayTelemetryHelper {
  * 
  * **Data Flow**:
  * - Uses RecordTelemetryMetric internally
- * - Reports to standard marker: AGW_METRIC_BOOTSTRAP_DURATION
+ * - Reports to standard marker: AGW_MARKER_BOOTSTRAP_DURATION
  * - AppGateway aggregates all plugin bootstrap times cumulatively
  * - AppGateway tracks total plugins loaded and total bootstrap time
  * 
@@ -652,11 +724,13 @@ namespace AppGatewayTelemetryHelper {
  * - Uses RecordTelemetryEvent internally (individual occurrence)
  * - Marker: AGW_MARKER_PLUGIN_API_ERROR
  * - Payload: {"plugin": "<name>", "api": "<apiName>", "error": "<errorCode>"}
- * - Each error reported individually to T2 (not aggregated)
+ * - Each error SENT IMMEDIATELY to T2 (not cached, not aggregated)
+ * - Error counts also tracked for aggregated metrics (sent periodically)
  * 
  * **When to Use**:
- * - Use for tracking WHAT errors occurred (forensics)
- * - For error counting, use AGW_SCOPED_API_TIMER instead (aggregates metrics)
+ * - Use for tracking WHAT errors occurred (immediate forensics)
+ * - Each error event sent to T2 as soon as it happens
+ * - For aggregated error counting, use AGW_TRACK_API_CALL instead
  * 
  * Example:
  *   AGW_REPORT_API_ERROR(context, "GetSettings", AGW_ERROR_TIMEOUT)
@@ -680,11 +754,13 @@ namespace AppGatewayTelemetryHelper {
  * - Uses RecordTelemetryEvent internally (individual occurrence)
  * - Marker: AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR
  * - Payload: {"plugin": "<name>", "service": "<serviceName>", "error": "<errorCode>"}
- * - Each error reported individually to T2 (not aggregated)
+ * - Each error SENT IMMEDIATELY to T2 (not cached, not aggregated)
+ * - Error counts also tracked for aggregated metrics (sent periodically)
  * 
  * **When to Use**:
- * - Use for tracking WHAT service errors occurred (forensics)
- * - For error counting, use custom metrics or aggregate manually
+ * - Use for tracking WHAT service errors occurred (immediate forensics)
+ * - Each error event sent to T2 as soon as it happens
+ * - For aggregated error counting with latency, use AGW_TRACK_SERVICE_CALL instead
  * 
  * Example:
  *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE)
@@ -722,7 +798,7 @@ namespace AppGatewayTelemetryHelper {
  * Example:
  *   Core::hresult MyPlugin::SomeMethod(const Exchange::GatewayContext& context)
  *   {
- *       AGW_SCOPED_API_TIMER(timer, context, "SomeMethod");
+ *       AGW_TRACK_API_CALL(timer, context, "SomeMethod");
  *       
  *       auto result = DoWork();
  *       if (result != Core::ERROR_NONE) {
@@ -733,8 +809,42 @@ namespace AppGatewayTelemetryHelper {
  *       return Core::ERROR_NONE;
  *   } // Timer automatically reports success/failure with timing
  */
-#define AGW_SCOPED_API_TIMER(varName, context, apiName) \
+#define AGW_TRACK_API_CALL(varName, context, apiName) \
     WPEFramework::Plugin::AppGatewayTelemetryHelper::ScopedApiTimer varName(&GetLocalTelemetryClient(), context, apiName)
+
+/**
+ * @brief Automatic external service call tracking with RAII (RECOMMENDED for service calls)
+ * @param varName Variable name for the tracker
+ * @param context Gateway context with request/connection/app info
+ * @param serviceName Name of the external service (use predefined constants from AppGatewayTelemetryMarkers.h)
+ * 
+ * **Data Flow**:
+ * - Uses RecordTelemetryMetric internally (aggregated values)
+ * - On success: Records metric "AppGw_PluginName_<Plugin>_ServiceName_<Service>_Success_split"
+ * - On failure: Records event (RecordTelemetryEvent) + metric with "_Error_split" suffix
+ * - Metrics aggregated by AppGateway over time (sum, count, min, max, avg)
+ * 
+ * **When to Use**:
+ * - RECOMMENDED for all external service calls (gRPC, COM-RPC, HTTP)
+ * - Automatically tracks success/error rates and latencies
+ * - Call SetFailed(errorCode) to mark as error, otherwise assumes success
+ * 
+ * Example:
+ *   Core::hresult MyPlugin::CallExternalService(const Exchange::GatewayContext& context)
+ *   {
+ *       AGW_TRACK_SERVICE_CALL(serviceTracker, context, AGW_SERVICE_THOR_PERMISSION);
+ *       
+ *       auto result = thorClient->CheckPermission(...);
+ *       if (result != Core::ERROR_NONE) {
+ *           serviceTracker.SetFailed(AGW_ERROR_CONNECTION_TIMEOUT);
+ *           return result;
+ *       }
+ *       
+ *       return Core::ERROR_NONE;
+ *   } // Tracker automatically reports success/failure with timing
+ */
+#define AGW_TRACK_SERVICE_CALL(varName, context, serviceName) \
+    WPEFramework::Plugin::AppGatewayTelemetryHelper::ScopedServiceTimer varName(&GetLocalTelemetryClient(), context, serviceName)
 
 /**
  * @brief Report an API latency metric to AppGateway telemetry (manual)
@@ -749,8 +859,8 @@ namespace AppGatewayTelemetryHelper {
  * - Reported periodically to T2 (e.g., hourly)
  * 
  * **When to Use**:
- * - Manual latency reporting when not using AGW_SCOPED_API_TIMER
- * - Use AGW_SCOPED_API_TIMER instead for automatic timing (RECOMMENDED)
+ * - Manual latency reporting when not using AGW_TRACK_API_CALL
+ * - Use AGW_TRACK_API_CALL instead for automatic timing (RECOMMENDED)
  * 
  * Example:
  *   auto start = std::chrono::steady_clock::now();
@@ -871,7 +981,7 @@ namespace AppGatewayTelemetryHelper {
  * @param apiName Name of the API
  * @param durationMs Duration of the call in milliseconds
  * 
- * @deprecated Use AGW_SCOPED_API_TIMER instead for automatic success/error tracking
+ * @deprecated Use AGW_TRACK_API_CALL instead for automatic success/error tracking
  * 
  * **Data Flow**:
  * - Uses RecordTelemetryMetric internally

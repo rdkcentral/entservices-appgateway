@@ -98,53 +98,56 @@
  * @details Total time taken to start all App Gateway plugins
  * @payload { "sum": <duration_ms>, "count": 1, "unit": "ms", "reporting_interval_sec": 0 }
  */
-#define AGW_METRIC_BOOTSTRAP_DURATION               "AppGwBootstrapDuration_split"
+#define AGW_MARKER_BOOTSTRAP_DURATION               "AppGwBootstrapDuration_split"
 
 /**
  * @brief Bootstrap plugin count metric (sent once on startup)
  * @details Number of plugins successfully loaded
  * @payload { "sum": <plugins_loaded>, "count": 1, "unit": "count", "reporting_interval_sec": 0 }
  */
-#define AGW_METRIC_BOOTSTRAP_PLUGIN_COUNT           "AppGwBootstrapPluginCount_split"
-
-/**
- * @brief DEPRECATED: Old aggregated bootstrap marker (no longer used)
- * @details Replaced by AGW_METRIC_BOOTSTRAP_DURATION and AGW_METRIC_BOOTSTRAP_PLUGIN_COUNT
- */
-#define AGW_MARKER_BOOTSTRAP_TIME                   "AppGwBootstrapTime_split"
+#define AGW_MARKER_BOOTSTRAP_PLUGIN_COUNT           "AppGwBootstrapPluginCount_split"
 
 /**
  * @brief WebSocket connections metric (sent periodically)
  * @details Current active WebSocket connections
  * @payload { "sum": <connections>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
  */
-#define AGW_METRIC_WEBSOCKET_CONNECTIONS            "AppGwWebSocketConnections_split"
+#define AGW_MARKER_WEBSOCKET_CONNECTIONS            "AppGwWebSocketConnections_split"
 
 /**
  * @brief Total API calls metric (sent periodically)
  * @details Total number of API calls in reporting period
  * @payload { "sum": <calls>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
  */
-#define AGW_METRIC_TOTAL_CALLS                      "AppGwTotalCalls_split"
+#define AGW_MARKER_TOTAL_CALLS                      "AppGwTotalCalls_split"
 
 /**
  * @brief Successful API calls metric (sent periodically)
  * @details Number of successful API calls in reporting period
  * @payload { "sum": <calls>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
  */
-#define AGW_METRIC_SUCCESSFUL_CALLS                 "AppGwSuccessfulCalls_split"
+#define AGW_MARKER_SUCCESSFUL_CALLS                 "AppGwSuccessfulCalls_split"
 
 /**
  * @brief Failed API calls metric (sent periodically)
  * @details Number of failed API calls in reporting period
  * @payload { "sum": <calls>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
  */
-#define AGW_METRIC_FAILED_CALLS                     "AppGwFailedCalls_split"
+#define AGW_MARKER_FAILED_CALLS                     "AppGwFailedCalls_split"
 
 /**
- * @brief DEPRECATED: Old aggregated health stats marker (no longer used)
- * @details Replaced by individual metrics: AGW_METRIC_WEBSOCKET_CONNECTIONS, AGW_METRIC_TOTAL_CALLS,
- *          AGW_METRIC_SUCCESSFUL_CALLS, AGW_METRIC_FAILED_CALLS
+ * @brief Consolidated health statistics marker (sent periodically)
+ * @details Aggregated health metrics for AppGateway including WebSocket connections and API call statistics
+ * @payload {
+ *   "reporting_interval_sec": 3600,
+ *   "websocket_connections": <active_connections>,
+ *   "total_calls": <total_api_calls>,
+ *   "successful_calls": <successful_calls>,
+ *   "failed_calls": <failed_calls>,
+ *   "unit": "count"
+ * }
+ * @note Individual markers (AGW_MARKER_WEBSOCKET_CONNECTIONS, AGW_MARKER_TOTAL_CALLS,
+ *       AGW_MARKER_SUCCESSFUL_CALLS, AGW_MARKER_FAILED_CALLS) are available for plugin-specific use
  */
 #define AGW_MARKER_HEALTH_STATS                     "AppGwHealthStats_split"
 
@@ -188,23 +191,19 @@
  *   "reporting_interval_sec": 3600,
  *   "total_count": <total_calls>,
  *   "success_count": <success_count>,
- *   "success_rate_percent": <success_rate>,
  *   "success_latency_avg_ms": <avg>,
  *   "success_latency_min_ms": <min>,
  *   "success_latency_max_ms": <max>,
- *   "success_latency_total_ms": <total>,
  *   "error_count": <error_count>,
  *   "error_latency_avg_ms": <avg>,
  *   "error_latency_min_ms": <min>,
- *   "error_latency_max_ms": <max>,
- *   "error_latency_total_ms": <total>,
- *   "unit": "Milliseconds"
+ *   "error_latency_max_ms": <max>
  * }
  * @example For LaunchDelegate.session():
  *   Marker: "AppGwApiMethod_split"
  *   Payload includes: "plugin_name": "LaunchDelegate", "method_name": "session"
  */
-#define AGW_METRIC_API_METHOD                       "AppGwApiMethod_split"
+#define AGW_MARKER_API_METHOD_STAT                       "AppGwApiMethod_split"
 
 /**
  * @brief API latency statistics marker (common marker for all plugin/API combinations)
@@ -225,7 +224,7 @@
  *   Marker: "AppGwApiLatency_split"
  *   Payload includes: "plugin_name": "Badger", "api_name": "GetSettings"
  */
-#define AGW_METRIC_API_LATENCY                      "AppGwApiLatency_split"
+#define AGW_MARKER_API_LATENCY                      "AppGwApiLatency_split"
 
 /**
  * @brief Service latency statistics marker (common marker for all plugin/service combinations)
@@ -246,7 +245,31 @@
  *   Marker: "AppGwServiceLatency_split"
  *   Payload includes: "plugin_name": "OttServices", "service_name": "ThorPermissionService"
  */
-#define AGW_METRIC_SERVICE_LATENCY                  "AppGwServiceLatency_split"
+#define AGW_MARKER_SERVICE_LATENCY                  "AppGwServiceLatency_split"
+
+/**
+ * @brief Per-service method statistics marker (common marker for all plugin/service combinations)
+ * @details Used to report detailed per-service statistics including counters and latency metrics
+ * @usage Single marker for all: "AppGwServiceMethod_split"
+ * @payload {
+ *   "plugin_name": "<PluginName>",
+ *   "service_name": "<ServiceName>",
+ *   "reporting_interval_sec": 3600,
+ *   "total_count": <total_calls>,
+ *   "success_count": <success_count>,
+ *   "success_latency_avg_ms": <avg>,
+ *   "success_latency_min_ms": <min>,
+ *   "success_latency_max_ms": <max>,
+ *   "error_count": <error_count>,
+ *   "error_latency_avg_ms": <avg>,
+ *   "error_latency_min_ms": <min>,
+ *   "error_latency_max_ms": <max>
+ * }
+ * @example For OttServices calling ThorPermissionService:
+ *   Marker: "AppGwServiceMethod_split"
+ *   Payload includes: "plugin_name": "OttServices", "service_name": "ThorPermissionService"
+ */
+#define AGW_MARKER_SERVICE_METHOD_STAT              "AppGwServiceMethod_split"
 
 //=============================================================================
 // GENERIC PLUGIN TELEMETRY MARKERS

@@ -154,7 +154,10 @@ namespace Plugin {
         void RecordBootstrapTime(uint64_t durationMs);
 
         // Scenario 2: Health Stats Tracking
-        // Counters are incremented during operation, then sent as METRICS periodically
+        // These counters track AppGateway's OWN WebSocket API operations ONLY.
+        // They should be incremented by AppGateway when handling incoming WebSocket API requests,
+        // NOT when aggregating plugin telemetry (which happens via RecordTelemetryEvent/RecordTelemetryMetric).
+        // These health stats are independent of plugin-level metrics reported via helper macros.
         void IncrementWebSocketConnections();
         void DecrementWebSocketConnections();
         void IncrementTotalCalls();
@@ -276,6 +279,38 @@ namespace Plugin {
             {}
         };
 
+        /**
+         * @brief Per-Plugin/Service method statistics structure
+         * 
+         * Tracks detailed counters and latency metrics for each plugin/service combination.
+         * This enables per-service visibility into performance and reliability.
+         * Used by AGW_TRACK_SERVICE_CALL macro.
+         */
+        struct ServiceMethodStats
+        {
+            std::string pluginName;
+            std::string serviceName;
+            uint32_t successCount;
+            uint32_t errorCount;
+            double totalSuccessLatencyMs;
+            double totalErrorLatencyMs;
+            double minSuccessLatencyMs;
+            double maxSuccessLatencyMs;
+            double minErrorLatencyMs;
+            double maxErrorLatencyMs;
+            
+            ServiceMethodStats()
+                : successCount(0)
+                , errorCount(0)
+                , totalSuccessLatencyMs(0.0)
+                , totalErrorLatencyMs(0.0)
+                , minSuccessLatencyMs(std::numeric_limits<double>::max())
+                , maxSuccessLatencyMs(std::numeric_limits<double>::lowest())
+                , minErrorLatencyMs(std::numeric_limits<double>::max())
+                , maxErrorLatencyMs(std::numeric_limits<double>::lowest())
+            {}
+        };
+
         // Timer callback for periodic reporting
         class TelemetryTimer : public Core::IDispatch
         {
@@ -318,6 +353,7 @@ namespace Plugin {
         void SendApiMethodStats();
         void SendApiLatencyStats();
         void SendServiceLatencyStats();
+        void SendServiceMethodStats();
 
         // Helper to send telemetry via T2
         void SendT2Event(const char* marker, const std::string& payload);
@@ -329,6 +365,7 @@ namespace Plugin {
         void ResetApiMethodStats();
         void ResetApiLatencyStats();
         void ResetServiceLatencyStats();
+        void ResetServiceMethodStats();
 
         // Metric recording helpers (called by RecordTelemetryMetric)
         void RecordApiMethodMetric(const std::string& pluginName,
@@ -343,6 +380,11 @@ namespace Plugin {
         void RecordServiceLatencyMetric(const std::string& pluginName,
                                        const std::string& serviceName,
                                        double latencyMs);
+        
+        void RecordServiceMethodMetric(const std::string& pluginName,
+                                      const std::string& serviceName,
+                                      double latencyMs,
+                                      bool isError);
         
         void RecordGenericMetric(const std::string& metricName,
                                 double metricValue,
@@ -363,6 +405,12 @@ namespace Plugin {
         bool ParseServiceLatencyMetricName(const std::string& metricName,
                                           std::string& pluginName,
                                           std::string& serviceName);
+
+        // Helper to parse service method metric: "AppGw_PluginName_<Plugin>_ServiceName_<Service>_<Success|Error>_split"
+        bool ParseServiceMetricName(const std::string& metricName,
+                                   std::string& pluginName,
+                                   std::string& serviceName,
+                                   bool& isError);
 
         /**
          * @brief Format JSON payload based on current format setting
@@ -417,6 +465,9 @@ namespace Plugin {
 
         // Per-Plugin/API method statistics: map<"PluginName_MethodName", ApiMethodStats>
         std::map<std::string, ApiMethodStats> mApiMethodStats;
+
+        // Per-Plugin/Service method statistics: map<"PluginName_ServiceName", ServiceMethodStats>
+        std::map<std::string, ServiceMethodStats> mServiceMethodStats;
 
         // Cached metrics: map<metricName, MetricData>
         std::map<std::string, MetricData> mMetricsCache;

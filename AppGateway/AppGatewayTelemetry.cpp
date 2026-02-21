@@ -154,9 +154,9 @@ namespace Plugin {
         context.appId = "AppGateway";
 
         // Record cumulative metrics (will be overwritten with latest totals)
-        RecordTelemetryMetric(context, AGW_METRIC_BOOTSTRAP_DURATION, 
+        RecordTelemetryMetric(context, AGW_MARKER_BOOTSTRAP_DURATION, 
                               static_cast<double>(totalTime), AGW_UNIT_MILLISECONDS);
-        RecordTelemetryMetric(context, AGW_METRIC_BOOTSTRAP_PLUGIN_COUNT, 
+        RecordTelemetryMetric(context, AGW_MARKER_BOOTSTRAP_PLUGIN_COUNT, 
                               static_cast<double>(pluginCount), AGW_UNIT_COUNT);
     }
 
@@ -223,44 +223,64 @@ namespace Plugin {
         // Parse eventName to determine the type of telemetry
         // 
         // Supported event name patterns:
-        // - "AppGwPluginApiError_split" - API errors from other plugins
-        // - "AppGwPluginExtServiceError_split" - External service errors
-        // - Any other event name - Generic telemetry event
+        // - "AppGwPluginApiError_split" - API errors from other plugins (sent immediately)
+        // - "AppGwPluginExtServiceError_split" - External service errors (sent immediately)
+        // - Any other event name - Generic telemetry event (cached and flushed periodically)
 
-        // Check if this is an API error event
-        if (eventName.find("ApiError") != std::string::npos) {
+        bool isImmediateEvent = false;
+
+        // Check if this is an API error event - send immediately to T2
+        if (eventName == AGW_MARKER_PLUGIN_API_ERROR) {
             // Extract API name from eventData if possible
-            // eventData expected format: {"api": "<apiName>", "error": "<errorDetails>"}
+            // eventData expected format: {"plugin": "<pluginName>", "api": "<apiName>", "error": "<errorDetails>"}
             JsonObject data;
             data.FromString(eventData);
             std::string apiName = data.HasLabel("api") ? data["api"].String() : eventName;
+            
+            // Track error count for aggregated metrics (sent periodically)
             RecordApiError(apiName);
+            
+            // Send error event immediately to T2 for forensics
+            SendT2Event(eventName.c_str(), eventData);
+            LOGINFO("Sent immediate API error event to T2: api=%s", apiName.c_str());
+            
+            isImmediateEvent = true;
         }
-        // Check if this is an external service error event
-        else if (eventName.find("ExternalServiceError") != std::string::npos) {
+        // Check if this is an external service error event - send immediately to T2
+        else if (eventName == AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR) {
             // Extract service name from eventData if possible
-            // eventData expected format: {"service": "<serviceName>", "error": "<errorDetails>"}
+            // eventData expected format: {"plugin": "<pluginName>", "service": "<serviceName>", "error": "<errorDetails>"}
             JsonObject data;
             data.FromString(eventData);
             std::string serviceName = data.HasLabel("service") ? data["service"].String() : eventName;
+            
+            // Track error count for aggregated metrics (sent periodically)
             RecordExternalServiceErrorInternal(serviceName);
+            
+            // Send error event immediately to T2 for forensics
+            SendT2Event(eventName.c_str(), eventData);
+            LOGINFO("Sent immediate external service error event to T2: service=%s", serviceName.c_str());
+            
+            isImmediateEvent = true;
         }
 
-        // Increment cached event count and check threshold
-        bool shouldFlush = false;
-        {
-            Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
-            mCachedEventCount++;
+        // For non-immediate events, cache and check threshold
+        if (!isImmediateEvent) {
+            bool shouldFlush = false;
+            {
+                Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+                mCachedEventCount++;
 
-            // Check if we've reached the threshold
-            if (mCachedEventCount >= mCacheThreshold) {
-                shouldFlush = true;
-                LOGINFO("Cache threshold reached (%u), flushing telemetry data", mCachedEventCount);
+                // Check if we've reached the threshold
+                if (mCachedEventCount >= mCacheThreshold) {
+                    shouldFlush = true;
+                    LOGINFO("Cache threshold reached (%u), flushing telemetry data", mCachedEventCount);
+                }
             }
-        }
 
-        if (shouldFlush) {
-            FlushTelemetryData();
+            if (shouldFlush) {
+                FlushTelemetryData();
+            }
         }
 
         return Core::ERROR_NONE;
@@ -436,6 +456,74 @@ namespace Plugin {
         return true;
     }
 
+    bool AppGatewayTelemetry::ParseServiceMetricName(const std::string& metricName,
+                                                     std::string& pluginName,
+                                                     std::string& serviceName,
+                                                     bool& isError)
+    {
+        // SPECIFIC format for service method metrics with explicit tags:
+        // "AppGw_PluginName_<Plugin>_ServiceName_<Service>_Success_split"
+        // "AppGw_PluginName_<Plugin>_ServiceName_<Service>_Error_split"
+        //
+        // Examples:
+        //   "AppGw_PluginName_OttServices_ServiceName_ThorPermissionService_Success_split"
+        //   "AppGw_PluginName_Badger_ServiceName_AuthService_Error_split"
+        //
+        // Other metrics like "AppGwBootstrapDuration_split" or service latency metrics
+        // will NOT match because they lack the Success/Error suffix or use different patterns
+        
+        const std::string successSuffix = "_Success_split";
+        const std::string errorSuffix = "_Error_split";
+        const std::string prefix = "AppGw_PluginName_";
+        const std::string serviceTag = "_ServiceName_";
+        
+        // Check if it ends with "_Success_split" or "_Error_split"
+        bool hasSuccessSuffix = false;
+        bool hasErrorSuffix = false;
+        
+        if (metricName.length() > successSuffix.length() && 
+            metricName.substr(metricName.length() - successSuffix.length()) == successSuffix) {
+            isError = false;
+            hasSuccessSuffix = true;
+        } else if (metricName.length() > errorSuffix.length() && 
+                   metricName.substr(metricName.length() - errorSuffix.length()) == errorSuffix) {
+            isError = true;
+            hasErrorSuffix = true;
+        } else {
+            return false;
+        }
+        
+        // Check if it starts with the explicit prefix "AppGw_PluginName_"
+        if (metricName.length() <= prefix.length() || 
+            metricName.substr(0, prefix.length()) != prefix) {
+            return false;
+        }
+        
+        // Remove prefix and suffix to get "Plugin_ServiceName_Service_Success"
+        size_t suffixLen = hasSuccessSuffix ? successSuffix.length() : errorSuffix.length();
+        std::string middle = metricName.substr(prefix.length(), 
+                                              metricName.length() - prefix.length() - suffixLen);
+        
+        // Find "_ServiceName_" tag
+        size_t serviceTagPos = middle.find(serviceTag);
+        if (serviceTagPos == std::string::npos || serviceTagPos == 0) {
+            return false;
+        }
+        
+        // Extract plugin name (everything before "_ServiceName_")
+        pluginName = middle.substr(0, serviceTagPos);
+        
+        // Extract service name (everything after "_ServiceName_")
+        serviceName = middle.substr(serviceTagPos + serviceTag.length());
+        
+        // Validate that both names are non-empty
+        if (pluginName.empty() || serviceName.empty()) {
+            return false;
+        }
+        
+        return true;
+    }
+
     void AppGatewayTelemetry::RecordApiMethodMetric(
         const std::string& pluginName,
         const std::string& methodName,
@@ -453,12 +541,10 @@ namespace Plugin {
             stats.methodName = methodName;
         }
         
-        // Track counters
-        IncrementTotalCalls();
+        // Track counters (plugin-specific stats only, do NOT affect AppGateway's health stats)
         
         if (isError) {
             // Error case
-            IncrementFailedCalls();
             stats.errorCount++;
             stats.totalErrorLatencyMs += latencyMs;
             
@@ -473,7 +559,6 @@ namespace Plugin {
                      pluginName.c_str(), methodName.c_str(), stats.errorCount, latencyMs);
         } else {
             // Success case
-            IncrementSuccessfulCalls();
             stats.successCount++;
             stats.totalSuccessLatencyMs += latencyMs;
             
@@ -557,6 +642,58 @@ namespace Plugin {
         mCachedEventCount++;
     }
 
+    void AppGatewayTelemetry::RecordServiceMethodMetric(
+        const std::string& pluginName,
+        const std::string& serviceName,
+        double latencyMs,
+        bool isError)
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+        
+        std::string serviceKey = pluginName + "_" + serviceName;
+        ServiceMethodStats& stats = mServiceMethodStats[serviceKey];
+        
+        // Initialize plugin and service names on first use
+        if (stats.pluginName.empty()) {
+            stats.pluginName = pluginName;
+            stats.serviceName = serviceName;
+        }
+        
+        // Track counters (plugin-specific stats only)
+        
+        if (isError) {
+            // Error case
+            stats.errorCount++;
+            stats.totalErrorLatencyMs += latencyMs;
+            
+            if (latencyMs < stats.minErrorLatencyMs) {
+                stats.minErrorLatencyMs = latencyMs;
+            }
+            if (latencyMs > stats.maxErrorLatencyMs) {
+                stats.maxErrorLatencyMs = latencyMs;
+            }
+            
+            LOGTRACE("Service error tracked: %s::%s (error_count=%u, latency=%.2f ms)",
+                     pluginName.c_str(), serviceName.c_str(), stats.errorCount, latencyMs);
+        } else {
+            // Success case
+            stats.successCount++;
+            stats.totalSuccessLatencyMs += latencyMs;
+            
+            if (latencyMs < stats.minSuccessLatencyMs) {
+                stats.minSuccessLatencyMs = latencyMs;
+            }
+            if (latencyMs > stats.maxSuccessLatencyMs) {
+                stats.maxSuccessLatencyMs = latencyMs;
+            }
+            
+            LOGTRACE("Service success tracked: %s::%s (success_count=%u, latency=%.2f ms)",
+                     pluginName.c_str(), serviceName.c_str(), stats.successCount, latencyMs);
+        }
+        
+        mCachedEventCount++;
+    }
+
     void AppGatewayTelemetry::RecordGenericMetric(
         const std::string& metricName,
         double metricValue,
@@ -596,7 +733,7 @@ namespace Plugin {
                  context.appId.c_str(), metricName.c_str(), metricValue, metricUnit.c_str());
 
         // Check for bootstrap duration metric - route to internal RecordBootstrapTime
-        if (metricName == AGW_METRIC_BOOTSTRAP_DURATION) {
+        if (metricName == AGW_MARKER_BOOTSTRAP_DURATION) {
             RecordBootstrapTime(static_cast<uint64_t>(metricValue));
             return Core::ERROR_NONE;
         }
@@ -608,6 +745,9 @@ namespace Plugin {
         if (ParseApiMetricName(metricName, pluginName, apiOrMethodName, isError)) {
             // API method metric (success/error with latency tracking)
             RecordApiMethodMetric(pluginName, apiOrMethodName, metricValue, isError);
+        } else if (ParseServiceMetricName(metricName, pluginName, apiOrMethodName, isError)) {
+            // Service method metric (success/error with latency tracking from AGW_TRACK_SERVICE_CALL)
+            RecordServiceMethodMetric(pluginName, apiOrMethodName, metricValue, isError);
         } else if (ParseApiLatencyMetricName(metricName, pluginName, apiOrMethodName)) {
             // API latency metric (deprecated, but still supported)
             RecordApiLatencyMetric(pluginName, apiOrMethodName, metricValue);
@@ -654,6 +794,7 @@ namespace Plugin {
         SendApiMethodStats();
         SendApiLatencyStats();
         SendServiceLatencyStats();
+        SendServiceMethodStats();
         SendApiErrorStats();
         SendExternalServiceErrorStats();
         SendAggregatedMetrics();
@@ -663,6 +804,7 @@ namespace Plugin {
         ResetApiMethodStats();
         ResetApiLatencyStats();
         ResetServiceLatencyStats();
+        ResetServiceMethodStats();
         ResetApiErrorStats();
         ResetExternalServiceErrorStats();
         mMetricsCache.clear();
@@ -683,28 +825,19 @@ namespace Plugin {
             return;
         }
 
-        // Send each health metric individually for proper aggregation
-        JsonObject metricPayload;
-        metricPayload["reporting_interval_sec"] = mReportingIntervalSec;
-        metricPayload["sum"] = wsConnections;
-        metricPayload["count"] = 1;
-        metricPayload["unit"] = AGW_UNIT_COUNT;
-        std::string wsPayload = FormatTelemetryPayload(metricPayload);
-        SendT2Event(AGW_METRIC_WEBSOCKET_CONNECTIONS, wsPayload);
+        // Send all health stats in a single consolidated payload to T2
+        JsonObject healthPayload;
+        healthPayload["reporting_interval_sec"] = mReportingIntervalSec;
+        healthPayload["websocket_connections"] = wsConnections;
+        healthPayload["total_calls"] = totalCalls;
+        healthPayload["successful_calls"] = successfulCalls;
+        healthPayload["failed_calls"] = failedCalls;        
+        healthPayload["unit"] = AGW_UNIT_COUNT;
+        
+        std::string payload = FormatTelemetryPayload(healthPayload);
+        SendT2Event(AGW_MARKER_HEALTH_STATS, payload);
 
-        metricPayload["sum"] = totalCalls;
-        std::string totalPayload = FormatTelemetryPayload(metricPayload);
-        SendT2Event(AGW_METRIC_TOTAL_CALLS, totalPayload);
-
-        metricPayload["sum"] = successfulCalls;
-        std::string successPayload = FormatTelemetryPayload(metricPayload);
-        SendT2Event(AGW_METRIC_SUCCESSFUL_CALLS, successPayload);
-
-        metricPayload["sum"] = failedCalls;
-        std::string failedPayload = FormatTelemetryPayload(metricPayload);
-        SendT2Event(AGW_METRIC_FAILED_CALLS, failedPayload);
-
-        LOGINFO("Health stats sent as metrics: ws=%u, total=%u, success=%u, failed=%u",
+        LOGINFO("Health stats sent as consolidated metric: ws=%u, total=%u, success=%u, failed=%u",
                 wsConnections, totalCalls, successfulCalls, failedCalls);
     }
 
@@ -833,7 +966,6 @@ namespace Plugin {
                 payload["success_latency_avg_ms"] = avgSuccessLatency;
                 payload["success_latency_min_ms"] = minSuccess;
                 payload["success_latency_max_ms"] = maxSuccess;
-                payload["success_latency_total_ms"] = stats.totalSuccessLatencyMs;
             } else {
                 payload["success_count"] = 0;
             }
@@ -850,7 +982,6 @@ namespace Plugin {
                 payload["error_latency_avg_ms"] = avgErrorLatency;
                 payload["error_latency_min_ms"] = minError;
                 payload["error_latency_max_ms"] = maxError;
-                payload["error_latency_total_ms"] = stats.totalErrorLatencyMs;
             } else {
                 payload["error_count"] = 0;
             }
@@ -859,17 +990,9 @@ namespace Plugin {
             uint32_t totalCalls = stats.successCount + stats.errorCount;
             payload["total_count"] = totalCalls;
             
-            // Success rate percentage
-            if (totalCalls > 0) {
-                double successRate = (static_cast<double>(stats.successCount) / totalCalls) * 100.0;
-                payload["success_rate_percent"] = successRate;
-            }
-            
-            payload["unit"] = AGW_UNIT_MILLISECONDS;
-            
             // T2 marker: Use common marker since plugin_name and method_name are in payload
             std::string payloadStr = FormatTelemetryPayload(payload);
-            SendT2Event(AGW_METRIC_API_METHOD, payloadStr);
+            SendT2Event(AGW_MARKER_API_METHOD_STAT, payloadStr);
             
             LOGINFO("API method stats sent: %s::%s (total=%u, success=%u, error=%u, avg_success_latency=%.2f ms)",
                     stats.pluginName.c_str(), stats.methodName.c_str(),
@@ -887,7 +1010,7 @@ namespace Plugin {
             return;
         }
 
-        // Send each plugin/API combination using common marker AGW_METRIC_API_LATENCY
+        // Send each plugin/API combination using common marker AGW_MARKER_API_LATENCY
         for (const auto& item : mApiLatencyStats) {
             const std::string& latencyKey = item.first;
             const ApiLatencyStats& stats = item.second;
@@ -917,7 +1040,7 @@ namespace Plugin {
             
             // Use common T2 marker - plugin and API names are in payload
             std::string payloadStr = FormatTelemetryPayload(payload);
-            SendT2Event(AGW_METRIC_API_LATENCY, payloadStr);
+            SendT2Event(AGW_MARKER_API_LATENCY, payloadStr);
             
             LOGINFO("API latency stats sent: %s::%s (count=%u, avg=%.2f ms, min=%.2f ms, max=%.2f ms)",
                     stats.pluginName.c_str(), stats.apiName.c_str(),
@@ -934,7 +1057,7 @@ namespace Plugin {
             return;
         }
 
-        // Send each plugin/service combination using common marker AGW_METRIC_SERVICE_LATENCY
+        // Send each plugin/service combination using common marker AGW_MARKER_SERVICE_LATENCY
         for (const auto& item : mServiceLatencyStats) {
             const std::string& latencyKey = item.first;
             const ServiceLatencyStats& stats = item.second;
@@ -964,7 +1087,7 @@ namespace Plugin {
             
             // Use common T2 marker - plugin and service names are in payload
             std::string payloadStr = FormatTelemetryPayload(payload);
-            SendT2Event(AGW_METRIC_SERVICE_LATENCY, payloadStr);
+            SendT2Event(AGW_MARKER_SERVICE_LATENCY, payloadStr);
             
             LOGINFO("Service latency stats sent: %s::%s (count=%u, avg=%.2f ms, min=%.2f ms, max=%.2f ms)",
                     stats.pluginName.c_str(), stats.serviceName.c_str(),
@@ -972,6 +1095,77 @@ namespace Plugin {
         }
         
         LOGINFO("Service latency stats sent: %zu plugin/service combinations", mServiceLatencyStats.size());
+    }
+
+    void AppGatewayTelemetry::SendServiceMethodStats()
+    {
+        if (mServiceMethodStats.empty()) {
+            LOGTRACE("No service method stats to report");
+            return;
+        }
+
+        // Send each plugin/service combination as a separate T2 marker
+        for (const auto& item : mServiceMethodStats) {
+            const std::string& serviceKey = item.first;
+            const ServiceMethodStats& stats = item.second;
+            
+            if (stats.successCount == 0 && stats.errorCount == 0) {
+                continue;
+            }
+
+            // Build detailed payload with plugin name, service name, counters, and latency stats
+            JsonObject payload;
+            payload["plugin_name"] = stats.pluginName;
+            payload["service_name"] = stats.serviceName;
+            payload["reporting_interval_sec"] = mReportingIntervalSec;
+            
+            // Success metrics
+            if (stats.successCount > 0) {
+                double avgSuccessLatency = stats.totalSuccessLatencyMs / stats.successCount;
+                double minSuccess = (stats.minSuccessLatencyMs == std::numeric_limits<double>::max()) 
+                                    ? 0.0 : stats.minSuccessLatencyMs;
+                double maxSuccess = (stats.maxSuccessLatencyMs == std::numeric_limits<double>::lowest()) 
+                                    ? 0.0 : stats.maxSuccessLatencyMs;
+                
+                payload["success_count"] = stats.successCount;
+                payload["success_latency_avg_ms"] = avgSuccessLatency;
+                payload["success_latency_min_ms"] = minSuccess;
+                payload["success_latency_max_ms"] = maxSuccess;
+            } else {
+                payload["success_count"] = 0;
+            }
+            
+            // Error metrics
+            if (stats.errorCount > 0) {
+                double avgErrorLatency = stats.totalErrorLatencyMs / stats.errorCount;
+                double minError = (stats.minErrorLatencyMs == std::numeric_limits<double>::max()) 
+                                  ? 0.0 : stats.minErrorLatencyMs;
+                double maxError = (stats.maxErrorLatencyMs == std::numeric_limits<double>::lowest()) 
+                                  ? 0.0 : stats.maxErrorLatencyMs;
+                
+                payload["error_count"] = stats.errorCount;
+                payload["error_latency_avg_ms"] = avgErrorLatency;
+                payload["error_latency_min_ms"] = minError;
+                payload["error_latency_max_ms"] = maxError;
+            } else {
+                payload["error_count"] = 0;
+            }
+            
+            // Total counts
+            uint32_t totalCalls = stats.successCount + stats.errorCount;
+            payload["total_count"] = totalCalls;
+            
+            // T2 marker: Use AGW_MARKER_SERVICE_METHOD_STAT since plugin_name and service_name are in payload
+            std::string payloadStr = FormatTelemetryPayload(payload);
+            SendT2Event(AGW_MARKER_SERVICE_METHOD_STAT, payloadStr);
+            
+            LOGINFO("Service method stats sent: %s::%s (total=%u, success=%u, error=%u, avg_success_latency=%.2f ms)",
+                    stats.pluginName.c_str(), stats.serviceName.c_str(),
+                    totalCalls, stats.successCount, stats.errorCount,
+                    stats.successCount > 0 ? stats.totalSuccessLatencyMs / stats.successCount : 0.0);
+        }
+        
+        LOGINFO("Service method stats sent: %zu plugin/service combinations", mServiceMethodStats.size());
     }
 
     void AppGatewayTelemetry::SendT2Event(const char* marker, const std::string& payload)
@@ -1013,6 +1207,11 @@ namespace Plugin {
     void AppGatewayTelemetry::ResetServiceLatencyStats()
     {
         mServiceLatencyStats.clear();
+    }
+
+    void AppGatewayTelemetry::ResetServiceMethodStats()
+    {
+        mServiceMethodStats.clear();
     }
 
     std::string AppGatewayTelemetry::FormatTelemetryPayload(const JsonObject& jsonPayload)
