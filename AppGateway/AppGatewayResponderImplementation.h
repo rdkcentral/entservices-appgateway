@@ -338,17 +338,6 @@ namespace Plugin {
             const uint32_t requestId,
             const uint32_t connectionId);
 
-
-        void ReturnMessageInSocket(const uint32_t connectionId, const int requestId, const string payload ) {
-            if (mEnhancedLoggingEnabled) {
-                LOGDBG("<--[[a-%d-%d]] payload=%s",
-                        connectionId, requestId, payload.c_str());
-            }
-
-            // Send response back to client
-            mWsManager.SendMessageToConnection(connectionId, payload, requestId);
-        }
-
         PluginHost::IShell* mService;
         WebSocketConnectionManager mWsManager;
         Exchange::IAppGatewayAuthenticator *mAuthenticator; // Shared pointer to Authenticator

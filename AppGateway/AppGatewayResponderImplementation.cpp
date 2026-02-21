@@ -283,6 +283,16 @@ namespace WPEFramework
             }
         }
 
+        void ReturnMessageInSocket(const uint32_t connectionId, const int requestId, const string payload ) {
+            if (mEnhancedLoggingEnabled) {
+                LOGDBG("<--[[a-%d-%d]] payload=%s",
+                        connectionId, requestId, payload.c_str());
+            }
+
+            AppGatewayTelemetry::getInstance().IncrementTotalResponses();
+            // Send response back to client
+            mWsManager.SendMessageToConnection(connectionId, payload, requestId);
+        }
 
         Core::hresult AppGatewayResponderImplementation::Register(Exchange::IAppGatewayResponder::INotification *notification)
         {

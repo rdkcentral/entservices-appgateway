@@ -45,12 +45,12 @@ namespace Plugin {
         , mCachedEventCount(0)
         , mInitialized(false)
     {
-        LOGINFO("AppGatewayTelemetry constructor");
+        LOGTRACE("AppGatewayTelemetry constructor");
     }
 
     AppGatewayTelemetry::~AppGatewayTelemetry()
     {
-        LOGINFO("AppGatewayTelemetry destructor");
+        LOGTRACE("AppGatewayTelemetry destructor");
         Deinitialize();
     }
 
@@ -78,7 +78,7 @@ namespace Plugin {
         }
 
         mInitialized = true;
-        LOGINFO("AppGatewayTelemetry initialized successfully");
+        LOGTRACE("AppGatewayTelemetry initialized successfully");
     }
 
     void AppGatewayTelemetry::Deinitialize()
@@ -101,14 +101,14 @@ namespace Plugin {
         mService = nullptr;
         mInitialized = false;
 
-        LOGINFO("AppGatewayTelemetry deinitialized");
+        LOGTRACE("AppGatewayTelemetry deinitialized");
     }
 
     void AppGatewayTelemetry::SetReportingInterval(uint32_t intervalSec)
     {
         Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
         mReportingIntervalSec = intervalSec;
-        LOGINFO("AppGatewayTelemetry: Reporting interval set to %u seconds", intervalSec);
+        LOGTRACE("AppGatewayTelemetry: Reporting interval set to %u seconds", intervalSec);
 
         // Restart timer with new interval if running
         if (mTimerRunning) {
@@ -129,7 +129,7 @@ namespace Plugin {
     {
         Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
         mTelemetryFormat = format;
-        LOGINFO("AppGatewayTelemetry: Telemetry format set to %s", 
+        LOGTRACE("AppGatewayTelemetry: Telemetry format set to %s", 
                 format == TelemetryFormat::JSON ? "JSON" : "COMPACT");
     }
 
@@ -169,6 +169,11 @@ namespace Plugin {
     void AppGatewayTelemetry::IncrementTotalCalls()
     {
         mHealthStats.totalCalls.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    void AppGatewayTelemetry::IncrementTotalResponses()
+    {
+        mHealthStats.totalResponses.fetch_add(1, std::memory_order_relaxed);
     }
 
     void AppGatewayTelemetry::IncrementSuccessfulCalls()
@@ -786,8 +791,8 @@ namespace Plugin {
         SendHealthStats();
         SendApiMethodStats();
         SendApiLatencyStats();
-        SendServiceLatencyStats();
         SendServiceMethodStats();
+        SendServiceLatencyStats();
         SendApiErrorStats();
         SendExternalServiceErrorStats();
         SendAggregatedMetrics();
@@ -796,8 +801,8 @@ namespace Plugin {
         ResetHealthStats();
         ResetApiMethodStats();
         ResetApiLatencyStats();
-        ResetServiceLatencyStats();
         ResetServiceMethodStats();
+        ResetServiceLatencyStats();
         ResetApiErrorStats();
         ResetExternalServiceErrorStats();
         mMetricsCache.clear();
@@ -809,12 +814,13 @@ namespace Plugin {
     {
         uint32_t wsConnections = mHealthStats.websocketConnections.load(std::memory_order_relaxed);
         uint32_t totalCalls = mHealthStats.totalCalls.load(std::memory_order_relaxed);
+        uint32_t totalResponses = mHealthStats.totalResponses.load(std::memory_order_relaxed);
         uint32_t successfulCalls = mHealthStats.successfulCalls.load(std::memory_order_relaxed);
         uint32_t failedCalls = mHealthStats.failedCalls.load(std::memory_order_relaxed);
 
         // Only send if there's data
         if (totalCalls == 0 && wsConnections == 0) {
-            LOGTRACE("No health stats to report");
+            LOGINFO("No health stats to report");
             return;
         }
 
@@ -823,15 +829,17 @@ namespace Plugin {
         healthPayload["reporting_interval_sec"] = mReportingIntervalSec;
         healthPayload["websocket_connections"] = wsConnections;
         healthPayload["total_calls"] = totalCalls;
+        healthPayload["total_responses"] = totalResponses;
         healthPayload["successful_calls"] = successfulCalls;
         healthPayload["failed_calls"] = failedCalls;        
         healthPayload["unit"] = AGW_UNIT_COUNT;
         
         std::string payload = FormatTelemetryPayload(healthPayload);
+        LOGINFO("Sending health stats to T2");
         SendT2Event(AGW_MARKER_HEALTH_STATS, payload);
 
-        LOGINFO("Health stats sent as consolidated metric: ws=%u, total=%u, success=%u, failed=%u",
-                wsConnections, totalCalls, successfulCalls, failedCalls);
+        LOGTRACE("Health stats sent as consolidated metric: ws=%u, total=%u, responses=%u, success=%u, failed=%u",
+                wsConnections, totalCalls, totalResponses, successfulCalls, failedCalls);
     }
 
     void AppGatewayTelemetry::SendApiErrorStats()
@@ -908,7 +916,6 @@ namespace Plugin {
             double avgVal = data.sum / static_cast<double>(data.count);
 
             JsonObject payload;
-            payload["sum"] = data.sum;
             payload["min"] = minVal;
             payload["max"] = maxVal;
             payload["count"] = data.count;
@@ -987,7 +994,7 @@ namespace Plugin {
             std::string payloadStr = FormatTelemetryPayload(payload);
             SendT2Event(AGW_MARKER_API_METHOD_STAT, payloadStr);
             
-            LOGINFO("API method stats sent: %s::%s (total=%u, success=%u, error=%u, avg_success_latency=%.2f ms)",
+            LOGTRACE("API method stats sent: %s::%s (total=%u, success=%u, error=%u, avg_success_latency=%.2f ms)",
                     stats.pluginName.c_str(), stats.methodName.c_str(),
                     totalCalls, stats.successCount, stats.errorCount,
                     stats.successCount > 0 ? stats.totalSuccessLatencyMs / stats.successCount : 0.0);
@@ -1028,14 +1035,13 @@ namespace Plugin {
             payload["avg_ms"] = avgLatency;
             payload["min_ms"] = minLatency;
             payload["max_ms"] = maxLatency;
-            payload["total_ms"] = stats.totalLatencyMs;
             payload["unit"] = AGW_UNIT_MILLISECONDS;
             
             // Use common T2 marker - plugin and API names are in payload
             std::string payloadStr = FormatTelemetryPayload(payload);
             SendT2Event(AGW_MARKER_API_LATENCY, payloadStr);
             
-            LOGINFO("API latency stats sent: %s::%s (count=%u, avg=%.2f ms, min=%.2f ms, max=%.2f ms)",
+            LOGTRACE("API latency stats sent: %s::%s (count=%u, avg=%.2f ms, min=%.2f ms, max=%.2f ms)",
                     stats.pluginName.c_str(), stats.apiName.c_str(),
                     stats.count, avgLatency, minLatency, maxLatency);
         }
@@ -1075,14 +1081,13 @@ namespace Plugin {
             payload["avg_ms"] = avgLatency;
             payload["min_ms"] = minLatency;
             payload["max_ms"] = maxLatency;
-            payload["total_ms"] = stats.totalLatencyMs;
             payload["unit"] = AGW_UNIT_MILLISECONDS;
             
             // Use common T2 marker - plugin and service names are in payload
             std::string payloadStr = FormatTelemetryPayload(payload);
             SendT2Event(AGW_MARKER_SERVICE_LATENCY, payloadStr);
             
-            LOGINFO("Service latency stats sent: %s::%s (count=%u, avg=%.2f ms, min=%.2f ms, max=%.2f ms)",
+            LOGTRACE("Service latency stats sent: %s::%s (count=%u, avg=%.2f ms, min=%.2f ms, max=%.2f ms)",
                     stats.pluginName.c_str(), stats.serviceName.c_str(),
                     stats.count, avgLatency, minLatency, maxLatency);
         }
@@ -1152,7 +1157,7 @@ namespace Plugin {
             std::string payloadStr = FormatTelemetryPayload(payload);
             SendT2Event(AGW_MARKER_SERVICE_METHOD_STAT, payloadStr);
             
-            LOGINFO("Service method stats sent: %s::%s (total=%u, success=%u, error=%u, avg_success_latency=%.2f ms)",
+            LOGTRACE("Service method stats sent: %s::%s (total=%u, success=%u, error=%u, avg_success_latency=%.2f ms)",
                     stats.pluginName.c_str(), stats.serviceName.c_str(),
                     totalCalls, stats.successCount, stats.errorCount,
                     stats.successCount > 0 ? stats.totalSuccessLatencyMs / stats.successCount : 0.0);
@@ -1175,6 +1180,7 @@ namespace Plugin {
     {
         // Note: We don't reset websocketConnections as it represents current state
         mHealthStats.totalCalls.store(0, std::memory_order_relaxed);
+        mHealthStats.totalResponses.store(0, std::memory_order_relaxed);
         mHealthStats.successfulCalls.store(0, std::memory_order_relaxed);
         mHealthStats.failedCalls.store(0, std::memory_order_relaxed);
     }

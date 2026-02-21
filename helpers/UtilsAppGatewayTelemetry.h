@@ -975,27 +975,3 @@ namespace AppGatewayTelemetryHelper {
         } \
     } while(0)
 
-/**
- * @brief Report a successful API call with timing information (DEPRECATED)
- * @param context Gateway context with request/connection/app info
- * @param apiName Name of the API
- * @param durationMs Duration of the call in milliseconds
- * 
- * @deprecated Use AGW_TRACK_API_CALL instead for automatic success/error tracking
- * 
- * **Data Flow**:
- * - Uses RecordTelemetryMetric internally
- * - Reports generic API latency metric
- * - Does not distinguish between different API methods
- * 
- * Example:
- *   AGW_REPORT_API_SUCCESS(context, "GetSettings", 45)
- */
-#define AGW_REPORT_API_SUCCESS(context, apiName, durationMs) \
-    do { \
-        auto& client = GetLocalTelemetryClient(); \
-        if (client.IsAvailable()) { \
-            std::string metricName = std::string("AppGw") + client.GetPluginName() + "_ApiLatency_split"; \
-            client.RecordMetric(context, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS); \
-        } \
-    } while(0)
