@@ -162,6 +162,7 @@ namespace Plugin {
         void IncrementWebSocketConnections();
         void DecrementWebSocketConnections();
         void IncrementTotalCalls();
+        void IncrementTotalResponses();
         void IncrementSuccessfulCalls();
         void IncrementFailedCalls();
 
@@ -199,6 +200,7 @@ namespace Plugin {
         {
             std::atomic<uint32_t> websocketConnections{0};
             std::atomic<uint32_t> totalCalls{0};
+            std::atomic<uint32_t> totalResponses{0};
             std::atomic<uint32_t> successfulCalls{0};
             std::atomic<uint32_t> failedCalls{0};
         };
