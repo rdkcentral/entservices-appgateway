@@ -359,7 +359,8 @@ namespace Plugin {
         void SendServiceMethodStats();
 
         // Helper to send telemetry via T2
-        void SendT2Event(const char* marker, const std::string& payload);
+        void SendT2Event(const char* marker, const std::string& payload);  // For pre-formatted strings
+        void SendT2Event(const char* marker, const JsonObject& payload);   // For JsonObject (calls FormatTelemetryPayload internally)
 
         // Reset counters after reporting
         void ResetHealthStats();
@@ -392,6 +393,9 @@ namespace Plugin {
         void RecordGenericMetric(const std::string& metricName,
                                 double metricValue,
                                 const std::string& metricUnit);
+
+        // Helper to handle health stats markers (returns true if handled)
+        bool HandleHealthStatsMarker(const std::string& metricName, double metricValue);
 
         // Helper to parse metric name format: "AppGw<Plugin>_<Method>_<Success|Error>_split"
         bool ParseApiMetricName(const std::string& metricName,
@@ -480,10 +484,6 @@ namespace Plugin {
 
         // Reporting start time (for interval calculation)
         std::chrono::steady_clock::time_point mReportingStartTime;
-
-        // Bootstrap tracking (cumulative across all plugins)
-        std::atomic<uint32_t> mBootstrapPluginsLoaded{0};
-        std::atomic<uint64_t> mTotalBootstrapTimeMs{0};
 
         // Initialization state
         bool mInitialized;

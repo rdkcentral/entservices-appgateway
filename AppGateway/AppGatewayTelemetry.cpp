@@ -23,6 +23,8 @@
 #include <limits>
 #include <sstream>
 #include <iomanip>
+#include <functional>
+#include <unordered_map>
 
 namespace WPEFramework {
 namespace Plugin {
@@ -140,17 +142,12 @@ namespace Plugin {
 
     void AppGatewayTelemetry::RecordBootstrapTime(uint64_t durationMs)
     {
-        // Increment plugin counter and accumulate total bootstrap time
-        uint32_t pluginCount = mBootstrapPluginsLoaded.fetch_add(1, std::memory_order_relaxed) + 1;
-        uint64_t totalTime = mTotalBootstrapTimeMs.fetch_add(durationMs, std::memory_order_relaxed) + durationMs;
+        LOGINFO("Plugin bootstrap time recorded: %llu ms",
+                static_cast<unsigned long long>(durationMs));
         
-        LOGINFO("Plugin bootstrap time recorded: %lu ms (Plugin #%u, Cumulative total: %lu ms)",
-                durationMs, pluginCount, totalTime);
-        
+        // Pass individual (non-cumulative) values to RecordGenericMetric for proper aggregation
         RecordGenericMetric(AGW_MARKER_BOOTSTRAP_DURATION,
-                            static_cast<double>(totalTime), AGW_UNIT_MILLISECONDS);
-        RecordGenericMetric(AGW_MARKER_BOOTSTRAP_PLUGIN_COUNT,
-                            static_cast<double>(pluginCount), AGW_UNIT_COUNT);
+                            static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
     }
 
     void AppGatewayTelemetry::IncrementWebSocketConnections()
@@ -239,8 +236,9 @@ namespace Plugin {
             RecordApiError(apiName);
             
             // Send error event immediately to T2 for forensics
+
+            LOGINFO("Sending immediate API error event to T2: api=%s", apiName.c_str());
             SendT2Event(eventName.c_str(), eventData);
-            LOGINFO("Sent immediate API error event to T2: api=%s", apiName.c_str());
             
             isImmediateEvent = true;
         }
@@ -256,8 +254,8 @@ namespace Plugin {
             RecordExternalServiceErrorInternal(serviceName);
             
             // Send error event immediately to T2 for forensics
+            LOGINFO("Sending immediate external service error event to T2: service=%s", serviceName.c_str());
             SendT2Event(eventName.c_str(), eventData);
-            LOGINFO("Sent immediate external service error event to T2: service=%s", serviceName.c_str());
             
             isImmediateEvent = true;
         }
@@ -716,6 +714,66 @@ namespace Plugin {
         mCachedEventCount++;
     }
 
+    bool AppGatewayTelemetry::HandleHealthStatsMarker(const std::string& metricName, double metricValue)
+    {
+        // Match-like pattern using static map for health stats marker routing
+        using MarkerHandler = std::function<void(AppGatewayTelemetry*, double)>;
+
+        static const std::unordered_map<std::string, MarkerHandler> markerHandlers = {
+            // WebSocket connections: supports increment/decrement by value
+            {AGW_MARKER_WEBSOCKET_CONNECTIONS, [](AppGatewayTelemetry* self, double value) {
+                int count = static_cast<int>(std::abs(value));
+                if (value > 0) {
+                    for (int i = 0; i < count; i++) {
+                        self->IncrementWebSocketConnections();
+                    }
+                } else if (value < 0) {
+                    for (int i = 0; i < count; i++) {
+                        self->DecrementWebSocketConnections();
+                    }
+                }
+            }},
+
+            // All other health stats: increment by value (typically 1)
+            {AGW_MARKER_TOTAL_CALLS, [](AppGatewayTelemetry* self, double value) {
+                int count = static_cast<int>(value);
+                for (int i = 0; i < count; i++) {
+                    self->IncrementTotalCalls();
+                }
+            }},
+
+            {AGW_MARKER_RESPONSE_CALLS, [](AppGatewayTelemetry* self, double value) {
+                int count = static_cast<int>(value);
+                for (int i = 0; i < count; i++) {
+                    self->IncrementTotalResponses();
+                }
+            }},
+
+            {AGW_MARKER_SUCCESSFUL_CALLS, [](AppGatewayTelemetry* self, double value) {
+                int count = static_cast<int>(value);
+                for (int i = 0; i < count; i++) {
+                    self->IncrementSuccessfulCalls();
+                }
+            }},
+
+            {AGW_MARKER_FAILED_CALLS, [](AppGatewayTelemetry* self, double value) {
+                int count = static_cast<int>(value);
+                for (int i = 0; i < count; i++) {
+                    self->IncrementFailedCalls();
+                }
+            }}
+        };
+
+        // Pattern match: look up and execute handler if found
+        auto it = markerHandlers.find(metricName);
+        if (it != markerHandlers.end()) {
+            it->second(this, metricValue);
+            return true;
+        }
+
+        return false;  // Not a health stats marker
+    }
+
     Core::hresult AppGatewayTelemetry::RecordTelemetryMetric(
         const Exchange::GatewayContext& context,
         const string& metricName,
@@ -730,9 +788,14 @@ namespace Plugin {
         LOGTRACE("RecordTelemetryMetric from %s: metric=%s, value=%f, unit=%s",
                  context.appId.c_str(), metricName.c_str(), metricValue, metricUnit.c_str());
 
-        // Check for bootstrap duration metric - route to internal RecordBootstrapTime
+        // Handle bootstrap duration metric
         if (metricName == AGW_MARKER_BOOTSTRAP_DURATION) {
             RecordBootstrapTime(static_cast<uint64_t>(metricValue));
+            return Core::ERROR_NONE;
+        }
+
+        // Handle health stats markers (websocket connections, calls, responses, etc.)
+        if (HandleHealthStatsMarker(metricName, metricValue)) {
             return Core::ERROR_NONE;
         }
 
@@ -834,9 +897,8 @@ namespace Plugin {
         healthPayload["failed_calls"] = failedCalls;        
         healthPayload["unit"] = AGW_UNIT_COUNT;
         
-        std::string payload = FormatTelemetryPayload(healthPayload);
         LOGINFO("Sending health stats to T2");
-        SendT2Event(AGW_MARKER_HEALTH_STATS, payload);
+        SendT2Event(AGW_MARKER_HEALTH_STATS, healthPayload);
 
         LOGTRACE("Health stats sent as consolidated metric: ws=%u, total=%u, responses=%u, success=%u, failed=%u",
                 wsConnections, totalCalls, totalResponses, successfulCalls, failedCalls);
@@ -859,10 +921,8 @@ namespace Plugin {
             metricPayload["count"] = 1;
             metricPayload["unit"] = AGW_UNIT_COUNT;
             
-            std::string payloadStr = FormatTelemetryPayload(metricPayload);
-            SendT2Event(metricName.c_str(), payloadStr);
-            
-            LOGINFO("API error metric sent: %s = %u", metricName.c_str(), item.second);
+            LOGINFO("Sending API error metric to T2");
+            SendT2Event(metricName.c_str(), metricPayload);
         }
         
         LOGINFO("API error stats sent as metrics: %zu APIs with errors", mApiErrorCounts.size());
@@ -885,10 +945,8 @@ namespace Plugin {
             metricPayload["count"] = 1;
             metricPayload["unit"] = AGW_UNIT_COUNT;
             
-            std::string payloadStr = FormatTelemetryPayload(metricPayload);
-            SendT2Event(metricName.c_str(), payloadStr);
-            
-            LOGINFO("External service error metric sent: %s = %u", metricName.c_str(), item.second);
+            LOGINFO("Sending external service error metric to T2");
+            SendT2Event(metricName.c_str(), metricPayload);
         }
         
         LOGINFO("External service error stats sent as metrics: %zu services with errors", 
@@ -923,12 +981,10 @@ namespace Plugin {
             payload["unit"] = data.unit;
             payload["reporting_interval_sec"] = mReportingIntervalSec;
 
-            std::string payloadStr = FormatTelemetryPayload(payload);
-
             // Use the metric name as the T2 marker
-            SendT2Event(metricName.c_str(), payloadStr);
-            LOGINFO("Aggregated metric sent: %s (count=%u, avg=%.2f %s)",
-                    metricName.c_str(), data.count, avgVal, data.unit.c_str());
+            LOGINFO("Sending aggregated metric to T2: %s", metricName.c_str());
+            SendT2Event(metricName.c_str(), payload);
+
         }
     }
 
@@ -963,9 +1019,10 @@ namespace Plugin {
                                     ? 0.0 : stats.maxSuccessLatencyMs;
                 
                 payload["success_count"] = stats.successCount;
-                payload["success_latency_avg_ms"] = avgSuccessLatency;
                 payload["success_latency_min_ms"] = minSuccess;
                 payload["success_latency_max_ms"] = maxSuccess;
+                payload["success_latency_avg_ms"] = avgSuccessLatency;
+
             } else {
                 payload["success_count"] = 0;
             }
@@ -979,9 +1036,10 @@ namespace Plugin {
                                   ? 0.0 : stats.maxErrorLatencyMs;
                 
                 payload["error_count"] = stats.errorCount;
-                payload["error_latency_avg_ms"] = avgErrorLatency;
                 payload["error_latency_min_ms"] = minError;
                 payload["error_latency_max_ms"] = maxError;
+                payload["error_latency_avg_ms"] = avgErrorLatency;
+
             } else {
                 payload["error_count"] = 0;
             }
@@ -991,8 +1049,8 @@ namespace Plugin {
             payload["total_count"] = totalCalls;
             
             // T2 marker: Use common marker since plugin_name and method_name are in payload
-            std::string payloadStr = FormatTelemetryPayload(payload);
-            SendT2Event(AGW_MARKER_API_METHOD_STAT, payloadStr);
+            LOGINFO("Sending API method stats to T2");
+            SendT2Event(AGW_MARKER_API_METHOD_STAT, payload);
             
             LOGTRACE("API method stats sent: %s::%s (total=%u, success=%u, error=%u, avg_success_latency=%.2f ms)",
                     stats.pluginName.c_str(), stats.methodName.c_str(),
@@ -1038,9 +1096,9 @@ namespace Plugin {
             payload["unit"] = AGW_UNIT_MILLISECONDS;
             
             // Use common T2 marker - plugin and API names are in payload
-            std::string payloadStr = FormatTelemetryPayload(payload);
-            SendT2Event(AGW_MARKER_API_LATENCY, payloadStr);
-            
+            LOGINFO("Sending API latency stats to T2");
+            SendT2Event(AGW_MARKER_API_LATENCY, payload);
+
             LOGTRACE("API latency stats sent: %s::%s (count=%u, avg=%.2f ms, min=%.2f ms, max=%.2f ms)",
                     stats.pluginName.c_str(), stats.apiName.c_str(),
                     stats.count, avgLatency, minLatency, maxLatency);
@@ -1084,8 +1142,8 @@ namespace Plugin {
             payload["unit"] = AGW_UNIT_MILLISECONDS;
             
             // Use common T2 marker - plugin and service names are in payload
-            std::string payloadStr = FormatTelemetryPayload(payload);
-            SendT2Event(AGW_MARKER_SERVICE_LATENCY, payloadStr);
+            LOGINFO("Sending service latency stats to T2");
+            SendT2Event(AGW_MARKER_SERVICE_LATENCY, payload);
             
             LOGTRACE("Service latency stats sent: %s::%s (count=%u, avg=%.2f ms, min=%.2f ms, max=%.2f ms)",
                     stats.pluginName.c_str(), stats.serviceName.c_str(),
@@ -1154,8 +1212,8 @@ namespace Plugin {
             payload["total_count"] = totalCalls;
             
             // T2 marker: Use AGW_MARKER_SERVICE_METHOD_STAT since plugin_name and service_name are in payload
-            std::string payloadStr = FormatTelemetryPayload(payload);
-            SendT2Event(AGW_MARKER_SERVICE_METHOD_STAT, payloadStr);
+            LOGINFO("Sending service method stats to T2");
+            SendT2Event(AGW_MARKER_SERVICE_METHOD_STAT, payload);
             
             LOGTRACE("Service method stats sent: %s::%s (total=%u, success=%u, error=%u, avg_success_latency=%.2f ms)",
                     stats.pluginName.c_str(), stats.serviceName.c_str(),
@@ -1171,9 +1229,18 @@ namespace Plugin {
         // The T2 API signature takes non-const char* but doesn't modify the strings
         // Safe to use const_cast to avoid unnecessary malloc/copy overhead
 
-        LOGINFO("Sending T2 event: marker=%s, payload=%s", marker, payload.c_str());
+        LOGINFO("marker=%s, payload=%s", marker, payload.c_str());
         Utils::Telemetry::sendMessage(const_cast<char*>(marker), 
                                        const_cast<char*>(payload.c_str()));
+    }
+
+    void AppGatewayTelemetry::SendT2Event(const char* marker, const JsonObject& payload)
+    {
+        // Format the JsonObject according to current telemetry format setting
+        std::string payloadStr = FormatTelemetryPayload(payload);
+
+        // Call the string overload
+        SendT2Event(marker, payloadStr);
     }
 
     void AppGatewayTelemetry::ResetHealthStats()

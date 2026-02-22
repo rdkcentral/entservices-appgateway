@@ -102,13 +102,6 @@
 #define AGW_MARKER_BOOTSTRAP_DURATION               "AppGwBootstrapDuration_split"
 
 /**
- * @brief Bootstrap plugin count metric (sent once on startup)
- * @details Number of plugins successfully loaded
- * @payload { "sum": <plugins_loaded>, "count": 1, "unit": "count", "reporting_interval_sec": 0 }
- */
-#define AGW_MARKER_BOOTSTRAP_PLUGIN_COUNT           "AppGwBootstrapPluginCount_split"
-
-/**
  * @brief WebSocket connections metric (sent periodically)
  * @details Current active WebSocket connections
  * @payload { "sum": <connections>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
@@ -137,18 +130,27 @@
 #define AGW_MARKER_FAILED_CALLS                     "AppGwFailedCalls_split"
 
 /**
+ * @brief Total response calls metric (sent periodically)
+ * @details Total number of API responses in reporting period
+ * @payload { "sum": <responses>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
+ */
+#define AGW_MARKER_RESPONSE_CALLS                   "AppGwResponseCalls_split"
+
+/**
  * @brief Consolidated health statistics marker (sent periodically)
  * @details Aggregated health metrics for AppGateway including WebSocket connections and API call statistics
  * @payload {
  *   "reporting_interval_sec": 3600,
  *   "websocket_connections": <active_connections>,
  *   "total_calls": <total_api_calls>,
+ *   "total_responses": <total_responses>,
  *   "successful_calls": <successful_calls>,
  *   "failed_calls": <failed_calls>,
  *   "unit": "count"
  * }
  * @note Individual markers (AGW_MARKER_WEBSOCKET_CONNECTIONS, AGW_MARKER_TOTAL_CALLS,
- *       AGW_MARKER_SUCCESSFUL_CALLS, AGW_MARKER_FAILED_CALLS) are available for plugin-specific use
+ *       AGW_MARKER_RESPONSE_CALLS, AGW_MARKER_SUCCESSFUL_CALLS, AGW_MARKER_FAILED_CALLS)
+ *       are available for plugin-specific use via RecordTelemetryMetric
  */
 #define AGW_MARKER_HEALTH_STATS                     "AppGwHealthStats_split"
 
