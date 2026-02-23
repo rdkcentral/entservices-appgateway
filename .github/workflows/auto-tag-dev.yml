@@ -1,0 +1,126 @@
+name: Auto-tag Development Versions
+
+on:
+  pull_request:
+    branches: [ develop ]
+    types: [ closed ]
+  workflow_dispatch:
+
+jobs:
+  auto-tag:
+    runs-on: comcast-ubuntu-latest
+    # Only run when PR is merged into develop, or when manually dispatched on develop
+    if: >
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop')
+    permissions:
+      contents: write  # Required to read repository contents and push tags
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Configure git
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+
+    - name: Get latest release version
+      id: latest_release
+      run: |
+        # Get all release tags (excluding dev/pre-release tags) and find the latest
+        LATEST_RELEASE=$(git tag --sort=-version:refname | grep -v -E "-(Dev|dev|RC|rc|alpha|beta)[0-9]+$" | head -n 1)
+        
+        # If no release tags exist, start with 0.1.0
+        if [ -z "$LATEST_RELEASE" ]; then
+          LATEST_RELEASE="0.1.0"
+          echo "No release tags found, using default: $LATEST_RELEASE"
+        else
+          echo "Latest release version: $LATEST_RELEASE"
+        fi
+        
+        echo "version=$LATEST_RELEASE" >> $GITHUB_OUTPUT
+
+    - name: Get next dev increment
+      id: dev_increment
+      run: |
+        LATEST_RELEASE="${{ steps.latest_release.outputs.version }}"
+        
+        # Find all existing dev tags for this release version
+        EXISTING_DEV_TAGS=$(git tag -l "${LATEST_RELEASE}-Dev*" | sort -V)
+        
+        if [ -z "$EXISTING_DEV_TAGS" ]; then
+          # No dev tags exist for this release, start with Dev1
+          NEXT_INCREMENT=1
+        else
+          # Find the highest dev number from existing tags and increment
+          HIGHEST_DEV=$(echo "$EXISTING_DEV_TAGS" | grep -oP '(?<=-Dev)[0-9]+$' | sort -n | tail -1)
+          if [ -z "$HIGHEST_DEV" ]; then
+            NEXT_INCREMENT=1
+          else
+            NEXT_INCREMENT=$((HIGHEST_DEV + 1))
+          fi
+        fi
+        
+        NEW_TAG="${LATEST_RELEASE}-Dev${NEXT_INCREMENT}"
+        echo "Next dev tag: $NEW_TAG"
+        echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
+
+    - name: Check if tag already exists
+      id: tag_exists
+      run: |
+        NEW_TAG="${{ steps.dev_increment.outputs.tag }}"
+        if [ -n "$(git tag -l "${NEW_TAG}")" ]; then
+          echo "Tag $NEW_TAG already exists"
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "Tag $NEW_TAG does not exist, will create"
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create and push new tag
+      if: steps.tag_exists.outputs.exists == 'false'
+      run: |
+        NEW_TAG="${{ steps.dev_increment.outputs.tag }}"
+        COMMIT_SHA="${{ github.sha }}"
+        COMMIT_MESSAGE=$(git log -1 --pretty=format:"%s")
+        COMMIT_AUTHOR=$(git log -1 --pretty=format:"%an")
+        
+        echo "Creating tag: $NEW_TAG"
+        echo "Commit: $COMMIT_SHA"
+        echo "Message: $COMMIT_MESSAGE"
+        echo "Author: $COMMIT_AUTHOR"
+        
+        # Create annotated tag with commit information
+        git tag -a "$NEW_TAG" -m "Development tag $NEW_TAG
+
+        Based on release: ${{ steps.latest_release.outputs.version }}
+        Commit: $COMMIT_SHA
+        Message: $COMMIT_MESSAGE
+        Author: $COMMIT_AUTHOR
+        
+        Auto-generated on: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+        Workflow: ${{ github.workflow }}
+        Run: ${{ github.run_number }}"
+        
+        # Push the tag
+        git push origin "$NEW_TAG"
+        
+        echo "✅ Successfully created and pushed tag: $NEW_TAG"
+
+    - name: Tag already exists
+      if: steps.tag_exists.outputs.exists == 'true'
+      run: |
+        echo "ℹ️ Tag ${{ steps.dev_increment.outputs.tag }} already exists, skipping creation"
+
+    - name: Summary
+      run: |
+        echo "## Auto-tagging Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **Latest Release Version:** ${{ steps.latest_release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **New Development Tag:** ${{ steps.dev_increment.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit SHA:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Tag Created:** ${{ steps.tag_exists.outputs.exists == 'false' && '✅ Yes' || 'ℹ️ Already exists' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Workflow Run:** [${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
