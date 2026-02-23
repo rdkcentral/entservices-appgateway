@@ -189,7 +189,7 @@ The core telemetry aggregator class that serves as the central hub for all telem
 
 ### 2. RAII (Resource Acquisition Is Initialization)
 
-**Class:** `ScopedApiTimer` (via `AGW_SCOPED_API_TIMER` macro)
+**Class:** `ScopedApiTimer` (via `AGW_TRACK_API_CALL` macro)
 
 **Benefits:**
 - **Automatic Timing**: No manual start/stop, prevents timing errors

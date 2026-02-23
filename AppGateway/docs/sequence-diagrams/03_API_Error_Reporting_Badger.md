@@ -23,7 +23,7 @@ sequenceDiagram
     activate Badger
     
     Note over Badger: Create scoped API timer
-    Badger->>Badger: AGW_SCOPED_API_TIMER(timer, "GetDeviceSessionId")
+    Badger->>Badger: AGW_TRACK_API_CALL(timer, "GetDeviceSessionId")
     
     Badger->>Badger: Get LifecycleDelegate
     Note over Badger: lifecycle = nullptr<br/>(Delegate not available)

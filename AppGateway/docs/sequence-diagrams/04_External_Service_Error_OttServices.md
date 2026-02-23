@@ -23,7 +23,7 @@ sequenceDiagram
     activate OttServices
     
     Note over OttServices: Create scoped API timer
-    OttServices->>OttServices: AGW_SCOPED_API_TIMER(timer, "GetAppPermissions")
+    OttServices->>OttServices: AGW_TRACK_API_CALL(timer, "GetAppPermissions")
     
     OttServices->>OttServices: Check if _perms initialized
     Note over OttServices: _perms == nullptr<br/>(Client not initialized)
