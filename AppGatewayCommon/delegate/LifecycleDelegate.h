@@ -589,13 +589,13 @@ class LifecycleDelegate : public BaseEventDelegate
 
     Exchange::ILifecycleManagerState* GetLifecycleManagerStateInterface()
     {
-        if (mLifecycleManagerState == nullptr && mShell != nullptr)
+        if (nullptr == mLifecycleManagerState && nullptr != mShell)
         {
             Core::SafeSyncType<Core::CriticalSection> lock(mLifecycleManagerStateLock);
             //Need one more Null check to confirm no other thread has created the instance
-            if (mLifecycleManagerState == nullptr) {
+            if (nullptr == mLifecycleManagerState) {
                 mLifecycleManagerState = mShell->QueryInterfaceByCallsign<Exchange::ILifecycleManagerState>(LIFECYCLE_MANAGER_CALLSIGN);
-                if (mLifecycleManagerState == nullptr) {
+                if (nullptr == mLifecycleManagerState) {
                     LOGERR("Failed to get LifecycleManagerState COM interface");
                 } else {
                     LOGINFO("LifecycleManagerState COM interface acquired successfully");
@@ -609,13 +609,13 @@ class LifecycleDelegate : public BaseEventDelegate
 
     Exchange::IRDKWindowManager* GetWindowManagerInterface()
     {
-        if (mWindowManager == nullptr && mShell != nullptr)
+        if (nullptr == mWindowManager && nullptr != mShell)
         {
             Core::SafeSyncType<Core::CriticalSection> lock(mWindowManagerLock);
             //Need one more Null check to confirm no other thread has created the instance
-            if (mWindowManager == nullptr){
+            if (nullptr == mWindowManager){
                 mWindowManager = mShell->QueryInterfaceByCallsign<Exchange::IRDKWindowManager>(WINDOW_MANAGER_CALLSIGN);
-                if (mWindowManager == nullptr) {
+                if (nullptr == mWindowManager) {
                     LOGERR("Failed to get RDKWindowManager COM interface");
                 } else {
                     LOGINFO("RDKWindowManager COM interface acquired successfully");

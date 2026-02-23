@@ -105,13 +105,13 @@ public:
     // Common method to ensure mNetworkManager is available for all APIs
     Exchange::INetworkManager *GetNetworkManagerInterface()
     {
-        if (mNetworkManager == nullptr && mShell != nullptr)
+        if (nullptr == mNetworkManager && nullptr != mShell)
         {
             Core::SafeSyncType<Core::CriticalSection> lock(mNetworkManagerLock);
             //Need one more Null check to confirm no other thread has created the instance
-            if (mNetworkManager == nullptr) {
+            if (nullptr == mNetworkManager) {
                 mNetworkManager = mShell->QueryInterfaceByCallsign<Exchange::INetworkManager>(NETWORKMANAGER_CALLSIGN);
-                if (mNetworkManager == nullptr) {
+                if (nullptr == mNetworkManager) {
                     LOGERR("Failed to get NetworkManager COM interface");
                 } else {
                     LOGINFO("NetworkManager COM interface acquired successfully");

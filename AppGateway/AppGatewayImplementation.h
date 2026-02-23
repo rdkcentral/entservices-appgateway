@@ -104,12 +104,12 @@ namespace Plugin {
         Core::hresult HandleEvent(const Context &context, const string &alias, const string &event, const string &origin,  const bool listen);
                 
         void ReturnMessageInSocket(const Context& context, const string payload ) {
-            if (mAppGatewayResponder == nullptr) {
+            if (nullptr == mAppGatewayResponder) {
                 Core::SafeSyncType<Core::CriticalSection> lock(mAppGatewayResponderLock);
                 //Need one more Null check to confirm no other thread has created the instance
-                if (mAppGatewayResponder == nullptr) {
+                if (nullptr == mAppGatewayResponder) {
                     mAppGatewayResponder = mService->QueryInterface<Exchange::IAppGatewayResponder>();
-                    if (mAppGatewayResponder == nullptr) {
+                    if (nullptr == mAppGatewayResponder) {
                         LOGERR("AppGateway Responder not available");
                         return;
                     } else {

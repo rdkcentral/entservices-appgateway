@@ -534,12 +534,12 @@ namespace WPEFramework
         }
 
         Core::hresult AppGatewayImplementation::HandleEvent(const Context &context, const string &alias,  const string &event, const string &origin, const bool listen) {
-            if (mAppNotifications == nullptr) {
+            if (nullptr == mAppNotifications) {
                 Core::SafeSyncType<Core::CriticalSection> lock(mAppNotificationsLock);
                 //Need one more Null check to confirm no other thread has created the instance
-                if (mAppNotifications == nullptr) {
+                if (nullptr == mAppNotifications) {
                     mAppNotifications = mService->QueryInterfaceByCallsign<Exchange::IAppNotifications>(APP_NOTIFICATIONS_CALLSIGN);
-                    if (mAppNotifications == nullptr) {
+                    if (nullptr == mAppNotifications) {
                         LOGERR("Failed to get IAppNotifications interface");
                         return Core::ERROR_GENERAL;
                     } else {
@@ -555,12 +555,12 @@ namespace WPEFramework
 
         void AppGatewayImplementation::SendToLaunchDelegate(const Context& context, const string& payload)
         {
-            if (mInternalGatewayResponder == nullptr) {
+            if (nullptr == mInternalGatewayResponder) {
                 Core::SafeSyncType<Core::CriticalSection> lock(mInternalGatewayResponderLock);
                 //Need one more Null check to confirm no other thread has created the instance
-                if (mInternalGatewayResponder == nullptr) {
+                if (nullptr == mInternalGatewayResponder) {
                     mInternalGatewayResponder = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
-                    if (mInternalGatewayResponder == nullptr) {
+                    if (nullptr == mInternalGatewayResponder) {
                         LOGERR("Failed to get Internal Responder interface");
                         return;
                     } else {
@@ -578,13 +578,13 @@ namespace WPEFramework
                                                     bool& allowed /* @out */)
         {
             Core::hresult result = Core::ERROR_GENERAL;
-            if (mAuthenticator == nullptr) {
+            if (nullptr == mAuthenticator) {
                 Core::SafeSyncType<Core::CriticalSection> lock(mAuthenticatorLock);
                 //Need one more Null check to confirm no other thread has created the instance
-                 if (mAuthenticator == nullptr) {
+                 if (nullptr == mAuthenticator) {
                     mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(INTERNAL_GATEWAY_CALLSIGN);
-                    if (mAuthenticator == nullptr) {
-                        LOGERR("AFailed to get AppGateway Authenticator");
+                    if (nullptr == mAuthenticator) {
+                        LOGERR("Failed to get AppGateway Authenticator");
                         return result;
                     } else {
                         LOGINFO("AppGateway Authenticator interface acquired");

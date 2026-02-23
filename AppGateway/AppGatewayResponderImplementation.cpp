@@ -121,7 +121,7 @@ namespace WPEFramework
                         LOGERR("No session token provided");
                         return false;
                     }
-                    if (mAuthenticator == nullptr) {
+                    if (nullptr == mAuthenticator) {
                         //Will update the interface first before query call.
                         if (ConfigUtils::useAppManagers()) {
                             interfaceToQuery = COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN;
@@ -130,9 +130,9 @@ namespace WPEFramework
                         }
                         Core::SafeSyncType<Core::CriticalSection> lock(mAuthenticatorLock);
                         //Need one more Null check to confirm no other thread has created the instance
-                        if (mAuthenticator == nullptr) {
+                        if (nullptr == mAuthenticator) {
                             mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(interfaceToQuery.c_str());
-                            if (mAuthenticator == nullptr) {
+                            if (nullptr == mAuthenticator) {
                                 LOGERR("AppGateway Authenticator not available");
                                 return false;
                             } else {
@@ -247,12 +247,12 @@ namespace WPEFramework
                     appId
                 };
 
-                if (mResolver == nullptr) {
+                if (nullptr == mResolver) {
                     Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
                     //Need one more Null check to confirm no other thread has created the instance
-                    if (mResolver == nullptr) {
+                    if (nullptr == mResolver) {
                         mResolver = mService->QueryInterface<Exchange::IAppGatewayResolver>();
-                        if (mResolver == nullptr) {
+                        if (nullptr == mResolver) {
                             LOGERR("Resolver interface not available");
                             return;
                         } else {

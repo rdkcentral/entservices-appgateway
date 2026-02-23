@@ -328,12 +328,12 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         // Common method to ensure mUserSettings is available for all APIs and notifications
         Exchange::IUserSettings* GetUserSettingsInterface() {
-            if (mUserSettings == nullptr && mShell != nullptr) {
+            if (nullptr == mUserSettings && nullptr != mShell) {
                 Core::SafeSyncType<Core::CriticalSection> lock(mUserSettingsLock);
                 //Need one more Null check to confirm no other thread has created the instance
-                if (mUserSettings == nullptr) {
+                if (nullptr == mUserSettings) {
                     mUserSettings = mShell->QueryInterfaceByCallsign<Exchange::IUserSettings>(USERSETTINGS_CALLSIGN);
-                    if (mUserSettings == nullptr) {
+                    if (nullptr == mUserSettings) {
                         LOGERR("Failed to get UserSettings COM interface");
                     } else {
                         LOGINFO("UserSettings COM interface acquired successfully");
@@ -347,12 +347,12 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         // Common method to ensure mTextTrack is available for all APIs and notifications
         Exchange::ITextTrackClosedCaptionsStyle* GetTextTrackInterface() {
-            if (mTextTrack == nullptr && mShell != nullptr) {
+            if (nullptr == mTextTrack && nullptr != mShell) {
                 Core::SafeSyncType<Core::CriticalSection> lock(mTextTrackLock);
                 //Need one more Null check to confirm no other thread has created the instance
-                if (mTextTrack == nullptr) {
+                if (nullptr == mTextTrack) {
                     mTextTrack = mShell->QueryInterfaceByCallsign<Exchange::ITextTrackClosedCaptionsStyle>(TEXTTRACK_CALLSIGN);
-                    if (mTextTrack == nullptr) {
+                    if (nullptr == mTextTrack) {
                         LOGERR("Failed to get TextTrack COM interface");
                     } else {
                         LOGINFO("TextTrack COM interface acquired successfully");

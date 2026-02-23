@@ -194,7 +194,7 @@ namespace WPEFramework
                 //Need one more Null check to confirm no other thread has created the instance
                 if (nullptr == mAppGateway) {
                     mAppGateway = mParent.mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(APP_GATEWAY_CALLSIGN);
-                    if (mAppGateway == nullptr) {
+                    if (nullptr == mAppGateway) {
                         LOGERR("Failed to get AppGateway Responder interface");
                         return;
                     } else {
@@ -214,7 +214,7 @@ namespace WPEFramework
                 //Need one more Null check to confirm no other thread has created the instance
                 if (nullptr == mInternalGatewayNotifier) {
                     mInternalGatewayNotifier = mParent.mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
-                    if (mInternalGatewayNotifier == nullptr) {
+                    if (nullptr == mInternalGatewayNotifier) {
                         LOGERR("Failed to get InternalGatewayNotifier interface");
                         return;
                     } else {
