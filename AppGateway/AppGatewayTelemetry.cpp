@@ -238,7 +238,7 @@ namespace Plugin {
             // Send error event immediately to T2 for forensics
 
             LOGINFO("Sending immediate API error event to T2: api=%s", apiName.c_str());
-            SendT2Event(eventName.c_str(), eventData);
+            SendT2Event(eventName.c_str(), eventData, context);
             
             isImmediateEvent = true;
         }
@@ -255,7 +255,7 @@ namespace Plugin {
             
             // Send error event immediately to T2 for forensics
             LOGINFO("Sending immediate external service error event to T2: service=%s", serviceName.c_str());
-            SendT2Event(eventName.c_str(), eventData);
+            SendT2Event(eventName.c_str(), eventData, context);
             
             isImmediateEvent = true;
         }
@@ -898,7 +898,8 @@ namespace Plugin {
         healthPayload["unit"] = AGW_UNIT_COUNT;
         
         LOGINFO("Sending health stats to T2");
-        SendT2Event(AGW_MARKER_HEALTH_STATS, healthPayload);
+        Exchange::GatewayContext sysContext = CreateSystemContext();
+        SendT2Event(AGW_MARKER_HEALTH_STATS, healthPayload, sysContext);
 
         LOGTRACE("Health stats sent as consolidated metric: ws=%u, total=%u, responses=%u, success=%u, failed=%u",
                 wsConnections, totalCalls, totalResponses, successfulCalls, failedCalls);
@@ -922,7 +923,8 @@ namespace Plugin {
             metricPayload["unit"] = AGW_UNIT_COUNT;
             
             LOGINFO("Sending API error metric to T2");
-            SendT2Event(metricName.c_str(), metricPayload);
+            Exchange::GatewayContext sysContext = CreateSystemContext();
+            SendT2Event(metricName.c_str(), metricPayload, sysContext);
         }
         
         LOGINFO("API error stats sent as metrics: %zu APIs with errors", mApiErrorCounts.size());
@@ -946,7 +948,8 @@ namespace Plugin {
             metricPayload["unit"] = AGW_UNIT_COUNT;
             
             LOGINFO("Sending external service error metric to T2");
-            SendT2Event(metricName.c_str(), metricPayload);
+            Exchange::GatewayContext sysContext = CreateSystemContext();
+            SendT2Event(metricName.c_str(), metricPayload, sysContext);
         }
         
         LOGINFO("External service error stats sent as metrics: %zu services with errors", 
@@ -983,7 +986,8 @@ namespace Plugin {
 
             // Use the metric name as the T2 marker
             LOGINFO("Sending aggregated metric to T2: %s", metricName.c_str());
-            SendT2Event(metricName.c_str(), payload);
+            Exchange::GatewayContext sysContext = CreateSystemContext();
+            SendT2Event(metricName.c_str(), payload, sysContext);
 
         }
     }
@@ -1050,7 +1054,8 @@ namespace Plugin {
             
             // T2 marker: Use common marker since plugin_name and method_name are in payload
             LOGINFO("Sending API method stats to T2");
-            SendT2Event(AGW_MARKER_API_METHOD_STAT, payload);
+            Exchange::GatewayContext sysContext = CreateSystemContext();
+            SendT2Event(AGW_MARKER_API_METHOD_STAT, payload, sysContext);
             
             LOGTRACE("API method stats sent: %s::%s (total=%u, success=%u, error=%u, avg_success_latency=%.2f ms)",
                     stats.pluginName.c_str(), stats.methodName.c_str(),
@@ -1097,7 +1102,8 @@ namespace Plugin {
             
             // Use common T2 marker - plugin and API names are in payload
             LOGINFO("Sending API latency stats to T2");
-            SendT2Event(AGW_MARKER_API_LATENCY, payload);
+            Exchange::GatewayContext sysContext = CreateSystemContext();
+            SendT2Event(AGW_MARKER_API_LATENCY, payload, sysContext);
 
             LOGTRACE("API latency stats sent: %s::%s (count=%u, avg=%.2f ms, min=%.2f ms, max=%.2f ms)",
                     stats.pluginName.c_str(), stats.apiName.c_str(),
@@ -1143,7 +1149,8 @@ namespace Plugin {
             
             // Use common T2 marker - plugin and service names are in payload
             LOGINFO("Sending service latency stats to T2");
-            SendT2Event(AGW_MARKER_SERVICE_LATENCY, payload);
+            Exchange::GatewayContext sysContext = CreateSystemContext();
+            SendT2Event(AGW_MARKER_SERVICE_LATENCY, payload, sysContext);
             
             LOGTRACE("Service latency stats sent: %s::%s (count=%u, avg=%.2f ms, min=%.2f ms, max=%.2f ms)",
                     stats.pluginName.c_str(), stats.serviceName.c_str(),
@@ -1213,7 +1220,8 @@ namespace Plugin {
             
             // T2 marker: Use AGW_MARKER_SERVICE_METHOD_STAT since plugin_name and service_name are in payload
             LOGINFO("Sending service method stats to T2");
-            SendT2Event(AGW_MARKER_SERVICE_METHOD_STAT, payload);
+            Exchange::GatewayContext sysContext = CreateSystemContext();
+            SendT2Event(AGW_MARKER_SERVICE_METHOD_STAT, payload, sysContext);
             
             LOGTRACE("Service method stats sent: %s::%s (total=%u, success=%u, error=%u, avg_success_latency=%.2f ms)",
                     stats.pluginName.c_str(), stats.serviceName.c_str(),
@@ -1224,23 +1232,74 @@ namespace Plugin {
         LOGINFO("Service method stats sent: %zu plugin/service combinations", mServiceMethodStats.size());
     }
 
-    void AppGatewayTelemetry::SendT2Event(const char* marker, const std::string& payload)
+    Exchange::GatewayContext AppGatewayTelemetry::CreateSystemContext() const
     {
-        // The T2 API signature takes non-const char* but doesn't modify the strings
-        // Safe to use const_cast to avoid unnecessary malloc/copy overhead
-
-        LOGINFO("marker=%s, payload=%s", marker, payload.c_str());
-        Utils::Telemetry::sendMessage(const_cast<char*>(marker), 
-                                       const_cast<char*>(payload.c_str()));
+        Exchange::GatewayContext sysContext;
+        sysContext.requestId = 0;        // 0 indicates system/aggregated metric
+        sysContext.connectionId = 0;     // 0 indicates system/aggregated metric
+        sysContext.appId = "SYSTEM";     // System identifier for aggregated metrics
+        return sysContext;
     }
 
-    void AppGatewayTelemetry::SendT2Event(const char* marker, const JsonObject& payload)
+    void AppGatewayTelemetry::SendT2Event(const char* marker, const std::string& payload, const Exchange::GatewayContext& context)
     {
-        // Format the JsonObject according to current telemetry format setting
-        std::string payloadStr = FormatTelemetryPayload(payload);
+        // Build a JSON object with context prepended to the payload
+        JsonObject contextPayload;
 
-        // Call the string overload
-        SendT2Event(marker, payloadStr);
+        // Context fields first (as per requirement)
+        contextPayload["request_id"] = context.requestId;
+        contextPayload["connection_id"] = context.connectionId;
+        contextPayload["app_id"] = context.appId;
+
+        // Parse the payload string as JSON if possible, otherwise include as raw string
+        JsonObject payloadObj;
+        if (payloadObj.FromString(payload)) {
+            // Payload is valid JSON - merge its fields into contextPayload
+            auto it = payloadObj.Variants();
+            while (it.Next()) {
+                const auto& key = it.Label();
+                const auto& value = it.Current();
+                contextPayload[key] = value;
+            }
+        } else {
+            // Payload is not JSON - include it as a "data" field
+            contextPayload["data"] = payload;
+        }
+
+        // Format according to telemetry format setting and send
+        std::string formattedPayload = FormatTelemetryPayload(contextPayload);
+
+        // The T2 API signature takes non-const char* but doesn't modify the strings
+        LOGINFO("marker=%s, payload=%s", marker, formattedPayload.c_str());
+        Utils::Telemetry::sendMessage(const_cast<char*>(marker), 
+                                       const_cast<char*>(formattedPayload.c_str()));
+    }
+
+    void AppGatewayTelemetry::SendT2Event(const char* marker, const JsonObject& payload, const Exchange::GatewayContext& context)
+    {
+        // Build a new JSON object with context prepended
+        JsonObject contextPayload;
+
+        // Context fields first (as per requirement)
+        contextPayload["request_id"] = context.requestId;
+        contextPayload["connection_id"] = context.connectionId;
+        contextPayload["app_id"] = context.appId;
+
+        // Merge payload fields into contextPayload
+        auto it = payload.Variants();
+        while (it.Next()) {
+            const auto& key = it.Label();
+            const auto& value = it.Current();
+            contextPayload[key] = value;
+        }
+
+        // Format according to telemetry format setting and send
+        std::string formattedPayload = FormatTelemetryPayload(contextPayload);
+
+        // The T2 API signature takes non-const char* but doesn't modify the strings
+        LOGINFO("marker=%s, payload=%s", marker, formattedPayload.c_str());
+        Utils::Telemetry::sendMessage(const_cast<char*>(marker),
+                                       const_cast<char*>(formattedPayload.c_str()));
     }
 
     void AppGatewayTelemetry::ResetHealthStats()

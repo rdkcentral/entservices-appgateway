@@ -348,6 +348,9 @@ namespace Plugin {
         // Timer expired callback
         void OnTimerExpired();
 
+        // Helper to create a system context for aggregated metrics
+        Exchange::GatewayContext CreateSystemContext() const;
+
         // Send aggregated telemetry to T2
         void SendHealthStats();
         void SendApiErrorStats();
@@ -358,9 +361,9 @@ namespace Plugin {
         void SendServiceLatencyStats();
         void SendServiceMethodStats();
 
-        // Helper to send telemetry via T2
-        void SendT2Event(const char* marker, const std::string& payload);  // For pre-formatted strings
-        void SendT2Event(const char* marker, const JsonObject& payload);   // For JsonObject (calls FormatTelemetryPayload internally)
+        // Helper to send telemetry via T2 (context-aware)
+        void SendT2Event(const char* marker, const std::string& payload, const Exchange::GatewayContext& context);
+        void SendT2Event(const char* marker, const JsonObject& payload, const Exchange::GatewayContext& context);
 
         // Reset counters after reporting
         void ResetHealthStats();

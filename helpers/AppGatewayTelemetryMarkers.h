@@ -335,18 +335,6 @@
  */
 #define AGW_MARKER_PLUGIN_API_LATENCY               "AppGwPluginApiLatency_split"
 
-/**
- * @brief Plugin external service latency metric marker (DEPRECATED - not used)
- * @details This marker is no longer used. Service latency is now reported using RecordTelemetryMetric
- *          with composite metric names in the format: agw_<PluginName>_<ServiceName>_Latency
- * @usage Use AGW_REPORT_SERVICE_LATENCY(context, service, latencyMs) helper macro from UtilsAppGatewayTelemetry.h
- * @metric_name agw_<PluginName>_<ServiceName>_Latency (e.g., agw_OttServices_ThorPermissionService_Latency)
- * @metric_value Latency in milliseconds
- * @metric_unit AGW_UNIT_MILLISECONDS
- * @example AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_THOR_PERMISSION, 85.3)
- * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
- */
-#define AGW_MARKER_PLUGIN_SERVICE_LATENCY           "AppGwPluginServiceLatency_split"
 
 //=============================================================================
 // PREDEFINED PLUGIN NAMES
