@@ -23,7 +23,6 @@
 #include <interfaces/IConfiguration.h>
 #include <interfaces/json/JsonData_AppGatewayResolver.h>
 #include <interfaces/json/JAppGatewayResolver.h>
-#include "UtilsLogging.h"
 #include <chrono>
 
 
@@ -68,7 +67,6 @@ namespace Plugin {
         ASSERT(mResponder == nullptr);
 
         LOGINFO("AppGateway::Initialize: PID=%u", getpid());
- 
         // Measure bootstrap time
         auto bootstrapStart = std::chrono::steady_clock::now();
 
