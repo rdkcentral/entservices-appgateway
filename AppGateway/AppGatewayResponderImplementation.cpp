@@ -114,6 +114,7 @@ namespace WPEFramework
             mWsManager.SetAuthHandler(
                 [this](const uint32_t connectionId, const std::string &token) -> bool
                 {
+                    Core::SafeSyncType<Core::CriticalSection> lock(mAuthenticatorLock);
                     string interfaceToQuery;
                     string sessionId = Utils::ResolveQuery(token, "session");
                     if (sessionId.empty())
@@ -121,25 +122,21 @@ namespace WPEFramework
                         LOGERR("No session token provided");
                         return false;
                     }
+
+                    //Will update the interface first before query call.
+                    if (ConfigUtils::useAppManagers()) {
+                        interfaceToQuery = COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN;
+                    } else {
+                        interfaceToQuery = GATEWAY_AUTHENTICATOR_CALLSIGN;
+                    }
+
                     if (nullptr == mAuthenticator) {
-                        //Will update the interface first before query call.
-                        if (ConfigUtils::useAppManagers()) {
-                            interfaceToQuery = COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN;
-                        } else {
-                            interfaceToQuery = GATEWAY_AUTHENTICATOR_CALLSIGN;
-                        }
-                        Core::SafeSyncType<Core::CriticalSection> lock(mAuthenticatorLock);
-                        //Need one more Null check to confirm no other thread has created the instance
+                        mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(interfaceToQuery.c_str());
                         if (nullptr == mAuthenticator) {
-                            mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(interfaceToQuery.c_str());
-                            if (nullptr == mAuthenticator) {
-                                LOGERR("AppGateway Authenticator not available");
-                                return false;
-                            } else {
-                                LOGINFO("AppGateway Authenticator interface acquired");
-                            }
+                            LOGERR("AppGateway Authenticator not available");
+                            return false;
                         } else {
-                            LOGINFO("AppGateway Authenticator interface already acquired");
+                            LOGINFO("AppGateway Authenticator interface acquired");
                         }
                     }
 
@@ -231,6 +228,7 @@ namespace WPEFramework
                                                      const uint32_t requestId,
                                                      const uint32_t connectionId)
         {
+            Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
             std::string resolution;
             string appId;
 
@@ -247,24 +245,17 @@ namespace WPEFramework
                     appId
                 };
 
+                //Need one more Null check to confirm no other thread has created the instance
                 if (nullptr == mResolver) {
-                    Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
-                    //Need one more Null check to confirm no other thread has created the instance
+                    mResolver = mService->QueryInterface<Exchange::IAppGatewayResolver>();
                     if (nullptr == mResolver) {
-                        mResolver = mService->QueryInterface<Exchange::IAppGatewayResolver>();
-                        if (nullptr == mResolver) {
-                            LOGERR("Resolver interface not available");
-                            return;
-                        } else {
-                            LOGINFO("Resolver interface acquired");
-                        }
+                        LOGERR("Resolver interface not available");
+                        return;
                     } else {
-                        LOGINFO("Resolver interface already acquired");
+                        LOGINFO("Resolver interface acquired");
                     }
                 }
 
-
-                string resolution;
                 if (Core::ERROR_NONE != mResolver->Resolve(context, APP_GATEWAY_CALLSIGN, method, params, resolution)) {
                     LOGERR("Resolver Failure");
                 }

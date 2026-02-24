@@ -328,18 +328,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         // Common method to ensure mUserSettings is available for all APIs and notifications
         Exchange::IUserSettings* GetUserSettingsInterface() {
+            Core::SafeSyncType<Core::CriticalSection> lock(mUserSettingsLock);
             if (nullptr == mUserSettings && nullptr != mShell) {
-                Core::SafeSyncType<Core::CriticalSection> lock(mUserSettingsLock);
-                //Need one more Null check to confirm no other thread has created the instance
+                mUserSettings = mShell->QueryInterfaceByCallsign<Exchange::IUserSettings>(USERSETTINGS_CALLSIGN);
                 if (nullptr == mUserSettings) {
-                    mUserSettings = mShell->QueryInterfaceByCallsign<Exchange::IUserSettings>(USERSETTINGS_CALLSIGN);
-                    if (nullptr == mUserSettings) {
-                        LOGERR("Failed to get UserSettings COM interface");
-                    } else {
-                        LOGINFO("UserSettings COM interface acquired successfully");
-                    }
+                    LOGERR("Failed to get UserSettings COM interface");
                 } else {
-                    LOGINFO("UserSettings COM interface already acquired");
+                    LOGINFO("UserSettings COM interface acquired successfully");
                 }
             }
             return mUserSettings;
@@ -347,18 +342,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         // Common method to ensure mTextTrack is available for all APIs and notifications
         Exchange::ITextTrackClosedCaptionsStyle* GetTextTrackInterface() {
+            Core::SafeSyncType<Core::CriticalSection> lock(mTextTrackLock);
             if (nullptr == mTextTrack && nullptr != mShell) {
-                Core::SafeSyncType<Core::CriticalSection> lock(mTextTrackLock);
-                //Need one more Null check to confirm no other thread has created the instance
+                mTextTrack = mShell->QueryInterfaceByCallsign<Exchange::ITextTrackClosedCaptionsStyle>(TEXTTRACK_CALLSIGN);
                 if (nullptr == mTextTrack) {
-                    mTextTrack = mShell->QueryInterfaceByCallsign<Exchange::ITextTrackClosedCaptionsStyle>(TEXTTRACK_CALLSIGN);
-                    if (nullptr == mTextTrack) {
-                        LOGERR("Failed to get TextTrack COM interface");
-                    } else {
-                        LOGINFO("TextTrack COM interface acquired successfully");
-                    }
+                    LOGERR("Failed to get TextTrack COM interface");
                 } else {
-                    LOGINFO("TextTrack COM interface already acquired");
+                    LOGINFO("TextTrack COM interface acquired successfully");
                 }
             }
             return mTextTrack;

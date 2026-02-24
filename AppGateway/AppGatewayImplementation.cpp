@@ -534,40 +534,29 @@ namespace WPEFramework
         }
 
         Core::hresult AppGatewayImplementation::HandleEvent(const Context &context, const string &alias,  const string &event, const string &origin, const bool listen) {
+            Core::SafeSyncType<Core::CriticalSection> lock(mAppNotificationsLock);
             if (nullptr == mAppNotifications) {
-                Core::SafeSyncType<Core::CriticalSection> lock(mAppNotificationsLock);
-                //Need one more Null check to confirm no other thread has created the instance
+                mAppNotifications = mService->QueryInterfaceByCallsign<Exchange::IAppNotifications>(APP_NOTIFICATIONS_CALLSIGN);
                 if (nullptr == mAppNotifications) {
-                    mAppNotifications = mService->QueryInterfaceByCallsign<Exchange::IAppNotifications>(APP_NOTIFICATIONS_CALLSIGN);
-                    if (nullptr == mAppNotifications) {
-                        LOGERR("Failed to get IAppNotifications interface");
-                        return Core::ERROR_GENERAL;
-                    } else {
-                        LOGINFO("IAppNotifications interface acquired");
-                    }
+                    LOGERR("Failed to get IAppNotifications interface");
+                    return Core::ERROR_GENERAL;
                 } else {
-                    LOGINFO("IAppNotifications interface already acquired");
+                    LOGINFO("IAppNotifications interface acquired");
                 }
             }
-
             return mAppNotifications->Subscribe(ContextUtils::ConvertAppGatewayToNotificationContext(context,origin), listen, alias, event);
         }
 
         void AppGatewayImplementation::SendToLaunchDelegate(const Context& context, const string& payload)
         {
+            Core::SafeSyncType<Core::CriticalSection> lock(mInternalGatewayResponderLock);
             if (nullptr == mInternalGatewayResponder) {
-                Core::SafeSyncType<Core::CriticalSection> lock(mInternalGatewayResponderLock);
-                //Need one more Null check to confirm no other thread has created the instance
+                mInternalGatewayResponder = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
                 if (nullptr == mInternalGatewayResponder) {
-                    mInternalGatewayResponder = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
-                    if (nullptr == mInternalGatewayResponder) {
-                        LOGERR("Failed to get Internal Responder interface");
-                        return;
-                    } else {
-                        LOGINFO("Internal Responder interface acquired");
-                    }
+                    LOGERR("Failed to get Internal Responder interface");
+                    return;
                 } else {
-                    LOGINFO("Internal Responder interface already acquired");
+                    LOGINFO("Internal Responder interface acquired");
                 }
             }
             mInternalGatewayResponder->Respond(context, payload);
@@ -577,22 +566,17 @@ namespace WPEFramework
                                                     const string& permissionGroup /* @in */,
                                                     bool& allowed /* @out */)
         {
+            Core::SafeSyncType<Core::CriticalSection> lock(mAuthenticatorLock);
             Core::hresult result = Core::ERROR_GENERAL;
             if (nullptr == mAuthenticator) {
-                Core::SafeSyncType<Core::CriticalSection> lock(mAuthenticatorLock);
-                //Need one more Null check to confirm no other thread has created the instance
-                 if (nullptr == mAuthenticator) {
-                    mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(INTERNAL_GATEWAY_CALLSIGN);
-                    if (nullptr == mAuthenticator) {
-                        LOGERR("Failed to get AppGateway Authenticator");
-                        return result;
-                    } else {
-                        LOGINFO("AppGateway Authenticator interface acquired");
-                    }
+                mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(INTERNAL_GATEWAY_CALLSIGN);
+                if (nullptr == mAuthenticator) {
+                    LOGERR("Failed to get AppGateway Authenticator");
+                    return result;
                 } else {
-                    LOGINFO("AppGateway Authenticator interface already acquired");
-                 }
-             }
+                    LOGINFO("AppGateway Authenticator interface acquired");
+                }
+            }
             result = mAuthenticator->CheckPermissionGroup(appId, permissionGroup, allowed);
             return result;
          }
