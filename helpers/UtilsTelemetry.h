@@ -18,7 +18,6 @@
  */
 
 #pragma once
-#include "UtilsLogging.h"
 
 // telemetry
 #ifdef ENABLE_TELEMETRY_LOGGING
