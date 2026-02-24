@@ -411,6 +411,20 @@ namespace Plugin {
                 , successfulCalls(0)
                 , failedCalls(0)
             {}
+            
+            // Send all telemetry data from this snapshot
+            void SendAll();
+            
+        private:
+            // Individual send methods for different telemetry types
+            void SendHealthStats();
+            void SendApiMethodStats();
+            void SendApiLatencyStats();
+            void SendServiceMethodStats();
+            void SendServiceLatencyStats();
+            void SendApiErrorStats();
+            void SendExternalServiceErrorStats();
+            void SendAggregatedMetrics();
         };
 
         /**
@@ -587,9 +601,6 @@ namespace Plugin {
         // Timer for periodic reporting
         Core::ProxyType<TelemetryTimer> mTimer;
         Core::TimerType<TelemetryTimer> mTimerHandler;
-        
-        // WorkerPool for async telemetry sending
-        Core::WorkerPool mWorkerPool;
         
         // Per-Plugin/API latency statistics: map<"PluginName_ApiName", ApiLatencyStats>
         std::map<std::string, ApiLatencyStats> mApiLatencyStats;

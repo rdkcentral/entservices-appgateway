@@ -43,7 +43,6 @@ namespace Plugin {
         , mTelemetryFormat(TelemetryFormat::JSON)  // Default to JSON format
         , mTimer(Core::ProxyType<TelemetryTimer>::Create(this))
         , mTimerHandler(1024 * 64, _T("AppGwTelemetryTimer"))
-        , mWorkerPool(2, Core::Thread::DefaultStackSize(), 16, nullptr)  // 2 threads, nullptr dispatcher = default
         , mTimerRunning(false)
         , mCachedEventCount(0)
         , mInitialized(false)
@@ -71,10 +70,6 @@ namespace Plugin {
 
         // Initialize T2 telemetry
         Utils::Telemetry::init();
-
-        // Start WorkerPool for async telemetry sending
-        mWorkerPool.Run();
-        LOGINFO("AppGatewayTelemetry: Started WorkerPool for async telemetry");
 
         // Start the periodic reporting timer
         if (!mTimerRunning) {
@@ -110,13 +105,8 @@ namespace Plugin {
 
         LOGINFO("AppGatewayTelemetry: Flushing final telemetry data on shutdown");
 
-        // Flush any remaining telemetry data (will be dispatched async)
+        // Flush any remaining telemetry data synchronously
         FlushTelemetryData();
-
-        // Wait for all pending WorkerPool jobs to complete before shutdown
-        // This ensures telemetry data is sent before the process exits
-        LOGINFO("AppGatewayTelemetry: Waiting for pending telemetry jobs to complete");
-        mWorkerPool.Stop();  // Block until all jobs finish
 
         {
             Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
@@ -1021,7 +1011,7 @@ namespace Plugin {
             auto now = std::chrono::steady_clock::now();
             auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - mReportingStartTime).count();
 
-            LOGINFO("Snapshotting telemetry data for async flush (reporting period: %ld seconds)", elapsed);
+            LOGINFO("Flushing telemetry data synchronously (reporting period: %ld seconds)", elapsed);
 
             // Snapshot configuration
             snapshot->reportingIntervalSec = static_cast<uint32_t>(elapsed);  // Actual elapsed time, not configured interval
@@ -1053,15 +1043,14 @@ namespace Plugin {
             mCachedEventCount = 0;
             mReportingStartTime = now;
             
-            LOGTRACE("Snapshot created, dispatching to WorkerPool");
+            LOGTRACE("Snapshot created, sending telemetry synchronously");
         }
         // Lock released - new telemetry can now be recorded while snapshot is being sent
 
-        // Dispatch snapshot for async sending (ownership transferred to FlushJob)
-        Core::ProxyType<FlushJob> job = Core::ProxyType<FlushJob>::Create(std::move(snapshot));
-        // Cast to IDispatch for WorkerPool submission
-        Core::ProxyType<Core::IDispatch> dispatchJob(job);
-        mWorkerPool.Submit(dispatchJob);
+        // Send telemetry synchronously (no WorkerPool dispatch)
+        if (snapshot) {
+            snapshot->SendAll();
+        }
     }
 
     void AppGatewayTelemetry::SendHealthStats()
@@ -1650,7 +1639,378 @@ namespace Plugin {
         return oss.str();
     }
 
-    // FlushJob Implementation - Async telemetry sending
+    // TelemetrySnapshot Implementation
+
+    void AppGatewayTelemetry::TelemetrySnapshot::SendAll()
+    {
+        if (!parent) {
+            LOGERR("TelemetrySnapshot::SendAll: Invalid parent pointer");
+            return;
+        }
+
+        LOGINFO("TelemetrySnapshot: Sending telemetry data (reporting interval: %u sec)", reportingIntervalSec);
+
+        // Send all aggregated telemetry data
+        // Note: These methods use the snapshot's data members directly
+        
+        // Send health statistics
+        SendHealthStats();
+        
+        // Send API/method statistics  
+        SendApiMethodStats();
+        SendApiLatencyStats();
+        
+        // Send service statistics
+        SendServiceMethodStats();
+        SendServiceLatencyStats();
+        
+        // Send error statistics
+        SendApiErrorStats();
+        SendExternalServiceErrorStats();
+        
+        // Send generic aggregated metrics
+        SendAggregatedMetrics();
+
+        LOGTRACE("TelemetrySnapshot: All telemetry data sent successfully");
+    }
+
+    void AppGatewayTelemetry::TelemetrySnapshot::SendHealthStats()
+    {
+        // Calculate pending responses (requests without responses)
+        uint32_t pendingCount = 0;
+        JsonArray pendingRequests;
+
+        for (const auto& entry : requestStates) {
+            if (!entry.second.responseReceived) {
+                pendingCount++;
+                JsonObject pendingInfo;
+                pendingInfo["connection_id"] = entry.first.connectionId;
+                pendingInfo["request_id"] = entry.first.requestId;
+                pendingInfo["app_id"] = entry.second.appId;
+                pendingRequests.Add(pendingInfo);
+            }
+        }
+
+        // Only send if there's data
+        if (totalCalls == 0 && websocketConnections == 0 && pendingCount == 0) {
+            LOGINFO("TelemetrySnapshot: No health stats to report");
+            return;
+        }
+
+        // Send all health stats in a single consolidated payload to T2
+        JsonObject healthPayload;
+        healthPayload["reporting_interval_sec"] = reportingIntervalSec;
+        healthPayload["websocket_connections"] = websocketConnections;
+        healthPayload["total_calls"] = totalCalls;
+        healthPayload["total_responses"] = totalResponses;
+        healthPayload["successful_calls"] = successfulCalls;
+        healthPayload["failed_calls"] = failedCalls;
+        healthPayload["pending_response_count"] = pendingCount;
+
+        if (pendingCount > 0) {
+            healthPayload["pending_requests"] = pendingRequests;
+        }
+
+        healthPayload["unit"] = AGW_UNIT_COUNT;
+
+        LOGINFO("TelemetrySnapshot: Sending health stats (pending=%u)", pendingCount);
+        Exchange::GatewayContext sysContext = parent->CreateSystemContext();
+        parent->SendT2Event(AGW_MARKER_HEALTH_STATS, healthPayload, sysContext);
+
+        LOGTRACE("TelemetrySnapshot: Health stats sent: ws=%u, total=%u, responses=%u, success=%u, failed=%u, pending=%u",
+                websocketConnections, totalCalls, totalResponses, successfulCalls, failedCalls, pendingCount);
+    }
+
+    void AppGatewayTelemetry::TelemetrySnapshot::SendApiMethodStats()
+    {
+        if (apiMethodStats.empty()) {
+            LOGTRACE("TelemetrySnapshot: No API method stats to report");
+            return;
+        }
+
+        // Send each plugin/method combination as a separate T2 event
+        for (const auto& item : apiMethodStats) {
+            const std::string& apiKey = item.first;
+            const ApiMethodStats& stats = item.second;
+            
+            if (stats.successCount == 0 && stats.errorCount == 0) {
+                continue;
+            }
+
+            // Build detailed payload with plugin name, method name, counters, and latency stats
+            JsonObject payload;
+            payload["plugin_name"] = stats.pluginName;
+            payload["method_name"] = stats.methodName;
+            payload["reporting_interval_sec"] = reportingIntervalSec;
+            
+            // Success metrics
+            if (stats.successCount > 0) {
+                double avgSuccessLatency = stats.totalSuccessLatencyMs / stats.successCount;
+                double minSuccess = (stats.minSuccessLatencyMs == std::numeric_limits<double>::max()) 
+                                    ? 0.0 : stats.minSuccessLatencyMs;
+                double maxSuccess = (stats.maxSuccessLatencyMs == std::numeric_limits<double>::lowest()) 
+                                    ? 0.0 : stats.maxSuccessLatencyMs;
+                
+                payload["success_count"] = stats.successCount;
+                payload["success_latency_min_ms"] = minSuccess;
+                payload["success_latency_max_ms"] = maxSuccess;
+                payload["success_latency_avg_ms"] = avgSuccessLatency;
+            } else {
+                payload["success_count"] = 0;
+            }
+            
+            // Error metrics
+            if (stats.errorCount > 0) {
+                double avgErrorLatency = stats.totalErrorLatencyMs / stats.errorCount;
+                double minError = (stats.minErrorLatencyMs == std::numeric_limits<double>::max()) 
+                                    ? 0.0 : stats.minErrorLatencyMs;
+                double maxError = (stats.maxErrorLatencyMs == std::numeric_limits<double>::lowest()) 
+                                    ? 0.0 : stats.maxErrorLatencyMs;
+                
+                payload["error_count"] = stats.errorCount;
+                payload["error_latency_min_ms"] = minError;
+                payload["error_latency_max_ms"] = maxError;
+                payload["error_latency_avg_ms"] = avgErrorLatency;
+            } else {
+                payload["error_count"] = 0;
+            }
+            
+            // Total counts
+            uint32_t totalCalls = stats.successCount + stats.errorCount;
+            payload["total_count"] = totalCalls;
+            
+            Exchange::GatewayContext sysContext = parent->CreateSystemContext();
+            parent->SendT2Event(AGW_MARKER_API_METHOD_STAT, payload, sysContext);
+        }
+
+        LOGINFO("TelemetrySnapshot: API method stats sent: %zu plugin/method combinations", apiMethodStats.size());
+    }
+
+    void AppGatewayTelemetry::TelemetrySnapshot::SendApiLatencyStats()
+    {
+        if (apiLatencyStats.empty()) {
+            LOGTRACE("TelemetrySnapshot: No API latency stats to report");
+            return;
+        }
+
+        // Send each plugin/API combination
+        for (const auto& item : apiLatencyStats) {
+            const std::string& latencyKey = item.first;
+            const ApiLatencyStats& stats = item.second;
+            
+            if (stats.count == 0) {
+                continue;
+            }
+
+            JsonObject payload;
+            payload["plugin_name"] = stats.pluginName;
+            payload["api_name"] = stats.apiName;
+            payload["reporting_interval_sec"] = reportingIntervalSec;
+            payload["count"] = stats.count;
+            
+            double avgLatency = stats.totalLatencyMs / stats.count;
+            double minLatency = (stats.minLatencyMs == std::numeric_limits<double>::max()) 
+                                ? 0.0 : stats.minLatencyMs;
+            double maxLatency = (stats.maxLatencyMs == std::numeric_limits<double>::lowest()) 
+                                ? 0.0 : stats.maxLatencyMs;
+            
+            payload["avg_ms"] = avgLatency;
+            payload["min_ms"] = minLatency;
+            payload["max_ms"] = maxLatency;
+            payload["unit"] = AGW_UNIT_MILLISECONDS;
+            
+            Exchange::GatewayContext sysContext = parent->CreateSystemContext();
+            parent->SendT2Event(AGW_MARKER_API_LATENCY, payload, sysContext);
+        }
+
+        LOGINFO("TelemetrySnapshot: API latency stats sent: %zu plugin/API combinations", apiLatencyStats.size());
+    }
+
+    void AppGatewayTelemetry::TelemetrySnapshot::SendServiceMethodStats()
+    {
+        if (serviceMethodStats.empty()) {
+            LOGTRACE("TelemetrySnapshot: No service method stats to report");
+            return;
+        }
+
+        // Send each plugin/service combination
+        for (const auto& item : serviceMethodStats) {
+            const std::string& serviceKey = item.first;
+            const ServiceMethodStats& stats = item.second;
+            
+            if (stats.successCount == 0 && stats.errorCount == 0) {
+                continue;
+            }
+
+            JsonObject payload;
+            payload["plugin_name"] = stats.pluginName;
+            payload["service_name"] = stats.serviceName;
+            payload["reporting_interval_sec"] = reportingIntervalSec;
+            
+            // Success metrics
+            if (stats.successCount > 0) {
+                double avgSuccessLatency = stats.totalSuccessLatencyMs / stats.successCount;
+                double minSuccess = (stats.minSuccessLatencyMs == std::numeric_limits<double>::max()) 
+                                    ? 0.0 : stats.minSuccessLatencyMs;
+                double maxSuccess = (stats.maxSuccessLatencyMs == std::numeric_limits<double>::lowest()) 
+                                    ? 0.0 : stats.maxSuccessLatencyMs;
+                
+                payload["success_count"] = stats.successCount;
+                payload["success_latency_min_ms"] = minSuccess;
+                payload["success_latency_max_ms"] = maxSuccess;
+                payload["success_latency_avg_ms"] = avgSuccessLatency;
+            } else {
+                payload["success_count"] = 0;
+            }
+            
+            // Error metrics
+            if (stats.errorCount > 0) {
+                double avgErrorLatency = stats.totalErrorLatencyMs / stats.errorCount;
+                double minError = (stats.minErrorLatencyMs == std::numeric_limits<double>::max()) 
+                                    ? 0.0 : stats.minErrorLatencyMs;
+                double maxError = (stats.maxErrorLatencyMs == std::numeric_limits<double>::lowest()) 
+                                    ? 0.0 : stats.maxErrorLatencyMs;
+                
+                payload["error_count"] = stats.errorCount;
+                payload["error_latency_min_ms"] = minError;
+                payload["error_latency_max_ms"] = maxError;
+                payload["error_latency_avg_ms"] = avgErrorLatency;
+            } else {
+                payload["error_count"] = 0;
+            }
+            
+            Exchange::GatewayContext sysContext = parent->CreateSystemContext();
+            parent->SendT2Event(AGW_MARKER_SERVICE_METHOD_STAT, payload, sysContext);
+        }
+
+        LOGINFO("TelemetrySnapshot: Service method stats sent: %zu plugin/service combinations", serviceMethodStats.size());
+    }
+
+    void AppGatewayTelemetry::TelemetrySnapshot::SendServiceLatencyStats()
+    {
+        if (serviceLatencyStats.empty()) {
+            LOGTRACE("TelemetrySnapshot: No service latency stats to report");
+            return;
+        }
+
+        // Send each plugin/service combination
+        for (const auto& item : serviceLatencyStats) {
+            const std::string& latencyKey = item.first;
+            const ServiceLatencyStats& stats = item.second;
+            
+            if (stats.count == 0) {
+                continue;
+            }
+
+            JsonObject payload;
+            payload["plugin_name"] = stats.pluginName;
+            payload["service_name"] = stats.serviceName;
+            payload["reporting_interval_sec"] = reportingIntervalSec;
+            payload["count"] = stats.count;
+            
+            double avgLatency = stats.totalLatencyMs / stats.count;
+            double minLatency = (stats.minLatencyMs == std::numeric_limits<double>::max()) 
+                                ? 0.0 : stats.minLatencyMs;
+            double maxLatency = (stats.maxLatencyMs == std::numeric_limits<double>::lowest()) 
+                                ? 0.0 : stats.maxLatencyMs;
+            
+            payload["avg_ms"] = avgLatency;
+            payload["min_ms"] = minLatency;
+            payload["max_ms"] = maxLatency;
+            payload["unit"] = AGW_UNIT_MILLISECONDS;
+            
+            Exchange::GatewayContext sysContext = parent->CreateSystemContext();
+            parent->SendT2Event(AGW_MARKER_SERVICE_LATENCY, payload, sysContext);
+        }
+
+        LOGINFO("TelemetrySnapshot: Service latency stats sent: %zu plugin/service combinations", serviceLatencyStats.size());
+    }
+
+    void AppGatewayTelemetry::TelemetrySnapshot::SendApiErrorStats()
+    {
+        if (apiErrorCounts.empty()) {
+            LOGTRACE("TelemetrySnapshot: No API error stats to report");
+            return;
+        }
+
+        // Send each API error count as a separate metric
+        for (const auto& item : apiErrorCounts) {
+            std::string metricName = std::string(AGW_METRIC_API_ERROR_COUNT_PREFIX) + item.first + AGW_METRIC_SUFFIX;
+            
+            JsonObject metricPayload;
+            metricPayload["reporting_interval_sec"] = reportingIntervalSec;
+            metricPayload["sum"] = item.second;
+            metricPayload["count"] = 1;
+            metricPayload["unit"] = AGW_UNIT_COUNT;
+            
+            Exchange::GatewayContext sysContext = parent->CreateSystemContext();
+            parent->SendT2Event(metricName.c_str(), metricPayload, sysContext);
+        }
+
+        LOGINFO("TelemetrySnapshot: API error stats sent: %zu APIs with errors", apiErrorCounts.size());
+    }
+
+    void AppGatewayTelemetry::TelemetrySnapshot::SendExternalServiceErrorStats()
+    {
+        if (externalServiceErrorCounts.empty()) {
+            LOGTRACE("TelemetrySnapshot: No external service error stats to report");
+            return;
+        }
+
+        // Send each external service error count as a separate metric
+        for (const auto& item : externalServiceErrorCounts) {
+            std::string metricName = std::string(AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX) + item.first + AGW_METRIC_SUFFIX;
+            
+            JsonObject metricPayload;
+            metricPayload["reporting_interval_sec"] = reportingIntervalSec;
+            metricPayload["sum"] = item.second;
+            metricPayload["count"] = 1;
+            metricPayload["unit"] = AGW_UNIT_COUNT;
+            
+            Exchange::GatewayContext sysContext = parent->CreateSystemContext();
+            parent->SendT2Event(metricName.c_str(), metricPayload, sysContext);
+        }
+
+        LOGINFO("TelemetrySnapshot: External service error stats sent: %zu services with errors", 
+                externalServiceErrorCounts.size());
+    }
+
+    void AppGatewayTelemetry::TelemetrySnapshot::SendAggregatedMetrics()
+    {
+        if (metricsCache.empty()) {
+            LOGTRACE("TelemetrySnapshot: No aggregated metrics to report");
+            return;
+        }
+
+        // Send each metric with its own marker
+        for (const auto& item : metricsCache) {
+            const std::string& metricName = item.first;
+            const MetricData& data = item.second;
+            
+            if (data.count == 0) {
+                continue;
+            }
+
+            double minVal = (data.min == std::numeric_limits<double>::max()) ? 0.0 : data.min;
+            double maxVal = (data.max == std::numeric_limits<double>::lowest()) ? 0.0 : data.max;
+            double avgVal = data.sum / static_cast<double>(data.count);
+
+            JsonObject payload;
+            payload["min"] = minVal;
+            payload["max"] = maxVal;
+            payload["count"] = data.count;
+            payload["avg"] = avgVal;
+            payload["unit"] = data.unit;
+            payload["reporting_interval_sec"] = reportingIntervalSec;
+
+            Exchange::GatewayContext sysContext = parent->CreateSystemContext();
+            parent->SendT2Event(metricName.c_str(), payload, sysContext);
+        }
+
+        LOGINFO("TelemetrySnapshot: Aggregated metrics sent: %zu metrics", metricsCache.size());
+    }
+
+    // FlushJob Implementation - Async telemetry sending (DEPRECATED - kept for compatibility)
 
     void AppGatewayTelemetry::FlushJob::Dispatch()
     {
