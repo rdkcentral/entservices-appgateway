@@ -25,6 +25,7 @@
 #include <map>
 #include "UtilsLogging.h"
 #include "UtilsController.h"
+#include "UtilsJsonValidation.h"
 #include "delegate/SettingsDelegate.h"
 #include <unordered_map>
 #include <functional>
@@ -170,6 +171,10 @@ namespace WPEFramework {
             Core::hresult Lifecycle2Close(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult DispatchLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult GetLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            
+            // EventRegistrationJob helper method (AppGatewayCommon-specific)
+            bool SafeSubmitEventRegistrationJob(Exchange::IAppNotificationHandler::IEmitter* cb, 
+                                               const std::string& event, bool listen);
 
         private:
             PluginHost::IShell* mShell;
