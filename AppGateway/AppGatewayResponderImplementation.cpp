@@ -245,7 +245,6 @@ namespace WPEFramework
                     appId
                 };
 
-                //Need one more Null check to confirm no other thread has created the instance
                 if (nullptr == mResolver) {
                     mResolver = mService->QueryInterface<Exchange::IAppGatewayResolver>();
                     if (nullptr == mResolver) {
