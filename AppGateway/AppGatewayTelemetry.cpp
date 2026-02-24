@@ -43,7 +43,7 @@ namespace Plugin {
         , mTelemetryFormat(TelemetryFormat::JSON)  // Default to JSON format
         , mTimer(Core::ProxyType<TelemetryTimer>::Create(this))
         , mTimerHandler(1024 * 64, _T("AppGwTelemetryTimer"))
-        , mWorkerPool(2, Core::Thread::DefaultStackSize(), 16)  // 2 threads for async telemetry
+        , mWorkerPool(2, Core::Thread::DefaultStackSize(), 16, nullptr)  // 2 threads, nullptr dispatcher = default
         , mTimerRunning(false)
         , mCachedEventCount(0)
         , mInitialized(false)
@@ -116,7 +116,7 @@ namespace Plugin {
         // Wait for all pending WorkerPool jobs to complete before shutdown
         // This ensures telemetry data is sent before the process exits
         LOGINFO("AppGatewayTelemetry: Waiting for pending telemetry jobs to complete");
-        mWorkerPool.Stop(Core::infinite);  // Block until all jobs finish
+        mWorkerPool.Stop();  // Block until all jobs finish
 
         {
             Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
@@ -1035,7 +1035,9 @@ namespace Plugin {
 
         // Dispatch snapshot for async sending (ownership transferred to FlushJob)
         Core::ProxyType<FlushJob> job = Core::ProxyType<FlushJob>::Create(std::move(snapshot));
-        mWorkerPool.Submit(job);
+        // Cast to IDispatch for WorkerPool submission
+        Core::ProxyType<Core::IDispatch> dispatchJob(job);
+        mWorkerPool.Submit(dispatchJob);
     }
 
     void AppGatewayTelemetry::SendHealthStats()
