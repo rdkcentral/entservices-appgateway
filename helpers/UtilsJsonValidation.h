@@ -33,28 +33,26 @@ public:
      * @param payload The JSON payload to parse
      * @param fieldName The field name to extract (default: "value")
      * @param extractedValue Output string for the extracted value
+     * @param allowEmpty Whether an empty string is considered valid (default: false)
      * @return true if validation successful, false otherwise
      */
-    static bool ValidateAndExtractString(const std::string& payload, const std::string& fieldName, std::string& extractedValue) {
+    static bool ValidateAndExtractString(const std::string& payload, const std::string& fieldName, std::string& extractedValue, const bool allowEmpty = false) {
         Core::JSON::VariantContainer params;
         if (!params.FromString(payload)) {
             LOGERR("ValidateAndExtractString: Failed to parse JSON payload");
             return false;
         }
-        
         if (!params.HasLabel(fieldName.c_str())) {
             LOGERR("ValidateAndExtractString: Missing field '%s' in payload", fieldName.c_str());
             return false;
         }
-        
         const Core::JSON::Variant& value = params.Get(fieldName.c_str());
         if (value.Content() != Core::JSON::Variant::type::STRING) {
             LOGERR("ValidateAndExtractString: Field '%s' is not a string", fieldName.c_str());
             return false;
         }
-        
         extractedValue = value.String();
-        if (extractedValue.empty()) {
+        if ((true != allowEmpty) && extractedValue.empty()) {
             LOGERR("ValidateAndExtractString: Field '%s' contains empty string", fieldName.c_str());
             return false;
         }
