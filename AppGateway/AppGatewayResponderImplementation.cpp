@@ -313,29 +313,16 @@ namespace WPEFramework
             // Create context for telemetry
             Exchange::GatewayContext context = {(uint32_t)requestId, connectionId, appId};
 
-            // Parse the payload to check if it's JSON-RPC 2.0 format
-            JsonObject payloadJson;
-            if (payloadJson.FromString(payload)) {
-                // Check if it's JSON-RPC 2.0 format
-                // Note: AppGateway is not fully JSON-RPC compliant - it includes "id" field for both
-                // responses and notifications (historical reasons). So we can't use "id" to distinguish.
-                // Instead, we rely on RecordResponse() which uses the responseReceived flag to ensure
-                // that for each unique (connectionId, requestId) pair, we only count ONCE.
-                // 
-                // For "result" case: May be received multiple times (response + notifications)
-                //                    but RecordResponse() will only count the FIRST occurrence
-                // For "error" case: Typically received only once, but RecordResponse() still protects
-                if (payloadJson.HasLabel("jsonrpc") && payloadJson["jsonrpc"].String() == "2.0") {
-                    // Check if response contains result (success) or error (failure)
-                    if (payloadJson.HasLabel("result")) {
-                        // Success response/notification - RecordResponse() ensures only first one counted
-                        AppGatewayTelemetry::getInstance().RecordResponse(context, true);
-                    } else if (payloadJson.HasLabel("error")) {
-                        // Error response - RecordResponse() ensures only first one counted
-                        AppGatewayTelemetry::getInstance().RecordResponse(context, false);
-                    }
-                }
-            }
+            // Track response payload - AppGateway will parse and determine success/failure
+            JsonObject eventData;
+            eventData["payload"] = payload;
+            string eventDataStr;
+            eventData.ToString(eventDataStr);
+            AppGatewayTelemetry::getInstance().RecordTelemetryEvent(
+                context,
+                AGW_MARKER_RESPONSE_PAYLOAD_TRACKING,
+                eventDataStr
+            );
             
             // Send response back to client
             mWsManager.SendMessageToConnection(connectionId, payload, requestId);

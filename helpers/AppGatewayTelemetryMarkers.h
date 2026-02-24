@@ -136,6 +136,7 @@
  */
 #define AGW_MARKER_RESPONSE_CALLS                   "AppGwResponseCalls_split"
 
+#if 0
 /**
  * @brief Internal marker for response tracking (used by AGW_RECORD_RESPONSE macro)
  * @details Special marker that triggers internal RecordResponse() logic via COM-RPC
@@ -144,6 +145,16 @@
  * @note Value encoding: 1.0 = success, 0.0 = failure
  */
 #define AGW_MARKER_INTERNAL_RESPONSE                "AppGwInternalResponse_split"
+#endif 
+/**
+ * @brief Internal marker for response payload tracking (used by AGW_TRACK_RESPONSE_PAYLOAD macro)
+ * @details Special event marker that triggers JSON-RPC 2.0 response parsing and tracking
+ * @usage RecordTelemetryEvent(context, AGW_MARKER_RESPONSE_PAYLOAD_TRACKING, jsonPayloadWithResult)
+ * @note This is an INTERNAL marker - used by responder implementations
+ * @note Event data format: {"payload": "<json-rpc-2.0-response>"}
+ * @note AppGateway parses the payload to determine success/failure and calls RecordResponse
+ */
+#define AGW_MARKER_RESPONSE_PAYLOAD_TRACKING        "AppGwResponsePayloadTracking_split"
 
 /**
  * @brief Consolidated health statistics marker (sent periodically)

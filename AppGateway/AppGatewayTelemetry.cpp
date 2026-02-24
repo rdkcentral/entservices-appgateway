@@ -331,11 +331,34 @@ namespace Plugin {
             return Core::ERROR_UNAVAILABLE;
         }
 
-        LOGTRACE("RecordTelemetryEvent from %s: event=%s, data=%s",
-                 context.appId.c_str(), eventName.c_str(), eventData.c_str());
+        // Handle internal response payload tracking event
+        if (eventName == AGW_MARKER_RESPONSE_PAYLOAD_TRACKING) {
+            // Parse event data to extract payload
+            JsonObject eventJson;
+            if (eventJson.FromString(eventData)) {
+                if (eventJson.HasLabel("payload")) {
+                    string payload = eventJson["payload"].String();
+                    
+                    // Parse the payload as JSON-RPC 2.0 response
+                    JsonObject payloadJson;
+                    if (payloadJson.FromString(payload)) {
+                        // Check if it's JSON-RPC 2.0 format
+                        if (payloadJson.HasLabel("jsonrpc") && payloadJson["jsonrpc"].String() == "2.0") {
+                            // Determine success or failure based on presence of "result" or "error"
+                            if (payloadJson.HasLabel("result")) {
+                                // Success response
+                                RecordResponse(context, true);
+                            } else if (payloadJson.HasLabel("error")) {
+                                // Error response
+                                RecordResponse(context, false);
+                            }
+                        }
+                    }
+                }
+            }
+            return Core::ERROR_NONE;
+        }
 
-        // The eventName acts as the T2 marker
-        // Parse eventName to determine the type of telemetry
         // 
         // Supported event name patterns:
         // - "AppGwPluginApiError_split" - API errors from other plugins (sent immediately)
@@ -926,14 +949,15 @@ namespace Plugin {
         LOGTRACE("RecordTelemetryMetric from %s: metric=%s, value=%f, unit=%s",
                     context.appId.c_str(), metricName.c_str(), metricValue, metricUnit.c_str());
 
-        // Handle internal response tracking marker (from AGW_RECORD_RESPONSE macro)
+#if 0                    
+        // Handle internal response tracking marker
         if (metricName == AGW_MARKER_INTERNAL_RESPONSE) {
             // Value encoding: 1.0 = success, 0.0 = failure
             bool isSuccess = (metricValue >= 0.5);
             RecordResponse(context, isSuccess);
             return Core::ERROR_NONE;
         }
-
+#endif
         // Handle bootstrap duration metric
         if (metricName == AGW_MARKER_BOOTSTRAP_DURATION) {
             RecordBootstrapTime(static_cast<uint64_t>(metricValue));
