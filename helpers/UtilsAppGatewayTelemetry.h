@@ -343,6 +343,41 @@ namespace AppGatewayTelemetryHelper {
         }
 
         /**
+         * @brief Record a response (success or failure) atomically via COM-RPC
+         * @param context Gateway context with request/connection/app info
+         * @param isSuccess true for successful response, false for error response
+         * @return Core::hresult
+         * 
+         * This method uses the COM-RPC interface with a special internal marker
+         * (AGW_MARKER_INTERNAL_RESPONSE) that triggers the internal RecordResponse()
+         * logic in AppGatewayTelemetry. This ensures proper COM-RPC architecture
+         * rather than directly calling the singleton.
+         * 
+         * Value encoding: 1.0 = success, 0.0 = failure
+         * 
+         * The internal RecordResponse() combines IncrementTotalResponses and
+         * IncrementSuccessfulCalls/IncrementFailedCalls into a single atomic
+         * operation to ensure both counters are updated together and exactly once
+         * per request.
+         * 
+         * Uses the responseReceived flag internally to prevent double-counting
+         * even if called multiple times for the same (connectionId, requestId) pair.
+         */
+        Core::hresult RecordResponse(const Exchange::GatewayContext& context, bool isSuccess)
+        {
+            if (!IsAvailable()) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            
+            // Use special internal marker to trigger RecordResponse via COM-RPC
+            // Value: 1.0 = success, 0.0 = failure
+            return mTelemetry->RecordTelemetryMetric(context, 
+                                                      AGW_MARKER_INTERNAL_RESPONSE,
+                                                      isSuccess ? 1.0 : 0.0,
+                                                      AGW_UNIT_COUNT);
+        }
+
+        /**
          * @brief Get the plugin name
          * @return The plugin name
          */
@@ -905,6 +940,54 @@ namespace AppGatewayTelemetryHelper {
         auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
             client.RecordServiceLatency(context, serviceName, latencyMs); \
+        } \
+    } while(0)
+
+//=============================================================================
+// 4. RESPONSE TRACKING MACRO
+//=============================================================================
+
+/**
+ * @brief Record a response (success or failure) atomically via internal singleton
+ * @param context Gateway context with request/connection/app info
+ * @param isSuccess true for successful response (has "result"), false for error (has "error")
+ * 
+ * **Data Flow**:
+ * - Accesses AppGatewayTelemetry singleton internally
+ * - Calls RecordResponse() which atomically updates:
+ *   * totalResponses counter (always incremented)
+ *   * successfulCalls OR failedCalls (based on isSuccess)
+ * - Uses responseReceived flag to prevent double-counting
+ * - First call for a (connectionId, requestId) pair is counted
+ * - Subsequent calls for same pair are ignored
+ * 
+ * **When to Use**:
+ * - After parsing JSON-RPC 2.0 response payload
+ * - When you know if response is success (has "result") or error (has "error")
+ * - Replaces separate calls to IncrementTotalResponses + IncrementSuccessfulCalls/FailedCalls
+ * 
+ * **Thread Safety**:
+ * - Safe to call from multiple threads
+ * - Internal locking ensures atomic updates
+ * - Double-counting prevention is thread-safe
+ * 
+ * Example:
+ *   JsonObject payloadJson;
+ *   if (payloadJson.FromString(payload)) {
+ *       if (payloadJson.HasLabel("jsonrpc") && payloadJson["jsonrpc"].String() == "2.0") {
+ *           if (payloadJson.HasLabel("result")) {
+ *               AGW_RECORD_RESPONSE(context, true);  // Success
+ *           } else if (payloadJson.HasLabel("error")) {
+ *               AGW_RECORD_RESPONSE(context, false);  // Error
+ *           }
+ *       }
+ *   }
+ */
+#define AGW_RECORD_RESPONSE(context, isSuccess) \
+    do { \
+        auto& client = GetLocalTelemetryClient(); \
+        if (client.IsAvailable()) { \
+            client.RecordResponse(context, isSuccess); \
         } \
     } while(0)
 
