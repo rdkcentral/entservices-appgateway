@@ -100,7 +100,7 @@ namespace Plugin {
     Core::hresult AppGatewayCommon::HandleAppEventNotifier(Exchange::IAppNotificationHandler::IEmitter *cb, const string& event /* @in */,
                                     bool listen /* @in */,
                                     bool &status /* @out */) {
-            LOGTRACE("HandleFireboltNotifier [event=%s listen=%s]",
+            LOGTRACE("HandleAppEventNotifier [event=%s listen=%s]",
                     event.c_str(), listen ? "true" : "false");
             
             status = this->SafeSubmitEventRegistrationJob(cb, event, listen);

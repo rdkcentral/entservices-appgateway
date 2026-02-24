@@ -39,7 +39,7 @@ public:
     static bool ValidateAndExtractString(const std::string& payload, const std::string& fieldName = "value", std::string& extractedValue, const bool allowEmpty = false) {
         Core::JSON::VariantContainer params;
         if (!params.FromString(payload)) {
-            LOGERR("ValidateAndExtractString: Failed to parse JSON payload");
+            LOGWARN("ValidateAndExtractString: Failed to parse JSON payload");
             return false;
         }
         if (!params.HasLabel(fieldName.c_str())) {
