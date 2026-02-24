@@ -36,7 +36,7 @@ public:
      * @param allowEmpty Whether an empty string is considered valid (default: false)
      * @return true if validation successful, false otherwise
      */
-    static bool ValidateAndExtractString(const std::string& payload, const std::string& fieldName, std::string& extractedValue, const bool allowEmpty = false) {
+    static bool ValidateAndExtractString(const std::string& payload, const std::string& fieldName = "value", std::string& extractedValue, const bool allowEmpty = false) {
         Core::JSON::VariantContainer params;
         if (!params.FromString(payload)) {
             LOGERR("ValidateAndExtractString: Failed to parse JSON payload");
@@ -47,7 +47,7 @@ public:
             return false;
         }
         const Core::JSON::Variant& value = params.Get(fieldName.c_str());
-        if (value.Content() != Core::JSON::Variant::type::STRING) {
+        if (Core::JSON::Variant::type::STRING != value.Content()) {
             LOGERR("ValidateAndExtractString: Field '%s' is not a string", fieldName.c_str());
             return false;
         }
@@ -67,10 +67,10 @@ public:
      * @param extractedValue Output boolean for the extracted value
      * @return true if validation successful, false otherwise
      */
-    static bool ValidateAndExtractBool(const std::string& payload, const std::string& fieldName, bool& extractedValue) {
+    static bool ValidateAndExtractBool(const std::string& payload, const std::string& fieldName = "value", bool& extractedValue) {
         Core::JSON::VariantContainer params;
         if (!params.FromString(payload)) {
-            LOGERR("ValidateAndExtractBool: Failed to parse JSON payload");
+            LOGWARN("ValidateAndExtractBool: Failed to parse JSON payload");
             return false;
         }
         
@@ -80,7 +80,7 @@ public:
         }
         
         const Core::JSON::Variant& value = params.Get(fieldName.c_str());
-        if (value.Content() != Core::JSON::Variant::type::BOOLEAN) {
+        if (Core::JSON::Variant::type::BOOLEAN != value.Content()) {
             LOGERR("ValidateAndExtractBool: Field '%s' is not a boolean", fieldName.c_str());
             return false;
         }
@@ -98,13 +98,13 @@ public:
      * @param maxValue Maximum allowed value (default: no limit)
      * @return true if validation successful, false otherwise
      */
-    static bool ValidateAndExtractDouble(const std::string& payload, const std::string& fieldName, 
+    static bool ValidateAndExtractDouble(const std::string& payload, const std::string& fieldName = "value", 
                                        double& extractedValue, 
                                        double minValue = std::numeric_limits<double>::lowest(), 
                                        double maxValue = std::numeric_limits<double>::max()) {
         Core::JSON::VariantContainer params;
         if (!params.FromString(payload)) {
-            LOGERR("ValidateAndExtractDouble: Failed to parse JSON payload");
+            LOGWARN("ValidateAndExtractDouble: Failed to parse JSON payload");
             return false;
         }
         
@@ -114,7 +114,7 @@ public:
         }
         
         const Core::JSON::Variant& value = params.Get(fieldName.c_str());
-        if (value.Content() != Core::JSON::Variant::type::NUMBER) {
+        if (Core::JSON::Variant::type::NUMBER != value.Content()) {
             LOGERR("ValidateAndExtractDouble: Field '%s' is not a number", fieldName.c_str());
             return false;
         }
@@ -122,12 +122,12 @@ public:
         extractedValue = value.Number();
         
         // Bounds checking if limits are specified
-        if (minValue != std::numeric_limits<double>::lowest() && extractedValue < minValue) {
+        if (std::numeric_limits<double>::lowest() != minValue && minValue > extractedValue) {
             LOGERR("ValidateAndExtractDouble: Value %.2f is below minimum %.2f", extractedValue, minValue);
             return false;
         }
         
-        if (maxValue != std::numeric_limits<double>::max() && extractedValue > maxValue) {
+        if (std::numeric_limits<double>::max() != maxValue && maxValue < extractedValue) {
             LOGERR("ValidateAndExtractDouble: Value %.2f exceeds maximum %.2f", extractedValue, maxValue);
             return false;
         }

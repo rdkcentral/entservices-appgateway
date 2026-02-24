@@ -104,7 +104,7 @@ namespace Plugin {
                     event.c_str(), listen ? "true" : "false");
             
             status = this->SafeSubmitEventRegistrationJob(cb, event, listen);
-            if (!status) {
+            if (false == status) {
                 LOGERR("HandleAppEventNotifier: Failed to submit event registration job for event %s", event.c_str());
                 return Core::ERROR_GENERAL;
             }
@@ -289,7 +289,7 @@ namespace Plugin {
                     method.c_str(), payload.c_str(), context.appId.c_str());
             
             // Check if delegate is properly initialized
-            if (!mDelegate) {
+            if (nullptr == mDelegate) {
                 LOGERR("HandleAppGatewayRequest: mDelegate is null, plugin not properly initialized");
                 result = "{\"error\":\"Service unavailable\"}";
                 return Core::ERROR_UNAVAILABLE;
@@ -443,14 +443,9 @@ namespace Plugin {
          */
         bool AppGatewayCommon::SafeSubmitEventRegistrationJob(Exchange::IAppNotificationHandler::IEmitter* cb, 
                                                               const std::string& event, bool listen) {
-            if (!cb) {
-                LOGERR("SafeSubmitEventRegistrationJob: Callback is null");
-                return false;
-            }
-            
             try {
                 auto job = EventRegistrationJob::Create(this, cb, event, listen);
-                if (!job.IsValid()) {
+                if (false == job.IsValid()) {
                     LOGERR("SafeSubmitEventRegistrationJob: Failed to create EventRegistrationJob");
                     return false;
                 }
