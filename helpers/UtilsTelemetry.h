@@ -31,14 +31,14 @@ namespace Utils
         static void init()
         {
 #ifdef ENABLE_TELEMETRY_LOGGING
-            t2_init((char *) "Thunder_Plugins");
+            t2_init((char *) "appgateway");
 #endif
         };
 
         static void sendMessage(char* message)
         {
 #ifdef ENABLE_TELEMETRY_LOGGING
-            t2_event_s((char *)"THUNDER_MESSAGE", message);
+            t2_event_s((char *)"APPGATEWAY_MESSAGE", message);
 #endif
         };
 
@@ -60,7 +60,7 @@ namespace Utils
 
             // get rid of const for t2_event_s
             char* error = strdup(message.c_str());
-            t2_event_s((char *)"THUNDER_ERROR", error);
+            t2_event_s((char *)"APPGATEWAY_ERROR", error);
             if (error)
             {
                 free(error);

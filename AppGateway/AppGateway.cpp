@@ -67,7 +67,6 @@ namespace Plugin {
         ASSERT(mResponder == nullptr);
 
         LOGINFO("AppGateway::Initialize: PID=%u", getpid());
-
         // Measure bootstrap time
         auto bootstrapStart = std::chrono::steady_clock::now();
 
