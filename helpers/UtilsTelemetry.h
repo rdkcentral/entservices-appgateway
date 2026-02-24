@@ -31,12 +31,9 @@ namespace Utils
     {
         static void init()
         {
-        LOGINFO("[Telemetry2] Initializing telemetry for AppGateway-entservice");
 #ifdef ENABLE_TELEMETRY_LOGGING
-        LOGINFO("[Telemetry2] Initializing telemetry for AppGateway-entservice FLAG ENABLE_TELEMETRY_LOGGING is defined");
             t2_init((char *) "appgateway");
 #endif
-        LOGINFO("[Telemetry2] Telemetry initialized");
         };
 
         static void sendMessage(char* message)
@@ -48,7 +45,6 @@ namespace Utils
 
         static void sendMessage(char *marker, char* message)
         {
-        LOGINFO("[Telemetry2] Sending telemetry message: %s: %s", marker, message);
 #ifdef ENABLE_TELEMETRY_LOGGING
             t2_event_s(marker, message);
 #endif
@@ -56,7 +52,6 @@ namespace Utils
 
         static void sendError(const char* format, ...)
         {
-        LOGINFO("[Telemetry2] Sending telemetry error: %s", format);
 #ifdef ENABLE_TELEMETRY_LOGGING
             va_list parameters;
             va_start(parameters, format);
