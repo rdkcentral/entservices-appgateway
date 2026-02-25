@@ -31,12 +31,12 @@ public:
     /**
      * @brief Safely validates JSON payload and extracts string value
      * @param payload The JSON payload to parse
-     * @param fieldName The field name to extract (default: "value")
      * @param extractedValue Output string for the extracted value
+     * @param fieldName The field name to extract (default: "value")
      * @param allowEmpty Whether an empty string is considered valid (default: false)
      * @return true if validation successful, false otherwise
      */
-    static bool ValidateAndExtractString(const std::string& payload, const std::string& fieldName = "value", std::string& extractedValue, const bool allowEmpty = false) {
+    static bool ValidateAndExtractString(const std::string& payload, std::string& extractedValue, const std::string& fieldName = "value", const bool allowEmpty = false) {
         Core::JSON::VariantContainer params;
         if (!params.FromString(payload)) {
             LOGWARN("ValidateAndExtractString: Failed to parse JSON payload");
@@ -63,11 +63,11 @@ public:
     /**
      * @brief Safely validates JSON payload and extracts boolean value
      * @param payload The JSON payload to parse
-     * @param fieldName The field name to extract (default: "value")
      * @param extractedValue Output boolean for the extracted value
+     * @param fieldName The field name to extract (default: "value")
      * @return true if validation successful, false otherwise
      */
-    static bool ValidateAndExtractBool(const std::string& payload, const std::string& fieldName = "value", bool& extractedValue) {
+    static bool ValidateAndExtractBool(const std::string& payload, bool& extractedValue, const std::string& fieldName = "value") {
         Core::JSON::VariantContainer params;
         if (!params.FromString(payload)) {
             LOGWARN("ValidateAndExtractBool: Failed to parse JSON payload");
@@ -92,16 +92,17 @@ public:
     /**
      * @brief Safely validates JSON payload and extracts numeric value with bounds checking
      * @param payload The JSON payload to parse
-     * @param fieldName The field name to extract (default: "value")
      * @param extractedValue Output double for the extracted value
+     * @param fieldName The field name to extract (default: "value")
      * @param minValue Minimum allowed value (used only if checkMinValue is true)
      * @param maxValue Maximum allowed value (used only if checkMaxValue is true)
      * @param checkMinValue Whether to apply minimum value checking (default: false)
      * @param checkMaxValue Whether to apply maximum value checking (default: false)
      * @return true if validation successful, false otherwise
      */
-    static bool ValidateAndExtractDouble(const std::string& payload, const std::string& fieldName = "value", 
-                                       double& extractedValue, 
+    static bool ValidateAndExtractDouble(const std::string& payload, 
+                                       double& extractedValue,
+                                       const std::string& fieldName = "value", 
                                        double minValue = 0.0, 
                                        double maxValue = 0.0,
                                        bool checkMinValue = false,

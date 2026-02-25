@@ -304,7 +304,7 @@ namespace Plugin {
             else if (lowerMethod == "device.setname")
             {
                 std::string name;
-                if (JsonValidation::ValidateAndExtractString(payload, "value", name)) {
+                if (JsonValidation::ValidateAndExtractString(payload, name)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetDeviceName(name), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
@@ -313,7 +313,7 @@ namespace Plugin {
             else if (lowerMethod == "localization.setcountrycode")
             {
                 std::string countryCode;
-                if (JsonValidation::ValidateAndExtractString(payload, "value", countryCode)) {
+                if (JsonValidation::ValidateAndExtractString(payload, countryCode)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetCountryCode(countryCode), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
@@ -322,7 +322,7 @@ namespace Plugin {
             else if (lowerMethod == "localization.settimezone")
             {
                 std::string timeZone;
-                if (JsonValidation::ValidateAndExtractString(payload, "value", timeZone)) {
+                if (JsonValidation::ValidateAndExtractString(payload, timeZone)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetTimeZone(timeZone), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
@@ -331,7 +331,7 @@ namespace Plugin {
             else if (lowerMethod == "voiceguidance.setenabled")
             {
                 bool enabled;
-                if (JsonValidation::ValidateAndExtractBool(payload, "value", enabled)) {
+                if (JsonValidation::ValidateAndExtractBool(payload, enabled)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetVoiceGuidance(enabled), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
@@ -353,7 +353,7 @@ namespace Plugin {
             {
                 double speed;
                 // Voice guidance speed should be between 0.5 and 2.0
-                if (JsonValidation::ValidateAndExtractDouble(payload, "value", speed, 0.5, 2.0, true, true)) {
+                if (JsonValidation::ValidateAndExtractDouble(payload, speed, "value", 0.5, 2.0, true, true)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetSpeed(speed), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing, invalid, or out-of-range 'value' field (expected 0.5-2.0)\"}";
@@ -362,7 +362,7 @@ namespace Plugin {
             else if (lowerMethod == "voiceguidance.setnavigationhints")
             {
                 bool enabled;
-                if (JsonValidation::ValidateAndExtractBool(payload, "value", enabled)) {
+                if (JsonValidation::ValidateAndExtractBool(payload, enabled)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetVoiceGuidanceHints(enabled), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
@@ -371,7 +371,7 @@ namespace Plugin {
             else if (lowerMethod == "audiodescriptions.setenabled")
             {
                 bool enabled;
-                if (JsonValidation::ValidateAndExtractBool(payload, "value", enabled)) {
+                if (JsonValidation::ValidateAndExtractBool(payload, enabled)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetAudioDescriptionsEnabled(enabled), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
@@ -380,7 +380,7 @@ namespace Plugin {
             else if (lowerMethod == "closedcaptions.setenabled")
             {
                 bool enabled;
-                if (JsonValidation::ValidateAndExtractBool(payload, "value", enabled)) {
+                if (JsonValidation::ValidateAndExtractBool(payload, enabled)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetCaptions(enabled), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
@@ -390,7 +390,7 @@ namespace Plugin {
             else if (lowerMethod == "closedcaptions.setpreferredlanguages")
             {
                 std::string languages;
-                if (JsonValidation::ValidateAndExtractString(payload, "value", languages)) {
+                if (JsonValidation::ValidateAndExtractString(payload, languages)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetPreferredCaptionsLanguages(languages), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
@@ -400,7 +400,7 @@ namespace Plugin {
             else if (lowerMethod == "localization.setlocale")
             {
                 std::string locale;
-                if (JsonValidation::ValidateAndExtractString(payload, "value", locale)) {
+                if (JsonValidation::ValidateAndExtractString(payload, locale)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetLocale(locale), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
@@ -409,7 +409,7 @@ namespace Plugin {
             else if (lowerMethod == "localization.setpreferredaudiolanguages")
             {
                 std::string languages;
-                if (JsonValidation::ValidateAndExtractString(payload, "value", languages)) {
+                if (JsonValidation::ValidateAndExtractString(payload, languages)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetPreferredAudioLanguages(languages), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
