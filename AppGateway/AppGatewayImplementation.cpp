@@ -566,9 +566,9 @@ namespace WPEFramework
 
         Exchange::IAppGatewayAuthenticator* AppGatewayImplementation::GetAppGatewayAuthenticatorInterface() {
             Core::SafeSyncType<Core::CriticalSection> lock(mAuthenticatorLock);
-            if (mAuthenticator == nullptr) {
+            if (nullptr == mAuthenticator) {
                 mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
-                if (mAuthenticator == nullptr) {
+                if (nullptr == mAuthenticator) {
                     LOGERR("AppGateway Authenticator not available");
                     return nullptr;
                 } else {
