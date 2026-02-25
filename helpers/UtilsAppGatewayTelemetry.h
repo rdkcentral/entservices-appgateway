@@ -344,42 +344,7 @@ namespace AppGatewayTelemetryHelper {
             return RecordMetric(context, AGW_MARKER_BOOTSTRAP_DURATION, 
                               static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
         }
-#if 0
-        /**
-         * @brief Record a response (success or failure) atomically via COM-RPC
-         * @param context Gateway context with request/connection/app info
-         * @param isSuccess true for successful response, false for error response
-         * @return Core::hresult
-         * 
-         * This method uses the COM-RPC interface with a special internal marker
-         * (AGW_MARKER_INTERNAL_RESPONSE) that triggers the internal RecordResponse()
-         * logic in AppGatewayTelemetry. This ensures proper COM-RPC architecture
-         * rather than directly calling the singleton.
-         * 
-         * Value encoding: 1.0 = success, 0.0 = failure
-         * 
-         * The internal RecordResponse() combines IncrementTotalResponses and
-         * IncrementSuccessfulCalls/IncrementFailedCalls into a single atomic
-         * operation to ensure both counters are updated together and exactly once
-         * per request.
-         * 
-         * Uses the responseReceived flag internally to prevent double-counting
-         * even if called multiple times for the same (connectionId, requestId) pair.
-         */
-        Core::hresult RecordResponse(const Exchange::GatewayContext& context, bool isSuccess)
-        {
-            if (!IsAvailable()) {
-                return Core::ERROR_UNAVAILABLE;
-            }
-            
-            // Use special internal marker to trigger RecordResponse via COM-RPC
-            // Value: 1.0 = success, 0.0 = failure
-            return mTelemetry->RecordTelemetryMetric(context, 
-                                                      AGW_MARKER_INTERNAL_RESPONSE,
-                                                      isSuccess ? 1.0 : 0.0,
-                                                      AGW_UNIT_COUNT);
-        }
-#endif
+
         /**
          * @brief Track response payload for automatic success/failure detection
          * @param context Gateway context with request/connection/app info
@@ -511,18 +476,20 @@ namespace AppGatewayTelemetryHelper {
             }
 
             auto endTime = std::chrono::steady_clock::now();
-            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            // Use microseconds for precision, then convert to milliseconds as double
+            auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
                 endTime - mStartTime).count();
+            double durationMs = durationUs / 1000.0;  // Convert to milliseconds with decimal precision
             
             if (mFailed) {
                 mClient->RecordApiError(mContext, mApiName, mErrorDetails);
                 std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
                                          "_MethodName_" + mApiName + "_Error_split";
-                mClient->RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+                mClient->RecordMetric(mContext, metricName, durationMs, AGW_UNIT_MILLISECONDS);
             } else {
                 std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
                                          "_MethodName_" + mApiName + "_Success_split";
-                mClient->RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+                mClient->RecordMetric(mContext, metricName, durationMs, AGW_UNIT_MILLISECONDS);
             }
         }
 
@@ -583,18 +550,20 @@ namespace AppGatewayTelemetryHelper {
             }
 
             auto endTime = std::chrono::steady_clock::now();
-            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            // Use microseconds for precision, then convert to milliseconds as double
+            auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
                 endTime - mStartTime).count();
+            double durationMs = durationUs / 1000.0;  // Convert to milliseconds with decimal precision
             
             if (mFailed) {
                 mClient->RecordExternalServiceError(mContext, mServiceName, mErrorDetails);
                 std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
                                          "_ServiceName_" + mServiceName + "_Error_split";
-                mClient->RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+                mClient->RecordMetric(mContext, metricName, durationMs, AGW_UNIT_MILLISECONDS);
             } else {
                 std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
                                          "_ServiceName_" + mServiceName + "_Success_split";
-                mClient->RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+                mClient->RecordMetric(mContext, metricName, durationMs, AGW_UNIT_MILLISECONDS);
             }
         }
 

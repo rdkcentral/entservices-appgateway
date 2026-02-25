@@ -136,16 +136,6 @@
  */
 #define AGW_MARKER_RESPONSE_CALLS                   "AppGwResponseCalls_split"
 
-#if 0
-/**
- * @brief Internal marker for response tracking (used by AGW_RECORD_RESPONSE macro)
- * @details Special marker that triggers internal RecordResponse() logic via COM-RPC
- * @usage RecordTelemetryMetric(context, AGW_MARKER_INTERNAL_RESPONSE, isSuccess ? 1.0 : 0.0, AGW_UNIT_COUNT)
- * @note This is an INTERNAL marker - plugins should use AGW_RECORD_RESPONSE() macro instead
- * @note Value encoding: 1.0 = success, 0.0 = failure
- */
-#define AGW_MARKER_INTERNAL_RESPONSE                "AppGwInternalResponse_split"
-#endif 
 /**
  * @brief Internal marker for response payload tracking (used by AGW_TRACK_RESPONSE_PAYLOAD macro)
  * @details Special event marker that triggers JSON-RPC 2.0 response parsing and tracking

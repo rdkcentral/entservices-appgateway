@@ -1113,14 +1113,14 @@ namespace Plugin {
             return;
         }
 
-        // Send each API error count as a separate metric for proper aggregation
+        // Send each API error count with common marker and API name in payload
+        std::string metricName = std::string(AGW_METRIC_API_ERROR_COUNT_PREFIX) + AGW_METRIC_SUFFIX;
+        
         for (const auto& item : mApiErrorCounts) {
-            std::string metricName = std::string(AGW_METRIC_API_ERROR_COUNT_PREFIX) + item.first + AGW_METRIC_SUFFIX;
-            
             JsonObject metricPayload;
             metricPayload["reporting_interval_sec"] = mReportingIntervalSec;
-            metricPayload["sum"] = item.second;
-            metricPayload["count"] = 1;
+            metricPayload["ApiName"] = item.first;
+            metricPayload["count"] = item.second;
             metricPayload["unit"] = AGW_UNIT_COUNT;
             
             LOGINFO("Sending API error metric to T2");
@@ -1138,14 +1138,14 @@ namespace Plugin {
             return;
         }
 
-        // Send each external service error count as a separate metric for proper aggregation
+        // Send each external service error count with common marker and service name in payload
+        std::string metricName = std::string(AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX) + AGW_METRIC_SUFFIX;
+        
         for (const auto& item : mExternalServiceErrorCounts) {
-            std::string metricName = std::string(AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX) + item.first + AGW_METRIC_SUFFIX;
-            
             JsonObject metricPayload;
             metricPayload["reporting_interval_sec"] = mReportingIntervalSec;
-            metricPayload["sum"] = item.second;
-            metricPayload["count"] = 1;
+            metricPayload["ServiceName"] = item.first;
+            metricPayload["count"] = item.second;
             metricPayload["unit"] = AGW_UNIT_COUNT;
             
             LOGINFO("Sending external service error metric to T2");
@@ -1933,14 +1933,14 @@ namespace Plugin {
             return;
         }
 
-        // Send each API error count as a separate metric
+        // Send each API error count with common marker and API name in payload
+        std::string metricName = std::string(AGW_METRIC_API_ERROR_COUNT_PREFIX) + AGW_METRIC_SUFFIX;
+        
         for (const auto& item : apiErrorCounts) {
-            std::string metricName = std::string(AGW_METRIC_API_ERROR_COUNT_PREFIX) + item.first + AGW_METRIC_SUFFIX;
-            
             JsonObject metricPayload;
             metricPayload["reporting_interval_sec"] = reportingIntervalSec;
-            metricPayload["sum"] = item.second;
-            metricPayload["count"] = 1;
+            metricPayload["ApiName"] = item.first;
+            metricPayload["count"] = item.second;
             metricPayload["unit"] = AGW_UNIT_COUNT;
             
             Exchange::GatewayContext sysContext = parent->CreateSystemContext();
@@ -1957,14 +1957,14 @@ namespace Plugin {
             return;
         }
 
-        // Send each external service error count as a separate metric
+        // Send each external service error count with common marker and service name in payload
+        std::string metricName = std::string(AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX) + AGW_METRIC_SUFFIX;
+        
         for (const auto& item : externalServiceErrorCounts) {
-            std::string metricName = std::string(AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX) + item.first + AGW_METRIC_SUFFIX;
-            
             JsonObject metricPayload;
             metricPayload["reporting_interval_sec"] = reportingIntervalSec;
-            metricPayload["sum"] = item.second;
-            metricPayload["count"] = 1;
+            metricPayload["ServiceName"] = item.first;
+            metricPayload["count"] = item.second;
             metricPayload["unit"] = AGW_UNIT_COUNT;
             
             Exchange::GatewayContext sysContext = parent->CreateSystemContext();
@@ -2285,13 +2285,13 @@ namespace Plugin {
             return;
         }
 
+        std::string metricName = std::string(AGW_METRIC_API_ERROR_COUNT_PREFIX) + AGW_METRIC_SUFFIX;
+        
         for (const auto& item : mSnapshot->apiErrorCounts) {
-            std::string metricName = std::string(AGW_METRIC_API_ERROR_COUNT_PREFIX) + item.first + AGW_METRIC_SUFFIX;
-            
             JsonObject metricPayload;
             metricPayload["reporting_interval_sec"] = mSnapshot->reportingIntervalSec;
-            metricPayload["sum"] = item.second;
-            metricPayload["count"] = 1;
+            metricPayload["ApiName"] = item.first;
+            metricPayload["count"] = item.second;
             metricPayload["unit"] = AGW_UNIT_COUNT;
             
             LOGINFO("FlushJob: Sending API error metric");
@@ -2309,13 +2309,13 @@ namespace Plugin {
             return;
         }
 
+        std::string metricName = std::string(AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX) + AGW_METRIC_SUFFIX;
+        
         for (const auto& item : mSnapshot->externalServiceErrorCounts) {
-            std::string metricName = std::string(AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX) + item.first + AGW_METRIC_SUFFIX;
-            
             JsonObject metricPayload;
             metricPayload["reporting_interval_sec"] = mSnapshot->reportingIntervalSec;
-            metricPayload["sum"] = item.second;
-            metricPayload["count"] = 1;
+            metricPayload["ServiceName"] = item.first;
+            metricPayload["count"] = item.second;
             metricPayload["unit"] = AGW_UNIT_COUNT;
             
             LOGINFO("FlushJob: Sending external service error metric");
