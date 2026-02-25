@@ -412,7 +412,6 @@ namespace WPEFramework
 
             std::string permissionGroup;
             if (mResolverPtr->HasPermissionGroup(method, permissionGroup)) {
-                bool allowed = false;
                 LOGTRACE("Method '%s' requires permission group '%s'", method.c_str(), permissionGroup.c_str());
                 if (nullptr != GetAppGatewayAuthenticatorInterface()) {
                     bool allowed = false;
