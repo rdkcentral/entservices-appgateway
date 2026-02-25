@@ -74,6 +74,12 @@ namespace Plugin {
         mService = service;
         mService->AddRef();
 
+        // Initialize telemetry aggregator first (singleton)
+        AppGatewayTelemetry::getInstance().Initialize(service);
+        // Set the telemetry interface pointer for COM-RPC exposure
+        mTelemetry = &AppGatewayTelemetry::getInstance();
+        mTelemetry->AddRef();
+
         mAppGateway = service->Root<Exchange::IAppGatewayResolver>(mConnectionId, 2000, _T("AppGatewayImplementation"));
        
         if (mAppGateway != nullptr) {
@@ -103,33 +109,15 @@ namespace Plugin {
         {
             LOGERR("Failed to initialise AppGatewayResponder plugin!");
         }
-        // Initialize telemetry aggregator using Root<>() pattern
-        mTelemetry = service->Root<Exchange::IAppGatewayTelemetry>(mConnectionId, 2000, _T("AppGatewayTelemetry"));
-        if (mTelemetry != nullptr) {
-            // Set the static instance for internal component access
-            AppGatewayTelemetry::setInstance(static_cast<AppGatewayTelemetry*>(mTelemetry));
-            
-            auto configConnection = mTelemetry->QueryInterface<Exchange::IConfiguration>();
-            if (configConnection != nullptr) {
-                configConnection->Configure(service);
-                configConnection->Release();
-            }
-        } else {
-            LOGERR("Failed to initialise AppGatewayTelemetry!");
-        }
-           
-        // Record bootstrap time via static instance (internal method, not COM interface)
+   
+        // Record bootstrap time (AppGateway uses direct singleton access)
         auto bootstrapEnd = std::chrono::steady_clock::now();
         uint64_t durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
             bootstrapEnd - bootstrapStart).count();
-        auto telemetryInstance = AppGatewayTelemetry::getInstance();
-        if (telemetryInstance != nullptr) {
-            telemetryInstance->RecordBootstrapTime(durationMs);
-            LOGINFO("RecordBootstrapTime: Plugin bootstrap time recorded: %llu ms", durationMs);
-        }
+        AppGatewayTelemetry::getInstance().RecordBootstrapTime(durationMs);
             
         // On success return empty, to indicate there is no error text.
-        return ((mAppGateway != nullptr) && (mResponder != nullptr) && (mTelemetry != nullptr))
+        return ((mAppGateway != nullptr) && (mResponder != nullptr))
             ? EMPTY_STRING
             : _T("Could not retrieve the AppGateway interface.");
     }
@@ -141,18 +129,15 @@ namespace Plugin {
         RPC::IRemoteConnection *connection = nullptr;
         VARIABLE_IS_NOT_USED uint32_t result = Core::ERROR_NONE;
 
-        if ((mAppGateway != nullptr) || (mResponder != nullptr) || (mTelemetry != nullptr)) {
+        if ((mAppGateway != nullptr) || (mResponder != nullptr)) {
             connection = service->RemoteConnection(mConnectionId);
         }
 
-        // Deinitialize telemetry first
+        // Deinitialize telemetry first (singleton - just call Deinitialize)
+        AppGatewayTelemetry::getInstance().Deinitialize();
         if (mTelemetry != nullptr) {
-            // Clear the static instance before releasing
-            AppGatewayTelemetry::setInstance(nullptr);
-            
-            result = mTelemetry->Release();
+            mTelemetry->Release();
             mTelemetry = nullptr;
-            ASSERT(result == Core::ERROR_DESTRUCTION_SUCCEEDED);
         }
         LOGINFO("AppGatewayTelemetry deinitialized");
 

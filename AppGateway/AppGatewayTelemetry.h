@@ -21,7 +21,6 @@
 
 #include "Module.h"
 #include <interfaces/IAppGateway.h>
-#include <interfaces/IConfiguration.h>
 #include <core/core.h>
 #include <map>
 #include <atomic>
@@ -70,26 +69,20 @@ namespace Plugin {
      * Data is reported via T2 telemetry at configurable intervals (default 1 hour)
      * or when cache threshold is reached.
      */
-    class AppGatewayTelemetry : public Exchange::IAppGatewayTelemetry, public Exchange::IConfiguration
+    class AppGatewayTelemetry : public Exchange::IAppGatewayTelemetry
     {
     public:
-        AppGatewayTelemetry();
-        ~AppGatewayTelemetry() override;
+        // Singleton access for internal components
+        static AppGatewayTelemetry& getInstance();
 
         // Prevent copying
         AppGatewayTelemetry(const AppGatewayTelemetry&) = delete;
         AppGatewayTelemetry& operator=(const AppGatewayTelemetry&) = delete;
 
-        // Static instance accessor for internal components (not a COM singleton)
-        // This is set by AppGateway::Initialize() after creating the instance via Root<>()
-        static AppGatewayTelemetry* getInstance();
-        static void setInstance(AppGatewayTelemetry* instance);
-
         // Helper to create a system context for aggregated metrics
         static Exchange::GatewayContext CreateSystemContext();
 
         BEGIN_INTERFACE_MAP(AppGatewayTelemetry)
-            INTERFACE_ENTRY(Exchange::IConfiguration)
             INTERFACE_ENTRY(Exchange::IAppGatewayTelemetry)
         END_INTERFACE_MAP
 
@@ -133,12 +126,10 @@ namespace Plugin {
                                             const double metricValue,
                                             const string& metricUnit) override;
 
-        // IConfiguration interface
-        uint32_t Configure(PluginHost::IShell* service) override;
-
         // Internal Methods (for AppGateway components)
 
-        // Deinitialization
+        // Initialization and configuration
+        void Initialize(PluginHost::IShell* service);
         void Deinitialize();
 
         // Configuration
@@ -197,6 +188,9 @@ namespace Plugin {
         // Scenario 4: External Service Error Tracking (Internal)
         // Service errors are counted, then sent as METRICS periodically
         void RecordExternalServiceErrorInternal(const Exchange::GatewayContext& context, const std::string& serviceName);
+
+        AppGatewayTelemetry();
+        ~AppGatewayTelemetry() override;
 
     private:
         /**
@@ -648,9 +642,6 @@ namespace Plugin {
 
         // Initialization state
         bool mInitialized;
-        
-        // Static instance for internal component access (not a COM singleton)
-        static AppGatewayTelemetry* sInstance;
     };
 
 } // namespace Plugin
