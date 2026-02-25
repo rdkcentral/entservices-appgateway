@@ -156,7 +156,7 @@ namespace Plugin {
         // Scenario 1: Bootstrap Time Recording
         // Each plugin reports its own bootstrap duration. AppGatewayTelemetry tracks
         // the cumulative total and increments the plugin count automatically.
-        void RecordBootstrapTime(uint64_t durationMs);
+        void RecordBootstrapTime(double durationMs);
 
         // Scenario 2: Health Stats Tracking (Context-Aware)
         // These counters track AppGateway's OWN WebSocket API operations per context.

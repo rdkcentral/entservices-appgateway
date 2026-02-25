@@ -150,17 +150,16 @@ namespace Plugin {
         return mTelemetryFormat;
     }
 
-    void AppGatewayTelemetry::RecordBootstrapTime(uint64_t durationMs)
+    void AppGatewayTelemetry::RecordBootstrapTime(double durationMs)
     {
-        LOGINFO("Plugin bootstrap time recorded: %llu ms",
-                static_cast<unsigned long long>(durationMs));
+        LOGINFO("Plugin bootstrap time recorded: %.2f ms", durationMs);
         
         // Create system context for this system-level event
         Exchange::GatewayContext sysContext = CreateSystemContext();
         
         // Pass individual (non-cumulative) values to RecordGenericMetric for proper aggregation
         RecordGenericMetric(sysContext, AGW_MARKER_BOOTSTRAP_DURATION,
-                            static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+                            durationMs, AGW_UNIT_MILLISECONDS);
     }
 
     void AppGatewayTelemetry::IncrementWebSocketConnections(const Exchange::GatewayContext& context)
@@ -950,7 +949,7 @@ namespace Plugin {
 #endif
         // Handle bootstrap duration metric
         if (metricName == AGW_MARKER_BOOTSTRAP_DURATION) {
-            RecordBootstrapTime(static_cast<uint64_t>(metricValue));
+            RecordBootstrapTime(metricValue);
             return Core::ERROR_NONE;
         }
 
@@ -1068,11 +1067,13 @@ namespace Plugin {
         for (const auto& entry : mRequestStates) {
             if (!entry.second.responseReceived) {
                 pendingCount++;
+            #if 0
                 JsonObject pendingInfo;
                 pendingInfo["connection_id"] = entry.first.connectionId;
                 pendingInfo["request_id"] = entry.first.requestId;
                 pendingInfo["app_id"] = entry.second.appId;
                 pendingRequests.Add(pendingInfo);
+            #endif
             }
         }
 
@@ -1090,15 +1091,17 @@ namespace Plugin {
         healthPayload["total_responses"] = totalResponses;
         healthPayload["successful_calls"] = successfulCalls;
         healthPayload["failed_calls"] = failedCalls;
+#if 0
         healthPayload["pending_response_count"] = pendingCount;
 
         if (pendingCount > 0) {
             healthPayload["pending_requests"] = pendingRequests;
         }
-
+#endif
         healthPayload["unit"] = AGW_UNIT_COUNT;
 
-        LOGINFO("Sending health stats to T2 (pending=%u)", pendingCount);
+        //LOGINFO("Sending health stats to T2 (pending=%u)", pendingCount);
+        LOGINFO("Sending health stats to T2");
         Exchange::GatewayContext sysContext = CreateSystemContext();
         SendT2Event(AGW_MARKER_HEALTH_STATS, healthPayload, sysContext);
 
@@ -1683,11 +1686,13 @@ namespace Plugin {
         for (const auto& entry : requestStates) {
             if (!entry.second.responseReceived) {
                 pendingCount++;
+            #if 0
                 JsonObject pendingInfo;
                 pendingInfo["connection_id"] = entry.first.connectionId;
                 pendingInfo["request_id"] = entry.first.requestId;
                 pendingInfo["app_id"] = entry.second.appId;
                 pendingRequests.Add(pendingInfo);
+            #endif
             }
         }
 
@@ -1705,15 +1710,17 @@ namespace Plugin {
         healthPayload["total_responses"] = totalResponses;
         healthPayload["successful_calls"] = successfulCalls;
         healthPayload["failed_calls"] = failedCalls;
+    #if 0
         healthPayload["pending_response_count"] = pendingCount;
 
         if (pendingCount > 0) {
             healthPayload["pending_requests"] = pendingRequests;
         }
-
+    #endif    
         healthPayload["unit"] = AGW_UNIT_COUNT;
 
-        LOGINFO("TelemetrySnapshot: Sending health stats (pending=%u)", pendingCount);
+        //LOGINFO("TelemetrySnapshot: Sending health stats (pending=%u)", pendingCount);
+        LOGINFO("TelemetrySnapshot: Sending health stats");
         Exchange::GatewayContext sysContext = parent->CreateSystemContext();
         parent->SendT2Event(AGW_MARKER_HEALTH_STATS, healthPayload, sysContext);
 
@@ -2043,11 +2050,13 @@ namespace Plugin {
         for (const auto& entry : mSnapshot->requestStates) {
             if (!entry.second.responseReceived) {
                 pendingCount++;
+            #if 0
                 JsonObject pendingInfo;
                 pendingInfo["connection_id"] = entry.first.connectionId;
                 pendingInfo["request_id"] = entry.first.requestId;
                 pendingInfo["app_id"] = entry.second.appId;
                 pendingRequests.Add(pendingInfo);
+            #endif
             }
         }
 
@@ -2065,15 +2074,17 @@ namespace Plugin {
         healthPayload["total_responses"] = mSnapshot->totalResponses;
         healthPayload["successful_calls"] = mSnapshot->successfulCalls;
         healthPayload["failed_calls"] = mSnapshot->failedCalls;
+    #if 0
         healthPayload["pending_response_count"] = pendingCount;
 
         if (pendingCount > 0) {
             healthPayload["pending_requests"] = pendingRequests;
         }
-
+    #endif
         healthPayload["unit"] = AGW_UNIT_COUNT;
 
-        LOGINFO("FlushJob: Sending health stats (pending=%u)", pendingCount);
+        //LOGINFO("FlushJob: Sending health stats (pending=%u)", pendingCount);
+        LOGINFO("FlushJob: Sending health stats");
         Exchange::GatewayContext sysContext = AppGatewayTelemetry::CreateSystemContext();
         mSnapshot->parent->SendT2Event(AGW_MARKER_HEALTH_STATS, healthPayload, sysContext);
     }

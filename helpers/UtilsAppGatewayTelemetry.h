@@ -323,26 +323,26 @@ namespace AppGatewayTelemetryHelper {
 
         /**
          * @brief Record plugin bootstrap time
-         * @param durationMs Bootstrap duration in milliseconds
+         * @param durationMs Bootstrap duration in milliseconds (supports sub-millisecond precision)
          * @return Core::hresult
          * 
          * Reports the time taken for this plugin to initialize.
          * Uses standard bootstrap metric marker. AppGatewayTelemetry aggregates
          * all plugin bootstrap times and increments the plugin counter automatically.
          */
-        Core::hresult RecordBootstrapTime(uint64_t durationMs)
+        Core::hresult RecordBootstrapTime(double durationMs)
         {
             Exchange::GatewayContext context;
             context.requestId = 0;
             context.connectionId = 0;
             context.appId = mPluginName;  // Plugin identity in context
 
-            LOGINFO("TelemetryClient: Recording bootstrap time - plugin=%s, duration=%llums",
-                    mPluginName.c_str(), (unsigned long long)durationMs);
+            LOGINFO("TelemetryClient: Recording bootstrap time - plugin=%s, duration=%.2fms",
+                    mPluginName.c_str(), durationMs);
 
             // Use standard bootstrap metric - AppGatewayTelemetry will handle cumulative tracking
             return RecordMetric(context, AGW_MARKER_BOOTSTRAP_DURATION, 
-                              static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+                              durationMs, AGW_UNIT_MILLISECONDS);
         }
 
         /**
@@ -427,11 +427,13 @@ namespace AppGatewayTelemetryHelper {
             }
 
             auto endTime = std::chrono::steady_clock::now();
-            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            // Use microseconds for precision, then convert to milliseconds as double
+            auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
                 endTime - mStartTime).count();
+            double durationMs = durationUs / 1000.0;  // Convert to milliseconds with decimal precision
             
             // Report bootstrap time via TelemetryClient (COM-RPC to AppGateway)
-            mClient->RecordBootstrapTime(static_cast<uint64_t>(durationMs));
+            mClient->RecordBootstrapTime(durationMs);
         }
 
     private:
