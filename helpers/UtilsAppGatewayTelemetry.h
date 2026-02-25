@@ -38,7 +38,7 @@
  * 3. Initialize the telemetry client in your plugin's Initialize/Configure:
  *    AGW_TELEMETRY_INIT(mService)
  * 
- *    (Optional) Record plugin bootstrap time using RAII:
+ *    Record plugin bootstrap time using RAII:
  *    AGW_RECORD_BOOTSTRAP_TIME();  // Timer starts here
  *    // ... plugin initialization code ...
  *    // Timer automatically records on scope exit
@@ -52,13 +52,6 @@
  * 5. Cleanup in Deinitialize:
  *    AGW_TELEMETRY_DEINIT()
  * 
- * ## Marker Design
- * 
- * Generic markers are used with plugin/method names included in the data payload:
- * - AGW_MARKER_PLUGIN_API_ERROR: { "plugin": "Badger", "api": "GetSettings", "error": "TIMEOUT" }
- * - AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR: { "plugin": "OttServices", "service": "ThorPermissionService", "error": "CONNECTION_TIMEOUT" }
- * - Latency metrics use composite names: AppGwBadger_GetSettings_Latency_split
- * - AGW_MARKER_PLUGIN_API_LATENCY: { "plugin": "Badger", "api": "GetSettings", "latency_ms": 123.45 }
  */
 
 #include <interfaces/IAppGateway.h>
@@ -163,6 +156,9 @@ namespace AppGatewayTelemetryHelper {
          */
         bool IsAvailable() const
         {
+            if (nullptr == mTelemetry) {
+                mTelemetry = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayTelemetry>(APP_GATEWAY_CALLSIGN);
+            }
             return mTelemetry != nullptr;
         }
 
@@ -320,26 +316,56 @@ namespace AppGatewayTelemetryHelper {
 
         /**
          * @brief Record plugin bootstrap time
-         * @param durationMs Bootstrap duration in milliseconds
+         * @param durationMs Bootstrap duration in milliseconds (supports sub-millisecond precision)
          * @return Core::hresult
          * 
          * Reports the time taken for this plugin to initialize.
          * Uses standard bootstrap metric marker. AppGatewayTelemetry aggregates
          * all plugin bootstrap times and increments the plugin counter automatically.
          */
-        Core::hresult RecordBootstrapTime(uint64_t durationMs)
+        Core::hresult RecordBootstrapTime(double durationMs)
         {
             Exchange::GatewayContext context;
             context.requestId = 0;
             context.connectionId = 0;
             context.appId = mPluginName;  // Plugin identity in context
 
-            LOGINFO("TelemetryClient: Recording bootstrap time - plugin=%s, duration=%llums",
-                    mPluginName.c_str(), (unsigned long long)durationMs);
+            LOGINFO("TelemetryClient: Recording bootstrap time - plugin=%s, duration=%.2fms",
+                    mPluginName.c_str(), durationMs);
 
             // Use standard bootstrap metric - AppGatewayTelemetry will handle cumulative tracking
             return RecordMetric(context, AGW_MARKER_BOOTSTRAP_DURATION, 
-                              static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+                              durationMs, AGW_UNIT_MILLISECONDS);
+        }
+
+        /**
+         * @brief Track response payload for automatic success/failure detection
+         * @param context Gateway context with request/connection/app info
+         * @param payload JSON-RPC 2.0 response payload string
+         * @return Core::hresult
+         * 
+         * This method sends the entire response payload to AppGatewayTelemetry
+         * which will parse it as JSON-RPC 2.0 and automatically determine if it's
+         * a success (has "result") or failure (has "error") response.
+         * 
+         * Uses AGW_MARKER_RESPONSE_PAYLOAD_TRACKING event marker internally.
+         */
+        Core::hresult TrackResponsePayload(const Exchange::GatewayContext& context, const std::string& payload)
+        {
+            if (!IsAvailable()) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            
+            // Bundle payload into event data
+            JsonObject eventData;
+            eventData["payload"] = payload;
+            std::string eventDataStr;
+            eventData.ToString(eventDataStr);
+            
+            // Send to AppGateway for parsing and tracking
+            return mTelemetry->RecordTelemetryEvent(context,
+                                                     AGW_MARKER_RESPONSE_PAYLOAD_TRACKING,
+                                                     eventDataStr);
         }
 
         /**
@@ -353,7 +379,7 @@ namespace AppGatewayTelemetryHelper {
 
     private:
         PluginHost::IShell* mService;
-        Exchange::IAppGatewayTelemetry* mTelemetry;
+        mutable Exchange::IAppGatewayTelemetry* mTelemetry;  // mutable for lazy initialization in IsAvailable()
         std::string mPluginName;
     };
 
@@ -394,11 +420,13 @@ namespace AppGatewayTelemetryHelper {
             }
 
             auto endTime = std::chrono::steady_clock::now();
-            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            // Use microseconds for precision, then convert to milliseconds as double
+            auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
                 endTime - mStartTime).count();
+            double durationMs = durationUs / 1000.0;  // Convert to milliseconds with decimal precision
             
             // Report bootstrap time via TelemetryClient (COM-RPC to AppGateway)
-            mClient->RecordBootstrapTime(static_cast<uint64_t>(durationMs));
+            mClient->RecordBootstrapTime(durationMs);
         }
 
     private:
@@ -443,18 +471,20 @@ namespace AppGatewayTelemetryHelper {
             }
 
             auto endTime = std::chrono::steady_clock::now();
-            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            // Use microseconds for precision, then convert to milliseconds as double
+            auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
                 endTime - mStartTime).count();
+            double durationMs = durationUs / 1000.0;  // Convert to milliseconds with decimal precision
             
             if (mFailed) {
                 mClient->RecordApiError(mContext, mApiName, mErrorDetails);
                 std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
                                          "_MethodName_" + mApiName + "_Error_split";
-                mClient->RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+                mClient->RecordMetric(mContext, metricName, durationMs, AGW_UNIT_MILLISECONDS);
             } else {
                 std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
                                          "_MethodName_" + mApiName + "_Success_split";
-                mClient->RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+                mClient->RecordMetric(mContext, metricName, durationMs, AGW_UNIT_MILLISECONDS);
             }
         }
 
@@ -462,11 +492,6 @@ namespace AppGatewayTelemetryHelper {
         {
             mFailed = true;
             mErrorDetails = errorDetails;
-        }
-
-        void SetSuccess()
-        {
-            mFailed = false;
         }
 
     private:
@@ -515,18 +540,20 @@ namespace AppGatewayTelemetryHelper {
             }
 
             auto endTime = std::chrono::steady_clock::now();
-            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            // Use microseconds for precision, then convert to milliseconds as double
+            auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
                 endTime - mStartTime).count();
+            double durationMs = durationUs / 1000.0;  // Convert to milliseconds with decimal precision
             
             if (mFailed) {
                 mClient->RecordExternalServiceError(mContext, mServiceName, mErrorDetails);
                 std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
                                          "_ServiceName_" + mServiceName + "_Error_split";
-                mClient->RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+                mClient->RecordMetric(mContext, metricName, durationMs, AGW_UNIT_MILLISECONDS);
             } else {
                 std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
                                          "_ServiceName_" + mServiceName + "_Success_split";
-                mClient->RecordMetric(mContext, metricName, static_cast<double>(durationMs), AGW_UNIT_MILLISECONDS);
+                mClient->RecordMetric(mContext, metricName, durationMs, AGW_UNIT_MILLISECONDS);
             }
         }
 
@@ -534,11 +561,6 @@ namespace AppGatewayTelemetryHelper {
         {
             mFailed = true;
             mErrorDetails = errorDetails;
-        }
-
-        void SetSuccess()
-        {
-            mFailed = false;
         }
 
     private:
@@ -664,21 +686,6 @@ namespace AppGatewayTelemetryHelper {
     do { \
         GetLocalTelemetryClient().Deinitialize(); \
     } while(0)
-
-/**
- * @brief Check if telemetry client is available and ready to use
- * @return bool - true if telemetry is available
- * 
- * Use this to check telemetry availability before manual reporting.
- * Not needed for AGW_REPORT_* macros (they check internally).
- * 
- * Example:
- *   if (AGW_TELEMETRY_AVAILABLE()) {
- *       // Telemetry is ready
- *   }
- */
-#define AGW_TELEMETRY_AVAILABLE() \
-    GetLocalTelemetryClient().IsAvailable()
 
 //=============================================================================
 // 2. BOOTSTRAP TIME TRACKING MACROS
@@ -905,6 +912,99 @@ namespace AppGatewayTelemetryHelper {
         auto& client = GetLocalTelemetryClient(); \
         if (client.IsAvailable()) { \
             client.RecordServiceLatency(context, serviceName, latencyMs); \
+        } \
+    } while(0)
+
+//=============================================================================
+// 4. RESPONSE TRACKING MACRO
+//=============================================================================
+
+/**
+ * @brief Record a response (success or failure) atomically via internal singleton
+ * @param context Gateway context with request/connection/app info
+ * @param isSuccess true for successful response (has "result"), false for error (has "error")
+ * 
+ * **Data Flow**:
+ * - Accesses AppGatewayTelemetry singleton internally
+ * - Calls RecordResponse() which atomically updates:
+ *   * totalResponses counter (always incremented)
+ *   * successfulCalls OR failedCalls (based on isSuccess)
+ * - Uses responseReceived flag to prevent double-counting
+ * - First call for a (connectionId, requestId) pair is counted
+ * - Subsequent calls for same pair are ignored
+ * 
+ * **When to Use**:
+ * - After parsing JSON-RPC 2.0 response payload
+ * - When you know if response is success (has "result") or error (has "error")
+ * - Replaces separate calls to IncrementTotalResponses + IncrementSuccessfulCalls/FailedCalls
+ * 
+ * **Thread Safety**:
+ * - Safe to call from multiple threads
+ * - Internal locking ensures atomic updates
+ * - Double-counting prevention is thread-safe
+ * 
+ * Example:
+ *   JsonObject payloadJson;
+ *   if (payloadJson.FromString(payload)) {
+ *       if (payloadJson.HasLabel("jsonrpc") && payloadJson["jsonrpc"].String() == "2.0") {
+ *           if (payloadJson.HasLabel("result")) {
+ *               AGW_RECORD_RESPONSE(context, true);  // Success
+ *           } else if (payloadJson.HasLabel("error")) {
+ *               AGW_RECORD_RESPONSE(context, false);  // Error
+ *           }
+ *       }
+ *   }
+ */
+#define AGW_RECORD_RESPONSE(context, isSuccess) \
+    do { \
+        auto& client = GetLocalTelemetryClient(); \
+        if (client.IsAvailable()) { \
+            client.RecordResponse(context, isSuccess); \
+        } \
+    } while(0)
+
+/**
+ * @brief Track response payload by delegating JSON-RPC parsing to AppGateway telemetry
+ * @param context Gateway context with request/connection/app info
+ * @param payload Raw JSON-RPC 2.0 response string
+ * 
+ * **Purpose**:
+ * - Centralizes JSON-RPC 2.0 response parsing in AppGatewayTelemetry
+ * - Simplifies responder implementations (no local parsing needed)
+ * - Automatically determines success (has "result") or failure (has "error")
+ * - Calls RecordResponse() internally after parsing
+ * 
+ * **Architecture**:
+ * - Sends entire payload to AppGateway via RecordTelemetryEvent
+ * - Uses special marker: AGW_MARKER_RESPONSE_PAYLOAD_TRACKING
+ * - AppGateway's RecordTelemetryEvent handler detects this marker
+ * - AppGateway extracts payload, parses JSON-RPC 2.0, determines success/failure
+ * - AppGateway calls RecordResponse(context, isSuccess) internally
+ * 
+ * **Data Flow**:
+ * 1. Responder receives JSON-RPC response string
+ * 2. Responder calls: AGW_TRACK_RESPONSE_PAYLOAD(context, responseString)
+ * 3. Macro wraps payload: {"payload": "<response-string>"}
+ * 4. Sends event to AppGateway with special marker
+ * 5. AppGateway parses JSON-RPC, calls RecordResponse()
+ * 
+ * **When to Use**:
+ * - Responder implementations that receive raw JSON-RPC responses
+ * - Prefer this over manual parsing + AGW_RECORD_RESPONSE
+ * - Use AGW_RECORD_RESPONSE only when success/failure is known without parsing
+ * 
+ * Example (in responder):
+ *   void ReturnMessageInSocket(uint32_t connectionId, const string& result, int requestId) {
+ *       Exchange::GatewayContext context = {requestId, connectionId, appId};
+ *       AGW_TRACK_RESPONSE_PAYLOAD(context, result);  // Delegate parsing to AppGateway
+ *       SendToClient(result);
+ *   }
+ */
+#define AGW_TRACK_RESPONSE_PAYLOAD(context, payload) \
+    do { \
+        auto& client = GetLocalTelemetryClient(); \
+        if (client.IsAvailable()) { \
+            client.TrackResponsePayload(context, payload); \
         } \
     } while(0)
 

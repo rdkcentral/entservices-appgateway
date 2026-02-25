@@ -25,6 +25,7 @@
 #include <map>
 #include <atomic>
 #include <chrono>
+#include <memory>
 
 // Include consolidated telemetry markers
 #include "AppGatewayTelemetryMarkers.h"
@@ -77,6 +78,9 @@ namespace Plugin {
         // Prevent copying
         AppGatewayTelemetry(const AppGatewayTelemetry&) = delete;
         AppGatewayTelemetry& operator=(const AppGatewayTelemetry&) = delete;
+
+        // Helper to create a system context for aggregated metrics
+        static Exchange::GatewayContext CreateSystemContext();
 
         BEGIN_INTERFACE_MAP(AppGatewayTelemetry)
             INTERFACE_ENTRY(Exchange::IAppGatewayTelemetry)
@@ -152,27 +156,38 @@ namespace Plugin {
         // Scenario 1: Bootstrap Time Recording
         // Each plugin reports its own bootstrap duration. AppGatewayTelemetry tracks
         // the cumulative total and increments the plugin count automatically.
-        void RecordBootstrapTime(uint64_t durationMs);
+        void RecordBootstrapTime(double durationMs);
 
-        // Scenario 2: Health Stats Tracking
-        // These counters track AppGateway's OWN WebSocket API operations ONLY.
-        // They should be incremented by AppGateway when handling incoming WebSocket API requests,
-        // NOT when aggregating plugin telemetry (which happens via RecordTelemetryEvent/RecordTelemetryMetric).
-        // These health stats are independent of plugin-level metrics reported via helper macros.
-        void IncrementWebSocketConnections();
-        void DecrementWebSocketConnections();
-        void IncrementTotalCalls();
-        void IncrementTotalResponses();
-        void IncrementSuccessfulCalls();
-        void IncrementFailedCalls();
+        // Scenario 2: Health Stats Tracking (Context-Aware)
+        // These counters track AppGateway's OWN WebSocket API operations per context.
+        // Data is cached using (connectionId, requestId, appId) + marker as unique key.
+        // Responses are tracked to avoid double counting and detect pending responses.
+        void IncrementWebSocketConnections(const Exchange::GatewayContext& context);
+        void DecrementWebSocketConnections(const Exchange::GatewayContext& context);
+        void IncrementTotalCalls(const Exchange::GatewayContext& context);
+        void IncrementTotalResponses(const Exchange::GatewayContext& context);
+        void IncrementSuccessfulCalls(const Exchange::GatewayContext& context);
+        void IncrementFailedCalls(const Exchange::GatewayContext& context);
+
+        /**
+         * @brief Record a response (success or failure) atomically
+         * 
+         * This method combines IncrementTotalResponses and IncrementSuccessfulCalls/IncrementFailedCalls
+         * into a single atomic operation to ensure both counters are updated together and exactly once
+         * per request. This prevents double-counting and ensures consistency.
+         * 
+         * @param context Gateway context with requestId, connectionId, appId
+         * @param isSuccess true for successful response (has "result"), false for error response (has "error")
+         */
+        void RecordResponse(const Exchange::GatewayContext& context, bool isSuccess);
 
         // Scenario 3: API Error Tracking (Internal)
         // Errors are counted, then sent as METRICS periodically
-        void RecordApiError(const std::string& apiName);
+        void RecordApiError(const Exchange::GatewayContext& context, const std::string& apiName);
 
         // Scenario 4: External Service Error Tracking (Internal)
         // Service errors are counted, then sent as METRICS periodically
-        void RecordExternalServiceErrorInternal(const std::string& serviceName);
+        void RecordExternalServiceErrorInternal(const Exchange::GatewayContext& context, const std::string& serviceName);
 
         AppGatewayTelemetry();
         ~AppGatewayTelemetry() override;
@@ -191,6 +206,44 @@ namespace Plugin {
 
             MetricData() : sum(0.0), min(std::numeric_limits<double>::max()),
                           max(std::numeric_limits<double>::lowest()), count(0) {}
+        };
+
+        /**
+         * @brief Request/Response tracking key
+         * Combines connectionId and requestId to uniquely identify a request
+         */
+        struct RequestKey
+        {
+            uint32_t connectionId;
+            uint32_t requestId;
+            
+            bool operator<(const RequestKey& other) const {
+                if (connectionId != other.connectionId)
+                    return connectionId < other.connectionId;
+                return requestId < other.requestId;
+            }
+            
+            bool operator==(const RequestKey& other) const {
+                return connectionId == other.connectionId && requestId == other.requestId;
+            }
+        };
+
+        /**
+         * @brief Request state tracking
+         * Tracks whether a request has received a response (success or failure)
+         */
+        struct RequestState
+        {
+            std::string appId;
+            bool responseReceived;      // true if response (success or failure) received
+            bool isSuccess;             // true if success response, false if error
+            std::chrono::steady_clock::time_point requestTime;
+            
+            RequestState() 
+                : responseReceived(false)
+                , isSuccess(false)
+                , requestTime(std::chrono::steady_clock::now())
+            {}
         };
 
         /**
@@ -314,6 +367,95 @@ namespace Plugin {
             {}
         };
 
+        /**
+         * @brief Snapshot of all telemetry data for async flush
+         * 
+         * This structure holds a complete snapshot of all aggregated telemetry data
+         * at the time of flush. The snapshot is taken under lock, then released for
+         * async sending via WorkerPool. This prevents blocking new telemetry recording.
+         */
+        struct TelemetrySnapshot
+        {
+            // Configuration
+            uint32_t reportingIntervalSec;
+            std::chrono::steady_clock::time_point reportingStartTime;
+            AppGatewayTelemetry* parent;  // Reference to parent for SendT2Event
+            TelemetryFormat format;
+            
+            // Health statistics (atomic values snapshotted)
+            uint32_t websocketConnections;
+            uint32_t totalCalls;
+            uint32_t totalResponses;
+            uint32_t successfulCalls;
+            uint32_t failedCalls;
+            
+            // Request state for pending response detection
+            std::map<RequestKey, RequestState> requestStates;
+            
+            // Aggregated statistics
+            std::map<std::string, ApiMethodStats> apiMethodStats;
+            std::map<std::string, ApiLatencyStats> apiLatencyStats;
+            std::map<std::string, ServiceMethodStats> serviceMethodStats;
+            std::map<std::string, ServiceLatencyStats> serviceLatencyStats;
+            std::map<std::string, uint32_t> apiErrorCounts;
+            std::map<std::string, uint32_t> externalServiceErrorCounts;
+            std::map<std::string, MetricData> metricsCache;
+            
+            TelemetrySnapshot()
+                : reportingIntervalSec(0)
+                , parent(nullptr)
+                , format(TelemetryFormat::JSON)
+                , websocketConnections(0)
+                , totalCalls(0)
+                , totalResponses(0)
+                , successfulCalls(0)
+                , failedCalls(0)
+            {}
+            
+            // Send all telemetry data from this snapshot
+            void SendAll();
+            
+        private:
+            // Individual send methods for different telemetry types
+            void SendHealthStats();
+            void SendApiMethodStats();
+            void SendApiLatencyStats();
+            void SendServiceMethodStats();
+            void SendServiceLatencyStats();
+            void SendApiErrorStats();
+            void SendExternalServiceErrorStats();
+            void SendAggregatedMetrics();
+        };
+
+        /**
+         * @brief Background job for sending telemetry asynchronously
+         * 
+         * This job receives a snapshot of telemetry data and sends it to T2
+         * without holding any locks, allowing new telemetry to be recorded
+         * concurrently while the previous batch is being sent.
+         */
+        class FlushJob : public Core::IDispatch
+        {
+        public:
+            FlushJob(std::unique_ptr<TelemetrySnapshot>&& snapshot) : mSnapshot(std::move(snapshot)) {}
+            ~FlushJob() override = default;
+
+            void Dispatch() override;
+
+        private:
+            std::unique_ptr<TelemetrySnapshot> mSnapshot;
+            
+            // Helper methods to send snapshot data (mirrors AppGatewayTelemetry methods)
+            void SendHealthStats();
+            void SendApiMethodStats();
+            void SendApiLatencyStats();
+            void SendServiceMethodStats();
+            void SendServiceLatencyStats();
+            void SendApiErrorStats();
+            void SendExternalServiceErrorStats();
+            void SendAggregatedMetrics();
+        };
+
         // Timer callback for periodic reporting
         class TelemetryTimer : public Core::IDispatch
         {
@@ -358,9 +500,9 @@ namespace Plugin {
         void SendServiceLatencyStats();
         void SendServiceMethodStats();
 
-        // Helper to send telemetry via T2
-        void SendT2Event(const char* marker, const std::string& payload);  // For pre-formatted strings
-        void SendT2Event(const char* marker, const JsonObject& payload);   // For JsonObject (calls FormatTelemetryPayload internally)
+        // Helper to send telemetry via T2 (context-aware)
+        void SendT2Event(const char* marker, const std::string& payload, const Exchange::GatewayContext& context);
+        void SendT2Event(const char* marker, const JsonObject& payload, const Exchange::GatewayContext& context);
 
         // Reset counters after reporting
         void ResetHealthStats();
@@ -372,30 +514,37 @@ namespace Plugin {
         void ResetServiceMethodStats();
 
         // Metric recording helpers (called by RecordTelemetryMetric)
-        void RecordApiMethodMetric(const std::string& pluginName,
+        void RecordApiMethodMetric(const Exchange::GatewayContext& context,
+                                  const std::string& pluginName,
                                   const std::string& methodName,
                                   double latencyMs,
                                   bool isError);
         
-        void RecordApiLatencyMetric(const std::string& pluginName,
+        void RecordApiLatencyMetric(const Exchange::GatewayContext& context,
+                                   const std::string& pluginName,
                                    const std::string& apiName,
                                    double latencyMs);
         
-        void RecordServiceLatencyMetric(const std::string& pluginName,
+        void RecordServiceLatencyMetric(const Exchange::GatewayContext& context,
+                                       const std::string& pluginName,
                                        const std::string& serviceName,
                                        double latencyMs);
         
-        void RecordServiceMethodMetric(const std::string& pluginName,
+        void RecordServiceMethodMetric(const Exchange::GatewayContext& context,
+                                      const std::string& pluginName,
                                       const std::string& serviceName,
                                       double latencyMs,
                                       bool isError);
         
-        void RecordGenericMetric(const std::string& metricName,
+        void RecordGenericMetric(const Exchange::GatewayContext& context,
+                                const std::string& metricName,
                                 double metricValue,
                                 const std::string& metricUnit);
 
         // Helper to handle health stats markers (returns true if handled)
-        bool HandleHealthStatsMarker(const std::string& metricName, double metricValue);
+        bool HandleHealthStatsMarker(const Exchange::GatewayContext& context,
+                                    const std::string& metricName,
+                                    double metricValue);
 
         // Helper to parse metric name format: "AppGw<Plugin>_<Method>_<Success|Error>_split"
         bool ParseApiMetricName(const std::string& metricName,
@@ -452,6 +601,7 @@ namespace Plugin {
         // Timer for periodic reporting
         Core::ProxyType<TelemetryTimer> mTimer;
         Core::TimerType<TelemetryTimer> mTimerHandler;
+        
         // Per-Plugin/API latency statistics: map<"PluginName_ApiName", ApiLatencyStats>
         std::map<std::string, ApiLatencyStats> mApiLatencyStats;
 
@@ -463,6 +613,11 @@ namespace Plugin {
 
         // Health statistics
         HealthStats mHealthStats;
+
+        // Request/Response state tracking: map<RequestKey, RequestState>
+        // Tracks all requests and their response status to avoid double counting
+        // and detect pending responses
+        std::map<RequestKey, RequestState> mRequestStates;
 
         // API error counts: map<apiName, count>
         std::map<std::string, uint32_t> mApiErrorCounts;
