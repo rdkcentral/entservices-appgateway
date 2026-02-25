@@ -353,7 +353,7 @@ namespace Plugin {
             {
                 double speed;
                 // Voice guidance speed should be between 0.5 and 2.0
-                if (JsonValidation::ValidateAndExtractDouble(payload, "value", speed, 0.5, 2.0)) {
+                if (JsonValidation::ValidateAndExtractDouble(payload, "value", speed, 0.5, 2.0, true, true)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetSpeed(speed), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing, invalid, or out-of-range 'value' field (expected 0.5-2.0)\"}";

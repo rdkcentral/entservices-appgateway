@@ -94,14 +94,18 @@ public:
      * @param payload The JSON payload to parse
      * @param fieldName The field name to extract (default: "value")
      * @param extractedValue Output double for the extracted value
-     * @param minValue Minimum allowed value (default: no limit)
-     * @param maxValue Maximum allowed value (default: no limit)
+     * @param minValue Minimum allowed value (used only if checkMinValue is true)
+     * @param maxValue Maximum allowed value (used only if checkMaxValue is true)
+     * @param checkMinValue Whether to apply minimum value checking (default: false)
+     * @param checkMaxValue Whether to apply maximum value checking (default: false)
      * @return true if validation successful, false otherwise
      */
     static bool ValidateAndExtractDouble(const std::string& payload, const std::string& fieldName = "value", 
                                        double& extractedValue, 
-                                       double minValue = std::numeric_limits<double>::lowest(), 
-                                       double maxValue = std::numeric_limits<double>::max()) {
+                                       double minValue = 0.0, 
+                                       double maxValue = 0.0,
+                                       bool checkMinValue = false,
+                                       bool checkMaxValue = false) {
         Core::JSON::VariantContainer params;
         if (!params.FromString(payload)) {
             LOGWARN("ValidateAndExtractDouble: Failed to parse JSON payload");
@@ -121,13 +125,13 @@ public:
         
         extractedValue = value.Number();
         
-        // Bounds checking if limits are specified
-        if (std::numeric_limits<double>::lowest() != minValue && minValue > extractedValue) {
+        // Bounds checking only if explicitly requested
+        if (checkMinValue && extractedValue < minValue) {
             LOGERR("ValidateAndExtractDouble: Value %.2f is below minimum %.2f", extractedValue, minValue);
             return false;
         }
         
-        if (std::numeric_limits<double>::max() != maxValue && maxValue < extractedValue) {
+        if (checkMaxValue && extractedValue > maxValue) {
             LOGERR("ValidateAndExtractDouble: Value %.2f exceeds maximum %.2f", extractedValue, maxValue);
             return false;
         }
