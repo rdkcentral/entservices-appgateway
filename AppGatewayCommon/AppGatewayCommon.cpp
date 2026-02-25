@@ -443,22 +443,14 @@ namespace Plugin {
          */
         bool AppGatewayCommon::SafeSubmitEventRegistrationJob(Exchange::IAppNotificationHandler::IEmitter* cb, 
                                                               const std::string& event, bool listen) {
-            try {
-                auto job = EventRegistrationJob::Create(this, cb, event, listen);
-                if (false == job.IsValid()) {
-                    LOGERR("SafeSubmitEventRegistrationJob: Failed to create EventRegistrationJob");
-                    return false;
-                }
-                
-                Core::IWorkerPool::Instance().Submit(job);
-                return true;
-            } catch (const std::exception& e) {
-                LOGERR("SafeSubmitEventRegistrationJob: Exception during job creation: %s", e.what());
-                return false;
-            } catch (...) {
-                LOGERR("SafeSubmitEventRegistrationJob: Unknown exception during job creation");
+            auto job = EventRegistrationJob::Create(this, cb, event, listen);
+            if (false == job.IsValid()) {
+                LOGERR("SafeSubmitEventRegistrationJob: Failed to create EventRegistrationJob");
                 return false;
             }
+
+            Core::IWorkerPool::Instance().Submit(job);
+            return true;
         }
 
         // Delegated alias methods
