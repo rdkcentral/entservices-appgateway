@@ -123,14 +123,14 @@ namespace WPEFramework
                         return false;
                     }
 
-                    //Will update the interface first before query call.
-                    if (ConfigUtils::useAppManagers()) {
-                        interfaceToQuery = COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN;
-                    } else {
-                        interfaceToQuery = GATEWAY_AUTHENTICATOR_CALLSIGN;
-                    }
-
                     if (nullptr == mAuthenticator) {
+                        //Will update the interface first before query call.
+                        if (ConfigUtils::useAppManagers()) {
+                            interfaceToQuery = COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN;
+                        } else {
+                            interfaceToQuery = GATEWAY_AUTHENTICATOR_CALLSIGN;
+                        }
+
                         mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(interfaceToQuery.c_str());
                         if (nullptr == mAuthenticator) {
                             LOGERR("AppGateway Authenticator not available");

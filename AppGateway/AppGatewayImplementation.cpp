@@ -414,15 +414,18 @@ namespace WPEFramework
             if (mResolverPtr->HasPermissionGroup(method, permissionGroup)) {
                 bool allowed = false;
                 LOGTRACE("Method '%s' requires permission group '%s'", method.c_str(), permissionGroup.c_str());
-                if (Core::ERROR_NONE != InternalCheckPermissionGroup(context.appId, permissionGroup, allowed)) {
-                    LOGERR("Failed to check permission group '%s' for appId '%s'", permissionGroup.c_str(), context.appId.c_str());
-                    ErrorUtils::NotPermitted(resolution);
-                    return Core::ERROR_GENERAL;
-                }
-                if (!allowed) {
-                    LOGERR("AppId '%s' not allowed in permission group '%s'", context.appId.c_str(), permissionGroup.c_str());
-                    ErrorUtils::NotPermitted(resolution);
-                    return Core::ERROR_GENERAL;
+                if (nullptr != GetAppGatewayAuthenticatorInterface()) {
+                    bool allowed = false;
+                    if (Core::ERROR_NONE != mAuthenticator->CheckPermissionGroup(context.appId, permissionGroup, allowed)) {
+                        LOGERR("Failed to check permission group '%s' for appId '%s'", permissionGroup.c_str(), context.appId.c_str());
+                        ErrorUtils::NotPermitted(resolution);
+                        return Core::ERROR_GENERAL;
+                    }
+                    if (!allowed) {
+                        LOGERR("AppId '%s' not allowed in permission group '%s'", context.appId.c_str(), permissionGroup.c_str());
+                        ErrorUtils::NotPermitted(resolution);
+                        return Core::ERROR_GENERAL;
+                    }
                 }
             }
             LOGTRACE("Resolved method '%s' to alias '%s'", method.c_str(), alias.c_str());            
@@ -562,24 +565,19 @@ namespace WPEFramework
             mInternalGatewayResponder->Respond(context, payload);
         }
 
-        Core::hresult AppGatewayImplementation::InternalCheckPermissionGroup(const string& appId /* @in */,
-                                                    const string& permissionGroup /* @in */,
-                                                    bool& allowed /* @out */)
-        {
+        Exchange::IAppGatewayAuthenticator* AppGatewayImplementation::GetAppGatewayAuthenticatorInterface() {
             Core::SafeSyncType<Core::CriticalSection> lock(mAuthenticatorLock);
-            Core::hresult result = Core::ERROR_GENERAL;
-            if (nullptr == mAuthenticator) {
-                mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(INTERNAL_GATEWAY_CALLSIGN);
-                if (nullptr == mAuthenticator) {
-                    LOGERR("Failed to get AppGateway Authenticator");
-                    return result;
+            if (mAuthenticator == nullptr) {
+                mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
+                if (mAuthenticator == nullptr) {
+                    LOGERR("AppGateway Authenticator not available");
+                    return nullptr;
                 } else {
                     LOGINFO("AppGateway Authenticator interface acquired");
                 }
             }
-            result = mAuthenticator->CheckPermissionGroup(appId, permissionGroup, allowed);
-            return result;
-         }
+            return mAuthenticator;
+        }
 
         // Helper: read a string key from a JSON file; returns empty if any step fails.
         static std::string ReadJsonStringKey(const std::string& filePath, const std::string& key, const char* tag) {
