@@ -137,6 +137,16 @@
 #define AGW_MARKER_RESPONSE_CALLS                   "AppGwResponseCalls_split"
 
 /**
+ * @brief Internal marker for response payload tracking (used by AGW_TRACK_RESPONSE_PAYLOAD macro)
+ * @details Special event marker that triggers JSON-RPC 2.0 response parsing and tracking
+ * @usage RecordTelemetryEvent(context, AGW_MARKER_RESPONSE_PAYLOAD_TRACKING, jsonPayloadWithResult)
+ * @note This is an INTERNAL marker - used by responder implementations
+ * @note Event data format: {"payload": "<json-rpc-2.0-response>"}
+ * @note AppGateway parses the payload to determine success/failure and calls RecordResponse
+ */
+#define AGW_MARKER_RESPONSE_PAYLOAD_TRACKING        "AppGwResponsePayloadTracking_split"
+
+/**
  * @brief Consolidated health statistics marker (sent periodically)
  * @details Aggregated health metrics for AppGateway including WebSocket connections and API call statistics
  * @payload {
@@ -335,18 +345,6 @@
  */
 #define AGW_MARKER_PLUGIN_API_LATENCY               "AppGwPluginApiLatency_split"
 
-/**
- * @brief Plugin external service latency metric marker (DEPRECATED - not used)
- * @details This marker is no longer used. Service latency is now reported using RecordTelemetryMetric
- *          with composite metric names in the format: agw_<PluginName>_<ServiceName>_Latency
- * @usage Use AGW_REPORT_SERVICE_LATENCY(context, service, latencyMs) helper macro from UtilsAppGatewayTelemetry.h
- * @metric_name agw_<PluginName>_<ServiceName>_Latency (e.g., agw_OttServices_ThorPermissionService_Latency)
- * @metric_value Latency in milliseconds
- * @metric_unit AGW_UNIT_MILLISECONDS
- * @example AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_THOR_PERMISSION, 85.3)
- * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
- */
-#define AGW_MARKER_PLUGIN_SERVICE_LATENCY           "AppGwPluginServiceLatency_split"
 
 //=============================================================================
 // PREDEFINED PLUGIN NAMES
