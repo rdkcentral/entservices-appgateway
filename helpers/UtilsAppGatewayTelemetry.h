@@ -163,6 +163,9 @@ namespace AppGatewayTelemetryHelper {
          */
         bool IsAvailable() const
         {
+            if (nullptr == mTelemetry) {
+                mTelemetry = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayTelemetry>(APP_GATEWAY_CALLSIGN);
+            }
             return mTelemetry != nullptr;
         }
 
@@ -418,7 +421,7 @@ namespace AppGatewayTelemetryHelper {
 
     private:
         PluginHost::IShell* mService;
-        Exchange::IAppGatewayTelemetry* mTelemetry;
+        mutable Exchange::IAppGatewayTelemetry* mTelemetry;  // mutable for lazy initialization in IsAvailable()
         std::string mPluginName;
     };
 
