@@ -142,7 +142,10 @@ namespace WPEFramework
                         
                         // Track WebSocket connection for telemetry (connection-level event, requestId=0)
                         Exchange::GatewayContext context = {0, connectionId, appId};
-                        AppGatewayTelemetry::getInstance().IncrementWebSocketConnections(context);
+                        auto telemetry = AppGatewayTelemetry::getInstance();
+                        if (telemetry != nullptr) {
+                            telemetry->IncrementWebSocketConnections(context);
+                        }
                         
                         mCompliantJsonRpcRegistry.CheckAndAddCompliantJsonRpc(connectionId, token);
                         #ifdef ENABLE_APP_GATEWAY_AUTOMATION
@@ -162,7 +165,10 @@ namespace WPEFramework
 
                     // Track external service error - Authentication service failure (auth failed, no appId available)
                     Exchange::GatewayContext authFailContext = {0, connectionId, "UNKNOWN"};
-                    AppGatewayTelemetry::getInstance().RecordExternalServiceErrorInternal(authFailContext, "AuthenticationService");
+                    auto telemetry = AppGatewayTelemetry::getInstance();
+                    if (telemetry != nullptr) {
+                        telemetry->RecordExternalServiceErrorInternal(authFailContext, "AuthenticationService");
+                    }
 
                     return false;
                 });
@@ -181,7 +187,10 @@ namespace WPEFramework
                         LOGINFO("App ID %s found for connection %d during disconnect", appId.c_str(), connectionId);
                     }
                     Exchange::GatewayContext context = {0, connectionId, appId};
-                    AppGatewayTelemetry::getInstance().DecrementWebSocketConnections(context);
+                    auto telemetry = AppGatewayTelemetry::getInstance();
+                    if (telemetry != nullptr) {
+                        telemetry->DecrementWebSocketConnections(context);
+                    }
                     
                     if (appId != "UNKNOWN") {
                         Core::IWorkerPool::Instance().Submit(ConnectionStatusNotificationJob::Create(this, connectionId, appId, false));
@@ -257,7 +266,10 @@ namespace WPEFramework
             };
 
             // Track total API calls for telemetry
-            AppGatewayTelemetry::getInstance().IncrementTotalCalls(context);
+            auto telemetry = AppGatewayTelemetry::getInstance();
+            if (telemetry != nullptr) {
+                telemetry->IncrementTotalCalls(context);
+            }
 
             if (hasAppId) {
 
@@ -274,8 +286,11 @@ namespace WPEFramework
                 if (mResolver == nullptr) {
                     LOGERR("Resolver interface not available");
                     // Track failed call
-                    AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
-                    AppGatewayTelemetry::getInstance().RecordApiError(context, method);
+                    auto telemetry = AppGatewayTelemetry::getInstance();
+                    if (telemetry != nullptr) {
+                        telemetry->IncrementFailedCalls(context);
+                        telemetry->RecordApiError(context, method);
+                    }
                     return;
                 }
 
@@ -283,8 +298,11 @@ namespace WPEFramework
                 if (Core::ERROR_NONE != mResolver->Resolve(context, APP_GATEWAY_CALLSIGN, method, params, resolution)) {
                     LOGERR("Resolver Failure");
                     // Track failed call and specific API error
-                    AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
-                    AppGatewayTelemetry::getInstance().RecordApiError(context, method);
+                    auto telemetry = AppGatewayTelemetry::getInstance();
+                    if (telemetry != nullptr) {
+                        telemetry->IncrementFailedCalls(context);
+                        telemetry->RecordApiError(context, method);
+                    }
                 } else {
                     // Track successful call
                     // Response will be sent asynchronously, so we will track success/failure when sending the response back to client
@@ -292,7 +310,10 @@ namespace WPEFramework
             } else {
                 LOGERR("No App ID found for connection %d. Terminate connection", connectionId);
                 // Track failed call due to missing appId
-                AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
+                auto telemetry = AppGatewayTelemetry::getInstance();
+                if (telemetry != nullptr) {
+                    telemetry->IncrementFailedCalls(context);
+                }
                 mWsManager.Close(connectionId);
             }
         }
@@ -318,11 +339,14 @@ namespace WPEFramework
             eventData["payload"] = payload;
             string eventDataStr;
             eventData.ToString(eventDataStr);
-            AppGatewayTelemetry::getInstance().RecordTelemetryEvent(
-                context,
-                AGW_MARKER_RESPONSE_PAYLOAD_TRACKING,
-                eventDataStr
-            );
+            auto telemetry = AppGatewayTelemetry::getInstance();
+            if (telemetry != nullptr) {
+                telemetry->RecordTelemetryEvent(
+                    context,
+                    AGW_MARKER_RESPONSE_PAYLOAD_TRACKING,
+                    eventDataStr
+                );
+            }
             
             // Send response back to client
             mWsManager.SendMessageToConnection(connectionId, payload, requestId);

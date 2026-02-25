@@ -383,9 +383,12 @@ namespace WPEFramework
 
             std::string metricName = std::string("AppGw_PluginName_AppGateway_MethodName_Resolve_") + 
                                     (result == Core::ERROR_NONE ? "Success" : "Error") + "_split";
-            AppGatewayTelemetry::getInstance().RecordTelemetryMetric(
-                context, metricName, static_cast<double>(durationMs), "ms"
-            );
+            auto telemetry = AppGatewayTelemetry::getInstance();
+            if (telemetry != nullptr) {
+                telemetry->RecordTelemetryMetric(
+                    context, metricName, static_cast<double>(durationMs), "ms"
+                );
+            }
 
             return result;
         }
@@ -435,7 +438,10 @@ namespace WPEFramework
                     if (Core::ERROR_NONE != mAuthenticator->CheckPermissionGroup(context.appId, permissionGroup, allowed)) {
                         LOGERR("Failed to check permission group '%s' for appId '%s'", permissionGroup.c_str(), context.appId.c_str());
                         // Track external service error - Permission service failure
-                        AppGatewayTelemetry::getInstance().RecordExternalServiceErrorInternal(context, "PermissionService");
+                        auto telemetry = AppGatewayTelemetry::getInstance();
+                        if (telemetry != nullptr) {
+                            telemetry->RecordExternalServiceErrorInternal(context, "PermissionService");
+                        }
                         ErrorUtils::NotPermitted(resolution);
                         return Core::ERROR_GENERAL;
                     }
@@ -515,7 +521,10 @@ namespace WPEFramework
                     LOGERR("HandleAppGatewayRequest failed for callsign: %s", alias.c_str());
                     
                     // Record API error and increment failed calls
-                    AppGatewayTelemetry::getInstance().RecordApiError(context, method);
+                    auto telemetry = AppGatewayTelemetry::getInstance();
+                    if (telemetry != nullptr) {
+                        telemetry->RecordApiError(context, method);
+                    }
                     
                     if (resolution.empty()){
                         ErrorUtils::CustomInternal("HandleAppGatewayRequest failed", resolution);

@@ -29,11 +29,17 @@
 namespace WPEFramework {
 namespace Plugin {
 
-    AppGatewayTelemetry& AppGatewayTelemetry::getInstance()
+    // Static instance for internal component access
+    AppGatewayTelemetry* AppGatewayTelemetry::sInstance = nullptr;
+
+    AppGatewayTelemetry* AppGatewayTelemetry::getInstance()
     {
-        static Core::ProxyType<AppGatewayTelemetry> instance = Core::ProxyType<AppGatewayTelemetry>::Create();
-        ASSERT(instance.IsValid());
-        return *instance;
+        return sInstance;
+    }
+
+    void AppGatewayTelemetry::setInstance(AppGatewayTelemetry* instance)
+    {
+        sInstance = instance;
     }
 
     AppGatewayTelemetry::AppGatewayTelemetry()
@@ -56,13 +62,13 @@ namespace Plugin {
         Deinitialize();
     }
 
-    void AppGatewayTelemetry::Initialize(PluginHost::IShell* service)
+    uint32_t AppGatewayTelemetry::Configure(PluginHost::IShell* service)
     {
         Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
 
         if (mInitialized) {
             LOGWARN("AppGatewayTelemetry already initialized");
-            return;
+            return Core::ERROR_NONE;
         }
 
         mService = service;
@@ -81,6 +87,7 @@ namespace Plugin {
 
         mInitialized = true;
         LOGTRACE("AppGatewayTelemetry initialized successfully");
+        return Core::ERROR_NONE;
     }
 
     void AppGatewayTelemetry::Deinitialize()
