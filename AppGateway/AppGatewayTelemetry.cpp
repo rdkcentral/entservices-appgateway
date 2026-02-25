@@ -1117,7 +1117,7 @@ namespace Plugin {
         }
 
         // Send each API error count with common marker and API name in payload
-        std::string metricName = std::string(AGW_METRIC_API_ERROR_COUNT_PREFIX) + AGW_METRIC_SUFFIX;
+        std::string metricName = std::string(AGW_MARKER_API_ERROR_COUNT);
         
         for (const auto& item : mApiErrorCounts) {
             JsonObject metricPayload;
@@ -1142,7 +1142,7 @@ namespace Plugin {
         }
 
         // Send each external service error count with common marker and service name in payload
-        std::string metricName = std::string(AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX) + AGW_METRIC_SUFFIX;
+        std::string metricName = std::string(AGW_MARKER_EXT_SERVICE_ERROR_COUNT);
         
         for (const auto& item : mExternalServiceErrorCounts) {
             JsonObject metricPayload;
@@ -1941,7 +1941,7 @@ namespace Plugin {
         }
 
         // Send each API error count with common marker and API name in payload
-        std::string metricName = std::string(AGW_METRIC_API_ERROR_COUNT_PREFIX) + AGW_METRIC_SUFFIX;
+        std::string metricName = std::string(AGW_MARKER_API_ERROR_COUNT);
         
         for (const auto& item : apiErrorCounts) {
             JsonObject metricPayload;
@@ -1965,7 +1965,7 @@ namespace Plugin {
         }
 
         // Send each external service error count with common marker and service name in payload
-        std::string metricName = std::string(AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX) + AGW_METRIC_SUFFIX;
+        std::string metricName = std::string(AGW_MARKER_EXT_SERVICE_ERROR_COUNT);
         
         for (const auto& item : externalServiceErrorCounts) {
             JsonObject metricPayload;
@@ -2296,7 +2296,7 @@ namespace Plugin {
             return;
         }
 
-        std::string metricName = std::string(AGW_METRIC_API_ERROR_COUNT_PREFIX) + AGW_METRIC_SUFFIX;
+        std::string metricName = std::string(AGW_MARKER_API_ERROR_COUNT);
         
         for (const auto& item : mSnapshot->apiErrorCounts) {
             JsonObject metricPayload;
@@ -2320,7 +2320,7 @@ namespace Plugin {
             return;
         }
 
-        std::string metricName = std::string(AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX) + AGW_METRIC_SUFFIX;
+        std::string metricName = std::string(AGW_MARKER_EXT_SERVICE_ERROR_COUNT);
         
         for (const auto& item : mSnapshot->externalServiceErrorCounts) {
             JsonObject metricPayload;

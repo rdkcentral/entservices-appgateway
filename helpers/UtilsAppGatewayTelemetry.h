@@ -38,7 +38,7 @@
  * 3. Initialize the telemetry client in your plugin's Initialize/Configure:
  *    AGW_TELEMETRY_INIT(mService)
  * 
- *    (Optional) Record plugin bootstrap time using RAII:
+ *    Record plugin bootstrap time using RAII:
  *    AGW_RECORD_BOOTSTRAP_TIME();  // Timer starts here
  *    // ... plugin initialization code ...
  *    // Timer automatically records on scope exit
@@ -52,13 +52,6 @@
  * 5. Cleanup in Deinitialize:
  *    AGW_TELEMETRY_DEINIT()
  * 
- * ## Marker Design
- * 
- * Generic markers are used with plugin/method names included in the data payload:
- * - AGW_MARKER_PLUGIN_API_ERROR: { "plugin": "Badger", "api": "GetSettings", "error": "TIMEOUT" }
- * - AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR: { "plugin": "OttServices", "service": "ThorPermissionService", "error": "CONNECTION_TIMEOUT" }
- * - Latency metrics use composite names: AppGwBadger_GetSettings_Latency_split
- * - AGW_MARKER_PLUGIN_API_LATENCY: { "plugin": "Badger", "api": "GetSettings", "latency_ms": 123.45 }
  */
 
 #include <interfaces/IAppGateway.h>
@@ -501,11 +494,6 @@ namespace AppGatewayTelemetryHelper {
             mErrorDetails = errorDetails;
         }
 
-        void SetSuccess()
-        {
-            mFailed = false;
-        }
-
     private:
         TelemetryClient* mClient;
         Exchange::GatewayContext mContext;
@@ -573,11 +561,6 @@ namespace AppGatewayTelemetryHelper {
         {
             mFailed = true;
             mErrorDetails = errorDetails;
-        }
-
-        void SetSuccess()
-        {
-            mFailed = false;
         }
 
     private:
@@ -703,21 +686,6 @@ namespace AppGatewayTelemetryHelper {
     do { \
         GetLocalTelemetryClient().Deinitialize(); \
     } while(0)
-
-/**
- * @brief Check if telemetry client is available and ready to use
- * @return bool - true if telemetry is available
- * 
- * Use this to check telemetry availability before manual reporting.
- * Not needed for AGW_REPORT_* macros (they check internally).
- * 
- * Example:
- *   if (AGW_TELEMETRY_AVAILABLE()) {
- *       // Telemetry is ready
- *   }
- */
-#define AGW_TELEMETRY_AVAILABLE() \
-    GetLocalTelemetryClient().IsAvailable()
 
 //=============================================================================
 // 2. BOOTSTRAP TIME TRACKING MACROS

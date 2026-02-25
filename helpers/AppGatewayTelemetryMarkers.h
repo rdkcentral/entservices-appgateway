@@ -78,22 +78,6 @@
 #define AGW_UNIT_MBPS                   "Mbps"
 #define AGW_UNIT_PERCENT                "percent"
 
-//=============================================================================
-// TELEMETRY MARKER SUFFIX
-// Standard suffix for all T2 telemetry markers indicating structured/split format
-//=============================================================================
-
-/**
- * @brief Standard T2 marker suffix
- * @details All telemetry markers use _split suffix to indicate structured format for T2
- */
-#define AGW_METRIC_SUFFIX                           "_split"
-
-//=============================================================================
-// APP GATEWAY INTERNAL METRICS (Used by AppGatewayTelemetry internally)
-// These are aggregated and reported by AppGateway itself as individual metrics
-//=============================================================================
-
 /**
  * @brief Bootstrap duration metric (sent once on startup)
  * @details Total time taken to start all App Gateway plugins
@@ -167,32 +151,20 @@
 /**
  * @brief API error count metric prefix
  * @details Per-API error count metrics sent periodically
- * @usage Metric name: AGW_METRIC_API_ERROR_COUNT_PREFIX + <ApiName> + AGW_METRIC_SUFFIX
- * @example "AppGwApiErrorCount_GetSettings_split"
- * @payload { "sum": <error_count>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
  */
-#define AGW_METRIC_API_ERROR_COUNT_PREFIX           "AppGwApiErrorCount_"
+#define AGW_MARKER_API_ERROR_COUNT           "AppGwApiErrorCount_split"
 
 /**
  * @brief DEPRECATED: Old aggregated API error stats marker (no longer used)
- * @details Replaced by per-API metrics using AGW_METRIC_API_ERROR_COUNT_PREFIX + <ApiName>
+ * @details Replaced by per-API metrics using AGW_MARKER_API_ERROR_COUNT + <ApiName>
  */
 #define AGW_MARKER_API_ERROR_STATS                  "AppGwApiErrorStats_split"
 
 /**
  * @brief External service error count metric prefix
  * @details Per-service error count metrics sent periodically
- * @usage Metric name: AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX + <ServiceName> + AGW_METRIC_SUFFIX
- * @example "AppGwExtServiceErrorCount_ThorPermissionService_split"
- * @payload { "sum": <error_count>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
  */
-#define AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX   "AppGwExtServiceErrorCount_"
-
-/**
- * @brief DEPRECATED: Old aggregated external service error marker (no longer used)
- * @details Replaced by per-service metrics using AGW_METRIC_EXT_SERVICE_ERROR_COUNT_PREFIX + <ServiceName>
- */
-#define AGW_MARKER_EXT_SERVICE_ERROR_STATS          "AppGwExtServiceError_split"
+#define AGW_MARKER_EXT_SERVICE_ERROR_COUNT   "AppGwExtServiceErrorCount_split"
 
 /**
  * @brief Per-API method statistics marker (common marker for all plugin/method combinations)
@@ -285,32 +257,7 @@
 #define AGW_MARKER_SERVICE_METHOD_STAT              "AppGwServiceMethod_split"
 
 //=============================================================================
-// GENERIC PLUGIN TELEMETRY MARKERS
-// Used by all plugins - plugin/service name is included in the payload data
-// Plugins should use helper macros from UtilsAppGatewayTelemetry.h
-//=============================================================================
-
-//=============================================================================
-// LATENCY METRIC COMPONENTS
-// Components used to construct composite latency metric names
-//=============================================================================
-
-/**
- * @brief Latency metric name prefix
- * @details Used to construct composite latency metric names
- * @usage AGW_METRIC_LATENCY_PREFIX + <PluginName> + "_" + <ApiOrService> + AGW_METRIC_LATENCY_SUFFIX
- */
-#define AGW_METRIC_LATENCY_PREFIX                   "AppGw"
-
-/**
- * @brief Latency metric name suffix
- * @details Appended to latency metric names (includes _split)
- * @usage AGW_METRIC_LATENCY_PREFIX + <PluginName> + "_" + <ApiOrService> + AGW_METRIC_LATENCY_SUFFIX
- */
-#define AGW_METRIC_LATENCY_SUFFIX                   "_Latency_split"
-
-//=============================================================================
-// GENERIC PLUGIN EVENT MARKERS (OPTIONAL - for forensics)
+// GENERIC PLUGIN EVENT MARKERS (for forensics)
 // Used by plugins for immediate error reporting with JSON context
 // Plugins should use helper macros from UtilsAppGatewayTelemetry.h
 //=============================================================================
@@ -488,100 +435,6 @@
  *   //   eventData = { "plugin": "OttServices", "service": "ThorPermissionService", 
  *   //                 "error": "CONNECTION_TIMEOUT" }
  *   //   (Plugin name from initialization)
- *
- *
- * Example 3: Reporting API latency from any plugin
- *
- *   #include "UtilsAppGatewayTelemetry.h"
- *
- *   // Note: context parameter contains requestId, connectionId, appId for request correlation
- *   AGW_REPORT_API_LATENCY(context, "AuthorizeDataField", 125.5);  // latency in ms
- *
- *   // This internally calls RecordTelemetryEvent (NOT RecordTelemetryMetric) with:
- *   //   eventName = AGW_MARKER_PLUGIN_API_LATENCY
- *   //   eventData = { "plugin": "<yourPluginName>", "api": "AuthorizeDataField", 
- *   //                 "latency_ms": 125.5 }
- *   //   (Plugin name comes from AGW_TELEMETRY_INIT initialization)
- *
- *
- * Example 4: Reporting external service latency
- *
- *   #include "UtilsAppGatewayTelemetry.h"
- *
- *   // At top of file, before namespace:
- *   AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_OTTSERVICES)
- *
- *   // In Initialize() method:
- *   AGW_TELEMETRY_INIT(mService);
- *
- *   // Note: context parameter contains requestId, connectionId, appId for request correlation
- *   AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_THOR_PERMISSION, 85.3);  // latency in ms
- *
- *   // This internally calls RecordTelemetryMetric with:
- *   //   metricName = AGW_METRIC_LATENCY_PREFIX + "OttServices_ThorPermissionService" + AGW_METRIC_LATENCY_SUFFIX
- *   //              = "AppGwOttServices_ThorPermissionService_Latency_split"
- *   //   metricValue = 85.3
- *   //   metricUnit = AGW_UNIT_MILLISECONDS
- *   //
- *   // AppGateway aggregates this metric and reports:
- *   //   - sum, min, max, avg, count over the reporting interval
- *   //   (Plugin name from AGW_TELEMETRY_INIT initialization)
- *
- *
- * Example 5: Reporting a custom numeric metric using RecordTelemetryMetric
- *
- *   #include "UtilsAppGatewayTelemetry.h"
- *
- *   // Track a custom counter metric
- *   static uint32_t permissionDeniedCount = 0;
- *   permissionDeniedCount++;
- *
- *   AGW_REPORT_METRIC("agw_PermissionDeniedCount", 
- *                     static_cast<double>(permissionDeniedCount), 
- *                     AGW_UNIT_COUNT);
- *
- *   // This internally calls RecordTelemetryMetric with:
- *   //   metricName = "AppGwPermissionDeniedCount"  // Use AppGw prefix for custom metrics
- *   //   metricValue = <count>
- *   //   metricUnit = "count"
- *
- *   // For aggregated metrics (sum/min/max/avg), AppGateway will compute:
- *   //   - sum of all reported values
- *   //   - min/max values
- *   //   - average (sum/count)
- *   //   - total number of reports
- *
- *
- * Example 6: Direct COM-RPC interface usage (without helper macros)
- *
- *   // When UtilsAppGatewayTelemetry.h is not available
- *   Exchange::IAppGatewayTelemetry* telemetry = ...;
- *   Exchange::GatewayContext context;
- *   context.appId = "MyPlugin";
- *   
- *   // Using RecordTelemetryEvent (for errors and events):
- *   JsonObject eventData;
- *   eventData["plugin"] = AGW_PLUGIN_BADGER;
- *   eventData["api"] = "GetData";
- *   eventData["error"] = AGW_ERROR_TIMEOUT;
- *   std::string eventDataStr;
- *   eventData.ToString(eventDataStr);
- *
- *   telemetry->RecordTelemetryEvent(context, 
- *                                   AGW_MARKER_PLUGIN_API_ERROR, 
- *                                   eventDataStr);
- *
- *   // Using RecordTelemetryMetric (for numeric metrics with aggregation):
- *   // Construct metric name using constants:
- *   std::string metricName = std::string(AGW_METRIC_LATENCY_PREFIX) + "MyPlugin_ThorPermissionService" + AGW_METRIC_LATENCY_SUFFIX;
- *   // Result: "AppGwMyPlugin_ThorPermissionService_Latency_split"
- *   telemetry->RecordTelemetryMetric(context,
- *                                    metricName.c_str(),
- *                                    125.5,
- *                                    AGW_UNIT_MILLISECONDS);
- *   
- *   // Metric will be aggregated (sum/min/max/avg/count) and reported periodically
- *
  *
  * Adding a new plugin:
  * 1. Add plugin name constant: #define AGW_PLUGIN_MYPLUGIN "MyPlugin"
