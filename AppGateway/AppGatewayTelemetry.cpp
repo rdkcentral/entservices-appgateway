@@ -419,7 +419,7 @@ namespace Plugin {
         
         const std::string successSuffix = "_Success_split";
         const std::string errorSuffix = "_Error_split";
-        const std::string prefix = "AppGw_PluginName_";
+        const std::string prefix = AGW_INTERNAL_PLUGIN_PREFIX;
         const std::string methodTag = "_MethodName_";
 
         // Check if it ends with "_Success_split" or "_Error_split"
@@ -481,7 +481,7 @@ namespace Plugin {
         //   "AppGw_PluginName_OttServices_ApiName_GetToken_ApiLatency_split"
 
         const std::string suffix = "_ApiLatency_split";
-        const std::string prefix = "AppGw_PluginName_";
+        const std::string prefix = AGW_INTERNAL_PLUGIN_PREFIX;
         const std::string apiTag = "_ApiName_";
 
         // Check if it ends with "_ApiLatency_split"
@@ -532,7 +532,7 @@ namespace Plugin {
         //   "AppGw_PluginName_Badger_ServiceName_AuthService_ServiceLatency_split"
 
         const std::string suffix = "_ServiceLatency_split";
-        const std::string prefix = "AppGw_PluginName_";
+        const std::string prefix = AGW_INTERNAL_PLUGIN_PREFIX;
         const std::string serviceTag = "_ServiceName_";
 
         // Check if it ends with "_ServiceLatency_split"
@@ -589,7 +589,7 @@ namespace Plugin {
 
         const std::string successSuffix = "_Success_split";
         const std::string errorSuffix = "_Error_split";
-        const std::string prefix = "AppGw_PluginName_";
+        const std::string prefix = AGW_INTERNAL_PLUGIN_PREFIX;
         const std::string serviceTag = "_ServiceName_";
 
         // Check if it ends with "_Success_split" or "_Error_split"

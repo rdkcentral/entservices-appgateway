@@ -156,6 +156,10 @@ namespace AppGatewayTelemetryHelper {
          */
         bool IsAvailable() const
         {
+            if (nullptr == mService) {
+                return false;
+            }
+
             if (nullptr == mTelemetry) {
                 mTelemetry = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayTelemetry>(APP_GATEWAY_CALLSIGN);
             }
@@ -277,7 +281,7 @@ namespace AppGatewayTelemetryHelper {
                                        const std::string& apiName, 
                                        double latencyMs)
         {
-            std::string metricName = "AppGw_PluginName_" + mPluginName + "_ApiName_" + apiName + "_ApiLatency_split";
+            std::string metricName = AGW_INTERNAL_PLUGIN_PREFIX + mPluginName + "_ApiName_" + apiName + "_ApiLatency_split";
             
             LOGTRACE("TelemetryClient: Recording API latency - plugin=%s, api=%s, latency=%.2fms, metric=%s",
                      mPluginName.c_str(), apiName.c_str(), latencyMs, metricName.c_str());
@@ -306,7 +310,7 @@ namespace AppGatewayTelemetryHelper {
                                            const std::string& serviceName, 
                                            double latencyMs)
         {
-            std::string metricName = "AppGw_PluginName_" + mPluginName + "_ServiceName_" + serviceName + "_ServiceLatency_split";
+            std::string metricName = AGW_INTERNAL_PLUGIN_PREFIX + mPluginName + "_ServiceName_" + serviceName + "_ServiceLatency_split";
             
             LOGTRACE("TelemetryClient: Recording service latency - plugin=%s, service=%s, latency=%.2fms, metric=%s",
                      mPluginName.c_str(), serviceName.c_str(), latencyMs, metricName.c_str());

@@ -79,6 +79,14 @@
 #define AGW_UNIT_PERCENT                "percent"
 
 /**
+ * @brief Internal plugin prefix for metric name construction
+ * @details Used when building metric names for plugin API/service latency tracking
+ * @usage Format: "AppGw_PluginName_<PluginName>_ApiName_<ApiName>_ApiLatency_split"
+ * @note INTERNAL: Used by AppGatewayTelemetry parsing logic and TelemetryClient metric recording
+ */
+#define AGW_INTERNAL_PLUGIN_PREFIX      "AppGw_PluginName_"
+
+/**
  * @brief Bootstrap duration metric (sent once on startup)
  * @details Total time taken to start all App Gateway plugins
  * @payload { "sum": <duration_ms>, "count": 1, "unit": "ms", "reporting_interval_sec": 0 }
@@ -378,12 +386,17 @@
 #define AGW_ERROR_CONNECTION_TIMEOUT                "CONNECTION_TIMEOUT"
 #define AGW_ERROR_TIMEOUT                           "TIMEOUT"
 #define AGW_ERROR_PERMISSION_DENIED                 "PERMISSION_DENIED"
+#define AGW_ERROR_PERMISSION_FETCH                  "PERMISSION_FETCH_FAILED"
+#define AGW_ERROR_FETCH_SAT_FAILED                  "FETCH_SAT_FAILED"
+#define AGW_ERROR_FETCH_XACT_FAILED                 "FETCH_XACT_FAILED"
+#define AGW_ERROR_PLATFORM_TOKEN_FAILED             "PLATFORM_TOKEN_FAILED"
 #define AGW_ERROR_INVALID_RESPONSE                  "INVALID_RESPONSE"
 #define AGW_ERROR_INVALID_REQUEST                   "INVALID_REQUEST"
 #define AGW_ERROR_NOT_AVAILABLE                     "NOT_AVAILABLE"
 #define AGW_ERROR_FETCH_FAILED                      "FETCH_FAILED"
 #define AGW_ERROR_UPDATE_FAILED                     "UPDATE_FAILED"
 #define AGW_ERROR_COLLECTION_FAILED                 "COLLECTION_FAILED"
+#define AGW_ERROR_ENUMERATE_PERMISSIONS_FAILED      "ENUMERATE_PERMISSIONS_FAILED"
 #define AGW_ERROR_GENERAL                           "GENERAL_ERROR"
 
 //=============================================================================
