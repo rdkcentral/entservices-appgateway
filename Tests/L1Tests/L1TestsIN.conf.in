@@ -1,0 +1,28 @@
+# Thunder/WPEFramework plugin configuration template for L1TestsIN
+#
+# IMPORTANT:
+# This file is used by ConfigGenerator (Python) and is executed as Python code.
+# Therefore it must contain valid Python syntax (assignments, dicts, lists, etc.).
+#
+# CMake's write_config() will:
+#  1) configure_file(L1TestsIN.conf.in -> <build>/config/L1TestsIN.conf) with @ONLY
+#  2) run config_generator.py -i L1TestsIN.conf
+#  3) config_generator.py will load this file as a Python module and serialize
+#     whitelisted variables into <build>/config/L1TestsIN.json
+
+# NOTE:
+# Do NOT define `locator` or `classname` variables in this template.
+# They are *not* part of the ConfigGenerator whitelist (params.config) and will
+# cause ConfigGenerator to abort with:
+#   "Unrecognized parameter \"locator\""
+#
+# The locator/classname are already supplied to ConfigGenerator by CMake via
+# command-line flags (-l / -c) in FindConfigGenerator.cmake.
+
+# Common plugin fields (also parsed/serialized by ConfigGenerator if whitelisted).
+# Note: callsign/resumed/etc can be added here if needed by your environment.
+autostart = False
+
+# Plugin-specific settings payload.
+configuration = {
+}
