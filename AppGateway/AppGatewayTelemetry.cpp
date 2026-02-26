@@ -2,7 +2,7 @@
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
- * Copyright 2020 RDK Management
+ * Copyright 2025 RDK Management.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -186,7 +186,7 @@ namespace Plugin {
         RequestKey key = {context.connectionId, context.requestId};
 
         // Track this request
-        if (mRequestStates.find(key) == mRequestStates.end()) {
+        if (mRequestStates.end() == mRequestStates.find(key)) {
             RequestState state;
             state.appId = context.appId;
             mRequestStates[key] = state;
@@ -206,14 +206,14 @@ namespace Plugin {
         RequestKey key = {context.connectionId, context.requestId};
         auto it = mRequestStates.find(key);
 
-        if (it != mRequestStates.end() && !it->second.responseReceived) {
+        if (mRequestStates.end() != it && false == it->second.responseReceived) {
             mHealthStats.totalResponses.fetch_add(1, std::memory_order_relaxed);
             LOGTRACE("Total response incremented (appId=%s, connId=%u, reqId=%u)",
                      context.appId.c_str(), context.connectionId, context.requestId);
         } else {
             LOGTRACE("Duplicate/unknown response ignored (appId=%s, connId=%u, reqId=%u, exists=%d, responded=%d)",
                      context.appId.c_str(), context.connectionId, context.requestId,
-                     it != mRequestStates.end(), it != mRequestStates.end() ? it->second.responseReceived : false);
+                     mRequestStates.end() != it, mRequestStates.end() != it ? it->second.responseReceived : false);
         }
     }
 
@@ -224,7 +224,7 @@ namespace Plugin {
         RequestKey key = {context.connectionId, context.requestId};
         auto it = mRequestStates.find(key);
 
-        if (it != mRequestStates.end() && !it->second.responseReceived) {
+        if (mRequestStates.end() != it && false == it->second.responseReceived) {
             it->second.responseReceived = true;
             it->second.isSuccess = true;
             mHealthStats.successfulCalls.fetch_add(1, std::memory_order_relaxed);
@@ -233,7 +233,7 @@ namespace Plugin {
         } else {
             LOGTRACE("Duplicate/unknown success ignored (appId=%s, connId=%u, reqId=%u, exists=%d, responded=%d)",
                      context.appId.c_str(), context.connectionId, context.requestId,
-                     it != mRequestStates.end(), it != mRequestStates.end() ? it->second.responseReceived : false);
+                     mRequestStates.end() != it, mRequestStates.end() != it ? it->second.responseReceived : false);
         }
     }
 
@@ -244,7 +244,7 @@ namespace Plugin {
         RequestKey key = {context.connectionId, context.requestId};
         auto it = mRequestStates.find(key);
 
-        if (it != mRequestStates.end() && !it->second.responseReceived) {
+        if (mRequestStates.end() != it && false == it->second.responseReceived) {
             it->second.responseReceived = true;
             it->second.isSuccess = false;
             mHealthStats.failedCalls.fetch_add(1, std::memory_order_relaxed);
@@ -253,7 +253,7 @@ namespace Plugin {
         } else {
             LOGTRACE("Duplicate/unknown failure ignored (appId=%s, connId=%u, reqId=%u, exists=%d, responded=%d)",
                      context.appId.c_str(), context.connectionId, context.requestId,
-                     it != mRequestStates.end(), it != mRequestStates.end() ? it->second.responseReceived : false);
+                     mRequestStates.end() != it, mRequestStates.end() != it ? it->second.responseReceived : false);
         }
     }
 
@@ -265,7 +265,7 @@ namespace Plugin {
         auto it = mRequestStates.find(key);
 
         // Check if this request exists and hasn't received a response yet
-        if (it != mRequestStates.end() && !it->second.responseReceived) {
+        if (mRequestStates.end() != it && false == it->second.responseReceived) {
             // Mark as responded (prevents double counting)
             it->second.responseReceived = true;
             it->second.isSuccess = isSuccess;
@@ -285,7 +285,7 @@ namespace Plugin {
         } else {
             LOGTRACE("Duplicate/unknown response ignored (appId=%s, connId=%u, reqId=%u, exists=%d, responded=%d)",
                      context.appId.c_str(), context.connectionId, context.requestId,
-                     it != mRequestStates.end(), it != mRequestStates.end() ? it->second.responseReceived : false);
+                     mRequestStates.end() != it, mRequestStates.end() != it ? it->second.responseReceived : false);
         }
     }
 
@@ -321,7 +321,7 @@ namespace Plugin {
         }
 
         // Handle internal response payload tracking event
-        if (eventName == AGW_MARKER_RESPONSE_PAYLOAD_TRACKING) {
+        if (AGW_MARKER_RESPONSE_PAYLOAD_TRACKING == eventName) {
             Core::JSONRPC::Message::Info info;
             if (info.FromString(eventData) && info.Code.IsSet() && info.Text.IsSet()) {
                 LOGTRACE("Response recorded as FAILURE (appId=%s, connId=%u, reqId=%u)",
@@ -344,7 +344,7 @@ namespace Plugin {
         bool isImmediateEvent = false;
 
         // Check if this is an API error event - send immediately to T2
-        if (eventName == AGW_MARKER_PLUGIN_API_ERROR) {
+        if (AGW_MARKER_PLUGIN_API_ERROR == eventName) {
             // Extract API name from eventData if possible
             // eventData expected format: {"plugin": "<pluginName>", "api": "<apiName>", "error": "<errorDetails>"}
             JsonObject data;
@@ -362,7 +362,7 @@ namespace Plugin {
             isImmediateEvent = true;
         }
         // Check if this is an external service error event - send immediately to T2
-        else if (eventName == AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR) {
+        else if (AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR == eventName) {
             // Extract service name from eventData if possible
             // eventData expected format: {"plugin": "<pluginName>", "service": "<serviceName>", "error": "<errorDetails>"}
             JsonObject data;
@@ -427,11 +427,11 @@ namespace Plugin {
         bool hasErrorSuffix = false;
 
         if (metricName.length() > successSuffix.length() && 
-            metricName.substr(metricName.length() - successSuffix.length()) == successSuffix) {
+            successSuffix == metricName.substr(metricName.length() - successSuffix.length())) {
             isError = false;
             hasSuccessSuffix = true;
         } else if (metricName.length() > errorSuffix.length() && 
-                   metricName.substr(metricName.length() - errorSuffix.length()) == errorSuffix) {
+                   errorSuffix == metricName.substr(metricName.length() - errorSuffix.length())) {
             isError = true;
             hasErrorSuffix = true;
         } else {
@@ -451,7 +451,7 @@ namespace Plugin {
 
         // Find "_MethodName_" tag
         size_t methodTagPos = middle.find(methodTag);
-        if (methodTagPos == std::string::npos || methodTagPos == 0) {
+        if (std::string::npos == methodTagPos || 0 == methodTagPos) {
             return false;
         }
 
@@ -486,13 +486,13 @@ namespace Plugin {
 
         // Check if it ends with "_ApiLatency_split"
         if (metricName.length() <= suffix.length() || 
-            metricName.substr(metricName.length() - suffix.length()) != suffix) {
+            suffix != metricName.substr(metricName.length() - suffix.length())) {
             return false;
         }
 
         // Check if it starts with "AppGw_PluginName_"
         if (metricName.length() <= prefix.length() || 
-            metricName.substr(0, prefix.length()) != prefix) {
+            prefix != metricName.substr(0, prefix.length())) {
             return false;
         }
 
@@ -502,7 +502,7 @@ namespace Plugin {
 
         // Find "_ApiName_" tag
         size_t apiTagPos = middle.find(apiTag);
-        if (apiTagPos == std::string::npos || apiTagPos == 0) {
+        if (std::string::npos == apiTagPos || 0 == apiTagPos) {
             return false;
         }
 
@@ -537,13 +537,13 @@ namespace Plugin {
 
         // Check if it ends with "_ServiceLatency_split"
         if (metricName.length() <= suffix.length() || 
-            metricName.substr(metricName.length() - suffix.length()) != suffix) {
+            suffix != metricName.substr(metricName.length() - suffix.length())) {
             return false;
         }
 
         // Check if it starts with "AppGw_PluginName_"
         if (metricName.length() <= prefix.length() || 
-            metricName.substr(0, prefix.length()) != prefix) {
+            prefix != metricName.substr(0, prefix.length())) {
             return false;
         }
 
@@ -553,7 +553,7 @@ namespace Plugin {
 
         // Find "_ServiceName_" tag
         size_t serviceTagPos = middle.find(serviceTag);
-        if (serviceTagPos == std::string::npos || serviceTagPos == 0) {
+        if (std::string::npos == serviceTagPos || 0 == serviceTagPos) {
             return false;
         }
 
@@ -597,11 +597,11 @@ namespace Plugin {
         bool hasErrorSuffix = false;
 
         if (metricName.length() > successSuffix.length() && 
-            metricName.substr(metricName.length() - successSuffix.length()) == successSuffix) {
+            successSuffix == metricName.substr(metricName.length() - successSuffix.length())) {
             isError = false;
             hasSuccessSuffix = true;
         } else if (metricName.length() > errorSuffix.length() && 
-                   metricName.substr(metricName.length() - errorSuffix.length()) == errorSuffix) {
+                   errorSuffix == metricName.substr(metricName.length() - errorSuffix.length())) {
             isError = true;
             hasErrorSuffix = true;
         } else {
@@ -610,7 +610,7 @@ namespace Plugin {
 
         // Check if it starts with the explicit prefix "AppGw_PluginName_"
         if (metricName.length() <= prefix.length() || 
-            metricName.substr(0, prefix.length()) != prefix) {
+            prefix != metricName.substr(0, prefix.length())) {
             return false;
         }
 
@@ -621,7 +621,7 @@ namespace Plugin {
 
         // Find "_ServiceName_" tag
         size_t serviceTagPos = middle.find(serviceTag);
-        if (serviceTagPos == std::string::npos || serviceTagPos == 0) {
+        if (std::string::npos == serviceTagPos || 0 == serviceTagPos) {
             return false;
         }
 
@@ -903,7 +903,7 @@ namespace Plugin {
 
         // Pattern match: look up and execute handler if found
         auto it = markerHandlers.find(metricName);
-        if (it != markerHandlers.end()) {
+        if (markerHandlers.end() != it) {
             it->second(this, context, metricValue);
             return true;
         }
@@ -927,7 +927,7 @@ namespace Plugin {
 
 #if 0                    
         // Handle internal response tracking marker
-        if (metricName == AGW_MARKER_INTERNAL_RESPONSE) {
+        if (AGW_MARKER_INTERNAL_RESPONSE == metricName) {
             // Value encoding: 1.0 = success, 0.0 = failure
             bool isSuccess = (metricValue >= 0.5);
             RecordResponse(context, isSuccess);
@@ -935,7 +935,7 @@ namespace Plugin {
         }
 #endif
         // Handle bootstrap duration metric
-        if (metricName == AGW_MARKER_BOOTSTRAP_DURATION) {
+        if (AGW_MARKER_BOOTSTRAP_DURATION == metricName) {
             RecordBootstrapTime(metricValue);
             return Core::ERROR_NONE;
         }
@@ -1034,7 +1034,7 @@ namespace Plugin {
         // Lock released - new telemetry can now be recorded while snapshot is being sent
 
         // Send telemetry synchronously (no WorkerPool dispatch)
-        if (snapshot) {
+        if (nullptr != snapshot) {
             snapshot->SendAll();
         }
     }
@@ -1065,7 +1065,7 @@ namespace Plugin {
         }
 
         // Only send if there's data
-        if (totalCalls == 0 && wsConnections == 0 && pendingCount == 0) {
+        if (0 == totalCalls && 0 == wsConnections && 0 == pendingCount) {
             LOGINFO("No health stats to report");
             return;
         }
@@ -1633,7 +1633,7 @@ namespace Plugin {
 
     void AppGatewayTelemetry::TelemetrySnapshot::SendAll()
     {
-        if (!parent) {
+        if (nullptr == parent) {
             LOGERR("TelemetrySnapshot::SendAll: Invalid parent pointer");
             return;
         }
@@ -2008,7 +2008,7 @@ namespace Plugin {
 
     void AppGatewayTelemetry::FlushJob::Dispatch()
     {
-        if (!mSnapshot || !mSnapshot->parent) {
+        if (nullptr == mSnapshot || nullptr == mSnapshot->parent) {
             LOGERR("FlushJob: Invalid snapshot or parent pointer");
             return;
         }

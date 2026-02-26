@@ -2,7 +2,7 @@
  * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
- * Copyright 2020 RDK Management
+ * Copyright 2025 RDK Management.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -118,7 +118,7 @@ namespace AppGatewayTelemetryHelper {
          */
         bool Initialize(PluginHost::IShell* service, const std::string& pluginName)
         {
-            if (service == nullptr) {
+            if (nullptr == service) {
                 LOGERR("TelemetryClient: service is null");
                 return false;
             }
@@ -128,7 +128,7 @@ namespace AppGatewayTelemetryHelper {
 
             // Query for the AppGateway telemetry interface
             mTelemetry = service->QueryInterfaceByCallsign<Exchange::IAppGatewayTelemetry>(APP_GATEWAY_CALLSIGN);
-            if (mTelemetry == nullptr) {
+            if (nullptr == mTelemetry) {
                 LOGWARN("TelemetryClient: AppGateway telemetry interface not available");
                 return false;
             }
@@ -142,7 +142,7 @@ namespace AppGatewayTelemetryHelper {
          */
         void Deinitialize()
         {
-            if (mTelemetry != nullptr) {
+            if (nullptr != mTelemetry) {
                 mTelemetry->Release();
                 mTelemetry = nullptr;
             }
@@ -159,7 +159,7 @@ namespace AppGatewayTelemetryHelper {
             if (nullptr == mTelemetry) {
                 mTelemetry = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayTelemetry>(APP_GATEWAY_CALLSIGN);
             }
-            return mTelemetry != nullptr;
+            return nullptr != mTelemetry;
         }
 
         /**
@@ -415,7 +415,7 @@ namespace AppGatewayTelemetryHelper {
 
         ~ScopedBootstrapTimer()
         {
-            if (!mClient || !mClient->IsAvailable()) {
+            if (nullptr == mClient || false == mClient->IsAvailable()) {
                 return;
             }
 
@@ -466,7 +466,7 @@ namespace AppGatewayTelemetryHelper {
 
         ~ScopedApiTimer()
         {
-            if (!mClient || !mClient->IsAvailable()) {
+            if (nullptr == mClient || false == mClient->IsAvailable()) {
                 return;
             }
 
@@ -535,7 +535,7 @@ namespace AppGatewayTelemetryHelper {
 
         ~ScopedServiceTimer()
         {
-            if (!mClient || !mClient->IsAvailable()) {
+            if (nullptr == mClient || false == mClient->IsAvailable()) {
                 return;
             }
 
