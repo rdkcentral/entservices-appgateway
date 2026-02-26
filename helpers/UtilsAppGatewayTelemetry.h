@@ -339,6 +339,47 @@ namespace AppGatewayTelemetryHelper {
         }
 
         /**
+         * @brief Record a response (success or failure) atomically
+         * @param context Gateway context with request/connection/app info
+         * @param isSuccess true for successful response (has "result"), false for error (has "error")
+         * @return Core::hresult Success or error code
+         * 
+         * This method combines response tracking and success/failure counting into a single
+         * atomic operation via AppGateway's IAppGatewayTelemetry interface. It ensures both
+         * totalResponses and successfulCalls/failedCalls are updated together exactly once
+         * per request, preventing double-counting.
+         * 
+         * **Data Flow**:
+         * - Calls RecordResponse() on IAppGatewayTelemetry interface via COM-RPC
+         * - AppGateway atomically updates:
+         *   * totalResponses counter (always incremented)
+         *   * successfulCalls OR failedCalls (based on isSuccess)
+         * - Uses responseReceived flag internally to prevent double-counting
+         * - First call for a (connectionId, requestId) pair is counted
+         * - Subsequent calls for same pair are ignored
+         * 
+         * **When to Use**:
+         * - After parsing JSON-RPC 2.0 response payload in external plugins
+         * - When you know if response is success (has "result") or error (has "error")
+         * - Replaces separate calls to IncrementTotalResponses + IncrementSuccessfulCalls/FailedCalls
+         * - Use via AGW_RECORD_RESPONSE macro for convenience
+         * 
+         * **Thread Safety**:
+         * - Safe to call from multiple threads
+         * - COM-RPC call to AppGateway with internal locking
+         * - Double-counting prevention is thread-safe
+         */
+        Core::hresult RecordResponse(const Exchange::GatewayContext& context, bool isSuccess)
+        {
+            if (!IsAvailable()) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            // Send to AppGateway for response tracking
+            return mTelemetry->RecordResponse(context,isSuccess);
+        }
+
+        /**
          * @brief Track response payload for automatic success/failure detection
          * @param context Gateway context with request/connection/app info
          * @param payload JSON-RPC 2.0 response payload string
@@ -355,17 +396,11 @@ namespace AppGatewayTelemetryHelper {
             if (!IsAvailable()) {
                 return Core::ERROR_UNAVAILABLE;
             }
-            
-            // Bundle payload into event data
-            JsonObject eventData;
-            eventData["payload"] = payload;
-            std::string eventDataStr;
-            eventData.ToString(eventDataStr);
-            
+
             // Send to AppGateway for parsing and tracking
             return mTelemetry->RecordTelemetryEvent(context,
                                                      AGW_MARKER_RESPONSE_PAYLOAD_TRACKING,
-                                                     eventDataStr);
+                                                     payload);
         }
 
         /**
