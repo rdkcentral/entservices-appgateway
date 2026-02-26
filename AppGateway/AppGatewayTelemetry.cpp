@@ -322,28 +322,15 @@ namespace Plugin {
 
         // Handle internal response payload tracking event
         if (eventName == AGW_MARKER_RESPONSE_PAYLOAD_TRACKING) {
-            // Parse event data to extract payload
-            JsonObject eventJson;
-            if (eventJson.FromString(eventData)) {
-                if (eventJson.HasLabel("payload")) {
-                    string payload = eventJson["payload"].String();
-                    
-                    // Parse the payload as JSON-RPC 2.0 response
-                    JsonObject payloadJson;
-                    if (payloadJson.FromString(payload)) {
-                        // Check if it's JSON-RPC 2.0 format
-                        if (payloadJson.HasLabel("jsonrpc") && payloadJson["jsonrpc"].String() == "2.0") {
-                            // Determine success or failure based on presence of "result" or "error"
-                            if (payloadJson.HasLabel("result")) {
-                                // Success response
-                                RecordResponse(context, true);
-                            } else if (payloadJson.HasLabel("error")) {
-                                // Error response
-                                RecordResponse(context, false);
-                            }
-                        }
-                    }
-                }
+            Core::JSONRPC::Message::Info info;
+            if (info.FromString(eventData) && info.Code.IsSet() && info.Text.IsSet()) {
+                LOGTRACE("Response recorded as FAILURE (appId=%s, connId=%u, reqId=%u)",
+                context.appId.c_str(), context.connectionId, context.requestId);
+                RecordResponse(context, false);
+            } else {
+                LOGTRACE("Response recorded as SUCCESS (appId=%s, connId=%u, reqId=%u)",
+                context.appId.c_str(), context.connectionId, context.requestId);
+                RecordResponse(context, true);
             }
             return Core::ERROR_NONE;
         }

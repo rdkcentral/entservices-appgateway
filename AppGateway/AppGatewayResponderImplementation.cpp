@@ -312,16 +312,10 @@ namespace WPEFramework
 
             // Create context for telemetry
             Exchange::GatewayContext context = {(uint32_t)requestId, connectionId, appId};
-
-            // Track response payload - AppGateway will parse and determine success/failure
-            JsonObject eventData;
-            eventData["payload"] = payload;
-            string eventDataStr;
-            eventData.ToString(eventDataStr);
             AppGatewayTelemetry::getInstance().RecordTelemetryEvent(
                 context,
                 AGW_MARKER_RESPONSE_PAYLOAD_TRACKING,
-                eventDataStr
+                payload
             );
             
             // Send response back to client

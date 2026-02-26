@@ -370,24 +370,8 @@ namespace WPEFramework
 
         Core::hresult AppGatewayImplementation::Resolve(const Context& context, const string& origin, const string& method, const string& params, string& resolution)
         {
-            // AppGateway reports telemetry directly to its own singleton (not via COM-RPC)
-            // Example: Manual latency tracking using direct singleton access
-            auto startTime = std::chrono::steady_clock::now();
-
             LOGTRACE("method=%s params=%s", method.c_str(), params.c_str());
-            Core::hresult result = InternalResolve(context, method, params, origin, resolution);
-
-            // Record latency metric directly to telemetry singleton
-            auto endTime = std::chrono::steady_clock::now();
-            auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
-
-            std::string metricName = std::string("AppGw_PluginName_AppGateway_MethodName_Resolve_") + 
-                                    (result == Core::ERROR_NONE ? "Success" : "Error") + "_split";
-            AppGatewayTelemetry::getInstance().RecordTelemetryMetric(
-                context, metricName, static_cast<double>(durationMs), "ms"
-            );
-
-            return result;
+            return InternalResolve(context, method, params, origin, resolution);
         }
 
         Core::hresult AppGatewayImplementation::InternalResolve(const Context& context, const string& method, const string& params, const string& origin, string& resolution)
