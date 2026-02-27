@@ -78,6 +78,8 @@ namespace Plugin {
         private:
             AppNotificationsImplementation& mParent;
             mutable std::mutex mSubscriberMutex;
+            mutable Core::CriticalSection mAppGatewayLock;
+            mutable Core::CriticalSection mInternalGatewayNotifierLock;
             std::map<string, std::vector<Exchange::IAppNotifications::AppNotificationContext>> mSubscribers;
             Exchange::IAppGatewayResponder *mAppGateway;
             Exchange::IAppGatewayResponder *mInternalGatewayNotifier;

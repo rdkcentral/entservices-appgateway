@@ -30,7 +30,6 @@
 // so we can use a simple in-memory registry to track connection IDs and their associated app IDs.
 #define APPGATEWAY_SOCKET_ADDRESS "127.0.0.1:3473"
 #define DEFAULT_CONFIG_PATH "/etc/app-gateway/resolution.base.json"
-#define COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN "org.rdk.AppGatewayCommon"
 
 namespace WPEFramework
 {
@@ -115,6 +114,8 @@ namespace WPEFramework
             mWsManager.SetAuthHandler(
                 [this](const uint32_t connectionId, const std::string &token) -> bool
                 {
+                    Core::SafeSyncType<Core::CriticalSection> lock(mAuthenticatorLock);
+                    string interfaceToQuery;
                     string sessionId = Utils::ResolveQuery(token, "session");
                     if (sessionId.empty())
                     {
@@ -122,15 +123,20 @@ namespace WPEFramework
                         return false;
                     }
 
-                    if ( mAuthenticator==nullptr ) {
+                    if (nullptr == mAuthenticator) {
+                        //Will update the interface first before query call.
                         if (ConfigUtils::useAppManagers()) {
-                            mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN);
+                            interfaceToQuery = COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN;
                         } else {
-                            mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
+                            interfaceToQuery = GATEWAY_AUTHENTICATOR_CALLSIGN;
                         }
-                        if (mAuthenticator == nullptr) {
-                            LOGERR("Authenticator Not available");
+
+                        mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(interfaceToQuery.c_str());
+                        if (nullptr == mAuthenticator) {
+                            LOGERR("AppGateway Authenticator not available");
                             return false;
+                        } else {
+                            LOGINFO("AppGateway Authenticator interface acquired");
                         }
                     }
 
@@ -222,6 +228,7 @@ namespace WPEFramework
                                                      const uint32_t requestId,
                                                      const uint32_t connectionId)
         {
+            Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
             std::string resolution;
             string appId;
 
@@ -244,16 +251,16 @@ namespace WPEFramework
                     version
                 };
 
-                if (mResolver == nullptr) {
+                if (nullptr == mResolver) {
                     mResolver = mService->QueryInterface<Exchange::IAppGatewayResolver>();
+                    if (nullptr == mResolver) {
+                        LOGERR("Resolver interface not available");
+                        return;
+                    } else {
+                        LOGINFO("Resolver interface acquired");
+                    }
                 }
 
-                if (mResolver == nullptr) {
-                    LOGERR("Resolver interface not available");
-                    return;
-                }
-
-                string resolution;
                 if (Core::ERROR_NONE != mResolver->Resolve(context, APP_GATEWAY_CALLSIGN, method, params, resolution)) {
                     LOGERR("Resolver Failure");
                 }

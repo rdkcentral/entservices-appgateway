@@ -195,11 +195,14 @@ namespace WPEFramework
         }
 
         void AppNotificationsImplementation::SubscriberMap::DispatchToGateway(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload) {
+            Core::SafeSyncType<Core::CriticalSection> lock(mAppGatewayLock);
             if (nullptr == mAppGateway) {
                 mAppGateway = mParent.mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(APP_GATEWAY_CALLSIGN);
-                if (mAppGateway == nullptr) {
-                    LOGERR("Failed to get IAppGateway interface");
+                if (nullptr == mAppGateway) {
+                    LOGERR("Failed to get AppGateway Responder interface");
                     return;
+                } else {
+                    LOGINFO("AppGateway Responder interface acquired successfully");
                 }
             }
             Exchange::GatewayContext gatewayContext = ContextUtils::ConvertNotificationToAppGatewayContext(context);
@@ -207,11 +210,14 @@ namespace WPEFramework
         }
 
         void AppNotificationsImplementation::SubscriberMap::DispatchToLaunchDelegate(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload) {
+            Core::SafeSyncType<Core::CriticalSection> lock(mInternalGatewayNotifierLock);
             if (nullptr == mInternalGatewayNotifier) {
                 mInternalGatewayNotifier = mParent.mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
-                if (mInternalGatewayNotifier == nullptr) {
-                    LOGERR("Failed to get ILaunchDelegate interface");
+                if (nullptr == mInternalGatewayNotifier) {
+                    LOGERR("Failed to get InternalGatewayNotifier interface");
                     return;
+                } else {
+                    LOGINFO("InternalGatewayNotifier interface acquired successfully");
                 }
             }
             Exchange::GatewayContext gatewayContext = ContextUtils::ConvertNotificationToAppGatewayContext(context);

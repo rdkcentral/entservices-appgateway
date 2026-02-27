@@ -115,12 +115,14 @@ public:
     // Common method to ensure mNetworkManager is available for all APIs
     Exchange::INetworkManager *GetNetworkManagerInterface()
     {
-        if (mNetworkManager == nullptr && mShell != nullptr)
+        Core::SafeSyncType<Core::CriticalSection> lock(mNetworkManagerLock);
+        if (nullptr == mNetworkManager && nullptr != mShell)
         {
             mNetworkManager = mShell->QueryInterfaceByCallsign<Exchange::INetworkManager>(NETWORKMANAGER_CALLSIGN);
-            if (mNetworkManager == nullptr)
-            {
+            if (nullptr == mNetworkManager) {
                 LOGERR("Failed to get NetworkManager COM interface");
+            } else {
+                LOGINFO("NetworkManager COM interface acquired successfully");
             }
         }
         return mNetworkManager;
@@ -319,7 +321,7 @@ private:
         bool registered;
         std::mutex registerMutex;
     };
-
+    mutable Core::CriticalSection mNetworkManagerLock;
     Exchange::INetworkManager *mNetworkManager;
     PluginHost::IShell *mShell;
     Core::Sink<NetworkNotificationHandler> mNotificationHandler;
