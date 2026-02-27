@@ -91,7 +91,7 @@
  * @details Total time taken to start all App Gateway plugins
  * @payload { "sum": <duration_ms>, "count": 1, "unit": "ms", "reporting_interval_sec": 0 }
  */
-#define AGW_MARKER_BOOTSTRAP_DURATION               "AppGwBootstrapDuration_split"
+#define AGW_MARKER_BOOTSTRAP_DURATION               "WPE_INFO_AppGwBootstrap_SPLIT"
 
 /**
  * @brief WebSocket connections metric (sent periodically)
@@ -154,7 +154,7 @@
  *       AGW_MARKER_RESPONSE_CALLS, AGW_MARKER_SUCCESSFUL_CALLS, AGW_MARKER_FAILED_CALLS)
  *       are available for plugin-specific use via RecordTelemetryMetric
  */
-#define AGW_MARKER_HEALTH_STATS                     "AppGwHealthStats_split"
+#define AGW_MARKER_HEALTH_STATS                     "WPE_INFO_AppGwHealth_SPLIT"
 
 /**
  * @brief LinchPin connection metric (sent periodically)
