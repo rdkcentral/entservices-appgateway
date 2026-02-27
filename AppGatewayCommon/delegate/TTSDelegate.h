@@ -23,6 +23,7 @@
 #include "UtilsLogging.h"
 #include "ContextUtils.h"
 #include <mutex>
+#include "ObjectUtils.h"
 
 
 #define TTS_CALLSIGN "org.rdk.TextToSpeech"
@@ -118,45 +119,45 @@ private:
         TTSNotificationHandler(TTSDelegate &parent) : mParent(parent), registered(false) {}
         ~TTSNotificationHandler() {}
             
-        void VoiceChanged(const string voice)
+        void OnVoiceChanged(const string voice)
         {
-            mParent.Dispatch("TextToSpeech.onVoiceChanged", voice);
+            mParent.Dispatch("TextToSpeech.onVoiceChanged", ObjectUtils::CreateStringObject(voice));
         }
-        void WillSpeak(const uint32_t speechid)
+        void OnSpeechReady(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onWillSpeak", to_string(speechid));
+            mParent.Dispatch("TextToSpeech.onWillSpeak", ObjectUtils::CreateUInt32Object(speechid));
         }
-        void SpeechStart(const uint32_t speechid)
+        void OnSpeechStarted(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onSpeechStart", to_string(speechid));
+            mParent.Dispatch("TextToSpeech.onSpeechStart", ObjectUtils::CreateUInt32Object(speechid));
         }
-        void SpeechPause(const uint32_t speechid)
+        void OnSpeechPaused(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onSpeechPause", to_string(speechid));
+            mParent.Dispatch("TextToSpeech.onSpeechPause", ObjectUtils::CreateUInt32Object(speechid));
         }
-        void SpeechResume(const uint32_t speechid)
+        void OnSpeechResumed(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onSpeechResume", to_string(speechid));
+            mParent.Dispatch("TextToSpeech.onSpeechResume", ObjectUtils::CreateUInt32Object(speechid));
         }
-        void SpeechInterrupted(const uint32_t speechid)
+        void OnSpeechInterrupted(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onSpeechInterrupted", to_string(speechid));
+            mParent.Dispatch("TextToSpeech.onSpeechInterrupted", ObjectUtils::CreateUInt32Object(speechid));
         }
-        void NetworkError(const uint32_t speechid)
+        void OnNetworkError(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onNetworkError", to_string(speechid));
+            mParent.Dispatch("TextToSpeech.onNetworkError", ObjectUtils::CreateUInt32Object(speechid));
         }
-        void PlaybackError(const uint32_t speechid)
+        void OnPlaybackError(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onPlaybackError", to_string(speechid));
+            mParent.Dispatch("TextToSpeech.onPlaybackError", ObjectUtils::CreateUInt32Object(speechid));
         }
-        void SpeechComplete(const uint32_t speechid)
+        void OnSpeechComplete(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onSpeechComplete", to_string(speechid));
+            mParent.Dispatch("TextToSpeech.onSpeechComplete", ObjectUtils::CreateUInt32Object(speechid));
         }
 
         void OnTTSStateChanged(const bool state) {
-            mParent.Dispatch("TextToSpeech.onTtsstatechanged", state ? "true" : "false");
+            mParent.Dispatch("TextToSpeech.onTtsstatechanged", ObjectUtils::CreateBooleanJsonString("value", state));
         }
 
         // New Method for Set registered
