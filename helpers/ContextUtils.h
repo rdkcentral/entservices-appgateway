@@ -61,15 +61,15 @@ class ContextUtils {
         }
 
         static bool IsOriginGateway(const string& origin) {
-            return origin == APP_GATEWAY_CALLSIGN;
+            return APP_GATEWAY_CALLSIGN == origin;
         }
 
         static bool IsRDK8Compliant(const string& version) {
-            return version == RDK8_FIREBOLT_VERSION;
+            return RDK8_FIREBOLT_VERSION == version;
         }
 
         static string GetEventNameFromContextBasedonVersion(const Exchange::IAppNotifications::AppNotificationContext& context, const string& baseEventName) {
-            if (context.version == RDK8_FIREBOLT_VERSION) {
+            if (RDK8_FIREBOLT_VERSION == context.version ) {
                 return GetRDK8VersionedEventName(baseEventName);
             }
             return baseEventName;

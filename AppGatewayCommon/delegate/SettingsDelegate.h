@@ -48,7 +48,7 @@ class SettingsDelegate {
         void HandleAppEventNotifier(Exchange::IAppNotificationHandler::IEmitter *cb, const string event,
                                     const bool listen) {
             LOGDBG("Passing on HandleAppEventNotifier");
-            bool registrationError;
+            bool registrationError = false;
             if (userSettings==nullptr || systemDelegate==nullptr || networkDelegate==nullptr || lifecycleDelegate==nullptr || ttsDelegate==nullptr) {
                 LOGERR("Services not available");
                 return;

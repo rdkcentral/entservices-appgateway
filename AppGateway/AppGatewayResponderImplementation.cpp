@@ -227,9 +227,9 @@ namespace WPEFramework
                 const string& contextValue) {
             LOGINFO("Recording context for connectionId: %d, contextKey: %s, contextValue: %s", connectionId, contextKey.c_str(), contextValue.c_str());
             // if contextKey is DISABLE_DEBUG_FOR_CONNECTION, add connectionId to debug disabled registry
-            if (contextKey == DISABLE_DEBUG_FOR_CONNECTION) {
+            if (DISABLE_DEBUG_FOR_CONNECTION == contextKey ) {
                 mDebugDisabledConnectionsRegistry.Add(connectionId);
-            } else if (contextKey == ENABLE_DEBUG_FOR_CONNECTION) {
+            } else if (ENABLE_DEBUG_FOR_CONNECTION == contextKey) {
                 mDebugDisabledConnectionsRegistry.Remove(connectionId);
             }
             return Core::ERROR_NONE;
@@ -261,7 +261,7 @@ namespace WPEFramework
                     requestId,
                     connectionId,
                     appId,
-                    version
+                    std::move(version)
                 };
 
                 if (nullptr == mResolver) {

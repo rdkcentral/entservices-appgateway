@@ -203,7 +203,7 @@ namespace Plugin {
             (void)payload;
             return self->GetAudioDescription(result);
         }},
-        { "accessibility.audioDescription", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+        { "accessibility.audiodescription", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
             (void)payload;
             return self->GetAudioDescriptionsEnabled(result);
@@ -986,8 +986,7 @@ namespace Plugin {
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            userSettingsDelegate->GetClosedCaptionSettings(result);
-            return Core::ERROR_NONE;
+            return userSettingsDelegate->GetClosedCaptionSettings(result);
         }
 
         Core::hresult AppGatewayCommon::GetInternetConnectionStatus(string &result)
