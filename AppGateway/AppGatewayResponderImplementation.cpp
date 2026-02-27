@@ -222,6 +222,19 @@ namespace WPEFramework
             return Core::ERROR_NONE;
         }
 
+        Core::hresult AppGatewayResponderImplementation::RecordGatewayConnectionContext(const uint32_t connectionId ,
+                const string& contextKey ,
+                const string& contextValue) {
+            LOGINFO("Recording context for connectionId: %d, contextKey: %s, contextValue: %s", connectionId, contextKey.c_str(), contextValue.c_str());
+            // if contextKey is DISABLE_DEBUG_FOR_CONNECTION, add connectionId to debug disabled registry
+            if (contextKey == DISABLE_DEBUG_FOR_CONNECTION) {
+                mDebugDisabledConnectionsRegistry.Add(connectionId);
+            } else if (contextKey == ENABLE_DEBUG_FOR_CONNECTION) {
+                mDebugDisabledConnectionsRegistry.Remove(connectionId);
+            }
+            return Core::ERROR_NONE;
+        }
+
 
         void AppGatewayResponderImplementation::DispatchWsMsg(const std::string &method,
                                                      const std::string &params,
@@ -234,7 +247,7 @@ namespace WPEFramework
 
             if (mAppIdRegistry.Get(connectionId, appId)) {
 
-                if (mEnhancedLoggingEnabled) {
+                if (mEnhancedLoggingEnabled || !mDebugDisabledConnectionsRegistry.IsDebugDisabled(connectionId)) {
                     LOGDBG("%s-->[[a-%d-%d]] method=%s, params=%s",
                            appId.c_str(),connectionId, requestId, method.c_str(), params.c_str());
                 }

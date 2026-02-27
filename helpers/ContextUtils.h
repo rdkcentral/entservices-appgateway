@@ -30,6 +30,9 @@ using namespace std;
 #define RDK8_FIREBOLT_VERSION "8"
 #define RDK8_SUFFIX ".v8"
 #define RDK8_SUFFIX_LENGTH 3
+#define ENABLE_DEBUG_FOR_CONNECTION "enableDebugForConnection"
+#define DISABLE_DEBUG_FOR_CONNECTION "disableDebugForConnection"
+
 class ContextUtils {
     public:
         // Implement a static method which accepts a Exchange::IAppNotifications::Context object and

@@ -128,9 +128,9 @@ class AppDelegate {
 
         Exchange::ISharedStorage* GetSharedStorage() {
             std::lock_guard<std::mutex> lock(mSharedStorageMutex);
-            if (nullptr != mSharedStorage && nullptr != mShell) {
+            if (nullptr == mSharedStorage && nullptr != mShell) {
                 mSharedStorage = mShell->QueryInterfaceByCallsign<Exchange::ISharedStorage>("org.rdk.SharedStorage");
-                if (nullptr != mSharedStorage) {
+                if (nullptr == mSharedStorage) {
                     LOGERR("Failed to get SharedStorage COM interface");
                 }
             }

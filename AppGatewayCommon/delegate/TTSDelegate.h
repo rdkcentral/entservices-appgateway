@@ -39,10 +39,13 @@ public:
     {
         {
             std::lock_guard<std::mutex> lock(mTTSMutex);
-            if (mNotificationHandler.GetRegistered() && mTextToSpeech != nullptr)
+            if (nullptr != mTextToSpeech)
             {
-                mTextToSpeech->Unregister(&mNotificationHandler);
-                mNotificationHandler.SetRegistered(false);
+                if (mNotificationHandler.GetRegistered())
+                {
+                    mTextToSpeech->Unregister(&mNotificationHandler);
+                    mNotificationHandler.SetRegistered(false);
+                }
                 mTextToSpeech->Release();
                 mTextToSpeech = nullptr;
             }
@@ -114,11 +117,7 @@ private:
     public:
         TTSNotificationHandler(TTSDelegate &parent) : mParent(parent), registered(false) {}
         ~TTSNotificationHandler() {}
-
-        void Enabled(const bool state)
-        {
-            mParent.Dispatch(ContextUtils::GetRDK8VersionedEventName("TextToSpeech.onEnabled"), state ? "true" : "false");
-        }
+            
         void VoiceChanged(const string voice)
         {
             mParent.Dispatch(ContextUtils::GetRDK8VersionedEventName("TextToSpeech.onVoiceChanged"), std::move(voice));
@@ -154,6 +153,10 @@ private:
         void SpeechComplete(const uint32_t speechid)
         {
             mParent.Dispatch(ContextUtils::GetRDK8VersionedEventName("TextToSpeech.onSpeechComplete"), to_string(speechid));
+        }
+
+        void OnTTSStateChanged(const bool /*state*/) {
+            mParent.Dispatch(ContextUtils::GetRDK8VersionedEventName("TextToSpeech.onTtsstatechanged"), to_string(speechid));
         }
 
         // New Method for Set registered

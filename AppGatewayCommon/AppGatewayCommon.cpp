@@ -1005,8 +1005,8 @@ namespace Plugin {
             }
 
             JsonObject voiceGuidanceSettings;
-            voiceGuidanceSettings["enabled"] = enabledResult;
-            voiceGuidanceSettings["preferredLanguages"] = languagesResult;
+            voiceGuidanceSettings["enabled"] = enabledResult == "true" ? true : false;
+            voiceGuidanceSettings["preferredLanguages"] = languagesResult ;
 
 
             #ifdef ENABLE_FIREBOLT_TEXTTRACK
