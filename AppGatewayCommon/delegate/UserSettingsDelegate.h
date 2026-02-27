@@ -944,7 +944,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             }
             JsonObject styles;
             UpdateStyleUsingTextTrack(styles);
-            BuildClosedCaptionsSettingsResponse(enabled == "true", preferredLanguages, styles).ToString(result);
+            result = BuildClosedCaptionsSettingsResponse(enabled == "true", preferredLanguages, styles);
             return Core::ERROR_NONE;
         }
 
