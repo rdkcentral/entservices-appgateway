@@ -59,6 +59,8 @@ class AppDelegate {
                     // there is no existing value create a new one
                     result = UtilsUUID::GenerateUUID();
                     Exchange::ISharedStorage::Success successResult;
+                    // TTL of 0 means its stored forever
+                    ttl = 0;
                     sharedStorage->SetValue(Exchange::ISharedStorage::DEVICE, appId, DEVICE_UID_KEY, result, ttl, successResult);
                     if (successResult.success) {
                         return Core::ERROR_NONE;
@@ -86,6 +88,9 @@ class AppDelegate {
                     // there is no existing value create a new one
                     ifa = UtilsUUID::GenerateUUID();
                     Exchange::ISharedStorage::Success successResult;
+                    // TTL of 0 means its stored forever
+                    ttl = 0;
+
                     sharedStorage->SetValue(Exchange::ISharedStorage::DEVICE, appId, ADVERTISING_ID_KEY, ifa, ttl, successResult);
                     if (successResult.success) {
                         return Core::ERROR_NONE;
