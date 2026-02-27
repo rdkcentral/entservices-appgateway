@@ -986,41 +986,7 @@ namespace Plugin {
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            // Get closed captions enabled state
-            string enabledResult;
-            Core::hresult enabledStatus = userSettingsDelegate->GetCaptions(enabledResult);
-            if (enabledStatus != Core::ERROR_NONE)
-            {
-                result = "{\"error\":\"couldn't get closed captions enabled state\"}";
-                return enabledStatus;
-            }
-
-            // Get preferred captions languages
-            string languagesResult;
-            Core::hresult languagesStatus = userSettingsDelegate->GetPreferredCaptionsLanguages(languagesResult);
-            if (languagesStatus != Core::ERROR_NONE)
-            {
-                result = "{\"error\":\"couldn't get preferred captions languages\"}";
-                return languagesStatus;
-            }
-
-            JsonObject voiceGuidanceSettings;
-            voiceGuidanceSettings["enabled"] = enabledResult == "true" ? true : false;
-            voiceGuidanceSettings["preferredLanguages"] = languagesResult ;
-
-
-            #ifdef ENABLE_FIREBOLT_TEXTTRACK
-                // Get closed captions styles from UserSettings delegate
-                string stylesResult = "{}";
-                Core::hresult stylesStatus = userSettingsDelegate->GetClosedCaptionsStyle(stylesResult);
-                if (stylesStatus != Core::ERROR_NONE)
-                {
-                    LOGWARN("Couldn't get closed captions styles, using empty object");
-                    stylesResult = "{}";
-                }
-                voiceGuidanceSettings["styles"] = stylesResult;
-            #endif
-            voiceGuidanceSettings.ToString(result);
+            userSettingsDelegate->GetClosedCaptionSettings(result);
             return Core::ERROR_NONE;
         }
 

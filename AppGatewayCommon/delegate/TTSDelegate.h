@@ -120,7 +120,7 @@ private:
             
         void VoiceChanged(const string voice)
         {
-            mParent.Dispatch(ContextUtils::GetRDK8VersionedEventName("TextToSpeech.onVoiceChanged"), std::move(voice));
+            mParent.Dispatch(ContextUtils::GetRDK8VersionedEventName("TextToSpeech.onVoiceChanged"), voice);
         }
         void WillSpeak(const uint32_t speechid)
         {
@@ -155,8 +155,8 @@ private:
             mParent.Dispatch(ContextUtils::GetRDK8VersionedEventName("TextToSpeech.onSpeechComplete"), to_string(speechid));
         }
 
-        void OnTTSStateChanged(const bool /*state*/) {
-            mParent.Dispatch(ContextUtils::GetRDK8VersionedEventName("TextToSpeech.onTtsstatechanged"), to_string(speechid));
+        void OnTTSStateChanged(const bool state) {
+            mParent.Dispatch(ContextUtils::GetRDK8VersionedEventName("TextToSpeech.onTtsstatechanged"), state ? "true" : "false");
         }
 
         // New Method for Set registered
@@ -173,7 +173,7 @@ private:
             return registered;
         }
 
-        BEGIN_INTERFACE_MAP(NotificationHandler)
+        BEGIN_INTERFACE_MAP(TTSNotificationHandler)
         INTERFACE_ENTRY(Exchange::ITextToSpeech::INotification)
         END_INTERFACE_MAP
     private:

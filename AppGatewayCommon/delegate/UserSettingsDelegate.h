@@ -808,35 +808,12 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         Core::hresult GetPreferredCaptionsLanguages(string& result) {
             LOGINFO("GetPreferredCaptionsLanguages from UserSettings COM interface");
-            result.clear();
-
             Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
             if (userSettings == nullptr) {
-                LOGERR("UserSettings COM interface not available");
-                result = "[\"eng\"]";  // Return default ["eng"] on error
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            string preferredLanguages;
-            Core::hresult rc = userSettings->GetPreferredCaptionsLanguages(preferredLanguages);
-            JsonArray jsonArray;
-            if (rc == Core::ERROR_NONE) {
-                // Transform: if .result | length > 0 then .result | split(",") else ["eng"] end
-                ParseCommaSeparatedLanguages(preferredLanguages, jsonArray);
-
-                if (jsonArray.Length() == 0) {
-                    // Empty array - return default ["eng"]
-                    jsonArray.Add("eng");
-                }
-
-                jsonArray.ToString(result);
-                return Core::ERROR_NONE;
-            } else {
-                LOGERR("Failed to call GetPreferredCaptionsLanguages on UserSettings COM interface, error: %u", rc);
-                jsonArray.Add("eng");
-                jsonArray.ToString(result);  // Return default ["eng"] on error
-                return Core::ERROR_GENERAL;
-            }
+            return userSettings->GetPreferredCaptionsLanguages(result);
         }
 
 	Core::hresult SetPreferredAudioLanguages(const string& languages) {
@@ -952,6 +929,25 @@ class UserSettingsDelegate : public BaseEventDelegate{
             return true;
         }
 
+        Core::hresult GetClosedCaptionSettings(string& result) {
+            string enabled;
+            Core::hresult captionsStatus = GetCaptions(enabled);
+            if (captionsStatus != Core::ERROR_NONE) {
+                ErrorUtils::CustomInternal("couldn't get captions state", result);
+                return captionsStatus;
+            }
+            string preferredLanguages;
+            Core::hresult languagesStatus = GetPreferredCaptionsLanguages(preferredLanguages);
+            if (languagesStatus != Core::ERROR_NONE) {
+                ErrorUtils::CustomInternal("couldn't get preferred captions languages", result);
+                return languagesStatus;
+            }
+            JsonObject styles;
+            UpdateStyleUsingTextTrack(styles);
+            BuildClosedCaptionsSettingsResponse(enabled == "true", preferredLanguages, styles).ToString(result);
+            return Core::ERROR_NONE;
+        }
+
     private:
         void DispatchVoiceGuidanceSettingsChanged() {
             string legacyResult;
@@ -1020,25 +1016,14 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         void OnPreferredCaptionsLanguagesChanged(const string& preferredLanguages) {
             mParent.Dispatch( "ClosedCaptions.onPreferredLanguagesChanged", preferredLanguages);
-
-            Exchange::IUserSettings* userSettings = mParent.GetUserSettingsInterface();
-            bool enabled = false;
-
-            if (userSettings != nullptr) {
-                Core::hresult captionsResult = userSettings->GetCaptions(enabled);
-                if (captionsResult != Core::ERROR_NONE) {
-                    LOGWARN("OnPreferredCaptionsLanguagesChanged: GetCaptions failed with error %u, using default enabled=false", captionsResult);
-                }
-            } else {
-                LOGWARN("OnPreferredCaptionsLanguagesChanged: UserSettings interface unavailable, using default enabled=false");
-            }
-
+            string enabled = "false";
+            mParent.GetCaptions(enabled);
             // Add styles - get from TextTrack if available, otherwise use empty
             JsonObject styles;
             mParent.UpdateStyleUsingTextTrack(styles);
 
             mParent.Dispatch("Accessibility.onClosedCaptionsSettingsChanged",
-                            BuildClosedCaptionsSettingsResponse(enabled, preferredLanguages, styles));
+                            BuildClosedCaptionsSettingsResponse(enabled=="true", preferredLanguages, styles));
         }
 
         void OnHighContrastChanged(const bool enabled) {
@@ -1093,14 +1078,14 @@ class UserSettingsDelegate : public BaseEventDelegate{
                     LOGINFO("OnClosedCaptionsStyleChanged received");
 
                     // Get enabled state and preferred languages from UserSettings
-                    Exchange::IUserSettings* userSettings = mParent.GetUserSettingsInterface();
-                    bool enabled = false;
+                    string enabled = "false";
+                    mParent.GetCaptions(enabled);
                     string preferredLanguages;
                     mParent.GetPreferredCaptionsLanguages(preferredLanguages);
                     JsonObject styles;
                     BuildClosedCaptionsStyleJson(style, styles);
                     mParent.Dispatch("Accessibility.onClosedCaptionsSettingsChanged",
-                                    BuildClosedCaptionsSettingsResponse(enabled, preferredLanguages, styles));
+                                    BuildClosedCaptionsSettingsResponse(enabled=="true", preferredLanguages, styles));
                 }
 
                 // Method to set registered state
