@@ -419,7 +419,7 @@ namespace WPEFramework
                     if (Core::ERROR_NONE != mAuthenticator->CheckPermissionGroup(context.appId, permissionGroup, allowed)) {
                         LOGERR("Failed to check permission group '%s' for appId '%s'", permissionGroup.c_str(), context.appId.c_str());
                         // Track external service error - Permission service failure
-                        AppGatewayTelemetry::getInstance().RecordExternalServiceErrorInternal(context, "PermissionService");
+                        AppGatewayTelemetry::getInstance().RecordExternalServiceErrorInternal(context, AGW_SERVICE_PERMISSION);
                         ErrorUtils::NotPermitted(resolution);
                         return Core::ERROR_GENERAL;
                     }
@@ -498,7 +498,7 @@ namespace WPEFramework
                 if (Core::ERROR_NONE != requestHandler->HandleAppGatewayRequest(context, method, finalParams, resolution)) {
                     LOGERR("HandleAppGatewayRequest failed for callsign: %s", alias.c_str());
                     
-                    // Record API error and increment failed calls
+                    // Record API error for telemetry
                     AppGatewayTelemetry::getInstance().RecordApiError(context, method);
                     
                     if (resolution.empty()){

@@ -43,11 +43,9 @@
  *    // ... plugin initialization code ...
  *    // Timer automatically records on scope exit
  * 
- * 4. Report events using the macros (all require context parameter):
+ * 4. Report high value error as events using the macros (all require context parameter):
  *    - AGW_REPORT_API_ERROR(context, "GetSettings", AGW_ERROR_TIMEOUT)
  *    - AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE)
- *    - AGW_REPORT_API_LATENCY(context, "GetSettings", 123.45)
- *    - AGW_TRACK_API_CALL(tracker, context, "GetSettings")  // RECOMMENDED for API methods
  * 
  * 5. Cleanup in Deinitialize:
  *    AGW_TELEMETRY_DEINIT()
@@ -267,15 +265,6 @@ namespace AppGatewayTelemetryHelper {
          * @param latencyMs Latency in milliseconds
          * @return Core::hresult
          * 
-         * This records a METRIC - values are aggregated (sum/count/min/max/avg)
-         * and sent to T2 periodically using common marker AGW_MARKER_API_LATENCY.
-         * 
-         * Generates a tagged metric name with explicit structure:
-         *   "AppGw_PluginName_" + <PluginName> + "_ApiName_" + <ApiName> + "_ApiLatency_split"
-         * Example: "AppGw_PluginName_Badger_ApiName_GetSettings_ApiLatency_split"
-         * 
-         * The explicit tags (PluginName_, ApiName_) make the metric unambiguous and
-         * allow precise parsing to extract plugin/API names for aggregation.
          */
         Core::hresult RecordApiLatency(const Exchange::GatewayContext& context,
                                        const std::string& apiName, 
@@ -296,15 +285,6 @@ namespace AppGatewayTelemetryHelper {
          * @param latencyMs Latency in milliseconds
          * @return Core::hresult
          * 
-         * This records a METRIC - values are aggregated (sum/count/min/max/avg)
-         * and sent to T2 periodically using common marker AGW_MARKER_SERVICE_LATENCY.
-         * 
-         * Generates a tagged metric name with explicit structure:
-         *   "AppGw_PluginName_" + <PluginName> + "_ServiceName_" + <ServiceName> + "_ServiceLatency_split"
-         * Example: "AppGw_PluginName_OttServices_ServiceName_ThorPermissionService_ServiceLatency_split"
-         * 
-         * The explicit tags (PluginName_, ServiceName_) make the metric unambiguous and
-         * allow precise parsing to extract plugin/service names for aggregation.
          */
         Core::hresult RecordServiceLatency(const Exchange::GatewayContext& context,
                                            const std::string& serviceName, 
@@ -789,16 +769,6 @@ namespace AppGatewayTelemetryHelper {
  * @param context Gateway context with request/connection/app info
  * @param apiName Name of the API being timed
  * 
- * **Data Flow**:
- * - Uses RecordTelemetryMetric internally (aggregated values)
- * - On success: Records metric "AppGw_PluginName_<Plugin>_MethodName_<API>_Success_split"
- * - On failure: Records event (RecordTelemetryEvent) + metric with "_Error_split" suffix
- * - Metrics aggregated by AppGateway over time (sum, count, min, max, avg)
- * 
- * **When to Use**:
- * - RECOMMENDED for all API method implementations
- * - Automatically tracks success/error rates and latencies
- * - Call SetFailed(errorCode) to mark as error, otherwise assumes success
  * 
  * Example:
  *   Core::hresult MyPlugin::SomeMethod(const Exchange::GatewayContext& context)
@@ -823,17 +793,6 @@ namespace AppGatewayTelemetryHelper {
  * @param context Gateway context with request/connection/app info
  * @param serviceName Name of the external service (use predefined constants from AppGatewayTelemetryMarkers.h)
  * 
- * **Data Flow**:
- * - Uses RecordTelemetryMetric internally (aggregated values)
- * - On success: Records metric "AppGw_PluginName_<Plugin>_ServiceName_<Service>_Success_split"
- * - On failure: Records event (RecordTelemetryEvent) + metric with "_Error_split" suffix
- * - Metrics aggregated by AppGateway over time (sum, count, min, max, avg)
- * 
- * **When to Use**:
- * - RECOMMENDED for all external service calls (gRPC, COM-RPC, HTTP)
- * - Automatically tracks success/error rates and latencies
- * - Call SetFailed(errorCode) to mark as error, otherwise assumes success
- * 
  * Example:
  *   Core::hresult MyPlugin::CallExternalService(const Exchange::GatewayContext& context)
  *   {
@@ -857,15 +816,6 @@ namespace AppGatewayTelemetryHelper {
  * @param apiName Name of the API
  * @param latencyMs Latency in milliseconds
  * 
- * **Data Flow**:
- * - Uses RecordTelemetryMetric internally (aggregated values)
- * - Metric name: "AppGw_PluginName_<Plugin>_ApiName_<API>_ApiLatency_split"
- * - AppGateway aggregates over time (sum, count, min, max, avg)
- * - Reported periodically to T2 (e.g., hourly)
- * 
- * **When to Use**:
- * - Manual latency reporting when not using AGW_TRACK_API_CALL
- * - Use AGW_TRACK_API_CALL instead for automatic timing (RECOMMENDED)
  * 
  * Example:
  *   auto start = std::chrono::steady_clock::now();
@@ -887,12 +837,6 @@ namespace AppGatewayTelemetryHelper {
  * @param context Gateway context with request/connection/app info
  * @param serviceName Predefined service name from AppGatewayTelemetryMarkers.h
  * @param latencyMs Latency in milliseconds
- * 
- * **Data Flow**:
- * - Uses RecordTelemetryMetric internally (aggregated values)
- * - Metric name: "AppGw_PluginName_<Plugin>_ServiceName_<Service>_ServiceLatency_split"
- * - AppGateway aggregates over time (sum, count, min, max, avg)
- * - Reported periodically to T2 (e.g., hourly)
  * 
  * **When to Use**:
  * - Track latency of external service calls (gRPC, COM-RPC, HTTP)
@@ -928,25 +872,6 @@ namespace AppGatewayTelemetryHelper {
  * - Automatically determines success (has "result") or failure (has "error")
  * - Calls RecordResponse() internally after parsing
  * 
- * **Architecture**:
- * - Sends entire payload to AppGateway via RecordTelemetryEvent
- * - Uses special marker: AGW_MARKER_RESPONSE_PAYLOAD_TRACKING
- * - AppGateway's RecordTelemetryEvent handler detects this marker
- * - AppGateway extracts payload, parses JSON-RPC 2.0, determines success/failure
- * - AppGateway calls RecordResponse(context, isSuccess) internally
- * 
- * **Data Flow**:
- * 1. Responder receives JSON-RPC response string
- * 2. Responder calls: AGW_TRACK_RESPONSE_PAYLOAD(context, responseString)
- * 3. Macro wraps payload: {"payload": "<response-string>"}
- * 4. Sends event to AppGateway with special marker
- * 5. AppGateway parses JSON-RPC, calls RecordResponse()
- * 
- * **When to Use**:
- * - Responder implementations that receive raw JSON-RPC responses
- * - Prefer this over manual parsing + AGW_RECORD_RESPONSE
- * - Use AGW_RECORD_RESPONSE only when success/failure is known without parsing
- * 
  * Example (in responder):
  *   void ReturnMessageInSocket(uint32_t connectionId, const string& result, int requestId) {
  *       Exchange::GatewayContext context = {requestId, connectionId, appId};
@@ -979,7 +904,6 @@ namespace AppGatewayTelemetryHelper {
  * - AppGateway aggregates over time (sum, count, min, max, avg)
  * 
  * **When to Use**:
- * - Custom counters (e.g., connection count, cache hits)
  * - Custom measurements not covered by standard macros
  * - Prefer specific macros (AGW_REPORT_API_LATENCY, etc.) when available
  * 
@@ -1012,14 +936,6 @@ namespace AppGatewayTelemetryHelper {
  * - Custom events not covered by standard macros
  * - State changes, user actions, significant occurrences
  * - Prefer specific macros (AGW_REPORT_API_ERROR, etc.) when available
- * 
- * Example:
- *   JsonObject data;
- *   data["userId"] = "12345";
- *   data["action"] = "login";
- *   std::string eventData;
- *   data.ToString(eventData);
- *   AGW_REPORT_EVENT(context, "AppGwUserLogin_split", eventData);
  */
 #define AGW_REPORT_EVENT(context, eventName, eventData) \
     do { \

@@ -64,7 +64,7 @@ namespace Plugin {
      * - Bootstrap time: Time taken to initialize all plugins
      * - Health stats: WebSocket connections, total/successful/failed calls
      * - API error stats: APIs that failed and their failure counts
-     * - External service errors: Failures from external services (GrpsServer, ThorPermission, etc.)
+     * - External service errors: Failures from external services (GrpcServer, ThorPermission, etc.)
      * 
      * Data is reported via T2 telemetry at configurable intervals (default 1 hour)
      * or when cache threshold is reached.

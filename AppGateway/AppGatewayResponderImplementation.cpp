@@ -162,7 +162,7 @@ namespace WPEFramework
 
                     // Track external service error - Authentication service failure (auth failed, no appId available)
                     Exchange::GatewayContext authFailContext = {0, connectionId, "UNKNOWN"};
-                    AppGatewayTelemetry::getInstance().RecordExternalServiceErrorInternal(authFailContext, "AuthenticationService");
+                    AppGatewayTelemetry::getInstance().RecordExternalServiceErrorInternal(authFailContext, AGW_SERVICE_AUTHENTICATION);
 
                     return false;
                 });
