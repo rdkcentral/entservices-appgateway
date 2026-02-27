@@ -53,9 +53,9 @@ public:
 
     ~NetworkDelegate()
     {
-        if (mNetworkManager != nullptr)
+        if (nullptr != mNetworkManager)
         {
-            if (mNotificationHandler.GetRegistered() && mNetworkManager != nullptr)
+            if (mNotificationHandler.GetRegistered())
             {
                 mNetworkManager->Unregister(&mNotificationHandler);
             }

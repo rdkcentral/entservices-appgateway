@@ -28,6 +28,8 @@ using namespace std;
 
 #define LEGACY_FIREBOLT_VERSION "0"
 #define RDK8_FIREBOLT_VERSION "8"
+#define RDK8_SUFFIX ".v8"
+#define RDK8_SUFFIX_LENGTH 3
 class ContextUtils {
     public:
         // Implement a static method which accepts a Exchange::IAppNotifications::Context object and
@@ -71,12 +73,12 @@ class ContextUtils {
         }
 
         static string GetRDK8VersionedEventName(const string& baseEventName) {
-            return baseEventName + ".v8";
+            return baseEventName + RDK8_SUFFIX;
         }
 
         static string GetBaseEventNameFromVersionedEvent(const string& versionedEventName) {
-            if (versionedEventName.size() > 3 && versionedEventName.substr(versionedEventName.size() - 3) == ".v8") {
-                return versionedEventName.substr(0, versionedEventName.size() - 3);
+            if (versionedEventName.size() > RDK8_SUFFIX_LENGTH && versionedEventName.substr(versionedEventName.size() - RDK8_SUFFIX_LENGTH) == RDK8_SUFFIX) {
+                return versionedEventName.substr(0, versionedEventName.size() - RDK8_SUFFIX_LENGTH);
             }
             return versionedEventName;
         }

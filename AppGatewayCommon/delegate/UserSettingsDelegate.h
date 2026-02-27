@@ -891,7 +891,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             #ifdef ENABLE_FIREBOLT_TEXTTRACK
                 // Also dispatch Accessibility.onClosedCaptionsSettingsChanged with combined settings
                 Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
-                if (textTrack != nullptr) {
+                if (nullptr != textTrack) {
                     Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle ccStyle;
                     Core::hresult styleResult = textTrack->GetClosedCaptionsStyle(ccStyle);
                     if (styleResult == Core::ERROR_NONE) {
@@ -951,13 +951,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
             string legacyResult;
             if (UpdateVoiceGuidanceSettings(true, legacyResult)) {
                 // Broken JSON RPC - need to return the full object as a string instead of individual properties
-                mParent.Dispatch( "Accessibility.onVoiceGuidanceSettingsChanged", legacyResult);
+                Dispatch( "Accessibility.onVoiceGuidanceSettingsChanged", legacyResult);
             }
             
 
             string result;
             if (UpdateVoiceGuidanceSettings(false, result)) {
-                mParent.Dispatch(ContextUtils::GetRDK8VersionedEventName("Accessibility.onVoiceGuidanceSettingsChanged"), result);
+                Dispatch(ContextUtils::GetRDK8VersionedEventName("Accessibility.onVoiceGuidanceSettingsChanged"), result);
             }
         }
 

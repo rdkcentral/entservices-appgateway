@@ -961,7 +961,12 @@ namespace Plugin {
                 return Core::ERROR_UNAVAILABLE;
             }
 
-           userSettingsDelegate->UpdateVoiceGuidanceSettings(addSpeed, result);
+            const bool updated = userSettingsDelegate->UpdateVoiceGuidanceSettings(addSpeed, result);
+            if (false == updated)
+            {
+                // Error message already updated in result as part of UpdateVoiceGuidanceSettings
+                return Core::ERROR_GENERAL;
+            }
 
             return Core::ERROR_NONE;
         }

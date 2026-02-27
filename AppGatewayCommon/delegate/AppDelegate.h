@@ -52,7 +52,7 @@ class AppDelegate {
 
         Core::hresult GetDeviceUID(const std::string &appId, string &result /* @out */) {
             Exchange::ISharedStorage* sharedStorage = GetSharedStorage();
-            if (sharedStorage != nullptr) {
+            if (nullptr != sharedStorage) {
                 uint32_t ttl;
                 bool success;
                 if (Core::ERROR_NONE != sharedStorage->GetValue(Exchange::ISharedStorage::DEVICE, appId, DEVICE_UID_KEY, result, ttl, success)) {
@@ -81,7 +81,7 @@ class AppDelegate {
         Core::hresult GetAdvertisingId(const std::string &appId, string &result /* @out */) {
             Exchange::ISharedStorage* sharedStorage = GetSharedStorage();
             string ifa;
-            if (sharedStorage != nullptr) {
+            if (nullptr != sharedStorage) {
                 uint32_t ttl;
                 bool success;
                 if (Core::ERROR_NONE != sharedStorage->GetValue(Exchange::ISharedStorage::DEVICE, appId, ADVERTISING_ID_KEY, ifa, ttl, success)) {
@@ -92,9 +92,7 @@ class AppDelegate {
                     ttl = 0;
 
                     sharedStorage->SetValue(Exchange::ISharedStorage::DEVICE, appId, ADVERTISING_ID_KEY, ifa, ttl, successResult);
-                    if (successResult.success) {
-                        return Core::ERROR_NONE;
-                    } else {
+                    if (!successResult.success) {
                         LOGERR("Failed to set new Advertising ID in SharedStorage");
                         ErrorUtils::CustomInternal("Failed to set new Advertising ID in SharedStorage", result);
                         return Core::ERROR_GENERAL;
@@ -130,9 +128,9 @@ class AppDelegate {
 
         Exchange::ISharedStorage* GetSharedStorage() {
             std::lock_guard<std::mutex> lock(mSharedStorageMutex);
-            if (mSharedStorage == nullptr && mShell != nullptr) {
+            if (nullptr != mSharedStorage && nullptr != mShell) {
                 mSharedStorage = mShell->QueryInterfaceByCallsign<Exchange::ISharedStorage>("org.rdk.SharedStorage");
-                if (mSharedStorage == nullptr) {
+                if (nullptr != mSharedStorage) {
                     LOGERR("Failed to get SharedStorage COM interface");
                 }
             }
