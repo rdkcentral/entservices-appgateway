@@ -90,7 +90,7 @@ namespace WPEFramework
             {
                 LOGDBG("Checking for handle event");
                 // Check if event starts with "TextToSpeech" make check case insensitive
-                if (StringUtils::rfindInsensitive(event, APP_API_METHOD_PREFIX))
+                if (StringUtils::checkStartsWithCaseInsensitive(event, APP_API_METHOD_PREFIX))
                 {
                     // Handle TextToSpeech event
                     registrationError = HandleSubscription(cb, event, listen);
