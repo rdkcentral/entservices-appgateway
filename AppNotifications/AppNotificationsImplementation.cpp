@@ -60,7 +60,6 @@ namespace WPEFramework
             LOGTRACE("Subscribe [requestId=%d appId=%s connectionId=%d] register=%s, module=%s, event=%s, version=%s",
                     context.requestId, context.appId.c_str(), context.connectionId,
                     listen ? "true" : "false", module.c_str(), event.c_str(), context.version.c_str());
-             // If the origin is gateway we need to check if the appId is valid for the
             if (listen) {
                 if (!mSubMap.Exists(event)) {
                     // Thunder subscription

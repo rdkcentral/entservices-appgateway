@@ -1023,7 +1023,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             mParent.UpdateStyleUsingTextTrack(styles);
 
             mParent.Dispatch("Accessibility.onClosedCaptionsSettingsChanged",
-                            BuildClosedCaptionsSettingsResponse(enabled=="true", preferredLanguages, styles));
+                            BuildClosedCaptionsSettingsResponse("true" == enabled, preferredLanguages, styles));
         }
 
         void OnHighContrastChanged(const bool enabled) {
@@ -1085,7 +1085,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
                     JsonObject styles;
                     BuildClosedCaptionsStyleJson(style, styles);
                     mParent.Dispatch("Accessibility.onClosedCaptionsSettingsChanged",
-                                    BuildClosedCaptionsSettingsResponse(enabled=="true", preferredLanguages, styles));
+                                    BuildClosedCaptionsSettingsResponse("true" == enabled, preferredLanguages, styles));
                 }
 
                 // Method to set registered state

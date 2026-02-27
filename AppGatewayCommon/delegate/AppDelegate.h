@@ -116,9 +116,10 @@ class AppDelegate {
                                           const string& method ,
                                           const string& payload /*@opaque */,
                                           string& result /*@out @opaque */) {
-            if (StringUtils::rfindInsensitive(method, "advertising.advertisingid")) {
+            string lowerMethod = StringUtils::toLower(method);
+            if ("advertising.advertisingid" == lowerMethod) {
                 return GetAdvertisingId(context.appId, result);
-            } else if (StringUtils::rfindInsensitive(method, "device.uid")) {
+            } else if ("device.uid" == lowerMethod) {
                 return GetDeviceUID(context.appId, result);
             }
             
