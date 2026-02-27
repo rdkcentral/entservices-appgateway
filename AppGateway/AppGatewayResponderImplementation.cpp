@@ -233,7 +233,7 @@ namespace WPEFramework
                 }
 
                 string version  = LEGACY_FIREBOLT_VERSION;
-                if (mCompliantJsonRpcRegistry.IsCompliantJsonRpc(context.connectionId)) {
+                if (mCompliantJsonRpcRegistry.IsCompliantJsonRpc(connectionId)) {
                     version = RDK8_FIREBOLT_VERSION;
                 }
                 // App Id is available
