@@ -22,6 +22,8 @@
 #include <interfaces/ITextToSpeech.h>
 #include "UtilsLogging.h"
 #include "ContextUtils.h"
+#include <mutex>
+
 
 #define TTS_CALLSIGN "org.rdk.TextToSpeech"
 #define APP_API_METHOD_PREFIX "TextToSpeech."
@@ -38,42 +40,35 @@ namespace WPEFramework
 
             ~TTSDelegate()
             {
-                if (mTextToSpeech != nullptr)
                 {
-                    mTextToSpeech->Release();
-                    mTextToSpeech = nullptr;
+                    std::lock_guard<std::mutex> lock(mTTSMutex);
+                    if (mNotificationHandler.GetRegistered() && mTextToSpeech != nullptr)
+                    {
+                        mTextToSpeech->Unregister(&mNotificationHandler);
+                        mNotificationHandler.SetRegistered(false);
+                        mTextToSpeech->Release();
+                        mTextToSpeech = nullptr;
+                    }
                 }
+                
             }
 
             bool HandleSubscription(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen)
             {
                 if (listen)
                 {
-                    if (mShell != nullptr)
+                    auto tts = GetTTS();
+                    
+                    if (nullptr == tts)
                     {
-                        mTextToSpeech = mShell->QueryInterfaceByCallsign<Exchange::ITextToSpeech>(TTS_CALLSIGN);
-                        if (mTextToSpeech == nullptr)
-                        {
-                            LOGERR("mTextToSpeech is null exiting");
-                            return false;
-                        }
-                    }
-                    else
-                    {
-                        LOGERR("mShell is null exiting");
-                        return false;
-                    }
-
-                    if (mTextToSpeech == nullptr)
-                    {
-                        LOGERR("mTextToSpeech interface not available");
+                        LOGERR("TextToSpeech interface not available");
                         return false;
                     }
 
                     if (!mNotificationHandler.GetRegistered())
                     {
                         LOGINFO("Registering for TextToSpeech notifications");
-                        mTextToSpeech->Register(&mNotificationHandler);
+                        tts->Register(&mNotificationHandler);
                         mNotificationHandler.SetRegistered(true);
                     }
                     else
@@ -105,6 +100,18 @@ namespace WPEFramework
             }
 
         private:
+
+            Exchange::ITextToSpeech* GetTTS() {
+                std::lock_guard<std::mutex> lock(mTTSMutex);
+                if (mTextToSpeech == nullptr && mShell != nullptr) {
+                    mTextToSpeech = mShell->QueryInterfaceByCallsign<Exchange::ITextToSpeech>(TTS_CALLSIGN);
+                    if (mTextToSpeech == nullptr) {
+                        LOGERR("Failed to get TextToSpeech COM interface");
+                    }
+                }
+                return mTextToSpeech;
+            }
+
             class TTSNotificationHandler : public Exchange::ITextToSpeech::INotification
             {
             public:
@@ -177,6 +184,7 @@ namespace WPEFramework
             Exchange::ITextToSpeech *mTextToSpeech;
             PluginHost::IShell *mShell;
             Core::Sink<TTSNotificationHandler> mNotificationHandler;
+            mutable std::mutex mTTSMutex;
         };
 
     }

@@ -49,12 +49,12 @@ class SettingsDelegate {
                                     const bool listen) {
             LOGDBG("Passing on HandleAppEventNotifier");
             bool registrationError;
-            if (userSettings==nullptr || systemDelegate==nullptr || networkDelegate==nullptr || lifecycleDelegate==nullptr || appDelegate==nullptr || ttsDelegate==nullptr) {
+            if (userSettings==nullptr || systemDelegate==nullptr || networkDelegate==nullptr || lifecycleDelegate==nullptr || ttsDelegate==nullptr) {
                 LOGERR("Services not available");
                 return;
             }
 
-            std::vector<std::shared_ptr<BaseEventDelegate>> delegates = {userSettings, systemDelegate, networkDelegate, lifecycleDelegate, appDelegate, ttsDelegate};
+            std::vector<std::shared_ptr<BaseEventDelegate>> delegates = {userSettings, systemDelegate, networkDelegate, lifecycleDelegate, ttsDelegate};
             bool handled = false;
 
             for (const auto& delegate : delegates) {

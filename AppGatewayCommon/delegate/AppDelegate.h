@@ -32,6 +32,7 @@
 #define ADVERTISING_ID_KEY "fireboltAdvertisingId"
 #define ADVERTISING_TYPE "sessionid"
 #define ADVERTISING_ID_LIMIT "1"
+#define DEVICE_UID_KEY "fireboltDeviceUid"
 
 
 using namespace WPEFramework;
