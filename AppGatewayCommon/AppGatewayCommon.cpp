@@ -999,6 +999,11 @@ namespace Plugin {
                 return languagesStatus;
             }
 
+            JsonObject voiceGuidanceSettings;
+            voiceGuidanceSettings["enabled"] = enabledResult;
+            voiceGuidanceSettings["preferredLanguages"] = languagesResult;
+
+
             #ifdef ENABLE_FIREBOLT_TEXTTRACK
                 // Get closed captions styles from UserSettings delegate
                 string stylesResult = "{}";
@@ -1008,17 +1013,9 @@ namespace Plugin {
                     LOGWARN("Couldn't get closed captions styles, using empty object");
                     stylesResult = "{}";
                 }
+                voiceGuidanceSettings["styles"] = stylesResult;
             #endif
-
-            // Construct the combined JSON response
-            // Format: {"enabled": <bool>, "preferredLanguages": <array>, "styles": {<style properties>}}
-            std::ostringstream jsonStream;
-            jsonStream << "{\"enabled\": " << enabledResult
-                       << ", \"preferredLanguages\": " << languagesResult
-                       << ", \"styles\": " << stylesResult << "}";
-
-            result = jsonStream.str();
-
+            voiceGuidanceSettings.ToString(result);
             return Core::ERROR_NONE;
         }
 

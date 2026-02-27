@@ -951,13 +951,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
             string legacyResult;
             if (UpdateVoiceGuidanceSettings(true, legacyResult)) {
                 // Broken JSON RPC - need to return the full object as a string instead of individual properties
-                mShell->Notify( "Accessibility.onVoiceGuidanceSettingsChanged", legacyResult);
+                mParent.Dispatch( "Accessibility.onVoiceGuidanceSettingsChanged", legacyResult);
             }
             
 
             string result;
             if (UpdateVoiceGuidanceSettings(false, result)) {
-                mShell->Notify(ContextUtils::GetRDK8VersionedEventName("Accessibility.onVoiceGuidanceSettingsChanged"), result);
+                mParent.Dispatch(ContextUtils::GetRDK8VersionedEventName("Accessibility.onVoiceGuidanceSettingsChanged"), result);
             }
         }
 
@@ -1016,10 +1016,10 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
             // Add styles - get from TextTrack if available, otherwise use empty
             JsonObject styles;
-            UpdateStyleUsingTextTrack(styles);
+            mParent.UpdateStyleUsingTextTrack(styles);
 
-           mParent.Dispatch("Accessibility.onClosedCaptionsSettingsChanged",
-                           BuildClosedCaptionsSettingsResponse(enabled, preferredLanguages, styles));
+            mParent.Dispatch("Accessibility.onClosedCaptionsSettingsChanged",
+                            BuildClosedCaptionsSettingsResponse(enabled, preferredLanguages, styles));
         }
 
         void OnPreferredCaptionsLanguagesChanged(const string& preferredLanguages) {
@@ -1039,7 +1039,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
             // Add styles - get from TextTrack if available, otherwise use empty
             JsonObject styles;
-            UpdateStyleUsingTextTrack(styles);
+            mParent.UpdateStyleUsingTextTrack(styles);
 
             mParent.Dispatch("Accessibility.onClosedCaptionsSettingsChanged",
                             BuildClosedCaptionsSettingsResponse(enabled, preferredLanguages, styles));

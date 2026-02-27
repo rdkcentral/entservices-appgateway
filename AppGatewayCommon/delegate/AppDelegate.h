@@ -118,9 +118,9 @@ class AppDelegate {
                                           const string& method ,
                                           const string& payload /*@opaque */,
                                           string& result /*@out @opaque */) {
-            if (StringUtils::equalsIgnoreCase(method, "advertising.advertisingid")) {
+            if (StringUtils::rfindInsensitive(method, "advertising.advertisingid")) {
                 return GetAdvertisingId(context.appId, result);
-            } else if (StringUtils::equalsIgnoreCase(method, "device.uid")) {
+            } else if (StringUtils::rfindInsensitive(method, "device.uid")) {
                 return GetDeviceUID(context.appId, result);
             }
             
