@@ -157,6 +157,30 @@
 #define AGW_MARKER_HEALTH_STATS                     "AppGwHealthStats_split"
 
 /**
+ * @brief LinchPin connection metric (sent periodically)
+ * @details Tracks LinchPin AS connection state changes (connected events)
+ * @payload { "sum": <connection_count>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
+ * @usage AGW_REPORT_METRIC(context, AGW_MARKER_LINCHPIN_CONNECTED, 1.0, AGW_UNIT_COUNT)
+ */
+#define AGW_MARKER_LINCHPIN_CONNECTED               "AppGwLinchPinConnected_split"
+
+/**
+ * @brief LinchPin disconnection metric (sent periodically)
+ * @details Tracks LinchPin AS disconnection state changes (disconnected events)
+ * @payload { "sum": <disconnection_count>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
+ * @usage AGW_REPORT_METRIC(context, AGW_MARKER_LINCHPIN_DISCONNECTED, 1.0, AGW_UNIT_COUNT)
+ */
+#define AGW_MARKER_LINCHPIN_DISCONNECTED            "AppGwLinchPinDisconnected_split"
+
+/**
+ * @brief LinchPin notification count metric (sent periodically)
+ * @details Tracks the number of LinchPin notifications received
+ * @payload { "sum": <notification_count>, "count": <occurrences>, "unit": "count", "reporting_interval_sec": 3600 }
+ * @usage AGW_REPORT_METRIC(context, AGW_MARKER_LINCHPIN_NOTIFICATION_COUNT, 1.0, AGW_UNIT_COUNT)
+ */
+#define AGW_MARKER_LINCHPIN_NOTIFICATION_COUNT      "AppGwLinchPinNotificationCount_split"
+
+/**
  * @brief API error count metric prefix
  * @details Per-API error count metrics sent periodically
  */
@@ -314,6 +338,7 @@
 #define AGW_PLUGIN_FBENTOS                          "FbEntos"
 #define AGW_PLUGIN_FBMETRICS                        "FbMetrics"
 #define AGW_PLUGIN_FBPRIVACY                        "FbPrivacy"
+#define AGW_PLUGIN_LAUNCH_DELEGATE                  "LaunchDelegate"
 
 //=============================================================================
 // PREDEFINED EXTERNAL SERVICE NAMES
