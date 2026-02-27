@@ -385,6 +385,7 @@
 #define AGW_PLUGIN_FBENTOS                          "FbEntos"
 #define AGW_PLUGIN_FBMETRICS                        "FbMetrics"
 #define AGW_PLUGIN_FBPRIVACY                        "FbPrivacy"
+#define AGW_PLUGIN_LAUNCH_DELEGATE                  "LaunchDelegate"
 
 //=============================================================================
 // PREDEFINED EXTERNAL SERVICE NAMES
