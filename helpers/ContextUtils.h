@@ -80,7 +80,7 @@ class ContextUtils {
         }
 
         static string GetBaseEventNameFromVersionedEvent(const string& versionedEventName) {
-            if (versionedEventName.size() > RDK8_SUFFIX_LENGTH && versionedEventName.substr(versionedEventName.size() - RDK8_SUFFIX_LENGTH) == RDK8_SUFFIX) {
+            if (versionedEventName.size() > RDK8_SUFFIX_LENGTH && RDK8_SUFFIX == versionedEventName.substr(versionedEventName.size() - RDK8_SUFFIX_LENGTH)) {
                 return versionedEventName.substr(0, versionedEventName.size() - RDK8_SUFFIX_LENGTH);
             }
             return versionedEventName;
