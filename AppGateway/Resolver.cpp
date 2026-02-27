@@ -108,6 +108,8 @@ namespace WPEFramework
                     bool hasAdditionalContext = r.additionalContext.Content() == WPEFramework::Core::JSON::Variant::type::OBJECT;
                     r.includeContext = ExtractBooleanField(resolutionObj, "includeContext", hasAdditionalContext);
                     r.useComRpc = ExtractBooleanField(resolutionObj, "useComRpc", hasAdditionalContext);
+                    // Event which has different payload based on version
+                    r.versionedEvent = ExtractBooleanField(resolutionObj, "versionedEvent", hasAdditionalContext);
 
                     LOGINFO("[Resolver] Loaded resolution for key: %s -> alias: %s, event: %s, permissionGroup: %s, includeContext: %s, useComRpc: %s",
                             key.c_str(), r.alias.c_str(), r.event.c_str(), r.permissionGroup.c_str(),
@@ -284,6 +286,17 @@ namespace WPEFramework
             if (it != mResolutions.end())
             {
                 return it->second.useComRpc;
+            }
+            return false;
+        }
+
+        bool Resolver::IsVersionedEvent(const std::string &key) {
+            std::string lowerKey = StringUtils::toLower(key);
+            std::lock_guard<std::mutex> lock(mMutex);
+            auto it = mResolutions.find(lowerKey);
+            if (it != mResolutions.end())
+            {
+                return it->second.versionedEvent;
             }
             return false;
         }

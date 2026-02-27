@@ -60,22 +60,20 @@ namespace WPEFramework
             LOGTRACE("Subscribe [requestId=%d appId=%s connectionId=%d] register=%s, module=%s, event=%s, version=%s",
                     context.requestId, context.appId.c_str(), context.connectionId,
                     listen ? "true" : "false", module.c_str(), event.c_str(), context.version.c_str());
-            string eventName = ContextUtils::GetEventNameFromContextBasedonVersion(context, event);
-            LOGTRACE("Resolved event name: %s", eventName.c_str());
              // If the origin is gateway we need to check if the appId is valid for the
             if (listen) {
-                if (!mSubMap.Exists(eventName)) {
+                if (!mSubMap.Exists(event)) {
                     // Thunder subscription
-                    Core::IWorkerPool::Instance().Submit(SubscriberJob::Create(this, module, eventName, listen));
+                    Core::IWorkerPool::Instance().Submit(SubscriberJob::Create(this, module, event, listen));
                 }
-                mSubMap.Add(eventName, context);
+                mSubMap.Add(event, context);
             } else {
-                mSubMap.Remove(eventName, context);
+                mSubMap.Remove(event, context);
                 // If all elements are removed the entry is erased automatically
                 // This can be used to measure unsubscribe
-                if (!mSubMap.Exists(eventName)) {
+                if (!mSubMap.Exists(event)) {
                     // Thunder unsubscription
-                    Core::IWorkerPool::Instance().Submit(SubscriberJob::Create(this, module, eventName, listen));
+                    Core::IWorkerPool::Instance().Submit(SubscriberJob::Create(this, module, event, listen));
                 }
             }
             return Core::ERROR_NONE;

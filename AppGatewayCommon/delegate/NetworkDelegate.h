@@ -29,7 +29,6 @@
 #include <algorithm>
 #include <sstream>
 #include <set>
-#include "ContextUtils.h"
 #include "ObjectUtils.h"
 #include "UtilsFirebolt.h"
 
@@ -254,7 +253,7 @@ private:
         void onActiveInterfaceChange(const string prevActiveInterface, const string currentActiveInterface)
         {
             LOGDBG("onActiveInterfaceChange: prev=%s, current=%s", prevActiveInterface.c_str(), currentActiveInterface.c_str());
-            mParent.Dispatch(ContextUtils::GetRDK8VersionedEventName("Network.onConnectedChanged"), ObjectUtils::CreateBooleanJsonString("value", currentActiveInterface.empty() ? false : true) );
+            mParent.Dispatch("Network.onConnectedChanged", ObjectUtils::CreateBooleanJsonString("value", currentActiveInterface.empty() ? false : true) );
         }
 
         void onIPAddressChange(const string interface, const string ipversion, const string ipaddress, const Exchange::INetworkManager::IPStatus status)

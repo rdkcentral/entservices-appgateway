@@ -158,7 +158,8 @@
         },
         "localization.onpreferredaudiolanguageschanged": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "Localization.onPreferredAudioLanguagesChanged"
+            "event": "Localization.onPreferredAudioLanguagesChanged",
+            "versionedEvent": true
         },
         "accessibility.onaudiodescriptionsettingschanged": {
             "alias": "org.rdk.AppGatewayCommon",
@@ -170,7 +171,8 @@
         },
         "accessibility.onhighcontrastuichanged": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "Accessibility.onHighContrastUIChanged"
+            "event": "Accessibility.onHighContrastUIChanged",
+            "versionedEvent": true
         },
         "closedcaptions.onenabledchanged": {
             "alias": "org.rdk.AppGatewayCommon",
@@ -202,7 +204,8 @@
         },
         "accessibility.onvoiceguidancesettingschanged": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "Accessibility.onVoiceGuidanceSettingsChanged"
+            "event": "Accessibility.onVoiceGuidanceSettingsChanged",
+            "versionedEvent": true
         },
         "device.onNetworkChanged": {
             "alias": "org.rdk.AppGatewayCommon",
@@ -238,7 +241,8 @@
         },
         "device.onhdrchanged": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "Device.onHdrChanged"
+            "event": "Device.onHdrChanged",
+            "versionedEvent": true
         },
         "device.onhdcpchanged": {
             "alias": "org.rdk.AppGatewayCommon",

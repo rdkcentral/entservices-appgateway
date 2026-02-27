@@ -68,8 +68,8 @@ class ContextUtils {
             return RDK8_FIREBOLT_VERSION == version;
         }
 
-        static string GetEventNameFromContextBasedonVersion(const Exchange::IAppNotifications::AppNotificationContext& context, const string& baseEventName) {
-            if (RDK8_FIREBOLT_VERSION == context.version ) {
+        static string GetEventNameFromContextBasedonVersion(const string& version, const string& baseEventName) {
+            if (RDK8_FIREBOLT_VERSION == version ) {
                 return GetRDK8VersionedEventName(baseEventName);
             }
             return baseEventName;

@@ -997,7 +997,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             string result;
             object.ToString(result);
 
-            mParent.Dispatch(ContextUtils::GetRDK8VersionedEventName("Localization.onPresentationLanguageChanged"),  result);
+            mParent.Dispatch("Localization.onPresentationLanguageChanged",  result);
         }
 
         void OnCaptionsChanged(const bool enabled) {
