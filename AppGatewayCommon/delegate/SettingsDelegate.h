@@ -26,6 +26,7 @@
 #include "LifecycleDelegate.h"
 #include "UtilsLogging.h"
 #include "AppDelegate.h"
+#include "TTSDelegate.h"
 #include <interfaces/IAppNotifications.h>
 
 #define APP_NOTIFICATIONS_CALLSIGN "org.rdk.AppNotifications"

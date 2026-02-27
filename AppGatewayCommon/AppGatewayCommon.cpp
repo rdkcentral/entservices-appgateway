@@ -289,7 +289,9 @@ namespace Plugin {
             return Core::ERROR_NONE; // No-op for now, as this is only used for RDK8 compliance which requires no action on the AppGatewayCommon side when this event is received.
         }},
         {"network.connected", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            return self->GetNetworkConnected(ctx, result);
+            (void)ctx;
+            (void)payload;
+            return self->GetNetworkConnected(result);
         }}
     };
 

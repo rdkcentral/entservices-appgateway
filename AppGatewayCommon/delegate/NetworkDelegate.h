@@ -127,8 +127,7 @@ public:
         return mNetworkManager;
     }
 
-    Core::hresult GetNetworkConnected(const Exchange::GatewayContext& context, string &result) {
-        LOGINFO("GetNetworkConnected via NetworkManager");
+    Core::hresult GetNetworkConnected(string &result) {
         result.clear();
 
         Exchange::INetworkManager *networkManager = GetNetworkManagerInterface();
