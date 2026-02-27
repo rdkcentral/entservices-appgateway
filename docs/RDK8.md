@@ -27,7 +27,7 @@ This document focuses on the notification and event dispatch mechanisms that dif
 |--------|-------------------|------------------|
 | **Version Identifier** | `"0"` | `"8"` |
 | **Event Name Format** | Base event name (e.g., `TextToSpeech.onVoiceChanged`) | Base event name + `.v8` suffix (e.g., `TextToSpeech.onVoiceChanged.v8`) |
-| **Detection Method** | Default for non-compliant connections | Detected via WebSocket URL path containing `/jsonrpc` |
+| **Detection Method** | Default for non-compliant connections | Detected via WebSocket URL path containing `/RPCV2=true` |
 | **JSON-RPC Compliance** | Not required | Fully JSON-RPC compliant |
 | **Event Subscription Storage** | Events stored using base name | Events stored using versioned name (with `.v8` suffix) |
 | **Event Dispatch** | Dispatches events with base name | Dispatches events with versioned name (with `.v8` suffix) |
@@ -50,7 +50,7 @@ This document focuses on the notification and event dispatch mechanisms that dif
 The system determines if a WebSocket connection is RDK8-compliant by examining the connection URL:
 
 - **Legacy Apps**: Connect via standard WebSocket URL (e.g., `ws://127.0.0.1:3473`)
-- **RDK8 Apps**: Connect via JSON-RPC compliant URL (e.g., `ws://127.0.0.1:3473/jsonrpc`)
+- **RDK8 Apps**: Connect via JSON-RPC compliant URL (e.g., `ws://127.0.0.1:3473/?RPCV2=true`)
 
 ### Detection Flow
 
@@ -61,9 +61,9 @@ sequenceDiagram
     participant Registry as Compliant JSON-RPC Registry
     participant Context as Context Manager
     
-    App->>WS: Connect to ws://host:port/jsonrpc
+    App->>WS: Connect to ws://host:port/?RPCV2=true
     WS->>WS: Parse URL and extract path
-    alt URL contains "/jsonrpc"
+    alt URL contains "/RPCV2=true"
         WS->>Registry: Mark connectionId as compliant
         Registry->>Context: Set version = "8"
     else Standard URL
@@ -307,8 +307,8 @@ sequenceDiagram
     participant TTS as TextToSpeech Plugin
     
     Note over RDK8App,TTS: Connection Establishment
-    RDK8App->>WSManager: Connect ws://host:port/jsonrpc
-    WSManager->>WSManager: Parse URL, detect "/jsonrpc"
+    RDK8App->>WSManager: Connect ws://host:port/?RPCV2=true
+    WSManager->>WSManager: Parse URL, detect "/?RPCV2=true"
     WSManager->>Gateway: OnConnect(connectionId)
     Gateway->>Gateway: Mark connectionId as RDK8-compliant
     
