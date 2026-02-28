@@ -242,7 +242,7 @@ namespace WPEFramework
                 Context context = {
                     requestId,
                     connectionId,
-                    appId
+                    std::move(appId)
                 };
 
                 if (nullptr == mResolver) {

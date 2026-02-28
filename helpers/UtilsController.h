@@ -166,7 +166,7 @@ namespace Utils
     {
     public:
         Job(std::function<void()> work)
-            : _work(work)
+            : _work(std::move(work))
         {
         }
         void Dispatch() override
