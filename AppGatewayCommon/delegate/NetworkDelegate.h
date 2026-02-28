@@ -83,17 +83,18 @@ public:
                 LOGINFO("Registering for NetworkManager notifications");
                 mNetworkManager->Register(&mNotificationHandler);
                 mNotificationHandler.SetRegistered(true);
-                return true;
             }
             else
             {
                 LOGTRACE("Is NetworkManager registered = %s", mNotificationHandler.GetRegistered() ? "true" : "false");
             }
+            return true;
         }
         else
         {
             // Not removing the notification subscription for cases where only one event is removed
             RemoveNotification(event, cb);
+            return true;
         }
         return false;
     }
@@ -105,9 +106,10 @@ public:
         if (VALID_NETWORK_EVENT.find(StringUtils::toLower(event)) != VALID_NETWORK_EVENT.end())
         {
             // Handle NetworkManager event
-            registrationError = HandleSubscription(cb, event, listen);
+            registrationError = !HandleSubscription(cb, event, listen);
             return true;
         }
+        registrationError = true; // event not recognized - signal error to caller
         return false;
     }
 

@@ -883,6 +883,7 @@ public:
                 return true;
             }
         }
+        registrationError = true; // event not recognized - signal error to caller
         return false;
     }
 

@@ -84,19 +84,19 @@ public:
             // Not removing the notification subscription for cases where one event is removed
             RemoveNotification(event, cb);
         }
-        return false;
+        return true;
     }
 
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError)
     {
-        LOGDBG("Checking for handle event");
         // Check if event starts with "TextToSpeech" make check case insensitive
         if (StringUtils::checkStartsWithCaseInsensitive(event, APP_API_METHOD_PREFIX))
         {
             // Handle TextToSpeech event
-            registrationError = HandleSubscription(cb, event, listen);
+            registrationError = !HandleSubscription(cb, event, listen);
             return true;
         }
+        registrationError = true; // event not recognized - signal error to caller
         return false;
     }
 

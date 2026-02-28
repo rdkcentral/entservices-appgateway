@@ -322,13 +322,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
         }
 
         bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError) {
-            LOGDBG("Checking for handle event");
             // Check if event is present in VALID_USER_SETTINGS_EVENT make check case insensitive
             if (VALID_USER_SETTINGS_EVENT.find(StringUtils::toLower(event)) != VALID_USER_SETTINGS_EVENT.end()) {
                 // Handle TextToSpeech event
-                registrationError = HandleSubscription(cb, event, listen);
+                registrationError = !HandleSubscription(cb, event, listen);
                 return true;
             }
+            registrationError = true; // event not recognized - signal error to caller
             return false;
         }
 
