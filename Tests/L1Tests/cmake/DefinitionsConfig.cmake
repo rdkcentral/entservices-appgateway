@@ -20,9 +20,24 @@
 # Load the canonical Thunder definitions package (installed under repo prefix).
 find_package(WPEFrameworkDefinitions REQUIRED CONFIG)
 
-# Provide a compatible imported target name if callers expect Definitions::Definitions.
-if(NOT TARGET Definitions::Definitions AND TARGET WPEFrameworkDefinitions::WPEFrameworkDefinitions)
-    add_library(Definitions::Definitions ALIAS WPEFrameworkDefinitions::WPEFrameworkDefinitions)
+# Provide a compatible target name if callers expect Definitions::Definitions.
+#
+# IMPORTANT:
+# Do NOT use ALIAS here. In some CI/L1Tests-only configure flows the imported
+# Thunder targets are not considered "globally visible", which makes
+# `add_library(ALIAS ...)` fail during configure.
+#
+# Instead we provide an IMPORTED GLOBAL INTERFACE target that forwards usage
+# requirements to the canonical target.
+if(NOT TARGET Definitions::Definitions)
+    add_library(Definitions::Definitions INTERFACE IMPORTED GLOBAL)
+    if(TARGET WPEFrameworkDefinitions::WPEFrameworkDefinitions)
+        set_target_properties(Definitions::Definitions PROPERTIES
+            INTERFACE_LINK_LIBRARIES WPEFrameworkDefinitions::WPEFrameworkDefinitions
+        )
+    else()
+        message(FATAL_ERROR "WPEFrameworkDefinitions::WPEFrameworkDefinitions target not found; cannot provide Definitions::Definitions compatibility target.")
+    endif()
 endif()
 
 set(Definitions_FOUND TRUE)
