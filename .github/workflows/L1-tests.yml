@@ -582,7 +582,7 @@ jobs:
           echo "L1_TEST_EXIT_CODE=${rc}" >> "$GITHUB_ENV"
           exit "${rc}"
 
-      - name: Generate coverage report (lcov .info + HTML)
+      - name: Generate coverage report (lcov .info only; no HTML)
         if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
         continue-on-error: true
         run: |
@@ -624,15 +624,9 @@ jobs:
             exit 0
           fi
 
-          # HTML for file/line drilldown
-          genhtml -o coverage -t "entservices-appgateway (AppGateway-only) coverage" appgateway_only_coverage.info || true
-
           # Stage into workspace-root so upload-artifact paths are stable.
+          mkdir -p "$GITHUB_WORKSPACE/entservices-appgateway"
           cp -f appgateway_only_coverage.info "$GITHUB_WORKSPACE/entservices-appgateway/appgateway_only_coverage.info"
-          if [ -d coverage ]; then
-            rm -rf "$GITHUB_WORKSPACE/entservices-appgateway/coverage" || true
-            cp -R coverage "$GITHUB_WORKSPACE/entservices-appgateway/coverage"
-          fi
 
       - name: Upload artifacts
         if: ${{ !env.ACT }}
@@ -641,7 +635,6 @@ jobs:
           name: artifacts-L1-appgateway
           path: |
             entservices-appgateway/appgateway_only_coverage.info
-            entservices-appgateway/coverage/
             entservices-appgateway/AppGatewayL1TestResultsWithoutValgrind.json
             entservices-appgateway/act_segv_backtrace.txt
             entservices-appgateway/act_gdb_output.txt

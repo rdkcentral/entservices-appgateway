@@ -592,12 +592,6 @@ TEST(AppGatewayImplementationTest, AppGateway_ComRpc_RequestHandlerMissing_NotAv
     EXPECT_THAT(resolution, ::testing::HasSubstr("NotAvailable"));
 }
 
-int main(int argc, char** argv)
-{
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
-
 TEST(AppGatewayImplementationTest, AppGateway_ComRpc_AdditionalContext_WrapsParamsWith_additionalContext)
 {
     const std::string cfg = "/tmp/appgw.comrpc.ctx.cfg.json";
@@ -739,5 +733,11 @@ TEST(AppGatewayImplementationTest, AppGateway_ComRpc_AdditionalContext_WrapsPara
     // After Resolve() returns, production should have released its QueryInterface reference,
     // so we must release the test-owned reference to avoid a leaked mock at process exit.
     handler->Release();
+}
+
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }
 

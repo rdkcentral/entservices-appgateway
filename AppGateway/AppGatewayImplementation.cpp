@@ -163,6 +163,9 @@ namespace WPEFramework
         AppGatewayImplementation::~AppGatewayImplementation()
         {
             LOGINFO("AppGatewayImplementation destructor");
+            // Signal shutdown ASAP so any already-queued worker jobs become no-ops.
+            mShuttingDown.store(true, std::memory_order_release);
+
             if (nullptr != mService)
             {
                 mService->Release();
@@ -378,7 +381,12 @@ namespace WPEFramework
             Core::hresult result = FetchResolvedData(context, method, params, origin, resolution);
             if (!resolution.empty()) {
                 LOGTRACE("Final resolution: %s", resolution.c_str());
-                Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context, resolution, origin));
+
+                if (!mShuttingDown.load(std::memory_order_acquire)) {
+                    Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context, resolution, origin));
+                } else {
+                    LOGWARN("Dropping async RespondJob during shutdown");
+                }
             }
             return result;
         }
