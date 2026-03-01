@@ -645,14 +645,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: artifacts-L1-appgateway
+          # Upload the full staged artifact root so we don't accidentally miss files
+          # when coverage/test tooling changes filenames or emits additional diagnostics.
           path: |
-            entservices-appgateway/appgateway_only_coverage.info
-            entservices-appgateway/coverage-html
-            entservices-appgateway/AppGatewayL1TestResultsWithoutValgrind.json
-            entservices-appgateway/act_segv_backtrace.txt
-            entservices-appgateway/act_gdb_output.txt
-            entservices-appgateway/act_dmesg_tail.txt
-            entservices-appgateway/core*
+            entservices-appgateway/**
+            build/entservices-appgateway-l1tests-only/**/*.log
+            build/entservices-appgateway-l1tests-only/**/Testing/**
+
+            # Also upload any lcov outputs that might have been left in the workspace root
+            # (best effort; harmless if absent).
+            coverage*.info
+            filtered_coverage.info
+            appgateway_only_coverage.info
           if-no-files-found: warn
 
       - name: Fail job if L1 tests failed (after artifacts/coverage)
