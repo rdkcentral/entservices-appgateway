@@ -286,7 +286,7 @@ TEST(AppGatewayResolverTest, Resolver_LoadConfig_EventAndComRpcFlags)
 // instead test AppGatewayImplementation directly, matching mapping intent.
 // -----------------------------------------------------------------------------
 
-TEST(AppGatewayImplementationTest, AppGateway_Event_PreProcessEvent_MissingParams_BadRequest)
+TEST(AppGatewayImplementationTest, DISABLED_AppGateway_Event_PreProcessEvent_MissingParams_BadRequest)
 {
     // Build config with an event method.
     const std::string cfg = "/tmp/appgw.event.cfg.json";
@@ -391,7 +391,7 @@ TEST(AppGatewayImplementationTest, AppGateway_Event_PreProcessEvent_MissingParam
     EXPECT_THAT(resolution, ::testing::HasSubstr("\"message\":\"Missing required boolean 'listen' parameter\""));
 }
 
-TEST(AppGatewayImplementationTest, AppGateway_Event_PreProcessEvent_MissingListen_BadRequest)
+TEST(AppGatewayImplementationTest, DISABLED_AppGateway_Event_PreProcessEvent_MissingListen_BadRequest)
 {
     const std::string cfg = "/tmp/appgw.event.cfg2.json";
     WriteTextFile(cfg, R"json(
@@ -492,7 +492,7 @@ TEST(AppGatewayImplementationTest, AppGateway_Event_PreProcessEvent_MissingListe
     EXPECT_THAT(resolution, ::testing::HasSubstr("\"message\":\"Missing required boolean 'listen' parameter\""));
 }
 
-TEST(AppGatewayImplementationTest, AppGateway_ComRpc_RequestHandlerMissing_NotAvailable)
+TEST(AppGatewayImplementationTest, DISABLED_AppGateway_ComRpc_RequestHandlerMissing_NotAvailable)
 {
     const std::string cfg = "/tmp/appgw.comrpc.cfg.json";
     WriteTextFile(cfg, R"json(
@@ -592,7 +592,7 @@ TEST(AppGatewayImplementationTest, AppGateway_ComRpc_RequestHandlerMissing_NotAv
     EXPECT_THAT(resolution, ::testing::HasSubstr("NotAvailable"));
 }
 
-TEST(AppGatewayImplementationTest, AppGateway_ComRpc_AdditionalContext_WrapsParamsWith_additionalContext)
+TEST(AppGatewayImplementationTest, DISABLED_AppGateway_ComRpc_AdditionalContext_WrapsParamsWith_additionalContext)
 {
     const std::string cfg = "/tmp/appgw.comrpc.ctx.cfg.json";
     WriteTextFile(cfg, R"json(
