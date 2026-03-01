@@ -121,7 +121,7 @@ jobs:
         if: ${{ inputs.caller_source == 'local' }}
         uses: actions/checkout@v3
         with:
-          path: entservices-appgateway
+          #          path: entservices-appgateway
 
       - name: Checkout googletest
         if: steps.cache.outputs.cache-hit != 'true'
