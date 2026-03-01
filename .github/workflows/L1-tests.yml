@@ -1,10 +1,6 @@
 name: L1-tests
 
 on:
-  push:
-    branches: [ main, develop, feature/AI_L1 ]
-  pull_request:
-    branches: [ main, develop ]
   workflow_call:
     inputs:
       caller_source:
@@ -89,13 +85,7 @@ jobs:
         run: >
           sudo apt update
           &&
-          sudo apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libjsoncpp-dev
-
-      - name: Checkout entservices-appgateway
-        #  if: ${{ inputs.caller_source == 'local' }}
-        uses: actions/checkout@v3
-          #with:
-          #          path: entservices-appgateway
+          sudo apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libjsoncpp-dev gdb
 
       - name: Build trower-base64
         run: |
@@ -106,6 +96,9 @@ jobs:
             meson setup --warnlevel 3 --werror build
             ninja -C build
             sudo ninja -C build install
+
+      - name: Checkout entservices-appgateway
+        uses: actions/checkout@v3
 
       - name: Checkout Thunder
         if: steps.cache.outputs.cache-hit != 'true'
@@ -122,7 +115,6 @@ jobs:
           repository: rdkcentral/ThunderTools
           path: ThunderTools
           ref: R4.4.3
-
 
       - name: Checkout googletest
         if: steps.cache.outputs.cache-hit != 'true'
@@ -383,6 +375,24 @@ jobs:
           test -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator/ConfigGeneratorConfig.cmake"
           echo "Found: $GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator/ConfigGeneratorConfig.cmake"
 
+      - name: Stage INetworkManager.h into install prefix (required for AppGateway compile)
+        run: |
+          set -euo pipefail
+
+          # Some AppGateway builds expect this interface header to be available under the local prefix.
+          # Fetch from upstream networkmanager repo and stage into:
+          #   $GITHUB_WORKSPACE/install/usr/include/WPEFramework/interfaces/INetworkManager.h
+          dst_dir="$GITHUB_WORKSPACE/install/usr/include/WPEFramework/interfaces"
+          mkdir -p "$dst_dir"
+
+          url="https://raw.githubusercontent.com/rdkcentral/networkmanager/develop/interface/INetworkManager.h"
+          echo "Downloading: $url"
+          curl -fsSL "$url" -o "$dst_dir/INetworkManager.h"
+
+          echo "Staged header at: $dst_dir/INetworkManager.h"
+          test -s "$dst_dir/INetworkManager.h"
+          head -n 5 "$dst_dir/INetworkManager.h" || true
+
       - name: Build AppGateway L1 tests (Tests/L1Tests only; NO install; coverage enabled)
         # Script parity: configure/build ONLY Tests/L1Tests and avoid install-time /etc writes.
         run: |
@@ -452,14 +462,26 @@ jobs:
           echo "APPGATEWAY_CONFIG_PATH=/tmp/app-gateway" >> "$GITHUB_ENV"
           ls -la /tmp/app-gateway || true
 
-      - name: Run AppGateway L1 tests (continue-on-error to still generate coverage + upload artifacts)
+      - name: Run AppGateway L1 tests (gdb batch for reliable backtrace; continue-on-error for artifact upload)
         continue-on-error: true
         run: |
           set -euo pipefail
+
+          # Ensure we *try* to get core dumps, but do not rely on them (act often suppresses core file creation).
+          ulimit -c unlimited || true
+          echo "Core ulimit: $(ulimit -c || true)"
+
+          # Keep test ordering deterministic to reduce act-only timing variance.
+          export GTEST_SHUFFLE=0
+
           find build/entservices-appgateway-l1tests-only -type f -name "*.gcda" -print -delete 2>/dev/null || true
 
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
-          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib64:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH:-}"
+
+          # act often has a different runtime linker search path than GitHub-hosted runners.
+          # Include all relevant Thunder/WPEFramework runtime lib locations.
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib64:$GITHUB_WORKSPACE/install/usr/lib/wpeframework:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH:-}"
+
           export APPGATEWAY_CONFIG_PATH="${APPGATEWAY_CONFIG_PATH:-/tmp/app-gateway}"
           export GTEST_OUTPUT="json:$(pwd)/AppGatewayL1TestResults.json"
 
@@ -469,12 +491,83 @@ jobs:
             exit 1
           fi
 
-          "${TEST_BIN}"
-          rc=$?
+          # Preflight shared libraries to catch missing runtime deps early (non-fatal).
+          if command -v ldd >/dev/null 2>&1; then
+            echo "ldd preflight for: ${TEST_BIN}"
+            ldd "${TEST_BIN}" || true
+            if ldd "${TEST_BIN}" 2>/dev/null | grep -q "not found"; then
+              echo "WARNING: ldd reports missing libraries; LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
+            fi
+          fi
 
+          # Always attempt to capture a backtrace even when core files are not created (common under act).
+          #
+          # We run the test under gdb in batch mode and print:
+          #  - gdb "run" output
+          #  - signal reason (if any)
+          #  - full backtraces for all threads
+          #
+          # Note: This does not require core dump support.
+          BACKTRACE_OUT="$GITHUB_WORKSPACE/act_segv_backtrace.txt"
+          GDB_OUT="$GITHUB_WORKSPACE/act_gdb_output.txt"
+          DMESG_OUT="$GITHUB_WORKSPACE/act_dmesg_tail.txt"
+
+          rm -f "${BACKTRACE_OUT}" "${GDB_OUT}" "${DMESG_OUT}" || true
+
+          set +e
+          if command -v gdb >/dev/null 2>&1; then
+            echo "Running L1 tests under gdb (batch mode) to ensure backtrace capture..."
+            gdb -q -n -batch \
+              -ex "set pagination off" \
+              -ex "set confirm off" \
+              -ex "handle SIGPIPE nostop noprint pass" \
+              -ex "run --gtest_repeat=1" \
+              -ex "echo \n\n----- gdb: stop reason -----\n" \
+              -ex "info program" \
+              -ex "echo \n\n----- gdb: registers -----\n" \
+              -ex "info registers" \
+              -ex "echo \n\n----- gdb: threads -----\n" \
+              -ex "info threads" \
+              -ex "echo \n\n----- gdb: bt full (all threads) -----\n" \
+              -ex "thread apply all bt full" \
+              -ex "echo \n\n----- gdb: bt full (current) -----\n" \
+              -ex "bt full" \
+              --args "${TEST_BIN}" \
+              2>&1 | tee "${GDB_OUT}"
+            rc=${PIPESTATUS[0]}
+            # Extract the most relevant section for quick viewing.
+            # Keep full gdb output separately to avoid truncation in artifact viewers.
+            # NOTE: The grep pattern starts with dashes ("----- ..."), so we must terminate option parsing via `--`.
+            # Otherwise some grep builds can misinterpret it as an option and fail the step.
+            # Also provide a fallback so BACKTRACE_OUT is still populated even if markers are missing.
+            if ! grep -n -A9999 -E -- "----- gdb: (stop reason|bt full)" "${GDB_OUT}" > "${BACKTRACE_OUT}"; then
+              echo "INFO: Expected gdb markers not found; writing head of gdb output to ${BACKTRACE_OUT} for debugging."
+              head -n 200 "${GDB_OUT}" > "${BACKTRACE_OUT}" || true
+            fi
+          else
+            echo "gdb not available; running test binary directly (backtrace may be unavailable if no core file is produced)."
+            "${TEST_BIN}" --gtest_repeat=1
+            rc=$?
+          fi
+          set -e
+
+          # Preserve json test output if produced.
           if [ -f "$(pwd)/AppGatewayL1TestResults.json" ]; then
             cp -f "$(pwd)/AppGatewayL1TestResults.json" "$GITHUB_WORKSPACE/AppGatewayL1TestResultsWithoutValgrind.json"
             rm -f "$(pwd)/AppGatewayL1TestResults.json"
+          fi
+
+          if [ "${rc}" -ne 0 ]; then
+            echo "Test binary failed with exit code: ${rc}"
+
+            echo "Workspace listing (for crash diagnostics):"
+            ls -la . || true
+
+            echo "Best-effort core dump discovery (may be empty under act):"
+            ls -la core* 2>/dev/null || true
+
+            echo "Capturing dmesg tail (best-effort; may require privileges):"
+            dmesg | tail -n 200 > "${DMESG_OUT}" 2>/dev/null || true
           fi
 
           echo "L1_TEST_EXIT_CODE=${rc}" >> "$GITHUB_ENV"
@@ -535,6 +628,10 @@ jobs:
           path: |
             coverage/
             entservices-appgateway/AppGatewayL1TestResultsWithoutValgrind.json
+            entservices-appgateway/act_segv_backtrace.txt
+            entservices-appgateway/act_gdb_output.txt
+            entservices-appgateway/act_dmesg_tail.txt
+            entservices-appgateway/core*
           if-no-files-found: warn
 
       - name: Fail job if L1 tests failed (after artifacts/coverage)
@@ -542,4 +639,3 @@ jobs:
         run: |
           echo "L1 tests failed with exit code: ${{ env.L1_TEST_EXIT_CODE }}"
           exit 1
-
