@@ -104,9 +104,9 @@ private:
 
     Exchange::ITextToSpeech* GetTTS() {
         std::lock_guard<std::mutex> lock(mTTSMutex);
-        if (mTextToSpeech == nullptr && mShell != nullptr) {
+        if ((nullptr == mTextToSpeech) && (nullptr != mShell)) {
             mTextToSpeech = mShell->QueryInterfaceByCallsign<Exchange::ITextToSpeech>(TTS_CALLSIGN);
-            if (mTextToSpeech == nullptr) {
+            if (nullptr == mTextToSpeech) {
                 LOGERR("Failed to get TextToSpeech COM interface");
             }
         }
