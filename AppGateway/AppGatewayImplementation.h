@@ -59,9 +59,9 @@ namespace Plugin {
         class EXTERNAL RespondJob : public Core::IDispatch
         {
         private:
-            // Keep parent alive for the *full* lifetime of the job object without relying on
-            // RespondJob's virtual destructor. This avoids teardown-time __cxa_pure_virtual
-            // crashes when WorkerPool drains jobs during plugin/test shutdown.
+            // Keep parent alive for the full lifetime of the job object.
+            // This prevents Core::Sink<AppGatewayImplementation> from being destructed
+            // while WorkerPool still holds jobs that reference the instance.
             class ParentRef final
             {
             public:
@@ -105,10 +105,7 @@ namespace Plugin {
             RespondJob() = delete;
             RespondJob(const RespondJob&) = delete;
             RespondJob& operator=(const RespondJob&) = delete;
-
-            // Intentionally no explicit destructor:
-            // - We avoid RespondJob::~RespondJob() virtual teardown behavior.
-            // - mParentRef's non-virtual destructor safely releases the parent.
+            ~RespondJob() override = default;
 
         public:
             static Core::ProxyType<Core::IDispatch> Create(AppGatewayImplementation* parent,
@@ -122,8 +119,6 @@ namespace Plugin {
 
             void Dispatch() override
             {
-                // Parent can be in shutdown (mService released) even if the object is still alive.
-                // All downstream calls must tolerate teardown safely.
                 if (mParent == nullptr) {
                     return;
                 }
