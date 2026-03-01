@@ -28,6 +28,7 @@
 #include <com/com.h>
 #include <core/core.h>
 #include <map>
+#include <atomic>
 
 namespace WPEFramework {
 namespace Plugin {
@@ -56,45 +57,17 @@ namespace Plugin {
         uint32_t Configure(PluginHost::IShell* service) override;
 
     private:
+        // Guard that prevents scheduling/processing async work during teardown.
+        std::atomic<bool> mShuttingDown{false};
+
         class EXTERNAL RespondJob : public Core::IDispatch
         {
-        private:
-            // Keep parent alive for the full lifetime of the job object.
-            // This prevents Core::Sink<AppGatewayImplementation> from being destructed
-            // while WorkerPool still holds jobs that reference the instance.
-            class ParentRef final
-            {
-            public:
-                ParentRef() = delete;
-                explicit ParentRef(AppGatewayImplementation* parent)
-                    : _parent(parent)
-                {
-                    if (_parent != nullptr) {
-                        _parent->AddRef();
-                    }
-                }
-                ParentRef(const ParentRef&) = delete;
-                ParentRef& operator=(const ParentRef&) = delete;
-
-                ~ParentRef()
-                {
-                    if (_parent != nullptr) {
-                        _parent->Release();
-                        _parent = nullptr;
-                    }
-                }
-
-            private:
-                AppGatewayImplementation* _parent;
-            };
-
         protected:
             RespondJob(AppGatewayImplementation* parent,
                        const Context& context,
                        const std::string& payload,
                        const std::string& destination)
                 : mParent(parent)
-                , mParentRef(parent)
                 , mPayload(payload)
                 , mContext(context)
                 , mDestination(destination)
@@ -123,6 +96,11 @@ namespace Plugin {
                     return;
                 }
 
+                // If shutdown has started, never call into plugin methods that touch IShell/other plugins.
+                if (mParent->mShuttingDown.load(std::memory_order_acquire)) {
+                    return;
+                }
+
                 if (ContextUtils::IsOriginGateway(mDestination)) {
                     mParent->ReturnMessageInSocket(mContext, mPayload);
                 } else {
@@ -132,7 +110,6 @@ namespace Plugin {
 
         private:
             AppGatewayImplementation* mParent;
-            ParentRef mParentRef;
             const std::string mPayload;
             const Context mContext;
             const std::string mDestination;
