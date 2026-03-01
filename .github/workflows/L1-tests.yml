@@ -466,7 +466,7 @@ jobs:
           echo "APPGATEWAY_CONFIG_PATH=/tmp/app-gateway" >> "$GITHUB_ENV"
           ls -la /tmp/app-gateway || true
 
-      - name: Run AppGateway L1 tests (gdb batch for reliable backtrace; continue-on-error for artifact upload)
+      - name: Run AppGateway L1 tests (capture real exit code; run gdb only on failure)
         continue-on-error: true
         run: |
           set -euo pipefail
@@ -478,9 +478,6 @@ jobs:
           # Keep test ordering deterministic to reduce act-only timing variance.
           export GTEST_SHUFFLE=0
 
-          # Do not delete *.gcda before running tests; that can lead to empty coverage capture.
-          # If cleanup is needed, do it after capture or only remove stale files selectively.
-
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
 
           # act often has a different runtime linker search path than GitHub-hosted runners.
@@ -488,13 +485,17 @@ jobs:
           export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib64:$GITHUB_WORKSPACE/install/usr/lib/wpeframework:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH:-}"
 
           export APPGATEWAY_CONFIG_PATH="${APPGATEWAY_CONFIG_PATH:-/tmp/app-gateway}"
-          export GTEST_OUTPUT="json:$(pwd)/AppGatewayL1TestResults.json"
+
+          # Keep all outputs under a stable artifact root that upload-artifact can find.
+          ARTIFACT_ROOT="$GITHUB_WORKSPACE/entservices-appgateway"
+          mkdir -p "$ARTIFACT_ROOT"
 
           BUILD_DIR="build/entservices-appgateway-l1tests-only"
           TEST_BIN="${BUILD_DIR}/AppGatewayL1Test"
           if [ ! -x "${TEST_BIN}" ]; then
             echo "AppGatewayL1Test not found at ${TEST_BIN}"
-            exit 1
+            echo "L1_TEST_EXIT_CODE=127" >> "$GITHUB_ENV"
+            exit 127
           fi
 
           # Run from build dir so GCC writes *.gcda next to the compiled objects.
@@ -503,84 +504,78 @@ jobs:
           # Preflight shared libraries to catch missing runtime deps early (non-fatal).
           if command -v ldd >/dev/null 2>&1; then
             echo "ldd preflight for: ${TEST_BIN}"
-            ldd "${TEST_BIN}" || true
-            if ldd "${TEST_BIN}" 2>/dev/null | grep -q "not found"; then
+            ldd "./AppGatewayL1Test" || true
+            if ldd "./AppGatewayL1Test" 2>/dev/null | grep -q "not found"; then
               echo "WARNING: ldd reports missing libraries; LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
             fi
           fi
 
-          # Always attempt to capture a backtrace even when core files are not created (common under act).
-          #
-          # We run the test under gdb in batch mode and print:
-          #  - gdb "run" output
-          #  - signal reason (if any)
-          #  - full backtraces for all threads
-          #
-          # Note: This does not require core dump support.
-          BACKTRACE_OUT="$GITHUB_WORKSPACE/act_segv_backtrace.txt"
-          GDB_OUT="$GITHUB_WORKSPACE/act_gdb_output.txt"
-          DMESG_OUT="$GITHUB_WORKSPACE/act_dmesg_tail.txt"
+          RESULTS_JSON_LOCAL="$(pwd)/AppGatewayL1TestResults.json"
+          export GTEST_OUTPUT="json:${RESULTS_JSON_LOCAL}"
 
-          rm -f "${BACKTRACE_OUT}" "${GDB_OUT}" "${DMESG_OUT}" || true
-
+          # 1) Run tests directly to get a trustworthy exit code (avoid gdb affecting it).
           set +e
-          if command -v gdb >/dev/null 2>&1; then
-            echo "Running L1 tests under gdb (batch mode) to ensure backtrace capture..."
-            gdb -q -n -batch \
-              -ex "set pagination off" \
-              -ex "set confirm off" \
-              -ex "handle SIGPIPE nostop noprint pass" \
-              -ex "run --gtest_repeat=1" \
-              -ex "echo \n\n----- gdb: stop reason -----\n" \
-              -ex "info program" \
-              -ex "echo \n\n----- gdb: registers -----\n" \
-              -ex "info registers" \
-              -ex "echo \n\n----- gdb: threads -----\n" \
-              -ex "info threads" \
-              -ex "echo \n\n----- gdb: bt full (all threads) -----\n" \
-              -ex "thread apply all bt full" \
-              -ex "echo \n\n----- gdb: bt full (current) -----\n" \
-              -ex "bt full" \
-              --args "./AppGatewayL1Test" \
-              2>&1 | tee "${GDB_OUT}"
-            rc=${PIPESTATUS[0]}
-            # Extract the most relevant section for quick viewing.
-            # Keep full gdb output separately to avoid truncation in artifact viewers.
-            # NOTE: The grep pattern starts with dashes ("----- ..."), so we must terminate option parsing via `--`.
-            # Otherwise some grep builds can misinterpret it as an option and fail the step.
-            # Also provide a fallback so BACKTRACE_OUT is still populated even if markers are missing.
-            if ! grep -n -A9999 -E -- "----- gdb: (stop reason|bt full)" "${GDB_OUT}" > "${BACKTRACE_OUT}"; then
-              echo "INFO: Expected gdb markers not found; writing head of gdb output to ${BACKTRACE_OUT} for debugging."
-              head -n 200 "${GDB_OUT}" > "${BACKTRACE_OUT}" || true
-            fi
-          else
-            echo "gdb not available; running test binary directly (backtrace may be unavailable if no core file is produced)."
-            "${TEST_BIN}" --gtest_repeat=1
-            rc=$?
-          fi
+          "./AppGatewayL1Test" --gtest_repeat=1
+          rc=$?
           set -e
 
-          # Preserve json test output if produced.
-          if [ -f "$(pwd)/AppGatewayL1TestResults.json" ]; then
-            cp -f "$(pwd)/AppGatewayL1TestResults.json" "$GITHUB_WORKSPACE/AppGatewayL1TestResultsWithoutValgrind.json"
-            rm -f "$(pwd)/AppGatewayL1TestResults.json"
+          # Stage json test output if produced.
+          if [ -s "${RESULTS_JSON_LOCAL}" ]; then
+            cp -f "${RESULTS_JSON_LOCAL}" "$ARTIFACT_ROOT/AppGatewayL1TestResultsWithoutValgrind.json"
+            rm -f "${RESULTS_JSON_LOCAL}" || true
           fi
+
+          # 2) On failure, run under gdb (best-effort) to capture a backtrace for artifacts.
+          BACKTRACE_OUT="$ARTIFACT_ROOT/act_segv_backtrace.txt"
+          GDB_OUT="$ARTIFACT_ROOT/act_gdb_output.txt"
+          DMESG_OUT="$ARTIFACT_ROOT/act_dmesg_tail.txt"
+          rm -f "${BACKTRACE_OUT}" "${GDB_OUT}" "${DMESG_OUT}" || true
 
           if [ "${rc}" -ne 0 ]; then
             echo "Test binary failed with exit code: ${rc}"
 
-            echo "Workspace listing (for crash diagnostics):"
+            if command -v gdb >/dev/null 2>&1; then
+              echo "Re-running failing test under gdb (batch mode) to capture backtrace..."
+              set +e
+              gdb -q -n -batch \
+                -ex "set pagination off" \
+                -ex "set confirm off" \
+                -ex "handle SIGPIPE nostop noprint pass" \
+                -ex "run --gtest_repeat=1" \
+                -ex "echo \n\n----- gdb: stop reason -----\n" \
+                -ex "info program" \
+                -ex "echo \n\n----- gdb: threads -----\n" \
+                -ex "info threads" \
+                -ex "echo \n\n----- gdb: bt full (all threads) -----\n" \
+                -ex "thread apply all bt full" \
+                -ex "echo \n\n----- gdb: bt full (current) -----\n" \
+                -ex "bt full" \
+                --args "./AppGatewayL1Test" \
+                2>&1 | tee "${GDB_OUT}"
+              set -e
+
+              # Extract the most relevant section for quick viewing.
+              if ! grep -n -A9999 -E -- "----- gdb: (stop reason|bt full)" "${GDB_OUT}" > "${BACKTRACE_OUT}"; then
+                echo "INFO: Expected gdb markers not found; writing head of gdb output to ${BACKTRACE_OUT} for debugging."
+                head -n 200 "${GDB_OUT}" > "${BACKTRACE_OUT}" || true
+              fi
+            fi
+
+            echo "Build-dir listing (for crash diagnostics):"
             ls -la . || true
 
-            echo "Best-effort core dump discovery (may be empty under act):"
+            echo "Best-effort core dump discovery:"
             ls -la core* 2>/dev/null || true
 
             echo "Capturing dmesg tail (best-effort; may require privileges):"
             dmesg | tail -n 200 > "${DMESG_OUT}" 2>/dev/null || true
           fi
 
+          # Record the *test* exit code for the final gating step.
           echo "L1_TEST_EXIT_CODE=${rc}" >> "$GITHUB_ENV"
-          exit "${rc}"
+
+          # Do not fail this step; the final 'Fail job if L1 tests failed' step gates the job.
+          exit 0
 
       - name: Generate coverage report (lcov + HTML via genhtml)
         if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
@@ -588,8 +583,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          rm -rf coverage coverage.info filtered_coverage.info appgateway_only_coverage.info entservices-appgateway/coverage-html || true
+          ARTIFACT_ROOT="$GITHUB_WORKSPACE/entservices-appgateway"
+          mkdir -p "$ARTIFACT_ROOT"
 
+          rm -rf coverage coverage.info filtered_coverage.info appgateway_only_coverage.info "$ARTIFACT_ROOT/coverage-html" || true
+
+          # Capture coverage from the entire build tree (plugins + tests), not only the top-level build dir.
+          # This avoids empty coverage.info when objects are emitted into nested directories.
           lcov --capture \
             --base-directory "$GITHUB_WORKSPACE" \
             --directory "$GITHUB_WORKSPACE/build/entservices-appgateway-l1tests-only" \
@@ -599,6 +599,8 @@ jobs:
 
           if [ ! -s coverage.info ]; then
             echo "coverage.info missing/empty; skipping coverage generation"
+            echo "Debug: search for gcda/gcno (best-effort):"
+            find "$GITHUB_WORKSPACE/build/entservices-appgateway-l1tests-only" -type f \( -name '*.gcda' -o -name '*.gcno' \) | head -n 200 || true
             exit 0
           fi
 
@@ -624,20 +626,18 @@ jobs:
             exit 0
           fi
 
-          # Stage into workspace-root so upload-artifact paths are stable.
-          mkdir -p "$GITHUB_WORKSPACE/entservices-appgateway"
-          cp -f appgateway_only_coverage.info "$GITHUB_WORKSPACE/entservices-appgateway/appgateway_only_coverage.info"
+          cp -f appgateway_only_coverage.info "$ARTIFACT_ROOT/appgateway_only_coverage.info"
 
           # Generate HTML coverage (best-effort).
-          mkdir -p "$GITHUB_WORKSPACE/entservices-appgateway/coverage-html"
-          genhtml "$GITHUB_WORKSPACE/entservices-appgateway/appgateway_only_coverage.info" \
+          mkdir -p "$ARTIFACT_ROOT/coverage-html"
+          genhtml "$ARTIFACT_ROOT/appgateway_only_coverage.info" \
             --ignore-errors source \
-            --output-directory "$GITHUB_WORKSPACE/entservices-appgateway/coverage-html" \
+            --output-directory "$ARTIFACT_ROOT/coverage-html" \
             >/dev/null 2>&1 || true
 
-          if [ -d "$GITHUB_WORKSPACE/entservices-appgateway/coverage-html" ]; then
+          if [ -d "$ARTIFACT_ROOT/coverage-html" ]; then
             echo "Generated HTML coverage at: entservices-appgateway/coverage-html"
-            ls -la "$GITHUB_WORKSPACE/entservices-appgateway/coverage-html" | head -n 50 || true
+            ls -la "$ARTIFACT_ROOT/coverage-html" | head -n 50 || true
           fi
 
       - name: Upload artifacts (diagnostics + coverage)
