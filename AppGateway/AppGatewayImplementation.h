@@ -29,13 +29,12 @@
 #include <core/core.h>
 #include <map>
 
-
 namespace WPEFramework {
 namespace Plugin {
     using Context = Exchange::GatewayContext;
+
     class AppGatewayImplementation : public Exchange::IAppGatewayResolver, public Exchange::IConfiguration
     {
-
     public:
         AppGatewayImplementation();
         ~AppGatewayImplementation() override;
@@ -57,54 +56,103 @@ namespace Plugin {
         uint32_t Configure(PluginHost::IShell* service) override;
 
     private:
-
         class EXTERNAL RespondJob : public Core::IDispatch
         {
+        private:
+            // Keep parent alive for the *full* lifetime of the job object without relying on
+            // RespondJob's virtual destructor. This avoids teardown-time __cxa_pure_virtual
+            // crashes when WorkerPool drains jobs during plugin/test shutdown.
+            class ParentRef final
+            {
+            public:
+                ParentRef() = delete;
+                explicit ParentRef(AppGatewayImplementation* parent)
+                    : _parent(parent)
+                {
+                    if (_parent != nullptr) {
+                        _parent->AddRef();
+                    }
+                }
+                ParentRef(const ParentRef&) = delete;
+                ParentRef& operator=(const ParentRef&) = delete;
+
+                ~ParentRef()
+                {
+                    if (_parent != nullptr) {
+                        _parent->Release();
+                        _parent = nullptr;
+                    }
+                }
+
+            private:
+                AppGatewayImplementation* _parent;
+            };
+
         protected:
-            RespondJob(AppGatewayImplementation *parent, 
-            const Context& context,
-            const std::string& payload,
-            const std::string& destination
-            )
-                : mParent(*parent), mPayload(payload), mContext(context), mDestination(destination)
+            RespondJob(AppGatewayImplementation* parent,
+                       const Context& context,
+                       const std::string& payload,
+                       const std::string& destination)
+                : mParent(parent)
+                , mParentRef(parent)
+                , mPayload(payload)
+                , mContext(context)
+                , mDestination(destination)
             {
             }
 
         public:
             RespondJob() = delete;
-        RespondJob(const RespondJob &) = delete;
-            RespondJob &operator=(const RespondJob &) = delete;
-            ~RespondJob()
-            {
-            }
+            RespondJob(const RespondJob&) = delete;
+            RespondJob& operator=(const RespondJob&) = delete;
+
+            // Intentionally no explicit destructor:
+            // - We avoid RespondJob::~RespondJob() virtual teardown behavior.
+            // - mParentRef's non-virtual destructor safely releases the parent.
 
         public:
-            static Core::ProxyType<Core::IDispatch> Create(AppGatewayImplementation *parent,
-                const Context& context, const std::string& payload, const std::string& origin)
+            static Core::ProxyType<Core::IDispatch> Create(AppGatewayImplementation* parent,
+                                                          const Context& context,
+                                                          const std::string& payload,
+                                                          const std::string& origin)
             {
-                return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<RespondJob>::Create(parent, context, payload, origin)));
+                return (Core::ProxyType<Core::IDispatch>(
+                    Core::ProxyType<RespondJob>::Create(parent, context, payload, origin)));
             }
-            virtual void Dispatch()
+
+            void Dispatch() override
             {
-                if(ContextUtils::IsOriginGateway(mDestination)) {
-                    mParent.ReturnMessageInSocket(mContext, std::move(mPayload));
-                } else {
-                    mParent.SendToLaunchDelegate(mContext, std::move(mPayload));
+                // Parent can be in shutdown (mService released) even if the object is still alive.
+                // All downstream calls must tolerate teardown safely.
+                if (mParent == nullptr) {
+                    return;
                 }
-                
+
+                if (ContextUtils::IsOriginGateway(mDestination)) {
+                    mParent->ReturnMessageInSocket(mContext, mPayload);
+                } else {
+                    mParent->SendToLaunchDelegate(mContext, mPayload);
+                }
             }
 
         private:
-            AppGatewayImplementation &mParent;
+            AppGatewayImplementation* mParent;
+            ParentRef mParentRef;
             const std::string mPayload;
             const Context mContext;
             const std::string mDestination;
         };
 
         Core::hresult HandleEvent(const Context &context, const string &alias, const string &event, const string &origin,  const bool listen);
-                
-        void ReturnMessageInSocket(const Context& context, const string payload ) {
-            if (mAppGatewayResponder==nullptr) {
+
+        void ReturnMessageInSocket(const Context& context, const string payload)
+        {
+            if (mService == nullptr) {
+                LOGWARN("ReturnMessageInSocket called during shutdown (mService is null)");
+                return;
+            }
+
+            if (mAppGatewayResponder == nullptr) {
                 mAppGatewayResponder = mService->QueryInterface<Exchange::IAppGatewayResponder>();
             }
 

@@ -549,16 +549,25 @@ namespace WPEFramework
 
         void AppGatewayImplementation::SendToLaunchDelegate(const Context& context, const string& payload)
         {
-            if ( mInternalGatewayResponder==nullptr ) {
-                mInternalGatewayResponder = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
-                if (mInternalGatewayResponder == nullptr) {
-                    LOGERR("Internal Responder not available Not available");
-                    return;
-                }
+            // Teardown-safe: async worker jobs may still run while the plugin is destructing.
+            // In destructor we release mService; after that point we must not call into IShell.
+            if (mService == nullptr) {
+                LOGWARN("SendToLaunchDelegate called during shutdown (mService is null). Dropping message.");
+                return;
             }
 
-            mInternalGatewayResponder->Respond(context, payload);
+            // Do not cache the responder across calls: during teardown, the queried interface may
+            // no longer be valid (and mService may be about to go away). Query, use, release.
+            Exchange::IAppGatewayResponder* responder =
+                mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
 
+            if (responder == nullptr) {
+                LOGERR("Internal Responder not available");
+                return;
+            }
+
+            responder->Respond(context, payload);
+            responder->Release();
         }
 
         bool AppGatewayImplementation::SetupAppGatewayAuthenticator() {
