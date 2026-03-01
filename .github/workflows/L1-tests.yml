@@ -628,18 +628,39 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/entservices-appgateway"
           cp -f appgateway_only_coverage.info "$GITHUB_WORKSPACE/entservices-appgateway/appgateway_only_coverage.info"
 
+      - name: Prepare artifact upload list
+        if: ${{ !env.ACT }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p entservices-appgateway
+
+          # Always attempt to upload diagnostics & test results when present.
+          # Only add coverage info if it was actually generated/staged.
+          : > entservices-appgateway/artifact_paths.txt
+
+          if [ -f "entservices-appgateway/appgateway_only_coverage.info" ]; then
+            echo "entservices-appgateway/appgateway_only_coverage.info" >> entservices-appgateway/artifact_paths.txt
+          else
+            echo "INFO: coverage artifact not present; skipping upload of appgateway_only_coverage.info"
+          fi
+
+          echo "entservices-appgateway/AppGatewayL1TestResultsWithoutValgrind.json" >> entservices-appgateway/artifact_paths.txt
+          echo "entservices-appgateway/act_segv_backtrace.txt" >> entservices-appgateway/artifact_paths.txt
+          echo "entservices-appgateway/act_gdb_output.txt" >> entservices-appgateway/artifact_paths.txt
+          echo "entservices-appgateway/act_dmesg_tail.txt" >> entservices-appgateway/artifact_paths.txt
+          echo "entservices-appgateway/core*" >> entservices-appgateway/artifact_paths.txt
+
+          echo "Artifact upload list:"
+          cat entservices-appgateway/artifact_paths.txt
+
       - name: Upload artifacts
         if: ${{ !env.ACT }}
         uses: actions/upload-artifact@v4
         with:
           name: artifacts-L1-appgateway
           path: |
-            entservices-appgateway/appgateway_only_coverage.info
-            entservices-appgateway/AppGatewayL1TestResultsWithoutValgrind.json
-            entservices-appgateway/act_segv_backtrace.txt
-            entservices-appgateway/act_gdb_output.txt
-            entservices-appgateway/act_dmesg_tail.txt
-            entservices-appgateway/core*
+            entservices-appgateway/artifact_paths.txt
           if-no-files-found: warn
 
       - name: Fail job if L1 tests failed (after artifacts/coverage)

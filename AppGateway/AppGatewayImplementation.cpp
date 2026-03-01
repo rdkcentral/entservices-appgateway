@@ -517,30 +517,37 @@ namespace WPEFramework
         }
         
 
-        uint32_t AppGatewayImplementation::PreProcessEvent(const Context &context, const string& alias, const string &method, const string& origin, const string& params,
-        string &resolution) {
+        uint32_t AppGatewayImplementation::PreProcessEvent(const Context& context, const string& alias, const string& method, const string& origin, const string& params,
+            string& resolution)
+        {
             JsonObject params_obj;
-            if (params_obj.FromString(params)) {
-                    bool resultValue;
-                    // Use ObjectUtils::HasBooleanEntry and populate resultValue
-                    if (ObjectUtils::HasBooleanEntry(params_obj, "listen", resultValue)) {
-                        LOGTRACE("Event method '%s' with listen: %s", method.c_str(), resultValue ? "true" : "false");
-                        auto ret_value = HandleEvent(context, alias, method, origin, resultValue);
-                        JsonObject returnResult;
-                        returnResult["listening"] = resultValue;
-                        returnResult["event"] = method;
-                        returnResult.ToString(resolution);
-                        return ret_value;
-                    } else {
-                        LOGERR("Event method '%s' missing required boolean 'listen' parameter", method.c_str());
-                        ErrorUtils::CustomBadRequest("Missing required boolean 'listen' parameter", resolution);
-                        return Core::ERROR_BAD_REQUEST;
-                    }
-            } else {
-                    LOGERR("Event method '%s' called without parameters", method.c_str());
-                    ErrorUtils::CustomBadRequest("Event methods require parameters", resolution);
-                    return Core::ERROR_BAD_REQUEST;
+
+            // For event methods we require a boolean `listen` parameter.
+            // Keep the error contract stable (-32602 / Missing required boolean 'listen' parameter)
+            // regardless of whether params are missing, invalid JSON, or simply don't contain `listen`.
+            if (!params_obj.FromString(params)) {
+                LOGERR("Event method '%s' called without valid parameters", method.c_str());
+                ErrorUtils::CustomBadRequest("Missing required boolean 'listen' parameter", resolution);
+                return Core::ERROR_BAD_REQUEST;
             }
+
+            bool listenValue = false;
+            if (!ObjectUtils::HasBooleanEntry(params_obj, "listen", listenValue)) {
+                LOGERR("Event method '%s' missing required boolean 'listen' parameter", method.c_str());
+                ErrorUtils::CustomBadRequest("Missing required boolean 'listen' parameter", resolution);
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            LOGTRACE("Event method '%s' with listen: %s", method.c_str(), listenValue ? "true" : "false");
+
+            const auto ret_value = HandleEvent(context, alias, method, origin, listenValue);
+
+            JsonObject returnResult;
+            returnResult["listening"] = listenValue;
+            returnResult["event"] = method;
+            returnResult.ToString(resolution);
+
+            return ret_value;
         }
 
         Core::hresult AppGatewayImplementation::HandleEvent(const Context &context, const string &alias,  const string &event, const string &origin, const bool listen) {
