@@ -557,7 +557,7 @@ namespace WPEFramework
             }
 
             // Do not cache the responder across calls: during teardown, the queried interface may
-            // no longer be valid (and mService may be about to go away). Query, use, release.
+            // no longer be valid. Query, use, release.
             Exchange::IAppGatewayResponder* responder =
                 mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
 

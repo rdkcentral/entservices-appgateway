@@ -478,7 +478,8 @@ jobs:
           # Keep test ordering deterministic to reduce act-only timing variance.
           export GTEST_SHUFFLE=0
 
-          find build/entservices-appgateway-l1tests-only -type f -name "*.gcda" -print -delete 2>/dev/null || true
+          # Do not delete *.gcda before running tests; that can lead to empty coverage capture.
+          # If cleanup is needed, do it after capture or only remove stale files selectively.
 
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
 
@@ -489,11 +490,15 @@ jobs:
           export APPGATEWAY_CONFIG_PATH="${APPGATEWAY_CONFIG_PATH:-/tmp/app-gateway}"
           export GTEST_OUTPUT="json:$(pwd)/AppGatewayL1TestResults.json"
 
-          TEST_BIN="build/entservices-appgateway-l1tests-only/AppGatewayL1Test"
+          BUILD_DIR="build/entservices-appgateway-l1tests-only"
+          TEST_BIN="${BUILD_DIR}/AppGatewayL1Test"
           if [ ! -x "${TEST_BIN}" ]; then
             echo "AppGatewayL1Test not found at ${TEST_BIN}"
             exit 1
           fi
+
+          # Run from build dir so GCC writes *.gcda next to the compiled objects.
+          cd "${BUILD_DIR}"
 
           # Preflight shared libraries to catch missing runtime deps early (non-fatal).
           if command -v ldd >/dev/null 2>&1; then
@@ -536,7 +541,7 @@ jobs:
               -ex "thread apply all bt full" \
               -ex "echo \n\n----- gdb: bt full (current) -----\n" \
               -ex "bt full" \
-              --args "${TEST_BIN}" \
+              --args "./AppGatewayL1Test" \
               2>&1 | tee "${GDB_OUT}"
             rc=${PIPESTATUS[0]}
             # Extract the most relevant section for quick viewing.
@@ -577,26 +582,23 @@ jobs:
           echo "L1_TEST_EXIT_CODE=${rc}" >> "$GITHUB_ENV"
           exit "${rc}"
 
-      - name: Generate coverage HTML (AppGateway sources only)
+      - name: Generate coverage report (lcov .info + HTML)
         if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
         continue-on-error: true
         run: |
           set -euo pipefail
 
-          if [ -f "$GITHUB_WORKSPACE/entservices-appgateway/entservices-testframework/Tests/L1Tests/.lcovrc_l1" ]; then
-            cp "$GITHUB_WORKSPACE/entservices-appgateway/entservices-testframework/Tests/L1Tests/.lcovrc_l1" ~/.lcovrc
-          fi
-
           rm -rf coverage coverage.info filtered_coverage.info appgateway_only_coverage.info || true
 
           lcov --capture \
-            --directory build/entservices-appgateway-l1tests-only \
+            --base-directory "$GITHUB_WORKSPACE" \
+            --directory "$GITHUB_WORKSPACE/build/entservices-appgateway-l1tests-only" \
             --output-file coverage.info \
             --ignore-errors mismatch,empty \
             >/dev/null 2>&1 || true
 
           if [ ! -s coverage.info ]; then
-            echo "coverage.info missing/empty; skipping HTML generation"
+            echo "coverage.info missing/empty; skipping coverage generation"
             exit 0
           fi
 
@@ -612,17 +614,25 @@ jobs:
             -o filtered_coverage.info || true
 
           if [ ! -s filtered_coverage.info ]; then
-            echo "filtered_coverage.info missing/empty; skipping HTML generation"
+            echo "filtered_coverage.info missing/empty; skipping coverage generation"
             exit 0
           fi
 
           lcov -e filtered_coverage.info '*/AppGateway/*' --ignore-errors empty -o appgateway_only_coverage.info || true
           if [ ! -s appgateway_only_coverage.info ]; then
-            echo "appgateway_only_coverage.info missing/empty; skipping HTML generation"
+            echo "appgateway_only_coverage.info missing/empty; skipping coverage generation"
             exit 0
           fi
 
-          genhtml -o coverage -t "entservices-appgateway (AppGateway-only) coverage" appgateway_only_coverage.info
+          # HTML for file/line drilldown
+          genhtml -o coverage -t "entservices-appgateway (AppGateway-only) coverage" appgateway_only_coverage.info || true
+
+          # Stage into workspace-root so upload-artifact paths are stable.
+          cp -f appgateway_only_coverage.info "$GITHUB_WORKSPACE/entservices-appgateway/appgateway_only_coverage.info"
+          if [ -d coverage ]; then
+            rm -rf "$GITHUB_WORKSPACE/entservices-appgateway/coverage" || true
+            cp -R coverage "$GITHUB_WORKSPACE/entservices-appgateway/coverage"
+          fi
 
       - name: Upload artifacts
         if: ${{ !env.ACT }}
@@ -630,7 +640,8 @@ jobs:
         with:
           name: artifacts-L1-appgateway
           path: |
-            coverage/
+            entservices-appgateway/appgateway_only_coverage.info
+            entservices-appgateway/coverage/
             entservices-appgateway/AppGatewayL1TestResultsWithoutValgrind.json
             entservices-appgateway/act_segv_backtrace.txt
             entservices-appgateway/act_gdb_output.txt
