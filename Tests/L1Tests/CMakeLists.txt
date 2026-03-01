@@ -70,9 +70,67 @@ if(USE_THUNDER_R4)
     add_compile_definitions(USE_THUNDER_R4)
 endif()
 
+# ---------------------------------------------------------------------------
+# ConfigGenerator integration (L1Tests-only builds)
+#
+# AppGateway/CMakeLists.txt calls `write_config(...)`, which is defined by
+# WPEFramework's FindConfigGenerator.cmake module.
+#
+# In the act/CI flow, the repo-local ./install tree can be present but not
+# readable (e.g. "find: './install': Permission denied"). Therefore, we must not
+# rely solely on the installed location and should also fall back to an in-repo
+# copy (ThunderTools) when available.
+# ---------------------------------------------------------------------------
+if(NOT COMMAND write_config)
+    # (1) Prefer the installed CMake package when readable/present.
+    #     In normal CI: -DCMAKE_PREFIX_PATH=<repo>/install/usr
+    find_package(ConfigGenerator QUIET)
+
+    # (2) Fallback: include FindConfigGenerator.cmake from in-repo ThunderTools.
+    #     This helps when ./install is not readable under act.
+    if(NOT COMMAND write_config)
+        set(_repo_find_config_generator_candidates
+            "${CMAKE_CURRENT_LIST_DIR}/../../build/ThunderTools/FindConfigGenerator.cmake"
+            "${CMAKE_CURRENT_LIST_DIR}/../../ThunderTools/cmake/FindConfigGenerator.cmake.in"
+        )
+
+        foreach(_cand IN LISTS _repo_find_config_generator_candidates)
+            if(EXISTS "${_cand}")
+                include("${_cand}")
+                break()
+            endif()
+        endforeach()
+    endif()
+
+    # (3) Last resort: search using prefix hints (CMAKE_PREFIX_PATH is a list).
+    if(NOT COMMAND write_config)
+        set(_wpefw_module_hints "")
+
+        if(DEFINED CMAKE_INSTALL_PREFIX AND NOT "${CMAKE_INSTALL_PREFIX}" STREQUAL "")
+            list(APPEND _wpefw_module_hints "${CMAKE_INSTALL_PREFIX}/include/WPEFramework/Modules")
+        endif()
+
+        foreach(_p IN LISTS CMAKE_PREFIX_PATH)
+            if(NOT "${_p}" STREQUAL "")
+                list(APPEND _wpefw_module_hints "${_p}/include/WPEFramework/Modules")
+            endif()
+        endforeach()
+
+        find_path(_WPEFW_MODULES_DIR
+            NAMES FindConfigGenerator.cmake
+            HINTS ${_wpefw_module_hints}
+        )
+
+        if(_WPEFW_MODULES_DIR AND EXISTS "${_WPEFW_MODULES_DIR}/FindConfigGenerator.cmake")
+            include("${_WPEFW_MODULES_DIR}/FindConfigGenerator.cmake")
+        else()
+            message(FATAL_ERROR "Could not locate FindConfigGenerator.cmake to provide write_config() for L1Tests-only builds.")
+        endif()
+    endif()
+endif()
+
 if(PLUGIN_APPGATEWAY)
     # AppGateway/CMakeLists.txt defines the implementation library target
-    #   WPEFrameworkAppGateway
     # which AppGatewayL1Test must link against to resolve symbols.
     add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGateway ${CMAKE_BINARY_DIR}/AppGateway)
 endif()
@@ -102,40 +160,29 @@ set(_L1TESTS_USE_THUNDER_R4 ${USE_THUNDER_R4})
 # ---------------------------------------------------------------------------
 # L1Tests-only build support
 #
-# When configuring only Tests/L1Tests (Step 23c), the repo provides the needed
-# CMake package configs under:
-#   <repo>/install/usr/lib/cmake/WPEFrameworkPlugins/WPEFrameworkPluginsConfig.cmake
+# When configuring only Tests/L1Tests, consumers typically set:
+#   -DCMAKE_PREFIX_PATH=<repo>/install/usr
 #
-# However this CMakeLists historically asks for "${NAMESPACE}Plugins", which
-# resolves to "Plugins" if NAMESPACE is empty. In standalone test builds this
-# can fail because the package name is actually WPEFrameworkPlugins.
-#
-# We bridge this by mapping "Plugins" to WPEFrameworkPlugins *when needed*.
-# This keeps existing flows working while allowing the L1Tests-only configure to
-# succeed with -DCMAKE_PREFIX_PATH=<repo>/install/usr.
+# But this CMakeLists historically asked for "${NAMESPACE}Plugins", which becomes
+# "Plugins" when NAMESPACE is empty, while the canonical Thunder package is
+# WPEFrameworkPlugins. Bridge that gap for standalone L1Tests-only builds.
 # ---------------------------------------------------------------------------
 if(NOT DEFINED NAMESPACE)
     set(NAMESPACE "")
 endif()
 
 if("${NAMESPACE}" STREQUAL "")
-    # Prefer the canonical Thunder package names.
     find_package(WPEFrameworkPlugins REQUIRED)
     find_package(WPEFrameworkDefinitions REQUIRED)
 
-    # Provide compatibility variables so existing references like
-    #   ${NAMESPACE}Plugins::${NAMESPACE}Plugins
-    # still work (they become Plugins::Plugins when NAMESPACE is empty).
     if(NOT TARGET Plugins::Plugins AND TARGET WPEFrameworkPlugins::WPEFrameworkPlugins)
         add_library(Plugins::Plugins ALIAS WPEFrameworkPlugins::WPEFrameworkPlugins)
     endif()
 
-    # And the same for Definitions.
     if(NOT TARGET Definitions::Definitions AND TARGET WPEFrameworkDefinitions::WPEFrameworkDefinitions)
         add_library(Definitions::Definitions ALIAS WPEFrameworkDefinitions::WPEFrameworkDefinitions)
     endif()
 else()
-    # For non-empty namespaces keep the original behavior.
     find_package(${NAMESPACE}Plugins REQUIRED)
     find_package(${NAMESPACE}Definitions REQUIRED)
 endif()
@@ -164,33 +211,14 @@ set(APPGATEWAY_L1TEST_LIB "")
 if(PLUGIN_APPGATEWAY)
     message(STATUS "AppGateway L1 tests: ENABLED (PLUGIN_APPGATEWAY=ON)")
 
-    # Source(s)
     list(APPEND APPGATEWAY_L1TEST_SRC tests/test_AppGateway.cpp)
 
-    # Includes needed by test_AppGateway.cpp (plus common test headers)
     list(APPEND APPGATEWAY_L1TEST_INC
         ../../helpers
         ../../AppGateway
         ../../AppGatewayCommon
     )
 
-    # Libraries:
-    #  - Link against the AppGateway implementation itself to resolve symbols used by the tests
-    #    (Resolver, AppGatewayImplementation, etc.)
-    #  - Also link against the Thunder Plugins collection for core Thunder symbols.
-    #
-    # Note: In the L1Tests-only build (Step 23), PLUGIN_APPGATEWAY is ON but the
-    # AppGateway subdirectory is *not* necessarily added unless we do it explicitly
-    # from the Tests/L1Tests configuration (see below).
-    # Link against the in-tree AppGateway plugin target. In this repo the plugin's
-    # CMake target name resolves to:
-    #   MODULE_NAME = ${NAMESPACE}${PLUGIN_NAME}
-    # and with empty NAMESPACE that becomes simply:
-    #   AppGateway
-    #
-    # The previous value "WPEFrameworkAppGateway" is not an in-tree target here,
-    # so CMake treated it as a raw linker item and emitted `-lWPEFrameworkAppGateway`,
-    # which fails because the built shared library is `libAppGateway.so`.
     list(APPEND APPGATEWAY_L1TEST_LIB
         AppGateway
         ${NAMESPACE}Plugins::${NAMESPACE}Plugins
@@ -211,26 +239,8 @@ endif()
 #                       "test/file1.cpp;test/file2.cpp"
 #                       "../../inc_dir1;../../inc_dir2"
 #                       "${NAMESPACE}PluginName;${NAMESPACE}PluginNameImplementation")
-# ----------------------------------------- OR ------------------------------------------
-# list(APPEND PLUGIN_NAME_SRC test/file1.cpp)
-# list(APPEND PLUGIN_NAME_SRC test/file2.cpp)
-#
-# list(APPEND PLUGIN_NAME_INC ../../inc_dir1)
-# list(APPEND PLUGIN_NAME_INC ../../inc_dir2)
-#
-# list(APPEND PLUGIN_NAME_LIB ${NAMESPACE}PluginName)
-# list(APPEND PLUGIN_NAME_LIB ${NAMESPACE}PluginNameImplementation)
-#
-#    add_plugin_test_ex(PLUGIN_NAME
-#                       "${PLUGIN_NAME_SRC}"
-#                       "${PLUGIN_NAME_INC}"
-#                       "${PLUGIN_NAME_LIB}")
-#
-# NOTE: Alternatively test can choose to update `TEST_SRC`, `TEST_INC` & `TEST_LIB`
-#       directly (like in the case of Miracast)
 #########################################################################################
 macro(add_plugin_test_ex plugin_opt plugin_test_sources_str plugin_includes_str plugin_libs_str)
-    # Check if the plugin option is enabled
     if(${plugin_opt})
         message(STATUS "${plugin_opt}=ON")
 
@@ -239,17 +249,14 @@ macro(add_plugin_test_ex plugin_opt plugin_test_sources_str plugin_includes_str 
         string(REPLACE ";" ";" liblist "${plugin_libs_str}")
 
         foreach(item IN LISTS srclist)
-            # Add each test source file
             list(APPEND TEST_SRC ${item})
         endforeach()
 
         foreach(item IN LISTS inclist)
-            # Add each include directory
             list(APPEND TEST_INC ${item})
         endforeach()
 
         foreach(item IN LISTS liblist)
-            # Add each libraries to link
             list(APPEND TEST_LIB ${item})
         endforeach()
     else()
@@ -257,9 +264,7 @@ macro(add_plugin_test_ex plugin_opt plugin_test_sources_str plugin_includes_str 
     endif()
 endmacro()
 
-# helper to add plugin test
 macro(add_plugin_test plugin_name test_files)
-    # Convert plugin name to uppercase for the option variable
     string(TOUPPER "${plugin_name}" plugin_option)
     set(plugin_opt "PLUGIN_${plugin_option}")
 
@@ -300,7 +305,6 @@ if(TEST_SRC)
 
     target_compile_definitions(${MODULE_NAME} PRIVATE
         UNIT_TEST
-        # Avoid pulling in SecurityTokenUtil.h / SecurityAgent headers in CI L1 builds.
         DISABLE_SECURITY_TOKEN
     )
 
@@ -314,51 +318,82 @@ else()
 endif()
 
 # Always write the L1Tests plugin config JSON used by the test runtime.
-# Use the non-deprecated invocation form expected by FindConfigGenerator.cmake.
 write_config(PLUGINS ${PLUGIN_NAME})
 
 # -----------------------------------------------------------------------------
 # AppGatewayL1Test executable (required by the workflow/script)
 # -----------------------------------------------------------------------------
 if(PLUGIN_APPGATEWAY)
-    # GoogleTest/GoogleMock:
-    # The CI flow (Step 21) installs googletest into the repo-local prefix:
-    #   <repo>/install/usr
-    # and provides a CMake package at:
-    #   <prefix>/lib/cmake/GTest
-    #
-    # In the L1Tests-only build (Step 23), the caller is expected to pass:
-    #   -DCMAKE_PREFIX_PATH=<repo>/install/usr
-    #
-    # Using the imported targets ensures include paths (for <gmock/gmock.h>)
-    # and link libraries are correctly propagated.
-    find_package(GTest REQUIRED)
+    # Prefer CONFIG mode so imported targets (GTest::gtest, GTest::gmock, etc.) are defined.
+    # In some environments CMake's module-mode FindGTest is picked up first and only sets
+    # variables like GTEST_LIBRARIES (leading to "Found GTest: <path>/libgtest.a" but
+    # missing GTest:: targets). L1Tests links using imported targets, so we must ensure
+    # they exist.
+    find_package(GTest REQUIRED CONFIG)
+
+    # Fallback compatibility: if we still don't have the imported targets (e.g. if a toolchain
+    # injects a FindGTest-only environment), create them from the legacy variables.
+    if(NOT TARGET GTest::gtest)
+        find_package(GTest REQUIRED) # may populate GTEST_LIBRARIES / GTEST_INCLUDE_DIRS
+
+        if(GTEST_LIBRARIES)
+            add_library(GTest::gtest UNKNOWN IMPORTED)
+            set_target_properties(GTest::gtest PROPERTIES
+                IMPORTED_LOCATION "${GTEST_LIBRARIES}"
+                INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIRS}"
+            )
+        endif()
+
+        if(GTEST_MAIN_LIBRARIES)
+            add_library(GTest::gtest_main UNKNOWN IMPORTED)
+            set_target_properties(GTest::gtest_main PROPERTIES
+                IMPORTED_LOCATION "${GTEST_MAIN_LIBRARIES}"
+                INTERFACE_LINK_LIBRARIES "GTest::gtest"
+                INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIRS}"
+            )
+        endif()
+
+        if(GMOCK_LIBRARIES)
+            add_library(GTest::gmock UNKNOWN IMPORTED)
+            set_target_properties(GTest::gmock PROPERTIES
+                IMPORTED_LOCATION "${GMOCK_LIBRARIES}"
+                INTERFACE_LINK_LIBRARIES "GTest::gtest"
+                INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIRS}"
+            )
+        endif()
+
+        if(GMOCK_MAIN_LIBRARIES)
+            add_library(GTest::gmock_main UNKNOWN IMPORTED)
+            set_target_properties(GTest::gmock_main PROPERTIES
+                IMPORTED_LOCATION "${GMOCK_MAIN_LIBRARIES}"
+                INTERFACE_LINK_LIBRARIES "GTest::gmock"
+                INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIRS}"
+            )
+        endif()
+
+        if(NOT TARGET GTest::gtest OR NOT TARGET GTest::gmock OR NOT TARGET GTest::gtest_main)
+            message(FATAL_ERROR
+                "GTest imported targets not available. "
+                "Ensure GTestConfig.cmake is discoverable via CMAKE_PREFIX_PATH "
+                "(e.g. -DCMAKE_PREFIX_PATH=<repo>/install/usr)."
+            )
+        endif()
+    endif()
 
     add_executable(AppGatewayL1Test ${APPGATEWAY_L1TEST_SRC})
 
     target_include_directories(AppGatewayL1Test
         PRIVATE
         ${APPGATEWAY_L1TEST_INC}
+
+        # NOTE: variable name comes from upstream file; keep as-is to avoid broad changes.
         ${CMAKE_install_prefix}/include
 
-        # Repo-level mocks live at <repo>/Tests/mocks. In a L1Tests-only configure,
-        # CMAKE_SOURCE_DIR points at <repo>/Tests/L1Tests, so we must include both:
-        #  - ${CMAKE_SOURCE_DIR}/Tests/mocks        (works for full-tree configs)
-        #  - ${CMAKE_SOURCE_DIR}/../mocks           (works for L1Tests-only configs)
         ${CMAKE_SOURCE_DIR}/Tests/mocks
         ${CMAKE_SOURCE_DIR}/../mocks
 
         ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
     )
-
-    # IMPORTANT:
-    # Do NOT link AppGatewayL1Test via "-lWPEFrameworkAppGateway" or plugin install paths.
-    # In the L1Tests-only build we want to link directly against the in-tree CMake
-    # target (WPEFrameworkAppGateway) so all implementation objects (Resolver,
-    # AppGatewayImplementation, etc.) are on the link line and symbols resolve.
-    #
-    # Plugin staging of the resulting .so files is handled by the workflow script
-    # (it copies from the build tree into install/usr/lib/wpeframework/plugins).
 
     target_link_libraries(AppGatewayL1Test PRIVATE
         ${APPGATEWAY_L1TEST_LIB}
@@ -370,7 +405,6 @@ if(PLUGIN_APPGATEWAY)
 
     target_compile_definitions(AppGatewayL1Test PRIVATE
         UNIT_TEST
-        # Avoid pulling in SecurityTokenUtil.h / SecurityAgent headers in CI L1 builds.
         DISABLE_SECURITY_TOKEN
     )
 
@@ -378,6 +412,5 @@ if(PLUGIN_APPGATEWAY)
         target_compile_definitions(AppGatewayL1Test PRIVATE USE_THUNDER_R4)
     endif()
 
-    # Install to the location the script checks first: install/usr/bin/AppGatewayL1Test
     install(TARGETS AppGatewayL1Test RUNTIME DESTINATION bin)
 endif()

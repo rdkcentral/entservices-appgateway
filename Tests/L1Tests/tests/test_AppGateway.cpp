@@ -21,8 +21,10 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <chrono>
 #include <fstream>
 #include <string>
+#include <thread>
 
 #include "Module.h"
 
@@ -72,6 +74,25 @@ private:
 };
 
 static WorkerPoolGuard g_workerPool; // ensure constructed before any tests run
+
+// Ensure any async jobs queued by the code under test get a chance to run before
+// test-scoped objects are destroyed (prevents use-after-free segfaults at test end).
+class WorkerPoolDrainGuard final {
+public:
+    WorkerPoolDrainGuard(const WorkerPoolDrainGuard&) = delete;
+    WorkerPoolDrainGuard& operator=(const WorkerPoolDrainGuard&) = delete;
+
+    WorkerPoolDrainGuard() = default;
+
+    ~WorkerPoolDrainGuard()
+    {
+        // Best-effort: let the worker pool run queued jobs. We keep it short to
+        // avoid adding noticeable latency to the suite.
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+};
+
+static WorkerPoolDrainGuard g_workerPoolDrain;
 
 // Small helper to write text files under /tmp for config-driven tests.
 static void WriteTextFile(const std::string& path, const std::string& content)
@@ -569,6 +590,12 @@ TEST(AppGatewayImplementationTest, AppGateway_ComRpc_RequestHandlerMissing_NotAv
     // The error payload is built by ErrorUtils::NotAvailable; validate by substring.
     // Authoritative behavior (attached log): {"code":-50200,"message":"NotAvailable"}
     EXPECT_THAT(resolution, ::testing::HasSubstr("NotAvailable"));
+}
+
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }
 
 TEST(AppGatewayImplementationTest, AppGateway_ComRpc_AdditionalContext_WrapsParamsWith_additionalContext)

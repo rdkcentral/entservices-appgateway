@@ -20,9 +20,24 @@
 # Load the canonical Thunder plugins package (installed under repo prefix).
 find_package(WPEFrameworkPlugins REQUIRED CONFIG)
 
-# Provide a compatible imported target name if callers expect Plugins::Plugins.
-if(NOT TARGET Plugins::Plugins AND TARGET WPEFrameworkPlugins::WPEFrameworkPlugins)
-    add_library(Plugins::Plugins ALIAS WPEFrameworkPlugins::WPEFrameworkPlugins)
+# Provide a compatible target name if callers expect Plugins::Plugins.
+#
+# IMPORTANT:
+# Do NOT use ALIAS here. In some CI/L1Tests-only configure flows the imported
+# Thunder targets are not considered "globally visible", which makes
+# `add_library(ALIAS ...)` fail during configure.
+#
+# Instead we provide an IMPORTED GLOBAL INTERFACE target that forwards usage
+# requirements to the canonical target.
+if(NOT TARGET Plugins::Plugins)
+    add_library(Plugins::Plugins INTERFACE IMPORTED GLOBAL)
+    if(TARGET WPEFrameworkPlugins::WPEFrameworkPlugins)
+        set_target_properties(Plugins::Plugins PROPERTIES
+            INTERFACE_LINK_LIBRARIES WPEFrameworkPlugins::WPEFrameworkPlugins
+        )
+    else()
+        message(FATAL_ERROR "WPEFrameworkPlugins::WPEFrameworkPlugins target not found; cannot provide Plugins::Plugins compatibility target.")
+    endif()
 endif()
 
 set(Plugins_FOUND TRUE)
