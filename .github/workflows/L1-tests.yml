@@ -91,6 +91,12 @@ jobs:
           &&
           sudo apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libjsoncpp-dev
 
+      - name: Checkout entservices-appgateway
+        #  if: ${{ inputs.caller_source == 'local' }}
+        uses: actions/checkout@v3
+          #with:
+          #          path: entservices-appgateway
+
       - name: Build trower-base64
         run: |
             if [ ! -d "trower-base64" ]; then
@@ -117,11 +123,6 @@ jobs:
           path: ThunderTools
           ref: R4.4.3
 
-      - name: Checkout entservices-appgateway
-        #  if: ${{ inputs.caller_source == 'local' }}
-        uses: actions/checkout@v3
-          #with:
-          #          path: entservices-appgateway
 
       - name: Checkout googletest
         if: steps.cache.outputs.cache-hit != 'true'
