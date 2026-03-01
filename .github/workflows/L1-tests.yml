@@ -466,6 +466,14 @@ jobs:
           echo "APPGATEWAY_CONFIG_PATH=/tmp/app-gateway" >> "$GITHUB_ENV"
           ls -la /tmp/app-gateway || true
 
+      - name: Zero coverage counters (gcda baseline)
+        if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
+        run: |
+          set -euo pipefail
+          # Reset counters so the capture reflects only this test run.
+          # (If no gcda exist yet, this is harmless.)
+          lcov --directory "$GITHUB_WORKSPACE/build/entservices-appgateway-l1tests-only" --zerocounters || true
+
       - name: Run AppGateway L1 tests (capture real exit code; run gdb only on failure)
         continue-on-error: true
         run: |
@@ -588,19 +596,21 @@ jobs:
 
           rm -rf coverage coverage.info filtered_coverage.info appgateway_only_coverage.info "$ARTIFACT_ROOT/coverage-html" || true
 
-          # Capture coverage from the entire build tree (plugins + tests), not only the top-level build dir.
-          # This avoids empty coverage.info when objects are emitted into nested directories.
+          echo "Debug: listing gcda/gcno files (top 200) under build dir:"
+          find "$GITHUB_WORKSPACE/build/entservices-appgateway-l1tests-only" -type f \( -name '*.gcda' -o -name '*.gcno' \) | head -n 200 || true
+
+          # Capture coverage from the entire build tree.
+          # Use verbose output so we can diagnose empty captures from CI logs.
           lcov --capture \
             --base-directory "$GITHUB_WORKSPACE" \
             --directory "$GITHUB_WORKSPACE/build/entservices-appgateway-l1tests-only" \
             --output-file coverage.info \
             --ignore-errors mismatch,empty \
-            >/dev/null 2>&1 || true
+            --rc lcov_branch_coverage=0 \
+            --verbose || true
 
           if [ ! -s coverage.info ]; then
-            echo "coverage.info missing/empty; skipping coverage generation"
-            echo "Debug: search for gcda/gcno (best-effort):"
-            find "$GITHUB_WORKSPACE/build/entservices-appgateway-l1tests-only" -type f \( -name '*.gcda' -o -name '*.gcno' \) | head -n 200 || true
+            echo "coverage.info missing/empty; skipping HTML generation"
             exit 0
           fi
 
@@ -616,28 +626,28 @@ jobs:
             -o filtered_coverage.info || true
 
           if [ ! -s filtered_coverage.info ]; then
-            echo "filtered_coverage.info missing/empty; skipping coverage generation"
+            echo "filtered_coverage.info missing/empty; skipping HTML generation"
             exit 0
           fi
 
           lcov -e filtered_coverage.info '*/AppGateway/*' --ignore-errors empty -o appgateway_only_coverage.info || true
           if [ ! -s appgateway_only_coverage.info ]; then
-            echo "appgateway_only_coverage.info missing/empty; skipping coverage generation"
+            echo "appgateway_only_coverage.info missing/empty; skipping HTML generation"
             exit 0
           fi
 
           cp -f appgateway_only_coverage.info "$ARTIFACT_ROOT/appgateway_only_coverage.info"
 
-          # Generate HTML coverage (best-effort).
           mkdir -p "$ARTIFACT_ROOT/coverage-html"
+          # Keep genhtml output visible to make failures diagnosable.
           genhtml "$ARTIFACT_ROOT/appgateway_only_coverage.info" \
             --ignore-errors source \
-            --output-directory "$ARTIFACT_ROOT/coverage-html" \
-            >/dev/null 2>&1 || true
+            --output-directory "$ARTIFACT_ROOT/coverage-html" || true
 
-          if [ -d "$ARTIFACT_ROOT/coverage-html" ]; then
-            echo "Generated HTML coverage at: entservices-appgateway/coverage-html"
-            ls -la "$ARTIFACT_ROOT/coverage-html" | head -n 50 || true
+          if [ -f "$ARTIFACT_ROOT/coverage-html/index.html" ]; then
+            echo "Generated HTML coverage at: entservices-appgateway/coverage-html/index.html"
+          else
+            echo "HTML coverage index.html not generated (see genhtml output above)."
           fi
 
       - name: Upload artifacts (diagnostics + coverage)
