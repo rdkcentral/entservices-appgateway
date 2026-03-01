@@ -517,8 +517,9 @@ namespace WPEFramework
         }
         
 
-        uint32_t AppGatewayImplementation::PreProcessEvent(const Context &context, const string& alias, const string &method, const string& origin, const string& params,
-        string &resolution) {
+        uint32_t AppGatewayImplementation::PreProcessEvent(const Context& context, const string& alias, const string& method, const string& origin, const string& params,
+            string& resolution)
+        {
             JsonObject params_obj;
             if (params_obj.FromString(params)) {
                     bool resultValue;
@@ -564,7 +565,6 @@ namespace WPEFramework
 
         void AppGatewayImplementation::SendToLaunchDelegate(const Context& context, const string& payload)
         {
-<<<<<<< HEAD
             Core::SafeSyncType<Core::CriticalSection> lock(mInternalGatewayResponderLock);
             if (nullptr == mInternalGatewayResponder) {
                 mInternalGatewayResponder = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
@@ -573,35 +573,6 @@ namespace WPEFramework
                     return;
                 } else {
                     LOGINFO("Internal Responder interface acquired");
-=======
-            // Teardown-safe: async worker jobs may still run while the plugin is destructing.
-            // In destructor we release mService; after that point we must not call into IShell.
-            if (mService == nullptr) {
-                LOGWARN("SendToLaunchDelegate called during shutdown (mService is null). Dropping message.");
-                return;
-            }
-
-            // Do not cache the responder across calls: during teardown, the queried interface may
-            // no longer be valid. Query, use, release.
-            Exchange::IAppGatewayResponder* responder =
-                mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
-
-            if (responder == nullptr) {
-                LOGERR("Internal Responder not available");
-                return;
-            }
-
-            responder->Respond(context, payload);
-            responder->Release();
-        }
-
-        bool AppGatewayImplementation::SetupAppGatewayAuthenticator() {
-            if ( mAuthenticator==nullptr ) {
-                mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
-                if (mAuthenticator == nullptr) {
-                    LOGERR("AppGateway Authenticator not available");
-                    return false;
->>>>>>> fec931f (Adding Thread sync issues during deactivation / destruction)
                 }
             }
             mInternalGatewayResponder->Respond(context, payload);
