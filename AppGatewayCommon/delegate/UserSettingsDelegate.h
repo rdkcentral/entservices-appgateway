@@ -311,14 +311,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
                 AddNotification(event, cb);
 
-                return true;
             } else {
                 // Not removing the notification subscription for cases where only one event is removed 
                 // Registration is lazy one but we need to evaluate if there is any value in unregistering
                 // given these API calls are always made
                 RemoveNotification(event, cb);
             }
-            return false;
+            return true;
         }
 
         bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError) {

@@ -26,11 +26,11 @@ This document focuses on the notification and event dispatch mechanisms that dif
 | Aspect | Legacy (Version 0) | RDK8 (Version 8) |
 |--------|-------------------|------------------|
 | **Version Identifier** | `"0"` | `"8"` |
-| **Event Name Format** | Base event name (e.g., `TextToSpeech.onVoiceChanged`) | Base event name + `.v8` suffix (e.g., `TextToSpeech.onVoiceChanged.v8`) |
+| **Event Name Format** | Base event name (e.g., `TextToSpeech.onVoiceChanged`) | Base event name for JSON-RPC notification method; versioned name with `.v8` suffix (e.g., `TextToSpeech.onVoiceChanged.v8`) used internally for subscription keys |
 | **Detection Method** | Default for non-compliant connections | Detected via WebSocket URL path containing `/RPCV2=true` |
 | **JSON-RPC Compliance** | Not required | Fully JSON-RPC compliant |
 | **Event Subscription Storage** | Events stored using base name | Events stored using versioned name (with `.v8` suffix) |
-| **Event Dispatch** | Dispatches events with base name | Dispatches events with versioned name (with `.v8` suffix) |
+| **Event Dispatch** | Dispatches events with base name | Dispatches events to WebSocket clients using base event name; internal registration/lookup uses the versioned `.v8`-suffixed key |
 
 ### Version Constants
 
