@@ -328,10 +328,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         // Common method to ensure mUserSettings is available for all APIs and notifications
         Exchange::IUserSettings* GetUserSettingsInterface() {
-            if (mUserSettings == nullptr && mShell != nullptr) {
+            Core::SafeSyncType<Core::CriticalSection> lock(mUserSettingsLock);
+            if (nullptr == mUserSettings && nullptr != mShell) {
                 mUserSettings = mShell->QueryInterfaceByCallsign<Exchange::IUserSettings>(USERSETTINGS_CALLSIGN);
-                if (mUserSettings == nullptr) {
+                if (nullptr == mUserSettings) {
                     LOGERR("Failed to get UserSettings COM interface");
+                } else {
+                    LOGINFO("UserSettings COM interface acquired successfully");
                 }
             }
             return mUserSettings;
@@ -339,10 +342,13 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         // Common method to ensure mTextTrack is available for all APIs and notifications
         Exchange::ITextTrackClosedCaptionsStyle* GetTextTrackInterface() {
-            if (mTextTrack == nullptr && mShell != nullptr) {
+            Core::SafeSyncType<Core::CriticalSection> lock(mTextTrackLock);
+            if (nullptr == mTextTrack && nullptr != mShell) {
                 mTextTrack = mShell->QueryInterfaceByCallsign<Exchange::ITextTrackClosedCaptionsStyle>(TEXTTRACK_CALLSIGN);
-                if (mTextTrack == nullptr) {
+                if (nullptr == mTextTrack) {
                     LOGERR("Failed to get TextTrack COM interface");
+                } else {
+                    LOGINFO("TextTrack COM interface acquired successfully");
                 }
             }
             return mTextTrack;
@@ -1119,7 +1125,8 @@ class UserSettingsDelegate : public BaseEventDelegate{
                     std::mutex registerMutex;
 
         };
-
+        mutable Core::CriticalSection mUserSettingsLock;
+        mutable Core::CriticalSection mTextTrackLock;
         Exchange::IUserSettings *mUserSettings;
         Exchange::ITextTrackClosedCaptionsStyle *mTextTrack;
         PluginHost::IShell* mShell;
