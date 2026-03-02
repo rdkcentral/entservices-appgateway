@@ -216,9 +216,9 @@
  *   "error_latency_min_ms": <min>,
  *   "error_latency_max_ms": <max>
  * }
- * @example For LaunchDelegate.session():
+ * @example For Plugin_Name_1.methodName1():
  *   Marker: "AppGwApiMethod_split"
- *   Payload includes: "plugin_name": "LaunchDelegate", "method_name": "session"
+ *   Payload includes: "plugin_name": "Plugin_Name_1", "method_name": "methodName1"
  */
 #define AGW_MARKER_API_METHOD_STAT                       "AppGwApiMethod_split"
 
@@ -237,9 +237,9 @@
  *   "total_ms": <total_latency>,
  *   "unit": "Milliseconds"
  * }
- * @example For Badger.GetSettings():
+ * @example For Plugin_Name_1.apiMethod1():
  *   Marker: "AppGwApiLatency_split"
- *   Payload includes: "plugin_name": "Badger", "api_name": "GetSettings"
+ *   Payload includes: "plugin_name": "Plugin_Name_1", "api_name": "apiMethod1"
  */
 #define AGW_MARKER_API_LATENCY                      "AppGwApiLatency_split"
 
@@ -258,9 +258,9 @@
  *   "total_ms": <total_latency>,
  *   "unit": "Milliseconds"
  * }
- * @example For OttServices calling ThorPermissionService:
+ * @example For Plugin_Name_1 calling ExternalService1:
  *   Marker: "AppGwServiceLatency_split"
- *   Payload includes: "plugin_name": "OttServices", "service_name": "ThorPermissionService"
+ *   Payload includes: "plugin_name": "Plugin_Name_1", "service_name": "ExternalService1"
  */
 #define AGW_MARKER_SERVICE_LATENCY                  "AppGwServiceLatency_split"
 
@@ -282,9 +282,9 @@
  *   "error_latency_min_ms": <min>,
  *   "error_latency_max_ms": <max>
  * }
- * @example For OttServices calling ThorPermissionService:
+ * @example For Plugin_Name_1 calling ExternalService1:
  *   Marker: "AppGwServiceMethod_split"
- *   Payload includes: "plugin_name": "OttServices", "service_name": "ThorPermissionService"
+ *   Payload includes: "plugin_name": "Plugin_Name_1", "service_name": "ExternalService1"
  */
 #define AGW_MARKER_SERVICE_METHOD_STAT              "AppGwServiceMethod_split"
 
@@ -299,7 +299,7 @@
  * @details Reports API failures from any plugin. Plugin name included in payload.
  * @usage Use AGW_REPORT_API_ERROR(context, api, error) helper macro from UtilsAppGatewayTelemetry.h
  * @payload { "plugin": "<pluginName>", "api": "<apiName>", "error": "<errorCode>" }
- * @example AGW_REPORT_API_ERROR(context, "GetAppSessionId", AGW_ERROR_TIMEOUT)
+ * @example AGW_REPORT_API_ERROR(context, "apiMethod1", AGW_ERROR_TIMEOUT)
  * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
  */
 #define AGW_MARKER_PLUGIN_API_ERROR                 "AppGwPluginApiError_split"
@@ -319,7 +319,7 @@
  * @details Reports API call latency from any plugin using RecordTelemetryEvent with JSON payload.
  * @usage Use AGW_REPORT_API_LATENCY(context, api, latencyMs) helper macro from UtilsAppGatewayTelemetry.h
  * @payload { "plugin": "<pluginName>", "api": "<apiName>", "latency_ms": <double> }
- * @example AGW_REPORT_API_LATENCY(context, "AuthorizeDataField", 125.5)
+ * @example AGW_REPORT_API_LATENCY(context, "apiMethod2", 125.5)
  * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
  */
 #define AGW_MARKER_PLUGIN_API_LATENCY               "AppGwPluginApiLatency_split"
@@ -328,65 +328,21 @@
 //=============================================================================
 // PREDEFINED PLUGIN NAMES
 // Use these when reporting telemetry for consistency
+// NOTE: These are internal constants for existing plugins - not for documentation examples
 //=============================================================================
 
-#define AGW_PLUGIN_BADGER                           "Badger"
-#define AGW_PLUGIN_OTTSERVICES                      "OttServices"
+
 #define AGW_PLUGIN_APPGATEWAY                       "AppGateway"
 #define AGW_PLUGIN_FBADVERTISING                    "FbAdvertising"
 #define AGW_PLUGIN_FBDISCOVERY                      "FbDiscovery"
 #define AGW_PLUGIN_FBENTOS                          "FbEntos"
 #define AGW_PLUGIN_FBMETRICS                        "FbMetrics"
 #define AGW_PLUGIN_FBPRIVACY                        "FbPrivacy"
-#define AGW_PLUGIN_LAUNCH_DELEGATE                  "LaunchDelegate"
 
 //=============================================================================
 // PREDEFINED EXTERNAL SERVICE NAMES
 // Use these when reporting external service errors for consistency
 //=============================================================================
-
-/**
- * @brief Thor Permission Service (gRPC)
- * @details Used by OttServices for permission checks
- */
-#define AGW_SERVICE_THOR_PERMISSION                 "ThorPermissionService"
-
-/**
- * @brief OTT Token Service (gRPC)
- * @details Used by OttServices for CIMA token generation
- */
-#define AGW_SERVICE_OTT_TOKEN                       "OttTokenService"
-
-/**
- * @brief Auth Service (COM-RPC)
- * @details Used for SAT/xACT token retrieval
- */
-#define AGW_SERVICE_AUTH                            "AuthService"
-
-/**
- * @brief Auth Metadata Service
- * @details Used for collecting authentication metadata (token, deviceId, accountId, partnerId)
- */
-#define AGW_SERVICE_AUTH_METADATA                   "AuthMetadataService"
-
-/**
- * @brief OttServices Interface (COM-RPC)
- * @details Used by Badger to access OTT permissions
- */
-#define AGW_SERVICE_OTT_SERVICES                    "OttServices"
-
-/**
- * @brief Launch Delegate Interface (COM-RPC)
- * @details Used for app session management
- */
-#define AGW_SERVICE_LAUNCH_DELEGATE                 "LaunchDelegate"
-
-/**
- * @brief Lifecycle Delegate
- * @details Used for device session management
- */
-#define AGW_SERVICE_LIFECYCLE_DELEGATE              "LifecycleDelegate"
-
 /**
  * @brief Internal Permission Service
  * @details AppGateway internal permission checking
@@ -412,8 +368,7 @@
 #define AGW_ERROR_TIMEOUT                           "TIMEOUT"
 #define AGW_ERROR_PERMISSION_DENIED                 "PERMISSION_DENIED"
 #define AGW_ERROR_PERMISSION_FETCH                  "PERMISSION_FETCH_FAILED"
-#define AGW_ERROR_FETCH_SAT_FAILED                  "FETCH_SAT_FAILED"
-#define AGW_ERROR_FETCH_XACT_FAILED                 "FETCH_XACT_FAILED"
+#define AGW_ERROR_AUTH_TOKEN_FETCH_FAILED           "AUTH_TOKEN_FETCH_FAILED"
 #define AGW_ERROR_PLATFORM_TOKEN_FAILED             "PLATFORM_TOKEN_FAILED"
 #define AGW_ERROR_INVALID_RESPONSE                  "INVALID_RESPONSE"
 #define AGW_ERROR_INVALID_REQUEST                   "INVALID_REQUEST"
@@ -432,52 +387,52 @@
 //=============================================================================
 
 /*
- * Example 1: Reporting an API error from Badger plugin
+ * Example 1: Reporting an API error from a plugin
  *
- *   // In Badger.cpp - Include the helper and initialize
+ *   // In YourPlugin.cpp - Include the helper and initialize
  *   #include "UtilsAppGatewayTelemetry.h"
  *
  *   // At top of file, before namespace:
- *   AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_BADGER)
+ *   AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_YOUR_PLUGIN)
  *
  *   // In Initialize() method:
  *   AGW_TELEMETRY_INIT(mService);
  *
  *   // Report the error (plugin name automatic from AGW_DEFINE_TELEMETRY_CLIENT):
  *   // Note: context parameter contains requestId, connectionId, appId for request correlation
- *   AGW_REPORT_API_ERROR(context, "GetAppSessionId", AGW_ERROR_INTERFACE_UNAVAILABLE);
+ *   AGW_REPORT_API_ERROR(context, "apiMethod1", AGW_ERROR_INTERFACE_UNAVAILABLE);
  *
  *   // This internally calls RecordTelemetryEvent with:
  *   //   eventName = AGW_MARKER_PLUGIN_API_ERROR
- *   //   eventData = { "plugin": "Badger", "api": "GetAppSessionId", 
+ *   //   eventData = { "plugin": "YourPlugin", "api": "apiMethod1", 
  *   //                 "error": "INTERFACE_UNAVAILABLE" }
  *   //   (Plugin name from initialization)
  *
  *
- * Example 2: Reporting an external service error from OttServices plugin
+ * Example 2: Reporting an external service error from a plugin
  *
- *   // In OttServicesImplementation.cpp
+ *   // In YourPluginImplementation.cpp
  *   #include "UtilsAppGatewayTelemetry.h"
  *
  *   // At top of file, before namespace:
- *   AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_OTTSERVICES)
+ *   AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_YOUR_PLUGIN)
  *
  *   // In Initialize() method:
  *   AGW_TELEMETRY_INIT(mService);
  *
  *   // Report the service error (plugin name automatic from AGW_DEFINE_TELEMETRY_CLIENT):
  *   // Note: context parameter contains requestId, connectionId, appId for request correlation
- *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION,
+ *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_EXTERNAL_SERVICE_1,
  *                                      AGW_ERROR_CONNECTION_TIMEOUT);
  *
  *   // This internally calls RecordTelemetryEvent with:
  *   //   eventName = AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR
- *   //   eventData = { "plugin": "OttServices", "service": "ThorPermissionService", 
+ *   //   eventData = { "plugin": "YourPlugin", "service": "ExternalService1", 
  *   //                 "error": "CONNECTION_TIMEOUT" }
  *   //   (Plugin name from initialization)
  *
  * Adding a new plugin:
- * 1. Add plugin name constant: #define AGW_PLUGIN_MYPLUGIN "MyPlugin"
+ * 1. Add plugin name constant: #define AGW_PLUGIN_YOUR_PLUGIN "YourPlugin"
  * 2. Use the existing generic markers (shown above)
  * 3. Call helper macros with your plugin name constant
  * 4. No need to create plugin-specific markers!

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This sequence diagram illustrates how plugins track API call latency and external service call latency using both automatic (scoped timer) and manual timing methods. Examples from both Badger and OttServices plugins demonstrate `RecordTelemetryMetric` usage.
+This sequence diagram illustrates how plugins track API call latency and external service call latency using both automatic (scoped timer) and manual timing methods. The example demonstrates `RecordTelemetryMetric` usage.
 
 ## Sequence Diagram
 
@@ -10,48 +10,48 @@ This sequence diagram illustrates how plugins track API call latency and externa
 sequenceDiagram
     participant Client as WebSocket Client
     participant AppGw as AppGateway
-    participant Badger as Badger Plugin
-    participant OttSvc as OttServices (COM-RPC)
-    participant TelemetryClient as TelemetryClient (Badger)
+    participant Plugin as Plugin_Name_1
+    participant ExtSvc as ExternalService2 (COM-RPC)
+    participant TelemetryClient as TelemetryClient (Plugin_Name_1)
     participant Telemetry as AppGatewayTelemetry
     participant T2 as T2 Telemetry Server
     
     Note over Client,T2: API Call with Latency Tracking
     
-    Client->>AppGw: AuthorizeDataField(appId, field)
-    AppGw->>Badger: AuthorizeDataField(appId, field)
-    activate Badger
+    Client->>AppGw: apiMethod2(param1, param2)
+    AppGw->>Plugin: apiMethod2(param1, param2)
+    activate Plugin
     
-    Note over Badger: Start automatic API timer
-    Badger->>Badger: AGW_TRACK_API_CALL(apiTimer, "AuthorizeDataField")
-    Note over Badger: apiStart = now()
+    Note over Plugin: Start automatic API timer
+    Plugin->>Plugin: AGW_TRACK_API_CALL(apiTimer, "apiMethod2")
+    Note over Plugin: apiStart = now()
     
-    Badger->>Badger: Check permissions cache
-    Note over Badger: Cache miss - need to fetch
+    Plugin->>Plugin: Check cache
+    Note over Plugin: Cache miss - need to fetch
     
-    Note over Badger: Start manual service timer
-    Badger->>Badger: serviceCallStart = now()
+    Note over Plugin: Start manual service timer
+    Plugin->>Plugin: serviceCallStart = now()
     
-    Badger->>OttSvc: GetAppPermissions(appId, false, permissions) [COM-RPC]
-    activate OttSvc
+    Plugin->>ExtSvc: GetData(param1, false, result) [COM-RPC]
+    activate ExtSvc
     
-    Note over OttSvc: Process request<br/>(150ms elapsed)
+    Note over ExtSvc: Process request<br/>(150ms elapsed)
     
-    OttSvc-->>Badger: Core::ERROR_NONE + permissions
-    deactivate OttSvc
+    ExtSvc-->>Plugin: Core::ERROR_NONE + result
+    deactivate ExtSvc
     
-    Note over Badger: Stop manual service timer
-    Badger->>Badger: serviceCallEnd = now()<br/>serviceLatencyMs = 150
+    Note over Plugin: Stop manual service timer
+    Plugin->>Plugin: serviceCallEnd = now()<br/>serviceLatencyMs = 150
     
-    Note over Badger: Report service latency metric
-    Badger->>TelemetryClient: AGW_REPORT_SERVICE_LATENCY(<br/>AGW_SERVICE_OTT_SERVICES, 150.0)
+    Note over Plugin: Report service latency metric
+    Plugin->>TelemetryClient: AGW_REPORT_SERVICE_LATENCY(<br/>AGW_SERVICE_EXTERNAL_SERVICE_2, 150.0)
     activate TelemetryClient
     
     TelemetryClient->>TelemetryClient: RecordServiceLatency(service, latency)
     
-    Note over TelemetryClient: Build composite metric name:<br/>"AppGwBadger_OttServices_Latency_split"
+    Note over TelemetryClient: Build composite metric name:<br/>"AppGwPlugin_Name_1_ExternalService2_Latency_split"
     
-    TelemetryClient->>Telemetry: RecordTelemetryMetric(<br/>context,<br/>"AppGwBadger_OttServices_Latency_split",<br/>150.0,<br/>"ms") [COM-RPC]
+    TelemetryClient->>Telemetry: RecordTelemetryMetric(<br/>context,<br/>"AppGwPlugin_Name_1_ExternalService2_Latency_split",<br/>150.0,<br/>"ms") [COM-RPC]
     activate Telemetry
     
     Note over Telemetry: Aggregate metric:<br/>- sum += 150.0<br/>- count++<br/>- min = min(current, 150.0)<br/>- max = max(current, 150.0)
@@ -59,24 +59,24 @@ sequenceDiagram
     Telemetry-->>TelemetryClient: Core::ERROR_NONE
     deactivate Telemetry
     
-    TelemetryClient-->>Badger: 
+    TelemetryClient-->>Plugin: 
     deactivate TelemetryClient
     
-    Badger->>Badger: Process permissions<br/>Check authorization
-    Note over Badger: Authorization successful
+    Plugin->>Plugin: Process data<br/>Perform validation
+    Note over Plugin: Processing successful
     
-    Badger-->>AppGw: Core::ERROR_NONE
-    deactivate Badger
+    Plugin-->>AppGw: Core::ERROR_NONE
+    deactivate Plugin
     
-    Note over Badger: Scoped timer destructs
-    Note over Badger: apiEnd = now()<br/>apiLatencyMs = 200
+    Note over Plugin: Scoped timer destructs
+    Note over Plugin: apiEnd = now()<br/>apiLatencyMs = 200
     
-    Badger->>TelemetryClient: timer destructor -> RecordApiLatency("AuthorizeDataField", 200.0)
+    Plugin->>TelemetryClient: timer destructor -> RecordApiLatency("apiMethod2", 200.0)
     activate TelemetryClient
     
-    Note over TelemetryClient: Build composite metric name:<br/>"AppGwBadger_AuthorizeDataField_Latency_split"
+    Note over TelemetryClient: Build composite metric name:<br/>"AppGwPlugin_Name_1_apiMethod2_Latency_split"
     
-    TelemetryClient->>Telemetry: RecordTelemetryMetric(<br/>context,<br/>"AppGwBadger_AuthorizeDataField_Latency_split",<br/>200.0,<br/>"ms") [COM-RPC]
+    TelemetryClient->>Telemetry: RecordTelemetryMetric(<br/>context,<br/>"AppGwPlugin_Name_1_apiMethod2_Latency_split",<br/>200.0,<br/>"ms") [COM-RPC]
     activate Telemetry
     
     Note over Telemetry: Aggregate API latency metric:<br/>- sum += 200.0<br/>- count++<br/>- min, max updated
@@ -94,14 +94,14 @@ sequenceDiagram
     
     Telemetry->>Telemetry: SendAggregatedMetrics()
     
-    Note over Telemetry: Calculate statistics:<br/>API Latency (AuthorizeDataField):<br/>- sum: 5000.0ms<br/>- min: 120.0ms<br/>- max: 450.0ms<br/>- count: 25<br/>- avg: 200.0ms<br/><br/>Service Latency (OttServices):<br/>- sum: 3750.0ms<br/>- min: 100.0ms<br/>- max: 300.0ms<br/>- count: 25<br/>- avg: 150.0ms
+    Note over Telemetry: Calculate statistics:<br/>API Latency (apiMethod2):<br/>- sum: 5000.0ms<br/>- min: 120.0ms<br/>- max: 450.0ms<br/>- count: 25<br/>- avg: 200.0ms<br/><br/>Service Latency (ExternalService2):<br/>- sum: 3750.0ms<br/>- min: 100.0ms<br/>- max: 300.0ms<br/>- count: 25<br/>- avg: 150.0ms
     
     Telemetry->>Telemetry: FormatTelemetryPayload()
     
-    Telemetry->>T2: t2_event_s("AppGwBadger_AuthorizeDataField_Latency_split", apiMetrics)
+    Telemetry->>T2: t2_event_s("AppGwPlugin_Name_1_apiMethod2_Latency_split", apiMetrics)
     T2-->>Telemetry: Success
     
-    Telemetry->>T2: t2_event_s("AppGwBadger_OttServices_Latency_split", svcMetrics)
+    Telemetry->>T2: t2_event_s("AppGwPlugin_Name_1_ExternalService2_Latency_split", svcMetrics)
     T2-->>Telemetry: Success
     
     Telemetry->>Telemetry: Reset metric aggregations
@@ -113,10 +113,10 @@ sequenceDiagram
 
 | Component | Responsibility |
 |-----------|---------------|
-| **WebSocket Client** | Initiates API call requiring permission check |
-| **AppGateway** | Routes request to Badger plugin |
-| **Badger Plugin** | Performs authorization, tracks API latency automatically |
-| **OttServices** | Provides permission data via COM-RPC |
+| **WebSocket Client** | Initiates API call |
+| **AppGateway** | Routes request to plugin |
+| **Plugin_Name_1** | Performs operation, tracks API latency automatically |
+| **ExternalService2** | Provides data via COM-RPC |
 | **TelemetryClient** | Reports both API and service latency metrics |
 | **AppGatewayTelemetry** | Aggregates metrics (sum, min, max, count, avg) |
 | **T2 Telemetry Server** | Receives aggregated latency statistics |
@@ -126,8 +126,8 @@ sequenceDiagram
 ### 1. Automatic API Latency (Scoped Timer)
 
 ```cpp
-Core::hresult Badger::AuthorizeDataField(...) {
-    AGW_TRACK_API_CALL(apiTimer, "AuthorizeDataField");
+Core::hresult YourPlugin::apiMethod2(...) {
+    AGW_TRACK_API_CALL(apiTimer, "apiMethod2");
     
     // ... API implementation ...
     
@@ -154,7 +154,7 @@ Core::hresult Badger::AuthorizeDataField(...) {
 auto serviceCallStart = std::chrono::steady_clock::now();
 
 // Call external service
-auto result = ottServices->GetAppPermissions(...);
+auto result = externalService->GetData(...);
 
 // Stop timer after service call
 auto serviceCallEnd = std::chrono::steady_clock::now();
@@ -176,9 +176,9 @@ AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_OTT_SERVICES, static_cast<double>(service
 **Pattern:** `AppGw<PluginName>_<ApiName>_Latency_split`
 
 **Examples:**
-- `AppGwBadger_AuthorizeDataField_Latency_split`
-- `AppGwBadger_GetDeviceSessionId_Latency_split`
-- `AppGwOttServices_GetAppPermissions_Latency_split`
+- `AppGwPlugin_Name_1_apiMethod2_Latency_split`
+- `AppGwPlugin_Name_1_apiMethod1_Latency_split`
+- `AppGwPlugin_Name_2_apiMethod1_Latency_split`
 
 **Payload (JSON):**
 ```json
@@ -194,9 +194,9 @@ AGW_REPORT_SERVICE_LATENCY(AGW_SERVICE_OTT_SERVICES, static_cast<double>(service
 **Pattern:** `AppGw<PluginName>_<ServiceName>_Latency_split`
 
 **Examples:**
-- `AppGwBadger_OttServices_Latency_split`
-- `AppGwOttServices_ThorPermissionService_Latency_split`
-- `AppGwOttServices_OttTokenService_Latency_split`
+- `AppGwPlugin_Name_1_ExternalService2_Latency_split`
+- `AppGwPlugin_Name_2_ExternalService1_Latency_split`
+- `AppGwPlugin_Name_2_ExternalService3_Latency_split`
 
 **Payload (JSON):**
 ```json
@@ -229,15 +229,15 @@ Each plugin/API combination gets its own unique metric name:
 
 | Plugin | API/Service | Metric Type | Metric Name |
 |--------|-------------|-------------|-------------|
-| Badger | AuthorizeDataField | API Latency | `AppGwBadger_AuthorizeDataField_Latency_split` |
-| Badger | OttServices | Service Latency | `AppGwBadger_OttServices_Latency_split` |
-| OttServices | GetAppPermissions | API Latency | `AppGwOttServices_GetAppPermissions_Latency_split` |
-| OttServices | ThorPermissionService | Service Latency | `AppGwOttServices_ThorPermissionService_Latency_split` |
-| OttServices | OttTokenService | Service Latency | `AppGwOttServices_OttTokenService_Latency_split` |
+| Plugin_Name_1 | apiMethod2 | API Latency | `AppGwPlugin_Name_1_apiMethod2_Latency_split` |
+| Plugin_Name_1 | ExternalService2 | Service Latency | `AppGwPlugin_Name_1_ExternalService2_Latency_split` |
+| Plugin_Name_2 | apiMethod1 | API Latency | `AppGwPlugin_Name_2_apiMethod1_Latency_split` |
+| Plugin_Name_2 | ExternalService1 | Service Latency | `AppGwPlugin_Name_2_ExternalService1_Latency_split` |
+| Plugin_Name_2 | ExternalService3 | Service Latency | `AppGwPlugin_Name_2_ExternalService3_Latency_split` |
 
 **Benefits:**
 - Each API/service has independent metric for trending
-- Enables per-API alerting (e.g., alert if `AppGwBadger_AuthorizeDataField_Latency_split` > 500ms)
+- Enables per-API alerting (e.g., alert if metric > 500ms)
 - Simplifies dashboard creation (one metric = one graph)
 
 ## Configuration

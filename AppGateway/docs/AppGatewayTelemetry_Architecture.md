@@ -224,7 +224,7 @@ The core telemetry aggregator class that serves as the central hub for all telem
 
 ## External Plugin Integration via COM-RPC
 
-Other plugins (Badger, OttServices, etc.) can report telemetry to AppGateway using the `IAppGatewayTelemetry` interface via COM-RPC.
+Other plugins can report telemetry to AppGateway using the `IAppGatewayTelemetry` interface via COM-RPC.
 
 **Interface:** `Exchange::IAppGatewayTelemetry`  
 **Access:** Via `INTERFACE_AGGREGATE` exposed by AppGateway plugin  

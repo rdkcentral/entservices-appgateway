@@ -30,7 +30,7 @@ sequenceDiagram
     Telemetry-->>AppGw: Core::ERROR_NONE
     deactivate Telemetry
     
-    Note over AppGw: Initialize all plugins:<br/>- Badger<br/>- OttServices<br/>- FbAdvertising<br/>- etc.
+    Note over AppGw: Initialize all plugins:<br/>- Plugin_Name_1<br/>- Plugin_Name_2<br/>- Plugin_Name_3<br/>- etc.
     
     AppGw->>AppGw: Initialize child plugins
     Note over AppGw: bootstrapEnd = now()<br/>Calculate duration
@@ -75,7 +75,7 @@ sequenceDiagram
 ## Data Flow
 
 1. **Bootstrap Start**: AppGateway records timestamp when `Initialize()` is called
-2. **Plugin Initialization**: All child plugins (Badger, OttServices, etc.) are loaded
+2. **Plugin Initialization**: All child plugins are loaded
 3. **Bootstrap End**: After all plugins load, calculate total duration
 4. **Telemetry Recording**: Report bootstrap time and plugin count to telemetry
 5. **T2 Reporting**: Telemetry formats and sends data to T2 server

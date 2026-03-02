@@ -61,10 +61,10 @@
 // Ensure gDefaultLogLevel from utils.h (via UtilsCallsign.h) is considered used
 // by checking the log level at static initialization time
 namespace {
-    static inline bool __CheckLogLevelInitialized() {
+    static inline bool CheckLogLevelInitialized() {
         return (gDefaultLogLevel >= FATAL_LEVEL);
     }
-    static const bool __logLevelChecked [[maybe_unused]] = __CheckLogLevelInitialized();
+    static const bool logLevelChecked [[maybe_unused]] = CheckLogLevelInitialized();
 }
 
 namespace WPEFramework {

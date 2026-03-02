@@ -2,13 +2,13 @@
 
 ## Overview
 
-This sequence diagram illustrates how external plugins (Badger, OttServices, etc.) report telemetry events to AppGateway via COM-RPC. External plugins use the `IAppGatewayTelemetry` COM-RPC interface to report API errors and external service errors, which are aggregated by AppGatewayTelemetry and periodically sent to T2.
+This sequence diagram illustrates how external plugins report telemetry events to AppGateway via COM-RPC. External plugins use the `IAppGatewayTelemetry` COM-RPC interface to report API errors and external service errors, which are aggregated by AppGatewayTelemetry and periodically sent to T2.
 
 ## Sequence Diagram
 
 ```mermaid
 sequenceDiagram
-    participant Ext as External Plugin Badger OttServices
+    participant Ext as External Plugin
     participant Shell as PluginHost IShell
     participant COMRPC as COM-RPC
     participant AG as AppGateway
@@ -24,7 +24,7 @@ sequenceDiagram
     Shell-->>Ext: IAppGatewayTelemetry interface
     
     Note over Ext: Report API Error
-    Ext->>COMRPC: RecordTelemetryEvent context AppGwBadgerApiError_split data
+    Ext->>COMRPC: RecordTelemetryEvent context AppGwPluginApiError_split data
     COMRPC->>AGT: RecordTelemetryEvent GatewayContext eventName eventData
     activate AGT
     AGT->>AGT: Parse eventName contains ApiError
@@ -36,7 +36,7 @@ sequenceDiagram
     COMRPC-->>Ext: Success
     
     Note over Ext: Report External Service Error
-    Ext->>COMRPC: RecordTelemetryEvent context AppGwOttExtServiceError_split data
+    Ext->>COMRPC: RecordTelemetryEvent context AppGwPluginExtServiceError_split data
     COMRPC->>AGT: RecordTelemetryEvent GatewayContext eventName eventData
     activate AGT
     AGT->>AGT: Parse eventName contains ExternalServiceError
@@ -80,7 +80,7 @@ sequenceDiagram
 1. **Interface Acquisition**: External plugin queries IShell for `IAppGatewayTelemetry` interface using `APPGATEWAY_CALLSIGN`
 2. **Interface Resolution**: IShell resolves the aggregated interface from AppGateway
 3. **Error Recording**: Plugin calls `RecordTelemetryEvent()` with:
-   - `eventName`: `AppGwBadgerApiError_split` (or plugin-specific marker)
+   - `eventName`: `AppGwPluginApiError_split` (or plugin-specific marker)
    - `eventData`: JSON with `api` field (e.g., `{"api": "getApplications"}`)
 4. **Event Parsing**: AppGatewayTelemetry parses event name to identify error type
 5. **API Extraction**: Extracts API name from JSON payload
@@ -91,7 +91,7 @@ sequenceDiagram
 
 1. **Interface Acquisition**: Same as API error flow
 2. **Error Recording**: Plugin calls `RecordTelemetryEvent()` with:
-   - `eventName`: `AppGwOttExtServiceError_split` (or plugin-specific marker)
+   - `eventName`: `AppGwPluginExtServiceError_split` (or plugin-specific marker)
    - `eventData`: JSON with `service` field (e.g., `{"service": "StreamingService"}`)
 3. **Event Parsing**: AppGatewayTelemetry identifies external service error type
 4. **Service Extraction**: Extracts service name from JSON payload
@@ -112,7 +112,7 @@ sequenceDiagram
 
 ### API Error Event
 
-**Event Name:** `AppGwPluginApiError_split` (generic) or `AppGwBadgerApiError_split` (plugin-specific)
+**Event Name:** `AppGwPluginApiError_split` (generic) or plugin-specific marker
 
 **Event Data Format:**
 ```json
@@ -164,10 +164,10 @@ sequenceDiagram
 
 ## Code Example
 
-### External Plugin (Badger)
+### External Plugin Example
 
 ```cpp
-// In Badger plugin implementation
+// In plugin implementation
 void ReportApiError(const string& apiName)
 {
     // Query AppGateway telemetry interface
@@ -183,8 +183,8 @@ void ReportApiError(const string& apiName)
         
         // Record telemetry event
         telemetry->RecordTelemetryEvent(
-            Exchange::IAppGatewayTelemetry::GatewayContext::PLUGIN_BADGER,
-            "AppGwBadgerApiError_split",
+            Exchange::IAppGatewayTelemetry::GatewayContext::PLUGIN_YOUR_PLUGIN,
+            "AppGwPluginApiError_split",
             eventDataStr
         );
         
@@ -193,10 +193,10 @@ void ReportApiError(const string& apiName)
 }
 ```
 
-### External Plugin (OttServices)
+### External Plugin Example 2
 
 ```cpp
-// In OttServices plugin implementation
+// In plugin implementation
 void ReportServiceError(const string& serviceName)
 {
     // Query AppGateway telemetry interface
@@ -212,8 +212,8 @@ void ReportServiceError(const string& serviceName)
         
         // Record telemetry event
         telemetry->RecordTelemetryEvent(
-            Exchange::IAppGatewayTelemetry::GatewayContext::PLUGIN_OTTSERVICES,
-            "AppGwOttExtServiceError_split",
+            Exchange::IAppGatewayTelemetry::GatewayContext::PLUGIN_YOUR_PLUGIN,
+            "AppGwPluginExtServiceError_split",
             eventDataStr
         );
         

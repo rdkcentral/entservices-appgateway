@@ -1,8 +1,8 @@
-# Scenario 3: API Error Reporting (Badger Plugin Example)
+# Scenario 3: API Error Reporting (Plugin Example)
 
 ## Overview
 
-This sequence diagram illustrates how the Badger plugin reports API errors to App Gateway via COM-RPC using the generic marker system. The example shows `GetDeviceSessionId` API failing due to LifecycleDelegate unavailability.
+This sequence diagram illustrates how a plugin reports API errors to App Gateway via COM-RPC using the generic marker system. The example shows `apiMethod1` failing due to external service unavailability.
 
 ## Sequence Diagram
 
@@ -10,52 +10,52 @@ This sequence diagram illustrates how the Badger plugin reports API errors to Ap
 sequenceDiagram
     participant Client as WebSocket Client
     participant AppGw as AppGateway
-    participant Badger as Badger Plugin
-    participant Lifecycle as LifecycleDelegate
-    participant TelemetryClient as TelemetryClient (Badger)
+    participant Plugin as Plugin_Name_1
+    participant ExtService as ExternalService1
+    participant TelemetryClient as TelemetryClient (Plugin_Name_1)
     participant Telemetry as AppGatewayTelemetry
     participant T2 as T2 Telemetry Server
     
     Note over Client,T2: API Call with Error
     
-    Client->>AppGw: GetDeviceSessionId(appId)
-    AppGw->>Badger: GetDeviceSessionId(context, appId)
-    activate Badger
+    Client->>AppGw: apiMethod1(params)
+    AppGw->>Plugin: apiMethod1(context, params)
+    activate Plugin
     
-    Note over Badger: Create scoped API timer
-    Badger->>Badger: AGW_TRACK_API_CALL(timer, "GetDeviceSessionId")
+    Note over Plugin: Create scoped API timer
+    Plugin->>Plugin: AGW_TRACK_API_CALL(timer, "apiMethod1")
     
-    Badger->>Badger: Get LifecycleDelegate
-    Note over Badger: lifecycle = nullptr<br/>(Delegate not available)
+    Plugin->>Plugin: Get ExternalService1
+    Note over Plugin: service = nullptr<br/>(Service not available)
     
-    Badger->>Badger: LOGERR("LifecycleDelegate not available")
+    Plugin->>Plugin: LOGERR("ExternalService1 not available")
     
-    Note over Badger: Report external service error
-    Badger->>TelemetryClient: AGW_REPORT_EXTERNAL_SERVICE_ERROR(<br/>AGW_SERVICE_LIFECYCLE_DELEGATE,<br/>AGW_ERROR_NOT_AVAILABLE)
+    Note over Plugin: Report external service error
+    Plugin->>TelemetryClient: AGW_REPORT_EXTERNAL_SERVICE_ERROR(<br/>AGW_SERVICE_EXTERNAL_SERVICE_1,<br/>AGW_ERROR_NOT_AVAILABLE)
     activate TelemetryClient
     
     TelemetryClient->>TelemetryClient: RecordExternalServiceError(service, error)
     
-    Note over TelemetryClient: Build JSON payload:<br/>{"plugin": "Badger",<br/> "service": "LifecycleDelegate",<br/> "error": "NOT_AVAILABLE"}
+    Note over TelemetryClient: Build JSON payload:<br/>{"plugin": "Plugin_Name_1",<br/> "service": "ExternalService1",<br/> "error": "NOT_AVAILABLE"}
     
     TelemetryClient->>Telemetry: RecordTelemetryEvent(<br/>context,<br/>"AppGwPluginExtServiceError_split",<br/>eventData) [COM-RPC]
     activate Telemetry
     
-    Note over Telemetry: Store in cache:<br/>service_errors["LifecycleDelegate"]++
+    Note over Telemetry: Store in cache:<br/>service_errors["ExternalService1"]++
     
     Telemetry-->>TelemetryClient: Core::ERROR_NONE
     deactivate Telemetry
     
-    TelemetryClient-->>Badger: 
+    TelemetryClient-->>Plugin: 
     deactivate TelemetryClient
     
-    Note over Badger: Mark timer as failed
-    Badger->>Badger: timer.SetFailed(AGW_ERROR_NOT_AVAILABLE)
+    Note over Plugin: Mark timer as failed
+    Plugin->>Plugin: timer.SetFailed(AGW_ERROR_NOT_AVAILABLE)
     
-    Badger-->>AppGw: "app_session_id.not.set"
-    deactivate Badger
+    Plugin-->>AppGw: Error response
+    deactivate Plugin
     
-    Note over Badger: On timer destruction:<br/>Reports failed API latency
+    Note over Plugin: On timer destruction:<br/>Reports failed API latency
     
     AppGw-->>Client: Error Response
     
@@ -68,7 +68,7 @@ sequenceDiagram
     
     Note over Telemetry: Send each API error count<br/>as individual METRIC
     
-    Telemetry->>T2: t2_event_s("AppGwApiErrorCount_GetDeviceSessionId_split", payload)
+    Telemetry->>T2: t2_event_s("AppGwApiErrorCount_apiMethod1_split", payload)
     Note over T2: Payload: {"sum": 15, "count": 1,<br/>"unit": "count", "reporting_interval_sec": 3600}
     T2-->>Telemetry: Success
     
@@ -83,19 +83,19 @@ sequenceDiagram
 | Component | Responsibility |
 |-----------|---------------|
 | **WebSocket Client** | Initiates API call to AppGateway |
-| **AppGateway** | Routes request to Badger plugin |
-| **Badger Plugin** | Attempts to get device session ID, encounters error |
-| **LifecycleDelegate** | External service (unavailable in this scenario) |
-| **TelemetryClient** | Helper class in Badger for telemetry reporting |
+| **AppGateway** | Routes request to plugin |
+| **Plugin_Name_1** | Processes API call, encounters error |
+| **ExternalService1** | External service (unavailable in this scenario) |
+| **TelemetryClient** | Helper class in plugin for telemetry reporting |
 | **AppGatewayTelemetry** | Aggregates errors and reports to T2 |
 | **T2 Telemetry Server** | Receives aggregated error statistics |
 
 ## Error Flow
 
-1. **API Call**: Client requests device session ID via AppGateway
-2. **Service Check**: Badger attempts to get LifecycleDelegate
-3. **Error Detection**: LifecycleDelegate is unavailable
-4. **Error Logging**: Badger logs error with context
+1. **API Call**: Client requests method via AppGateway
+2. **Service Check**: Plugin attempts to get external service
+3. **Error Detection**: External service is unavailable
+4. **Error Logging**: Plugin logs error with context
 5. **Telemetry Reporting**: Report external service error via `AGW_REPORT_EXTERNAL_SERVICE_ERROR`
 6. **COM-RPC Call**: TelemetryClient calls AppGatewayTelemetry via COM-RPC
 7. **Error Aggregation**: AppGatewayTelemetry increments error counter
@@ -110,8 +110,8 @@ sequenceDiagram
 **Payload:**
 ```json
 {
-  "plugin": "Badger",
-  "service": "LifecycleDelegate",
+  "plugin": "Plugin_Name_1",
+  "service": "ExternalService1",
   "error": "NOT_AVAILABLE"
 }
 ```
@@ -119,7 +119,7 @@ sequenceDiagram
 ### Aggregated Error Count Metrics (Periodic - Per API)
 **Metric Name Pattern:** `AppGwApiErrorCount_<ApiName>_split`
 
-**Example Metric:** `AppGwApiErrorCount_GetDeviceSessionId_split`
+**Example Metric:** `AppGwApiErrorCount_apiMethod1_split`
 **Payload:**
 ```json
 {
@@ -132,25 +132,25 @@ sequenceDiagram
 
 **Compact Format:**
 ```
-AppGwApiErrorCount_GetDeviceSessionId_split: 15,1,count,3600
+AppGwApiErrorCount_apiMethod1_split: 15,1,count,3600
 ```
 
 ## Predefined Constants Used
 
 ```cpp
 // From AppGatewayTelemetryMarkers.h
-#define AGW_PLUGIN_BADGER                "Badger"
-#define AGW_SERVICE_LIFECYCLE_DELEGATE   "LifecycleDelegate"
-#define AGW_ERROR_NOT_AVAILABLE          "NOT_AVAILABLE"
+#define AGW_PLUGIN_YOUR_PLUGIN               "YourPlugin"
+#define AGW_SERVICE_EXTERNAL_SERVICE_1       "ExternalService1"
+#define AGW_ERROR_NOT_AVAILABLE              "NOT_AVAILABLE"
 #define AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR  "AppGwPluginExtServiceError_split"
 ```
 
 ## Benefits of Generic Markers
 
 - **Single Marker per Category**: `AppGwPluginExtServiceError_split` used by all plugins for immediate error reporting
-- **Individual Metrics per API**: Each failing API gets its own metric for trending: `agw_API_Error_Count_<ApiName>`
+- **Individual Metrics per API**: Each failing API gets its own metric for trending: `AppGwApiErrorCount_<ApiName>`
 - **Plugin Name in Payload**: Events include plugin context for filtering
-- **No Marker Duplication**: No need for `AGW_MARKER_BADGER_API_ERROR`
+- **No Marker Duplication**: No need for plugin-specific error markers
 - **Consistent Reporting**: Same pattern across all plugins
 - **Scalable**: Adding new APIs automatically creates new metrics
 - **Statistical Aggregation**: Metrics support sum, count, min, max, avg
@@ -159,7 +159,7 @@ AppGwApiErrorCount_GetDeviceSessionId_split: 15,1,count,3600
 
 - Event reporting (immediate) captures WHAT happened with full context
 - Metric reporting (periodic) captures HOW MANY times it happened
-- Error counts tracked per API name (e.g., "GetDeviceSessionId", "AuthorizeDataField")
+- Error counts tracked per API name (e.g., "apiMethod1", "apiMethod2")
 - Each API that experiences errors gets a unique metric in T2
 - Metrics reset after each reporting interval (default: 1 hour)
 - Scoped timer automatically tracks failed API latency

@@ -25,7 +25,7 @@ sequenceDiagram
     deactivate Telemetry
     
     %% API Call - Success
-    Client->>Responder: API Call (GetSettings)
+    Client->>Responder: API Call (apiMethod1)
     Responder->>Telemetry: IncrementTotalCalls()
     activate Telemetry
     Note over Telemetry: total_calls++
@@ -44,7 +44,7 @@ sequenceDiagram
     Responder-->>Client: Response (SUCCESS)
     
     %% API Call - Failure
-    Client->>Responder: API Call (AuthorizeDataField)
+    Client->>Responder: API Call (apiMethod2)
     Responder->>Telemetry: IncrementTotalCalls()
     activate Telemetry
     Note over Telemetry: total_calls++

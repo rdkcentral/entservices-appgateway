@@ -2,13 +2,13 @@
 
 ## Overview
 
-This sequence diagram illustrates how external plugins (OttServices, Badger, etc.) report custom metrics to AppGateway via COM-RPC. External plugins use the `IAppGatewayTelemetry` COM-RPC interface to record numerical metrics such as latencies, bitrates, custom measurements, etc. These metrics are aggregated (min, max, avg, sum, count) by AppGatewayTelemetry and periodically sent to T2.
+This sequence diagram illustrates how external plugins report custom metrics to AppGateway via COM-RPC. External plugins use the `IAppGatewayTelemetry` COM-RPC interface to record numerical metrics such as latencies, bitrates, custom measurements, etc. These metrics are aggregated (min, max, avg, sum, count) by AppGatewayTelemetry and periodically sent to T2.
 
 ## Sequence Diagram
 
 ```mermaid
 sequenceDiagram
-    participant Ext as External Plugin OttServices
+    participant Ext as External Plugin
     participant Shell as PluginHost IShell
     participant AGT as Telemetry
     participant Timer as Timer
@@ -19,10 +19,10 @@ sequenceDiagram
     Ext->>Shell: QueryInterfaceIAppGatewayTelemetry
     Shell-->>Ext: IAppGatewayTelemetry interface
     
-    Note over Ext: Report Streaming Bitrate Metric
-    Ext->>AGT: RecordTelemetryMetric context AppGwOttStreamingBitrate_split 4500 kbps
+    Note over Ext: Report Custom Metric
+    Ext->>AGT: RecordTelemetryMetric context AppGwPluginCustomMetric_split 4500 ms
     activate AGT
-    AGT->>AGT: Get or create MetricData for AppGwOttStreamingBitrate_split
+    AGT->>AGT: Get or create MetricData for AppGwPluginCustomMetric_split
     AGT->>AGT: Update sum min max count
     AGT->>AGT: mCachedEventCount++
     AGT-->>Ext: ERROR_NONE
@@ -30,7 +30,7 @@ sequenceDiagram
     
     Note over Ext: Report multiple latency samples
     loop Multiple API calls
-        Ext->>AGT: RecordTelemetryMetric context AppGwOttApiLatency_split value ms
+        Ext->>AGT: RecordTelemetryMetric context AppGwPluginApiLatency_split value ms
         AGT->>AGT: Aggregate metric
     end
     
@@ -47,8 +47,8 @@ sequenceDiagram
     AGT->>AGT: Build JSON sum min max count avg unit
     AGT->>T2: sendMessage metricName as marker payload
     
-    Note over AGT: AppGwOttStreamingBitrate_split payload
-    Note over AGT: AppGwOttApiLatency_split payload
+    Note over AGT: AppGwPluginCustomMetric_split payload
+    Note over AGT: AppGwPluginApiLatency_split payload
     
     AGT->>AGT: Clear mMetricsCache
     deactivate AGT
@@ -72,8 +72,8 @@ sequenceDiagram
 1. **Interface Acquisition**: External plugin queries IShell for `IAppGatewayTelemetry` interface using `APPGATEWAY_CALLSIGN`
 2. **Interface Resolution**: IShell resolves the aggregated interface from AppGateway
 3. **Metric Recording**: Plugin calls `RecordTelemetryMetric()` with:
-   - `context`: Plugin context enum (e.g., `PLUGIN_OTTSERVICES`)
-   - `name`: Metric marker name (e.g., `AppGwOttStreamingBitrate_split`)
+   - `context`: Plugin context enum (e.g., `PLUGIN_YOUR_PLUGIN`)
+   - `name`: Metric marker name (e.g., `AppGwPluginCustomMetric_split`)
    - `value`: Numerical measurement (e.g., `4500`)
    - `unit`: Unit of measurement (e.g., `"kbps"`)
 4. **Metric Lookup**: AppGatewayTelemetry looks up or creates `MetricData` entry in `mMetricsCache` map
@@ -99,17 +99,17 @@ sequenceDiagram
 
 ## T2 Markers
 
-### Streaming Bitrate Metric
+### Custom Metric Example
 
-**Metric Name:** `AppGwOttStreamingBitrate_split`
+**Metric Name:** `AppGwPluginCustomMetric_split`
 
 **Recording Call:**
 ```cpp
 telemetry->RecordTelemetryMetric(
-    IAppGatewayTelemetry::PLUGIN_OTTSERVICES,
-    "AppGwOttStreamingBitrate_split",
+    IAppGatewayTelemetry::PLUGIN_YOUR_PLUGIN,
+    "AppGwPluginCustomMetric_split",
     4500.0,
-    "kbps"
+    "ms"
 );
 ```
 
@@ -133,22 +133,22 @@ AppGwOttStreamingBitrate_split: 135000,2500,8000,30,4500,kbps,3600
 
 ### API Latency Metric
 
-**Metric Name:** `AppGwOttApiLatency_split`
+**Metric Name:** `AppGwPluginApiLatency_split`
 
 **Recording Call (Multiple Samples):**
 ```cpp
 // Sample 1
 telemetry->RecordTelemetryMetric(
-    IAppGatewayTelemetry::PLUGIN_OTTSERVICES,
-    "AppGwOttApiLatency_split",
+    IAppGatewayTelemetry::PLUGIN_YOUR_PLUGIN,
+    "AppGwPluginApiLatency_split",
     125.0,
     "ms"
 );
 
 // Sample 2
 telemetry->RecordTelemetryMetric(
-    IAppGatewayTelemetry::PLUGIN_OTTSERVICES,
-    "AppGwOttApiLatency_split",
+    IAppGatewayTelemetry::PLUGIN_YOUR_PLUGIN,
+    "AppGwPluginApiLatency_split",
     98.0,
     "ms"
 );
@@ -183,8 +183,8 @@ telemetry->RecordTelemetryMetric(
 ### External Plugin - Single Metric Sample
 
 ```cpp
-// In OttServices plugin implementation
-void ReportStreamingBitrate(double bitrate)
+// In plugin implementation
+void ReportCustomMetric(double value)
 {
     // Query AppGateway telemetry interface
     auto telemetry = _service->QueryInterfaceByCallsign<Exchange::IAppGatewayTelemetry>(APPGATEWAY_CALLSIGN);
@@ -192,10 +192,10 @@ void ReportStreamingBitrate(double bitrate)
     if (telemetry) {
         // Record metric value
         telemetry->RecordTelemetryMetric(
-            Exchange::IAppGatewayTelemetry::GatewayContext::PLUGIN_OTTSERVICES,
-            "AppGwOttStreamingBitrate_split",
-            bitrate,
-            "kbps"
+            Exchange::IAppGatewayTelemetry::GatewayContext::PLUGIN_YOUR_PLUGIN,
+            "AppGwPluginCustomMetric_split",
+            value,
+            "ms"
         );
         
         telemetry->Release();
@@ -206,7 +206,7 @@ void ReportStreamingBitrate(double bitrate)
 ### External Plugin - Multiple Metric Samples
 
 ```cpp
-// In Badger plugin implementation
+// In plugin implementation
 class ApiLatencyTracker {
 private:
     Exchange::IAppGatewayTelemetry* mTelemetry;
@@ -227,8 +227,8 @@ public:
         if (mTelemetry) {
             // Record latency metric - will be aggregated with other samples
             mTelemetry->RecordTelemetryMetric(
-                Exchange::IAppGatewayTelemetry::GatewayContext::PLUGIN_BADGER,
-                "AppGwBadgerApiLatency_split",
+                Exchange::IAppGatewayTelemetry::GatewayContext::PLUGIN_YOUR_PLUGIN,
+                "AppGwPluginApiLatency_split",
                 latencyMs,
                 "ms"
             );

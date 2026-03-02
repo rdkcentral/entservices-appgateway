@@ -19,7 +19,7 @@ All AppGateway telemetry markers follow this pattern:
 **1. Generic Event Markers** (Optional - for immediate forensics)
 - Pattern: `AppGwPlugin<Category>_split`
 - Plugin name included in JSON payload
-- Example: `AppGwPluginApiError_split` with `{"plugin":"Badger","api":"GetSettings","error":"TIMEOUT"}`
+- Example: `AppGwPluginApiError_split` with `{"plugin":"Plugin_Name_1","api":"apiMethod1","error":"TIMEOUT"}`
 
 **2. Internal Metrics** (Aggregated by AppGateway)
 - Pattern: `AppGw<MetricName>_split`
@@ -27,11 +27,11 @@ All AppGateway telemetry markers follow this pattern:
 
 **3. Error Count Metrics** (Per-API/Service)
 - Pattern: `AppGw<ErrorType>Count_<Name>_split`
-- Examples: `AppGwApiErrorCount_GetSettings_split`, `AppGwExtServiceErrorCount_ThorPermissionService_split`
+- Examples: `AppGwApiErrorCount_apiMethod1_split`, `AppGwExtServiceErrorCount_ExternalService1_split`
 
 **4. Latency Metrics** (Plugin-specific)
 - Pattern: `AppGw<Plugin>_<Api/Service>_Latency_split`
-- Examples: `AppGwBadger_GetSettings_Latency_split`, `AppGwOttServices_ThorPermissionService_Latency_split`
+- Examples: `AppGwPlugin_Name_1_apiMethod1_Latency_split`, `AppGwPlugin_Name_2_ExternalService1_Latency_split`
 
 ---
 
@@ -52,8 +52,8 @@ All AppGateway telemetry markers follow this pattern:
 
 | Marker Pattern | Example | Reporting | Unit | Description |
 |----------------|---------|-----------|------|-------------|
-| `AppGwApiErrorCount_<ApiName>_split` | `AppGwApiErrorCount_GetSettings_split` | Periodic | count | Error count for specific API |
-| `AppGwExtServiceErrorCount_<ServiceName>_split` | `AppGwExtServiceErrorCount_ThorPermissionService_split` | Periodic | count | Error count for specific external service |
+| `AppGwApiErrorCount_<ApiName>_split` | `AppGwApiErrorCount_apiMethod1_split` | Periodic | count | Error count for specific API |
+| `AppGwExtServiceErrorCount_<ServiceName>_split` | `AppGwExtServiceErrorCount_ExternalService1_split` | Periodic | count | Error count for specific external service |
 
 ### Generic Event Markers (Optional)
 
@@ -72,21 +72,21 @@ These metrics use composite naming with plugin and API/service names.
 
 | Pattern | Example | Unit | Description |
 |---------|---------|------|-------------|
-| `AppGw<Plugin>_<ApiName>_Latency_split` | `AppGwBadger_GetDeviceSessionId_Latency_split` | ms | API call latency for a plugin |
-| `AppGw<Plugin>_<ServiceName>_Latency_split` | `AppGwOttServices_ThorPermissionService_Latency_split` | ms | Service call latency for a plugin |
+| `AppGw<Plugin>_<ApiName>_Latency_split` | `AppGwPlugin_Name_1_apiMethod1_Latency_split` | ms | API call latency for a plugin |
+| `AppGw<Plugin>_<ServiceName>_Latency_split` | `AppGwPlugin_Name_2_ExternalService1_Latency_split` | ms | Service call latency for a plugin |
 
 ### Examples by Plugin
 
-**Badger Plugin:**
-- `AppGwBadger_GetSettings_Latency_split`
-- `AppGwBadger_GetDeviceSessionId_Latency_split`
-- `AppGwBadger_GetAppPermissions_Latency_split`
-- `AppGwBadger_OttServices_Latency_split` (external service)
+**Plugin_Name_1:**
+- `AppGwPlugin_Name_1_apiMethod1_Latency_split`
+- `AppGwPlugin_Name_1_apiMethod2_Latency_split`
+- `AppGwPlugin_Name_1_apiMethod3_Latency_split`
+- `AppGwPlugin_Name_1_ExternalService1_Latency_split` (external service)
 
-**OttServices Plugin:**
-- `AppGwOttServices_GetAppPermissions_Latency_split`
-- `AppGwOttServices_ThorPermissionService_Latency_split` (gRPC)
-- `AppGwOttServices_OttTokenService_Latency_split` (gRPC)
+**Plugin_Name_2:**
+- `AppGwPlugin_Name_2_apiMethod1_Latency_split`
+- `AppGwPlugin_Name_2_ExternalService2_Latency_split` (gRPC)
+- `AppGwPlugin_Name_2_ExternalService3_Latency_split` (gRPC)
 
 ---
 
@@ -132,8 +132,8 @@ These metrics use composite naming with plugin and API/service names.
 
 ```json
 {
-  "plugin": "Badger",
-  "api": "GetSettings",
+  "plugin": "Plugin_Name_1",
+  "api": "apiMethod1",
   "error": "TIMEOUT"
 }
 ```
@@ -142,8 +142,8 @@ These metrics use composite naming with plugin and API/service names.
 
 ```json
 {
-  "plugin": "OttServices",
-  "service": "ThorPermissionService",
+  "plugin": "Plugin_Name_2",
+  "service": "ExternalService1",
   "error": "CONNECTION_TIMEOUT"
 }
 ```
@@ -170,11 +170,11 @@ These metrics use composite naming with plugin and API/service names.
 
 **Defined in header:** `AppGatewayTelemetryMarkers.h`
 
+**NOTE:** These are internal constants for existing plugins - documentation examples use generic names like Plugin_Name_1.
+
 | Constant | Value | Description |
 |----------|-------|-------------|
 | `AGW_PLUGIN_APPGATEWAY` | `"AppGateway"` | App Gateway main plugin |
-| `AGW_PLUGIN_BADGER` | `"Badger"` | Badger plugin |
-| `AGW_PLUGIN_OTTSERVICES` | `"OttServices"` | OttServices plugin |
 | `AGW_PLUGIN_FBADVERTISING` | `"FbAdvertising"` | FbAdvertising plugin |
 | `AGW_PLUGIN_FBDISCOVERY` | `"FbDiscovery"` | FbDiscovery plugin |
 | `AGW_PLUGIN_FBENTOS` | `"FbEntos"` | FbEntos plugin |
@@ -187,15 +187,15 @@ These metrics use composite naming with plugin and API/service names.
 
 **Defined in header:** `AppGatewayTelemetryMarkers.h`
 
+> **Note:** These constants are defined for internal use by existing services.  
+> For documentation examples, use generic names like `AGW_SERVICE_EXTERNAL_SERVICE_1`, `AGW_SERVICE_EXTERNAL_SERVICE_2`.
+
 | Constant | Value | Description |
 |----------|-------|-------------|
-| `AGW_SERVICE_THOR_PERMISSION` | `"ThorPermissionService"` | Thor Permission gRPC service |
-| `AGW_SERVICE_OTT_TOKEN` | `"OttTokenService"` | OTT Token gRPC service |
+| `AGW_SERVICE_EXTERNAL_SERVICE_1` | `"ExternalService1"` | Example external service 1 |
+| `AGW_SERVICE_EXTERNAL_SERVICE_2` | `"ExternalService2"` | Example external service 2 |
 | `AGW_SERVICE_AUTH` | `"AuthService"` | Auth Service (COM-RPC) |
 | `AGW_SERVICE_AUTH_METADATA` | `"AuthMetadataService"` | Auth metadata collection |
-| `AGW_SERVICE_OTT_SERVICES` | `"OttServices"` | OttServices interface (COM-RPC) |
-| `AGW_SERVICE_LAUNCH_DELEGATE` | `"LaunchDelegate"` | Launch Delegate interface |
-| `AGW_SERVICE_LIFECYCLE_DELEGATE` | `"LifecycleDelegate"` | Lifecycle Delegate interface |
 | `AGW_SERVICE_PERMISSION` | `"PermissionService"` | Internal permission checking |
 | `AGW_SERVICE_AUTHENTICATION` | `"AuthenticationService"` | WebSocket authentication |
 
@@ -205,10 +205,10 @@ These metrics use composite naming with plugin and API/service names.
 
 **Do not reference markers directly in your code.** Use the helper macros from `UtilsAppGatewayTelemetry.h` instead:
 
-- `AGW_REPORT_API_ERROR(context, api, error)` - Uses `AppGwPluginApiError_split` internally
-- `AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, service, error)` - Uses `AppGwPluginExtServiceError_split` internally
-- `AGW_REPORT_API_LATENCY(context, api, latencyMs)` - Generates `AppGw<Plugin>_<Api>_Latency_split`
-- `AGW_REPORT_SERVICE_LATENCY(context, service, latencyMs)` - Generates `AppGw<Plugin>_<Service>_Latency_split`
+- `AGW_REPORT_API_ERROR(context, api, error)` - Report API errors
+- `AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, service, error)` - Report external service errors
+- `AGW_REPORT_API_LATENCY(context, api, latencyMs)` - Report API latency
+- `AGW_REPORT_SERVICE_LATENCY(context, service, latencyMs)` - Report service latency
 
 All macros now require a `context` parameter (type: `Exchange::GatewayContext`) for request correlation tracking.
 
@@ -223,7 +223,7 @@ To add telemetry for a new plugin:
 
 1. **Add plugin name constant** in `AppGatewayTelemetryMarkers.h`:
    ```cpp
-   #define AGW_PLUGIN_MYPLUGIN "MyPlugin"
+   #define AGW_PLUGIN_YOUR_PLUGIN "YourPlugin"
    ```
 
 2. **Use existing generic markers** - no need to create plugin-specific ones

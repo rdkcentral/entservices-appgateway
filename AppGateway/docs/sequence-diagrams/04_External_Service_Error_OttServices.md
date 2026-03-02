@@ -1,8 +1,8 @@
-# Scenario 4: External Service Error Reporting (OttServices Plugin Example)
+# Scenario 4: External Service Error Reporting (Plugin Example)
 
 ## Overview
 
-This sequence diagram illustrates how the OttServices plugin reports external service errors to App Gateway via COM-RPC. The example shows `GetAppPermissions` failing when the ThorPermissionService gRPC client is not initialized.
+This sequence diagram illustrates how a plugin reports external service errors to App Gateway via COM-RPC. The example shows `apiMethod1` failing when an external gRPC service client is not initialized.
 
 ## Sequence Diagram
 
@@ -10,52 +10,52 @@ This sequence diagram illustrates how the OttServices plugin reports external se
 sequenceDiagram
     participant Client as WebSocket Client
     participant AppGw as AppGateway
-    participant OttServices as OttServices Plugin
-    participant Thor as ThorPermissionService (gRPC)
-    participant TelemetryClient as TelemetryClient (OttServices)
+    participant Plugin as Plugin_Name_2
+    participant ExtService as ExternalService2 (gRPC)
+    participant TelemetryClient as TelemetryClient (Plugin_Name_2)
     participant Telemetry as AppGatewayTelemetry
     participant T2 as T2 Telemetry Server
     
     Note over Client,T2: External Service Call with Error
     
-    Client->>AppGw: GetAppPermissions(appId, forceNew)
-    AppGw->>OttServices: GetAppPermissions(appId, forceNew, permissions)
-    activate OttServices
+    Client->>AppGw: apiMethod1(params)
+    AppGw->>Plugin: apiMethod1(params)
+    activate Plugin
     
-    Note over OttServices: Create scoped API timer
-    OttServices->>OttServices: AGW_TRACK_API_CALL(timer, "GetAppPermissions")
+    Note over Plugin: Create scoped API timer
+    Plugin->>Plugin: AGW_TRACK_API_CALL(timer, "apiMethod1")
     
-    OttServices->>OttServices: Check if _perms initialized
-    Note over OttServices: _perms == nullptr<br/>(Client not initialized)
+    Plugin->>Plugin: Check if service client initialized
+    Note over Plugin: client == nullptr<br/>(Client not initialized)
     
-    OttServices->>OttServices: LOGERR("PermissionsClient not initialized")
+    Plugin->>Plugin: LOGERR("Service client not initialized")
     
-    Note over OttServices: Report external service error
-    OttServices->>TelemetryClient: AGW_REPORT_EXTERNAL_SERVICE_ERROR(<br/>AGW_SERVICE_THOR_PERMISSION,<br/>"CLIENT_NOT_INITIALIZED")
+    Note over Plugin: Report external service error
+    Plugin->>TelemetryClient: AGW_REPORT_EXTERNAL_SERVICE_ERROR(<br/>AGW_SERVICE_EXTERNAL_SERVICE_2,<br/>"CLIENT_NOT_INITIALIZED")
     activate TelemetryClient
     
     TelemetryClient->>TelemetryClient: RecordExternalServiceError(service, error)
     
-    Note over TelemetryClient: Build JSON payload:<br/>{"plugin": "OttServices",<br/> "service": "ThorPermissionService",<br/> "error": "CLIENT_NOT_INITIALIZED"}
+    Note over TelemetryClient: Build JSON payload:<br/>{"plugin": "Plugin_Name_2",<br/> "service": "ExternalService2",<br/> "error": "CLIENT_NOT_INITIALIZED"}
     
     TelemetryClient->>Telemetry: RecordTelemetryEvent(<br/>context,<br/>"AppGwPluginExtServiceError_split",<br/>eventData) [COM-RPC]
     activate Telemetry
     
-    Note over Telemetry: Store in cache:<br/>service_errors["ThorPermissionService"]++
+    Note over Telemetry: Store in cache:<br/>service_errors["ExternalService2"]++
     
     Telemetry-->>TelemetryClient: Core::ERROR_NONE
     deactivate Telemetry
     
-    TelemetryClient-->>OttServices: 
+    TelemetryClient-->>Plugin: 
     deactivate TelemetryClient
     
-    Note over OttServices: Mark timer as failed
-    OttServices->>OttServices: timer.SetFailed("CLIENT_NOT_INITIALIZED")
+    Note over Plugin: Mark timer as failed
+    Plugin->>Plugin: timer.SetFailed("CLIENT_NOT_INITIALIZED")
     
-    OttServices-->>AppGw: Core::ERROR_UNAVAILABLE
-    deactivate OttServices
+    Plugin-->>AppGw: Core::ERROR_UNAVAILABLE
+    deactivate Plugin
     
-    Note over OttServices: On timer destruction:<br/>Reports failed API latency
+    Note over Plugin: On timer destruction:<br/>Reports failed API latency
     
     AppGw-->>Client: Error Response
     
@@ -68,11 +68,11 @@ sequenceDiagram
     
     Note over Telemetry: Send each service error count<br/>as individual METRIC
     
-    Telemetry->>T2: t2_event_s("AppGwExtServiceErrorCount_ThorPermissionService_split", payload)
+    Telemetry->>T2: t2_event_s("AppGwExtServiceErrorCount_ExternalService2_split", payload)
     Note over T2: Payload: {"sum": 42, "count": 1,<br/>"unit": "count", "reporting_interval_sec": 3600}
     T2-->>Telemetry: Success
     
-    Telemetry->>T2: t2_event_s("AppGwExtServiceErrorCount_OttTokenService_split", payload)
+    Telemetry->>T2: t2_event_s("AppGwExtServiceErrorCount_ExternalService3_split", payload)
     Note over T2: Payload: {"sum": 8, "count": 1,<br/>"unit": "count", "reporting_interval_sec": 3600}
     T2-->>Telemetry: Success
     
@@ -86,23 +86,23 @@ sequenceDiagram
 
 | Component | Responsibility |
 |-----------|---------------|
-| **WebSocket Client** | Initiates permission check via AppGateway |
-| **AppGateway** | Routes request to OttServices plugin |
-| **OttServices Plugin** | Manages app permissions via ThorPermissionService |
-| **ThorPermissionService** | External gRPC service for permission checks |
-| **TelemetryClient** | Helper class in OttServices for telemetry reporting |
+| **WebSocket Client** | Initiates API call via AppGateway |
+| **AppGateway** | Routes request to plugin |
+| **Plugin_Name_2** | Processes API call via external service |
+| **ExternalService2** | External gRPC service |
+| **TelemetryClient** | Helper class in plugin for telemetry reporting |
 | **AppGatewayTelemetry** | Aggregates errors from all plugins and reports to T2 |
 | **T2 Telemetry Server** | Receives aggregated error statistics |
 
 ## Error Flow
 
-1. **API Call**: Client requests app permissions via AppGateway
-2. **Service Check**: OttServices checks if ThorPermissionService client is initialized
+1. **API Call**: Client requests method via AppGateway
+2. **Service Check**: Plugin checks if external service client is initialized
 3. **Error Detection**: gRPC client is not initialized
-4. **Error Logging**: OttServices logs error with context
+4. **Error Logging**: Plugin logs error with context
 5. **Telemetry Reporting**: Report external service error via `AGW_REPORT_EXTERNAL_SERVICE_ERROR`
 6. **COM-RPC Call**: TelemetryClient calls AppGatewayTelemetry via COM-RPC
-7. **Error Aggregation**: AppGatewayTelemetry increments error counter for "ThorPermissionService"
+7. **Error Aggregation**: AppGatewayTelemetry increments error counter for the external service
 8. **Timer Tracking**: Scoped timer marks API call as failed
 9. **Client Response**: Return error code to client
 10. **Periodic Reporting**: Aggregated errors from all plugins sent to T2 every hour
@@ -111,20 +111,20 @@ sequenceDiagram
 
 ### Event Marker (Immediate - per plugin)
 **Marker:** `AppGwPluginExtServiceError_split`
-**Payload (OttServices):**
+**Payload (Plugin_Name_2):**
 ```json
 {
-  "plugin": "OttServices",
-  "service": "ThorPermissionService",
+  "plugin": "Plugin_Name_2",
+  "service": "ExternalService2",
   "error": "CLIENT_NOT_INITIALIZED"
 }
 ```
 
-**Payload (Badger - different plugin, same marker):**
+**Payload (Plugin_Name_1 - different plugin, same marker):**
 ```json
 {
-  "plugin": "Badger",
-  "service": "OttServices",
+  "plugin": "Plugin_Name_1",
+  "service": "ExternalService1",
   "error": "INTERFACE_UNAVAILABLE"
 }
 ```
@@ -134,7 +134,7 @@ sequenceDiagram
 
 **Example Metrics:**
 
-`AppGwExtServiceErrorCount_ThorPermissionService_split`
+`AppGwExtServiceErrorCount_ExternalService2_split`
 ```json
 {
   "sum": 42,
@@ -144,7 +144,7 @@ sequenceDiagram
 }
 ```
 
-`AppGwExtServiceErrorCount_OttTokenService_split`
+`AppGwExtServiceErrorCount_ExternalService3_split`
 ```json
 {
   "sum": 8,
@@ -156,17 +156,17 @@ sequenceDiagram
 
 **Compact Format:**
 ```
-AppGwExtServiceErrorCount_ThorPermissionService_split: 42,1,count,3600
-AppGwExtServiceErrorCount_OttTokenService_split: 8,1,count,3600
+AppGwExtServiceErrorCount_ExternalService2_split: 42,1,count,3600
+AppGwExtServiceErrorCount_ExternalService3_split: 8,1,count,3600
 ```
 
 ## Predefined Constants Used
 
 ```cpp
 // From AppGatewayTelemetryMarkers.h
-#define AGW_PLUGIN_OTTSERVICES                "OttServices"
-#define AGW_SERVICE_THOR_PERMISSION           "ThorPermissionService"
-#define AGW_SERVICE_OTT_TOKEN                 "OttTokenService"
+#define AGW_PLUGIN_YOUR_PLUGIN                "YourPlugin"
+#define AGW_SERVICE_EXTERNAL_SERVICE_2        "ExternalService2"
+#define AGW_SERVICE_EXTERNAL_SERVICE_3        "ExternalService3"
 #define AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR   "AppGwPluginExtServiceError_split"
 ```
 
@@ -176,10 +176,10 @@ Each external service that experiences errors gets its own metric with error cou
 
 | Metric Name | Error Count (1 hour) | Contributing Plugins |
 |-------------|---------------------|---------------------|
-| `AppGwExtServiceErrorCount_ThorPermissionService_split` | 42 | OttServices |
-| `AppGwExtServiceErrorCount_OttTokenService_split` | 8 | OttServices |
-| `AppGwExtServiceErrorCount_LifecycleDelegate_split` | 15 | Badger |
-| `AppGwExtServiceErrorCount_OttServices_split` | 3 | Badger |
+| `AppGwExtServiceErrorCount_ExternalService2_split` | 42 | Plugin_Name_2 |
+| `AppGwExtServiceErrorCount_ExternalService3_split` | 8 | Plugin_Name_2 |
+| `AppGwExtServiceErrorCount_ExternalService1_split` | 15 | Plugin_Name_1 |
+| `AppGwExtServiceErrorCount_ExternalService4_split` | 3 | Plugin_Name_1 |
 
 Each metric has its own T2 marker for independent trending and alerting.
 
@@ -199,5 +199,5 @@ Each metric has its own T2 marker for independent trending and alerting.
 - **Generic markers**: Single event marker `AppGwPluginExtServiceError_split` used by all plugins
 - **Unique metrics**: Each service gets unique metric name for trending: `AppGwExtServiceErrorCount_<ServiceName>_split`
 - **Payload differentiation**: Event payload includes plugin name for filtering
-- **gRPC services**: Common pattern for OttServices to report gRPC client errors
-- **Alerting**: Can set thresholds on individual service metrics (e.g., ThorPermissionService errors > 50)
+- **gRPC services**: Common pattern for plugins to report gRPC client errors
+- **Alerting**: Can set thresholds on individual service metrics (e.g., ExternalService2 errors > 50)

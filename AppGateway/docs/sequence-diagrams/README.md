@@ -8,9 +8,9 @@ This directory contains detailed sequence diagrams for all App Gateway telemetry
 |---------|----------|-------------|-------------|
 | [01_Bootstrap_Time_Tracking.md](./01_Bootstrap_Time_Tracking.md) | Bootstrap Time | AppGateway | Measures total time to initialize all plugins during system startup |
 | [02_Health_Stats_Reporting.md](./02_Health_Stats_Reporting.md) | Health Stats | AppGateway, AppGatewayResponder | Tracks WebSocket connections and API call statistics, reported periodically |
-| [03_API_Error_Reporting_Badger.md](./03_API_Error_Reporting_Badger.md) | API Errors | Badger | Example of reporting API failures using generic markers via COM-RPC |
-| [04_External_Service_Error_OttServices.md](./04_External_Service_Error_OttServices.md) | External Service Errors | OttServices | Example of reporting gRPC service errors with multi-plugin aggregation |
-| [05_Metric_Latency_Tracking.md](./05_Metric_Latency_Tracking.md) | Latency Metrics | Badger, OttServices | API and service latency tracking using scoped timers and manual timing |
+| [03_API_Error_Reporting_Badger.md](./03_API_Error_Reporting_Badger.md) | API Errors | Plugin Example | Example of reporting API failures using generic markers via COM-RPC |
+| [04_External_Service_Error_OttServices.md](./04_External_Service_Error_OttServices.md) | External Service Errors | Plugin Example | Example of reporting external service errors with multi-plugin aggregation |
+| [05_Metric_Latency_Tracking.md](./05_Metric_Latency_Tracking.md) | Latency Metrics | Plugin Examples | API and service latency tracking using scoped timers and manual timing |
 | [06_COM_RPC_Event_Telemetry.md](./06_COM_RPC_Event_Telemetry.md) | COM-RPC Event Reporting | All External Plugins | External plugins reporting telemetry events via COM-RPC interface |
 | [07_COM_RPC_Metric_Recording.md](./07_COM_RPC_Metric_Recording.md) | COM-RPC Metric Recording | All External Plugins | External plugins recording custom metrics via COM-RPC with statistical aggregation |
 
@@ -73,15 +73,15 @@ The telemetry system uses a hybrid approach:
 
 **Metrics (Required - for monitoring):**
 - Individual numeric metrics for aggregation and trending
-- Unique metric name per API/service (e.g., `AppGwApiErrorCount_GetSettings_split`)
+- Unique metric name per API/service (e.g., `AppGwApiErrorCount_apiMethod1_split`)
 - Periodic reporting (hourly) with statistical data (sum, count, min, max, avg)
 - Enables alerting on HOW MANY failures occurred
 
 **Example Event Payload:**
 ```json
 {
-  "plugin": "Badger",
-  "api": "GetDeviceSessionId",
+  "plugin": "Plugin_Name_1",
+  "api": "apiMethod1",
   "error": "TIMEOUT"
 }
 ```
@@ -132,17 +132,17 @@ Plugins use convenience macros from `UtilsAppGatewayTelemetry.h`:
 
 ## Reference Plugins
 
-### Badger Plugin
+### Plugin Example 1
 - Demonstrates automatic API latency tracking with scoped timers
-- Shows manual service latency measurement for OttServices calls
-- Reports external service errors (LifecycleDelegate, OttServices)
-- Example APIs: `GetDeviceSessionId`, `AuthorizeDataField`
+- Shows manual service latency measurement for external service calls
+- Reports external service errors
+- Example APIs: `apiMethod1`, `apiMethod2`
 
-### OttServices Plugin
-- Demonstrates API latency tracking for permission operations
-- Shows service latency for gRPC calls (ThorPermissionService, OttTokenService)
-- Reports gRPC client initialization errors
-- Example APIs: `GetAppPermissions`, `GetAppCIMAToken`
+### Plugin Example 2
+- Demonstrates API latency tracking for operations
+- Shows service latency for external service calls
+- Reports service initialization errors
+- Example APIs: `apiMethod3`, `apiMethod4`
 
 ## Data Flow Summary
 
@@ -196,4 +196,4 @@ To view diagrams:
 For implementation questions, refer to:
 - Integration guide for step-by-step implementation
 - Marker reference for predefined constants
-- Badger and OttServices source code for real-world examples
+- Plugin source code for real-world examples
