@@ -200,7 +200,7 @@ namespace WPEFramework
 
         uint32_t AppGatewayImplementation::Configure(PluginHost::IShell *shell)
         {
-            LOGINFO("Configuring AppGateway");
+            LOGINFO("Configuring AppGateway Swetha Sukumar");
             uint32_t result = Core::ERROR_NONE;
             ASSERT(shell != nullptr);
             mService = shell;
