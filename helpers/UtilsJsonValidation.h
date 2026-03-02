@@ -2,8 +2,9 @@
  * If not stated otherwise in this file or this component's LICENSE
  * file the following copyright and licenses apply:
  *
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright 2024 RDK Management
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -20,7 +21,6 @@
 #pragma once
 
 #include <string>
-#include <limits>
 #include <core/JSON.h>
 #include "UtilsLogging.h"
 
@@ -43,17 +43,17 @@ public:
             return false;
         }
         if (!params.HasLabel(fieldName.c_str())) {
-            LOGERR("ValidateAndExtractString: Missing field '%s' in payload", fieldName.c_str());
+            LOGWARN("ValidateAndExtractString: Missing field '%s' in payload", fieldName.c_str());
             return false;
         }
         const Core::JSON::Variant& value = params.Get(fieldName.c_str());
         if (Core::JSON::Variant::type::STRING != value.Content()) {
-            LOGERR("ValidateAndExtractString: Field '%s' is not a string", fieldName.c_str());
+            LOGWARN("ValidateAndExtractString: Field '%s' is not a string", fieldName.c_str());
             return false;
         }
         extractedValue = value.String();
         if ((true != allowEmpty) && extractedValue.empty()) {
-            LOGERR("ValidateAndExtractString: Field '%s' contains empty string", fieldName.c_str());
+            LOGWARN("ValidateAndExtractString: Field '%s' contains empty string", fieldName.c_str());
             return false;
         }
         
@@ -75,13 +75,13 @@ public:
         }
         
         if (!params.HasLabel(fieldName.c_str())) {
-            LOGERR("ValidateAndExtractBool: Missing field '%s' in payload", fieldName.c_str());
+            LOGWARN("ValidateAndExtractBool: Missing field '%s' in payload", fieldName.c_str());
             return false;
         }
         
         const Core::JSON::Variant& value = params.Get(fieldName.c_str());
         if (Core::JSON::Variant::type::BOOLEAN != value.Content()) {
-            LOGERR("ValidateAndExtractBool: Field '%s' is not a boolean", fieldName.c_str());
+            LOGWARN("ValidateAndExtractBool: Field '%s' is not a boolean", fieldName.c_str());
             return false;
         }
         
@@ -114,13 +114,13 @@ public:
         }
         
         if (!params.HasLabel(fieldName.c_str())) {
-            LOGERR("ValidateAndExtractDouble: Missing field '%s' in payload", fieldName.c_str());
+            LOGWARN("ValidateAndExtractDouble: Missing field '%s' in payload", fieldName.c_str());
             return false;
         }
         
         const Core::JSON::Variant& value = params.Get(fieldName.c_str());
         if (Core::JSON::Variant::type::NUMBER != value.Content()) {
-            LOGERR("ValidateAndExtractDouble: Field '%s' is not a number", fieldName.c_str());
+            LOGWARN("ValidateAndExtractDouble: Field '%s' is not a number", fieldName.c_str());
             return false;
         }
         
@@ -128,12 +128,12 @@ public:
         
         // Bounds checking only if explicitly requested
         if (checkMinValue && extractedValue < minValue) {
-            LOGERR("ValidateAndExtractDouble: Value %.2f is below minimum %.2f", extractedValue, minValue);
+            LOGWARN("ValidateAndExtractDouble: Value %.2f is below minimum %.2f", extractedValue, minValue);
             return false;
         }
         
         if (checkMaxValue && extractedValue > maxValue) {
-            LOGERR("ValidateAndExtractDouble: Value %.2f exceeds maximum %.2f", extractedValue, maxValue);
+            LOGWARN("ValidateAndExtractDouble: Value %.2f exceeds maximum %.2f", extractedValue, maxValue);
             return false;
         }
         
