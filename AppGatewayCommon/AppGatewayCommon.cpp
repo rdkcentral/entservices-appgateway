@@ -76,6 +76,10 @@ namespace Plugin {
     {
         SYSLOG(Logging::Shutdown, (string(_T("AppGatewayCommon::Deinitialize"))));
         ASSERT(service == mShell);
+        
+        // Set shutdown flag first to prevent new jobs from executing critical sections
+        mShuttingDown = true;
+        
         mConnectionId = 0;
 
         mDelegate->Cleanup();
@@ -443,6 +447,12 @@ namespace Plugin {
          */
         bool AppGatewayCommon::SafeSubmitEventRegistrationJob(Exchange::IAppNotificationHandler::IEmitter* cb, 
                                                               const std::string& event, bool listen) {
+            // Prevent job submission if we're shutting down
+            if (mShuttingDown) {
+                LOGWARN("SafeSubmitEventRegistrationJob: Rejecting job submission during shutdown");
+                return false;
+            }
+            
             auto job = EventRegistrationJob::Create(this, cb, event, listen);
             if (false == job.IsValid()) {
                 LOGERR("SafeSubmitEventRegistrationJob: Failed to create EventRegistrationJob");
