@@ -56,6 +56,24 @@ class ObjectUtils {
             return obj;
         }
 
+        // implement a new method which accepts a uint32_t value and returns a string with a serialized JsonObject with a key "value" and the uint32_t value
+        static string CreateUInt32Object(const uint32_t value) {
+            JsonObject obj;
+            obj["value"] = value;
+            string resultStr;
+            obj.ToString(resultStr);
+            return resultStr;
+        }
+
+        // implement a new method which accepts a string and returns a string which is a serialized JsonObject with a key "value" and the string value
+        static string CreateStringObject(const string& value) {
+            JsonObject obj;
+            obj["value"] = value;
+            string resultStr;
+            obj.ToString(resultStr);
+            return resultStr;
+        }
+
         // Implement a static method which accepts a JsonObject, a key string and a boolean value
         // and adds the key-value pair to the JsonObject
         static void AddBooleanEntry(JsonObject& obj, const string& key, const bool value) {

@@ -103,7 +103,7 @@ class LifecycleDelegate : public BaseEventDelegate
         {
             RemoveNotification(event, cb);
         }
-        return false;
+        return true;
     }
 
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError)
@@ -113,9 +113,10 @@ class LifecycleDelegate : public BaseEventDelegate
         if (VALID_LIFECYCLE_EVENT.find(StringUtils::toLower(event)) != VALID_LIFECYCLE_EVENT.end())
         {
             // Handle LifecycleManagerState event
-            registrationError = HandleSubscription(cb, event, listen);
+            registrationError = !HandleSubscription(cb, event, listen);
             return true;
         }
+        registrationError = true; // event not recognized - signal error to caller
         return false;
     }
 

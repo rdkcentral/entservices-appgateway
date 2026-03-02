@@ -170,7 +170,8 @@
         },
         "accessibility.onhighcontrastuichanged": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "Accessibility.onHighContrastUIChanged"
+            "event": "Accessibility.onHighContrastUIChanged",
+            "versionedEvent": true
         },
         "closedcaptions.onenabledchanged": {
             "alias": "org.rdk.AppGatewayCommon",
@@ -202,7 +203,8 @@
         },
         "accessibility.onvoiceguidancesettingschanged": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "Accessibility.onVoiceGuidanceSettingsChanged"
+            "event": "Accessibility.onVoiceGuidanceSettingsChanged",
+            "versionedEvent": true
         },
         "device.onNetworkChanged": {
             "alias": "org.rdk.AppGatewayCommon",
@@ -319,8 +321,186 @@
         "presentation.onfocusedchanged": {
             "alias": "org.rdk.AppGatewayCommon",
             "event": "Presentation.onFocusedChanged"
+        },
+        "accessibility.audioDescription": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "accessibility.onAudioDescriptionChanged": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "event": "Accessibility.onAudioDescriptionChanged"
+        },
+        "advertising.advertisingid": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.uid": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "discovery.watched": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "localization.presentationlanguage": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "localization.onpresentationlanguagechanged": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "event": "Localization.onPresentationLanguageChanged"
+        },
+        "metrics.ready": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.signin": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.signout": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.startContent": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.stopContent": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.page": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.error": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.mediaLoadStart": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.mediaPlay": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.mediaPlaying": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.mediaPause": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.mediaWaiting": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.mediaSeeking": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.mediaSeeked": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.mediaRateChanged": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.mediaRenditionChanged": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.mediaEnded": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.event": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "metrics.appInfo": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "event": "Metrics.onEvent"
+        },
+        "network.connected": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "network.onConnectedChanged": {
+            "alias":"org.rdk.AppGatewayCommon",
+            "event": "Network.onConnectedChanged"
+        },
+         "TextToSpeech.isttsenabled": {
+            "alias": "org.rdk.TextToSpeech.isttsenabled"
+        },
+        "TextToSpeech.listvoices": {
+            "alias": "org.rdk.TextToSpeech.listvoices"
+        },
+        "TextToSpeech.getttsconfiguration": {
+            "alias": "org.rdk.TextToSpeech.getttsconfiguration"
+        },
+        "TextToSpeech.speak": {
+            "alias": "org.rdk.TextToSpeech.speak"
+        },
+        "TextToSpeech.setttsconfiguration": {
+            "alias": "org.rdk.TextToSpeech.setttsconfiguration"
+        },
+        "TextToSpeech.pause": {
+            "alias": "org.rdk.TextToSpeech.pause"
+        },
+        "TextToSpeech.resume": {
+            "alias": "org.rdk.TextToSpeech.resume"
+        },
+        "TextToSpeech.cancel": {
+            "alias": "org.rdk.TextToSpeech.cancel"
+        },
+        "TextToSpeech.getspeechstate": {
+            "alias": "org.rdk.TextToSpeech.getspeechstate"
+        },
+        "TextToSpeech.onWillspeak": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "TextToSpeech.onWillspeak"
+        },
+        "TextToSpeech.onSpeechstart": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "TextToSpeech.onSpeechstart"
+        },
+        "TextToSpeech.onSpeechpause": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "TextToSpeech.onSpeechpause"
+        },
+        "TextToSpeech.onSpeechresume": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "TextToSpeech.onSpeechresume"
+        },
+        "TextToSpeech.onSpeechcomplete": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "TextToSpeech.onSpeechcomplete"
+        },
+        "TextToSpeech.onSpeechinterrupted": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "TextToSpeech.onSpeechinterrupted"
+        },
+        "TextToSpeech.onNetworkerror": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "TextToSpeech.onNetworkerror"
+        },
+        "TextToSpeech.onTtsstatechanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "TextToSpeech.onTtsstatechanged"
+        },
+        "TextToSpeech.onVoicechanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "TextToSpeech.onVoicechanged"
+        },
+        "TextToSpeech.onPlaybackerror": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "TextToSpeech.onPlaybackerror"
         }
-
     }
 }
 

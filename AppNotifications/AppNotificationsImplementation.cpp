@@ -27,7 +27,8 @@ namespace WPEFramework
             return lhs.requestId == rhs.requestId &&
                 lhs.connectionId == rhs.connectionId &&
                 lhs.appId == rhs.appId &&
-                lhs.origin == rhs.origin;
+                lhs.origin == rhs.origin &&
+                lhs.version == rhs.version;
         }
     }
     namespace Plugin
@@ -56,11 +57,11 @@ namespace WPEFramework
                                             bool listen /* @in */,
                                             const string &module /* @in */,
                                             const string &event /* @in */) {
-            LOGTRACE("Subscribe [requestId=%d appId=%s connectionId=%d] register=%s, module=%s, event=%s",
+            LOGTRACE("Subscribe [requestId=%d appId=%s connectionId=%d] register=%s, module=%s, event=%s, version=%s",
                     context.requestId, context.appId.c_str(), context.connectionId,
-                    listen ? "true" : "false", module.c_str(), event.c_str());
+                    listen ? "true" : "false", module.c_str(), event.c_str(), context.version.c_str());
             if (listen) {
-                if (!mSubMap.Exists(module)) {
+                if (!mSubMap.Exists(event)) {
                     // Thunder subscription
                     Core::IWorkerPool::Instance().Submit(SubscriberJob::Create(this, module, event, listen));
                 }
@@ -158,6 +159,8 @@ namespace WPEFramework
 
             std::lock_guard<std::mutex> lock(mSubscriberMutex);
             string lowerKey = StringUtils::toLower(key);
+            // Remove version information from the event key to match subscription keys
+            string clearKey = ContextUtils::GetBaseEventNameFromVersionedEvent(key);
             auto it = mSubscribers.find(lowerKey);
             if (it != mSubscribers.end()) {
                 for (const auto& context : it->second) {
@@ -166,12 +169,12 @@ namespace WPEFramework
 
                         if(context.appId == appId) {
                             // Dispatch the event to the subscriber
-                            Dispatch(key, context, payloadStr);
+                            Dispatch(clearKey, context, payloadStr);
                         }
                         
                     } else {
                         // Dispatch the event to the subscriber
-                        Dispatch(key, context, payloadStr);
+                        Dispatch(clearKey, context, payloadStr);
                     }
                 }
             } else {

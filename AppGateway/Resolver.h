@@ -56,6 +56,7 @@ namespace WPEFramework
             JsonValue additionalContext;
             bool includeContext = false;
             bool useComRpc = false;
+            bool versionedEvent = false;
         };
 
 
@@ -90,6 +91,9 @@ namespace WPEFramework
 
             // New method to check permission group is enabled
             bool HasPermissionGroup(const std::string& key, std::string& permissionGroup );
+
+            // New method to check if the event is version based
+            bool IsVersionedEvent(const std::string &key);
 
         private:
             void ParseAlias(const std::string &alias, std::string &callsign, std::string &pluginMethod);
