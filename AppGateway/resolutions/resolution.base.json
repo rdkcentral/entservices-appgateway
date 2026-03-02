@@ -158,8 +158,7 @@
         },
         "localization.onpreferredaudiolanguageschanged": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "Localization.onPreferredAudioLanguagesChanged",
-            "versionedEvent": true
+            "event": "Localization.onPreferredAudioLanguagesChanged"
         },
         "accessibility.onaudiodescriptionsettingschanged": {
             "alias": "org.rdk.AppGatewayCommon",
@@ -241,8 +240,7 @@
         },
         "device.onhdrchanged": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "Device.onHdrChanged",
-            "versionedEvent": true
+            "event": "Device.onHdrChanged"
         },
         "device.onhdcpchanged": {
             "alias": "org.rdk.AppGatewayCommon",

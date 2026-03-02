@@ -818,7 +818,6 @@ public:
         }
         // Legacy payload 
         Dispatch(EVENT_ON_HDR_CHANGED, payload);
-        Dispatch(ContextUtils::GetRDK8VersionedEventName(EVENT_ON_HDR_CHANGED), payload);
         
         return true;
 

@@ -979,7 +979,6 @@ class UserSettingsDelegate : public BaseEventDelegate{
             ParseCommaSeparatedLanguages(preferredLanguages, jsonArray);
             jsonArray.ToString(legacyResult);
             mParent.Dispatch( "Localization.onPreferredAudioLanguagesChanged", legacyResult);
-            mParent.Dispatch( ContextUtils::GetRDK8VersionedEventName("Localization.onPreferredAudioLanguagesChanged"), legacyResult);
         }
 
         void OnPresentationLanguageChanged(const string& presentationLanguage) {
