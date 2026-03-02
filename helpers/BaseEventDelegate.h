@@ -85,7 +85,6 @@ public:
 
     bool Dispatch(const string &event, const string &payload, string appId = "")
     {
-        LOGDBG("Dispatching %s with payload %s", event.c_str(), payload.c_str());
 
         // Check if Notification is registered if not return
         if (!IsNotificationRegistered(event))
@@ -157,7 +156,7 @@ public:
         string event_l = StringUtils::toLower(event);
         std::lock_guard<std::mutex> lock(mRegisterMutex);
         bool result = mRegisteredNotifications.find(event_l) != mRegisteredNotifications.end();
-        LOGDBG("Finding notification = %s result=%s", event_l.c_str(), result ? "true" : "false");
+        LOGTRACE("Finding notification = %s result=%s", event_l.c_str(), result ? "true" : "false");
         return result;
     }
 
