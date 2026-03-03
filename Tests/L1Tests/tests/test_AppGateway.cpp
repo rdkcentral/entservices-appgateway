@@ -168,7 +168,16 @@ public:
          const string& event),
         (override));
 
-    // NOTE: The rest of IAppNotifications methods (Emit/Cleanup) are not needed for these L1 tests.
+    MOCK_METHOD(Core::hresult, Emit,
+        (const string& event,
+         const string& payload,
+         const string& appId),
+        (override));
+
+    MOCK_METHOD(Core::hresult, Cleanup,
+        (const uint32_t connectionId,
+         const string& origin),
+        (override));
 };
 
 class AppGatewayAuthenticatorMock : public Exchange::IAppGatewayAuthenticator {
