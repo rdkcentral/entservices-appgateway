@@ -464,7 +464,7 @@ namespace Plugin {
 
         /**
          * @brief Safely submits EventRegistrationJob with proper error handling
-         * @param cb Callback interface (can be null)
+         * @param cb Callback interface (must be not-null)
          * @param event Event name
          * @param listen Whether to listen or unlisten
          * @return true if job submitted successfully, false otherwise
