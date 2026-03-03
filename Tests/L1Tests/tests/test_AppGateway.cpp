@@ -1017,7 +1017,7 @@ TEST(AppGatewayResponderImplementationInternalTest, DispatchWsMsg_WithResolver_C
     responder.mResolver = &resolver;
     responder.mAppIdRegistry.Add(111, "my.app");
 
-    EXPECT_CALL(resolver, Resolve(::testing::_, ::testing::StrEq("gateway"), ::testing::StrEq("method.name"), ::testing::StrEq("{}"), ::testing::_))
+    EXPECT_CALL(resolver, Resolve(::testing::_, ::testing::StrEq("org.rdk.AppGateway"), ::testing::StrEq("method.name"), ::testing::StrEq("{}"), ::testing::_))
         .WillOnce(::testing::Return(Core::ERROR_NONE));
 
     responder.DispatchWsMsg("method.name", "{}", 77, 111);
