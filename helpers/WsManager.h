@@ -578,7 +578,7 @@ public:
         }
 
         const auto& client = mChannel->Client(connectionId);
-        if (client == nullptr) {
+        if (client.IsValid() == false) {
             LOGWARN("Close requested for unknown connectionId=%d", connectionId);
             return;
         }
