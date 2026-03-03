@@ -72,13 +72,7 @@ namespace WPEFramework {
                 }
                 virtual void Dispatch()
                 {
-                    // mDelegate can be reset during Deinitialize(). Capture shared_ptr locally to prevent crash.
-                    std::shared_ptr<SettingsDelegate> delegate = mParent.mDelegate;
-                    if (!delegate) {
-                        LOGERR("EventRegistrationJob::Dispatch: Delegate is null, skipping event %s", mEvent.c_str());
-                        return;
-                    }
-                    delegate->HandleAppEventNotifier(mCallback, mEvent, mListen);
+                    mParent.mDelegate->HandleAppEventNotifier(mCallback, mEvent, mListen);
                 }
 
             private:

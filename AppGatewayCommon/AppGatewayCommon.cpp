@@ -106,6 +106,7 @@ namespace Plugin {
             
             status = this->SafeSubmitEventRegistrationJob(cb, event, listen);
             if (false == status) {
+                LOGERR("HandleAppEventNotifier: Failed to submit event registration job for event %s", event.c_str());
                 return Core::ERROR_GENERAL;
             }
             
@@ -463,7 +464,7 @@ namespace Plugin {
 
         /**
          * @brief Safely submits EventRegistrationJob with proper error handling
-         * @param cb Callback interface (must be non-null)
+         * @param cb Callback interface (can be null)
          * @param event Event name
          * @param listen Whether to listen or unlisten
          * @return true if job submitted successfully, false otherwise
