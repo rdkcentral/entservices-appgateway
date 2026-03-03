@@ -28,9 +28,11 @@
 
 #include "Module.h"
 
+#define private public
 #include "AppGateway.h"
 #include "AppGatewayImplementation.h"
 #include "AppGatewayResponderImplementation.h"
+#undef private
 #include "Resolver.h"
 
 #include "WorkerPoolImplementation.h"
@@ -167,6 +169,21 @@ public:
         (override));
 
     // NOTE: The rest of IAppNotifications methods (Emit/Cleanup) are not needed for these L1 tests.
+};
+
+class AppGatewayAuthenticatorMock : public Exchange::IAppGatewayAuthenticator {
+public:
+    ~AppGatewayAuthenticatorMock() override = default;
+
+    BEGIN_INTERFACE_MAP(AppGatewayAuthenticatorMock)
+    INTERFACE_ENTRY(Exchange::IAppGatewayAuthenticator)
+    END_INTERFACE_MAP
+
+    MOCK_METHOD(void, AddRef, (), (const, override));
+    MOCK_METHOD(uint32_t, Release, (), (const, override));
+    MOCK_METHOD(Core::hresult, Authenticate, (const string&, string&), (override));
+    MOCK_METHOD(Core::hresult, GetSessionId, (const string&, string&), (override));
+    MOCK_METHOD(Core::hresult, CheckPermissionGroup, (const string&, const string&, bool&), (override));
 };
 
 class AppGatewayResponderNotificationMock : public Exchange::IAppGatewayResponder::INotification {
@@ -806,6 +823,146 @@ TEST(AppGatewayResponderImplementationTest, GetGatewayConnectionContext_ReturnsN
     Core::Sink<AppGatewayResponderImplementation> responder;
     string value;
     EXPECT_EQ(Core::ERROR_NONE, responder.GetGatewayConnectionContext(10, "jsonrpc.compliant", value));
+}
+
+TEST(AppGatewayImplementationInternalTest, UpdateContext_IncludesGatewayContext)
+{
+        Core::Sink<AppGatewayImplementation> impl;
+
+        impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+        const std::string cfg = "/tmp/appgw.ctx.include.json";
+        WriteTextFile(cfg, R"json(
+                {
+                    "resolutions": {
+                        "ctx.method": {
+                            "alias": "org.rdk.SomePlugin.someMethod",
+                            "includeContext": true
+                        }
+                    }
+                }
+        )json");
+        ASSERT_TRUE(impl.mResolverPtr->LoadConfig(cfg));
+
+        auto ctx = MakeContext();
+        const std::string out = impl.UpdateContext(ctx, "ctx.method", R"json({"x":1})json", "gateway", false);
+        EXPECT_THAT(out, ::testing::HasSubstr("\"context\""));
+        EXPECT_THAT(out, ::testing::HasSubstr("\"appId\":\"test.app\""));
+}
+
+TEST(AppGatewayImplementationInternalTest, UpdateContext_UsesAdditionalContext)
+{
+        Core::Sink<AppGatewayImplementation> impl;
+
+        impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+        const std::string cfg = "/tmp/appgw.additional.context.json";
+        WriteTextFile(cfg, R"json(
+                {
+                    "resolutions": {
+                        "comrpc.method": {
+                            "alias": "org.rdk.SomeHandler",
+                            "includeContext": true,
+                            "additionalContext": { "foo": "bar" }
+                        }
+                    }
+                }
+        )json");
+        ASSERT_TRUE(impl.mResolverPtr->LoadConfig(cfg));
+
+        auto ctx = MakeContext();
+        const std::string out = impl.UpdateContext(ctx, "comrpc.method", R"json({"p":123})json", "origin.app", true);
+        EXPECT_THAT(out, ::testing::HasSubstr("\"_additionalContext\""));
+        EXPECT_THAT(out, ::testing::HasSubstr("\"foo\":\"bar\""));
+        EXPECT_THAT(out, ::testing::HasSubstr("\"origin\":\"origin.app\""));
+}
+
+TEST(AppGatewayImplementationInternalTest, PreProcessEvent_ValidListen_SubscribeSuccess)
+{
+        Core::Sink<AppGatewayImplementation> impl;
+        ::testing::NiceMock<AppNotificationsMock> appNotifications;
+
+        impl.mAppNotifications = &appNotifications;
+
+        EXPECT_CALL(appNotifications, Subscribe(::testing::_, true, ::testing::StrEq("org.rdk.AppGatewayCommon"), ::testing::StrEq("event.method")))
+                .WillOnce(::testing::Return(Core::ERROR_NONE));
+
+        auto ctx = MakeContext();
+        std::string resolution;
+        const auto rc = impl.PreProcessEvent(ctx, "org.rdk.AppGatewayCommon", "event.method", "gateway", R"json({"listen":true})json", resolution);
+
+        EXPECT_EQ(Core::ERROR_NONE, rc);
+        EXPECT_THAT(resolution, ::testing::HasSubstr("\"listening\":true"));
+        EXPECT_THAT(resolution, ::testing::HasSubstr("\"event\":\"event.method\""));
+}
+
+TEST(AppGatewayImplementationInternalTest, FetchResolvedData_PermissionDenied_ReturnsNotPermitted)
+{
+        Core::Sink<AppGatewayImplementation> impl;
+        ::testing::NiceMock<ServiceMock> service;
+        ::testing::StrictMock<AppGatewayAuthenticatorMock> auth;
+
+        impl.mService = &service;
+        impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+        const std::string cfg = "/tmp/appgw.permission.denied.json";
+        WriteTextFile(cfg, R"json(
+                {
+                    "resolutions": {
+                        "permission.method": {
+                            "alias": "org.rdk.SomePlugin.someMethod",
+                            "permissionGroup": "restricted"
+                        }
+                    }
+                }
+        )json");
+        ASSERT_TRUE(impl.mResolverPtr->LoadConfig(cfg));
+
+        EXPECT_CALL(service, QueryInterfaceByCallsign(::testing::_, ::testing::_))
+                .WillRepeatedly(::testing::Return(static_cast<void*>(&auth)));
+
+        EXPECT_CALL(auth, CheckPermissionGroup(::testing::StrEq("test.app"), ::testing::StrEq("restricted"), ::testing::_))
+                .WillOnce(::testing::DoAll(::testing::SetArgReferee<2>(false), ::testing::Return(Core::ERROR_NONE)));
+
+        auto ctx = MakeContext();
+        std::string resolution;
+        const auto rc = impl.FetchResolvedData(ctx, "permission.method", "{}", "gateway", resolution);
+        EXPECT_EQ(Core::ERROR_GENERAL, rc);
+        EXPECT_THAT(resolution, ::testing::HasSubstr("NotPermitted"));
+}
+
+TEST(AppGatewayResponderHeaderTest, AppIdRegistry_AddGetRemove)
+{
+        AppGatewayResponderImplementation::AppIdRegistry registry;
+
+        registry.Add(101, "app.one");
+        std::string appId;
+        EXPECT_TRUE(registry.Get(101, appId));
+        EXPECT_EQ("app.one", appId);
+
+        registry.Remove(101);
+        EXPECT_FALSE(registry.Get(101, appId));
+}
+
+TEST(AppGatewayResponderHeaderTest, CompliantJsonRpcRegistry_BasicFlow)
+{
+        AppGatewayResponderImplementation::CompliantJsonRpcRegistry registry;
+
+        registry.CheckAndAddCompliantJsonRpc(22, "session=abc&RPCV2=true&x=1");
+        EXPECT_TRUE(registry.IsCompliantJsonRpc(22));
+
+        registry.CleanupConnectionId(22);
+        EXPECT_FALSE(registry.IsCompliantJsonRpc(22));
+}
+
+TEST(AppGatewayResponderImplementationTest, RespondEmitRequest_ReturnNone)
+{
+        Core::Sink<AppGatewayResponderImplementation> responder;
+        auto ctx = MakeContext();
+
+        EXPECT_EQ(Core::ERROR_NONE, responder.Respond(ctx, R"json({"ok":true})json"));
+        EXPECT_EQ(Core::ERROR_NONE, responder.Emit(ctx, "lifecycle.onStatusChanged", R"json({"status":"ok"})json"));
+        EXPECT_EQ(Core::ERROR_NONE, responder.Request(ctx.connectionId, ctx.requestId, "device.make", "{}"));
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(120));
 }
 
 int main(int argc, char** argv)
