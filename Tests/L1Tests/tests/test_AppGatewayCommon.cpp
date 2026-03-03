@@ -96,6 +96,11 @@ static Exchange::GatewayContext MakeContext()
 class AppGatewayCommonTest : public ::testing::Test {
 protected:
     Core::Sink<AppGatewayCommon> plugin;
+
+    void TearDown() override
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(120));
+    }
 };
 
 TEST_F(AppGatewayCommonTest, AGC_L1_001_002_InitializeAndDeinitialize_Success)
@@ -116,13 +121,24 @@ TEST_F(AppGatewayCommonTest, AGC_L1_001_002_InitializeAndDeinitialize_Success)
 
 TEST_F(AppGatewayCommonTest, AGC_L1_003_HandleAppEventNotifier_SubmitsJob)
 {
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
 
     bool status = false;
     const auto rc = plugin.HandleAppEventNotifier(nullptr, "Device.onHdrChanged", true, status);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    plugin.Deinitialize(&service);
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_004_UnknownMethod_ReturnsUnknownKey)
