@@ -757,7 +757,7 @@ TEST(AppGatewayImplementationTest, AppGateway_ComRpc_AdditionalContext_WrapsPara
 TEST(AppGatewayPluginTest, AppGateway_InitializeFailsWithoutRoots_ThenDeinitialize)
 {
     Core::Sink<AppGateway> plugin;
-    NiceMock<ServiceMock> service;
+    ::testing::NiceMock<ServiceMock> service;
 
     EXPECT_CALL(service, AddRef()).Times(1);
     EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(::testing::Return(Core::ERROR_NONE));
