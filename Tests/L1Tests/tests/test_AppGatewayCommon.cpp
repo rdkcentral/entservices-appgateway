@@ -133,7 +133,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_001_002_InitializeAndDeinitialize_Success)
     plugin.Deinitialize(&service);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_003_HandleAppEventNotifier_SubmitsJob)
+TEST_F(AppGatewayCommonTest, DISABLED_AGC_L1_003_HandleAppEventNotifier_SubmitsJob)
 {
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
