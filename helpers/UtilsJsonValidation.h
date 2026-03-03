@@ -166,13 +166,13 @@ public:
                 return false;
             }
         } else if (Core::JSON::Variant::type::ARRAY == value.Content()) {
-            // Convert JSON array to string representation by calling ToString
             Core::JSON::ArrayType<Core::JSON::Variant> arrayValue = value.Array();
-            arrayValue.ToString(extractedValue);
-            if ((true != allowEmpty) && extractedValue.empty()) {
+            if ((true != allowEmpty) && (arrayValue.Elements() == 0)) {
                 LOGWARN("ValidateAndExtractStringOrArray: Field '%s' contains empty array", fieldName.c_str());
                 return false;
             }
+            // Convert JSON array to string representation by calling ToString
+            arrayValue.ToString(extractedValue);
         } else {
             LOGWARN("ValidateAndExtractStringOrArray: Field '%s' is neither a string nor an array", fieldName.c_str());
             return false;
