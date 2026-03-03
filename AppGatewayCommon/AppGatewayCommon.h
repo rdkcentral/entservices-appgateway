@@ -23,7 +23,6 @@
 #include <interfaces/IAppNotifications.h>
 #include <mutex>
 #include <map>
-#include <atomic>
 #include "UtilsLogging.h"
 #include "UtilsController.h"
 #include "delegate/SettingsDelegate.h"
@@ -73,13 +72,6 @@ namespace WPEFramework {
                 }
                 virtual void Dispatch()
                 {
-                    // Check if we're shutting down or if delegate is null to prevent crash during shutdown
-                    if (mParent.mShuttingDown || !mParent.mDelegate) {
-                        LOGWARN("EventRegistrationJob: Skipping job execution during shutdown (shuttingDown: %s, delegate: %s)", 
-                                mParent.mShuttingDown ? "true" : "false",
-                                mParent.mDelegate ? "valid" : "null");
-                        return;
-                    }
                     mParent.mDelegate->HandleAppEventNotifier(mCallback, mEvent, mListen);
                 }
 
@@ -192,7 +184,6 @@ namespace WPEFramework {
             PluginHost::IShell* mShell;
             uint32_t mConnectionId;
             std::shared_ptr<SettingsDelegate> mDelegate;
-            std::atomic<bool> mShuttingDown{false};  // Flag to indicate shutdown state
         };
 	} // namespace Plugin
 } // namespace WPEFramework
