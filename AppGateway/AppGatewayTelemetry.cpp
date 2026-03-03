@@ -438,7 +438,7 @@ namespace Plugin {
             return false;
         }
 
-        // Check if it starts with the explicit prefix "AppGw_PluginName_"
+        // Check if it starts with the explicit prefix AGW_INTERNAL_PLUGIN_PREFIX
         if (metricName.length() <= prefix.length() || 
             metricName.substr(0, prefix.length()) != prefix) {
             return false;
@@ -490,7 +490,7 @@ namespace Plugin {
             return false;
         }
 
-        // Check if it starts with "AppGw_PluginName_"
+        // Check if it starts with AGW_INTERNAL_PLUGIN_PREFIX
         if (metricName.length() <= prefix.length() || 
             prefix != metricName.substr(0, prefix.length())) {
             return false;
@@ -541,7 +541,7 @@ namespace Plugin {
             return false;
         }
 
-        // Check if it starts with "AppGw_PluginName_"
+        // Check if it starts with AGW_INTERNAL_PLUGIN_PREFIX
         if (metricName.length() <= prefix.length() || 
             prefix != metricName.substr(0, prefix.length())) {
             return false;
@@ -608,7 +608,7 @@ namespace Plugin {
             return false;
         }
 
-        // Check if it starts with the explicit prefix "AppGw_PluginName_"
+        // Check if it starts with the explicit prefix AGW_INTERNAL_PLUGIN_PREFIX
         if (metricName.length() <= prefix.length() || 
             prefix != metricName.substr(0, prefix.length())) {
             return false;

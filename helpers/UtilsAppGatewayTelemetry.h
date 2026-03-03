@@ -456,11 +456,11 @@ namespace AppGatewayTelemetryHelper {
             
             if (mFailed) {
                 mClient->RecordApiError(mContext, mApiName, mErrorDetails);
-                std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
+                std::string metricName = AGW_INTERNAL_PLUGIN_PREFIX + mClient->GetPluginName() +
                                          "_MethodName_" + mApiName + "_Error_split";
                 mClient->RecordMetric(mContext, metricName, durationMs, AGW_UNIT_MILLISECONDS);
             } else {
-                std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
+                std::string metricName = AGW_INTERNAL_PLUGIN_PREFIX + mClient->GetPluginName() +
                                          "_MethodName_" + mApiName + "_Success_split";
                 mClient->RecordMetric(mContext, metricName, durationMs, AGW_UNIT_MILLISECONDS);
             }
@@ -525,11 +525,11 @@ namespace AppGatewayTelemetryHelper {
             
             if (mFailed) {
                 mClient->RecordExternalServiceError(mContext, mServiceName, mErrorDetails);
-                std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
+                std::string metricName = AGW_INTERNAL_PLUGIN_PREFIX + mClient->GetPluginName() +
                                          "_ServiceName_" + mServiceName + "_Error_split";
                 mClient->RecordMetric(mContext, metricName, durationMs, AGW_UNIT_MILLISECONDS);
             } else {
-                std::string metricName = "AppGw_PluginName_" + mClient->GetPluginName() +
+                std::string metricName = AGW_INTERNAL_PLUGIN_PREFIX + mClient->GetPluginName() +
                                          "_ServiceName_" + mServiceName + "_Success_split";
                 mClient->RecordMetric(mContext, metricName, durationMs, AGW_UNIT_MILLISECONDS);
             }
