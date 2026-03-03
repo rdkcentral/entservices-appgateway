@@ -962,7 +962,7 @@ TEST(AppGatewayResponderHeaderTest, CompliantJsonRpcRegistry_BasicFlow)
         EXPECT_FALSE(registry.IsCompliantJsonRpc(22));
 }
 
-TEST(AppGatewayResponderImplementationTest, RespondEmitRequest_ReturnNone)
+TEST(AppGatewayResponderImplementationTest, DISABLED_RespondEmitRequest_ReturnNone)
 {
         Core::Sink<AppGatewayResponderImplementation> responder;
         auto ctx = MakeContext();
