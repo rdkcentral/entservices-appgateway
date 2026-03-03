@@ -2,7 +2,7 @@
  * If not stated otherwise in this file or this component's LICENSE
  * file the following copyright and licenses apply:
  *
- * Copyright 2026 RDK Management
+ * Copyright 2024 RDK Management
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -132,6 +132,49 @@ public:
         
         if (checkMaxValue && extractedValue > maxValue) {
             LOGWARN("ValidateAndExtractDouble: Value %.2f exceeds maximum %.2f", extractedValue, maxValue);
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
+     * @brief Safely validates JSON payload and extracts string or array value
+     * @param payload The JSON payload to parse
+     * @param extractedValue Output string for the extracted value (JSON array converted to string representation)
+     * @param fieldName The field name to extract (default: "value")
+     * @param allowEmpty Whether an empty string is considered valid (default: false)
+     * @return true if validation successful, false otherwise
+     */
+    static bool ValidateAndExtractStringOrArray(const std::string& payload, std::string& extractedValue, const std::string& fieldName = "value", const bool allowEmpty = false) {
+        Core::JSON::VariantContainer params;
+        if (!params.FromString(payload)) {
+            LOGWARN("ValidateAndExtractStringOrArray: Failed to parse JSON payload");
+            return false;
+        }
+        
+        if (!params.HasLabel(fieldName.c_str())) {
+            LOGWARN("ValidateAndExtractStringOrArray: Missing field '%s' in payload", fieldName.c_str());
+            return false;
+        }
+        
+        const Core::JSON::Variant& value = params.Get(fieldName.c_str());
+        if (Core::JSON::Variant::type::STRING == value.Content()) {
+            extractedValue = value.String();
+            if ((true != allowEmpty) && extractedValue.empty()) {
+                LOGWARN("ValidateAndExtractStringOrArray: Field '%s' contains empty string", fieldName.c_str());
+                return false;
+            }
+        } else if (Core::JSON::Variant::type::ARRAY == value.Content()) {
+            // Convert JSON array to string representation by calling ToString
+            Core::JSON::ArrayType<Core::JSON::Variant> arrayValue = value.Array();
+            arrayValue.ToString(extractedValue);
+            if ((true != allowEmpty) && extractedValue.empty()) {
+                LOGWARN("ValidateAndExtractStringOrArray: Field '%s' contains empty array", fieldName.c_str());
+                return false;
+            }
+        } else {
+            LOGWARN("ValidateAndExtractStringOrArray: Field '%s' is neither a string nor an array", fieldName.c_str());
             return false;
         }
         

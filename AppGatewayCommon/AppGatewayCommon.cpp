@@ -411,10 +411,10 @@ namespace Plugin {
             else if (lowerMethod == "closedcaptions.setpreferredlanguages")
             {
                 std::string languages;
-                if (JsonValidation::ValidateAndExtractString(payload, languages)) {
+                if (JsonValidation::ValidateAndExtractStringOrArray(payload, languages)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetPreferredCaptionsLanguages(languages), result);
                 }
-                result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
+                result = "{\"error\":\"Invalid payload: 'value' field must be a string or array\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             
@@ -430,10 +430,10 @@ namespace Plugin {
             else if (lowerMethod == "localization.setpreferredaudiolanguages")
             {
                 std::string languages;
-                if (JsonValidation::ValidateAndExtractString(payload, languages)) {
+                if (JsonValidation::ValidateAndExtractStringOrArray(payload, languages)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetPreferredAudioLanguages(languages), result);
                 }
-                result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
+                result = "{\"error\":\"Invalid payload: 'value' field must be a string or array\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             // lowermethod starts with metrics. just log the payload for now, as this is only used for RDK8 compliance and there are no specific requirements around handling this event for RDK8 compliance other than not returning an error when it's received.
@@ -471,6 +471,12 @@ namespace Plugin {
          */
         bool AppGatewayCommon::SafeSubmitEventRegistrationJob(Exchange::IAppNotificationHandler::IEmitter* cb, 
                                                               const std::string& event, bool listen) {
+
+            if (nullptr == mDelegate) {
+                LOGERR("SafeSubmitEventRegistrationJob: Delegate is null");
+                return false;
+            }
+
             auto job = EventRegistrationJob::Create(this, cb, event, listen);
             if (false == job.IsValid()) {
                 LOGERR("SafeSubmitEventRegistrationJob: Failed to create EventRegistrationJob");
