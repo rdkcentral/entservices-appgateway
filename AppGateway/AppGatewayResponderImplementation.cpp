@@ -58,6 +58,13 @@ namespace WPEFramework
         AppGatewayResponderImplementation::~AppGatewayResponderImplementation()
         {
             LOGINFO("AppGatewayResponderImplementation destructor");
+            
+            // Clear WebSocket handlers to prevent use-after-free
+            mWsManager.Stop();
+            mWsManager.SetMessageHandler(nullptr);
+            mWsManager.SetAuthHandler(nullptr);
+            mWsManager.SetDisconnectHandler(nullptr);
+            
             if (nullptr != mService)
             {
                 mService->Release();
