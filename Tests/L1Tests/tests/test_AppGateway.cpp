@@ -149,6 +149,22 @@ private:
     mutable std::atomic<uint32_t> _refCount;
 };
 
+class AppGatewayResolverMock : public Exchange::IAppGatewayResolver {
+public:
+    ~AppGatewayResolverMock() override = default;
+
+    BEGIN_INTERFACE_MAP(AppGatewayResolverMock)
+    INTERFACE_ENTRY(Exchange::IAppGatewayResolver)
+    END_INTERFACE_MAP
+
+    MOCK_METHOD(void, AddRef, (), (const, override));
+    MOCK_METHOD(uint32_t, Release, (), (const, override));
+    MOCK_METHOD(Core::hresult, Configure, (Exchange::IAppGatewayResolver::IStringIterator *const&), (override));
+    MOCK_METHOD(Core::hresult, Resolve,
+        (const Exchange::GatewayContext&, const string&, const string&, const string&, string&),
+        (override));
+};
+
 class AppNotificationsMock : public Exchange::IAppNotifications {
 public:
     ~AppNotificationsMock() override = default;
@@ -967,6 +983,73 @@ TEST(AppGatewayResponderHeaderTest, CompliantJsonRpcRegistry_BasicFlow)
 
         registry.CleanupConnectionId(22);
         EXPECT_FALSE(registry.IsCompliantJsonRpc(22));
+}
+
+TEST(AppGatewayResponderImplementationInternalTest, DispatchWsMsg_NoAppId_ClosesConnection)
+{
+    Core::Sink<AppGatewayResponderImplementation> responder;
+
+    // No appId is registered for this connection, should take close path.
+    responder.DispatchWsMsg("device.make", "{}", 1, 999);
+    SUCCEED();
+}
+
+TEST(AppGatewayResponderImplementationInternalTest, DispatchWsMsg_AppIdButNoResolver_ReturnsGracefully)
+{
+    Core::Sink<AppGatewayResponderImplementation> responder;
+    ::testing::NiceMock<ServiceMock> service;
+
+    responder.mService = &service;
+    responder.mAppIdRegistry.Add(123, "app.id");
+
+    EXPECT_CALL(service, QueryInterface(::testing::_)).WillRepeatedly(::testing::Return(nullptr));
+    responder.DispatchWsMsg("device.make", "{}", 5, 123);
+    SUCCEED();
+
+    responder.mService = nullptr;
+}
+
+TEST(AppGatewayResponderImplementationInternalTest, DispatchWsMsg_WithResolver_CallsResolve)
+{
+    Core::Sink<AppGatewayResponderImplementation> responder;
+    ::testing::StrictMock<AppGatewayResolverMock> resolver;
+
+    responder.mResolver = &resolver;
+    responder.mAppIdRegistry.Add(111, "my.app");
+
+    EXPECT_CALL(resolver, Resolve(::testing::_, ::testing::StrEq("gateway"), ::testing::StrEq("method.name"), ::testing::StrEq("{}"), ::testing::_))
+        .WillOnce(::testing::Return(Core::ERROR_NONE));
+
+    responder.DispatchWsMsg("method.name", "{}", 77, 111);
+    responder.mResolver = nullptr;
+}
+
+TEST(AppGatewayResolverTest, Resolver_ParseAlias_And_ClearResolutions)
+{
+    Resolver resolver(nullptr);
+
+    std::string callsign;
+    std::string method;
+    resolver.ParseAlias("org.rdk.Test.methodName", callsign, method);
+    EXPECT_EQ("org.rdk.Test", callsign);
+    EXPECT_EQ("methodName", method);
+
+    resolver.ParseAlias("org.rdk.NoMethod", callsign, method);
+    EXPECT_EQ("org.rdk", callsign);
+    EXPECT_EQ("NoMethod", method);
+
+    resolver.ClearResolutions();
+    EXPECT_FALSE(resolver.IsConfigured());
+}
+
+TEST(AppGatewayResolverTest, Resolver_CallThunderPlugin_ValidatesInputs)
+{
+    Resolver resolver(nullptr);
+    std::string response;
+
+    EXPECT_EQ(Core::ERROR_GENERAL, resolver.CallThunderPlugin("", "{}", response));
+    EXPECT_EQ(Core::ERROR_GENERAL, resolver.CallThunderPlugin("invalidalias", "{}", response));
+    EXPECT_EQ(Core::ERROR_GENERAL, resolver.CallThunderPlugin("org.rdk.Test.method", "{}", response));
 }
 
 TEST(AppGatewayResponderImplementationTest, DISABLED_RespondEmitRequest_ReturnNone)
