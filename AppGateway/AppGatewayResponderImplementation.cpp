@@ -59,11 +59,11 @@ namespace WPEFramework
         {
             LOGINFO("AppGatewayResponderImplementation destructor");
             
-            // Clear WebSocket handlers to prevent use-after-free
-            mWsManager.Stop();
+            // Clear WebSocket handlers before destruction to prevent use-after-free
             mWsManager.SetMessageHandler(nullptr);
             mWsManager.SetAuthHandler(nullptr);
             mWsManager.SetDisconnectHandler(nullptr);
+            // Note: WebSocketConnectionManager destructor will handle channel cleanup
             
             if (nullptr != mService)
             {
