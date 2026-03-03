@@ -472,6 +472,11 @@ namespace Plugin {
         bool AppGatewayCommon::SafeSubmitEventRegistrationJob(Exchange::IAppNotificationHandler::IEmitter* cb, 
                                                               const std::string& event, bool listen) {
 
+            if (nullptr == cb) {
+                LOGERR("SafeSubmitEventRegistrationJob: Callback emitter is null");
+                return false;
+            }
+
             if (nullptr == mDelegate) {
                 LOGERR("SafeSubmitEventRegistrationJob: Delegate is null");
                 return false;
