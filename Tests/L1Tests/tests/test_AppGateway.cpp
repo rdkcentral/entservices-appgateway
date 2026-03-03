@@ -901,6 +901,9 @@ TEST(AppGatewayImplementationInternalTest, PreProcessEvent_ValidListen_Subscribe
         EXPECT_EQ(Core::ERROR_NONE, rc);
         EXPECT_THAT(resolution, ::testing::HasSubstr("\"listening\":true"));
         EXPECT_THAT(resolution, ::testing::HasSubstr("\"event\":\"event.method\""));
+
+        // Avoid impl destructor calling Release() on a stack mock that will be destroyed first.
+        impl.mAppNotifications = nullptr;
 }
 
 TEST(AppGatewayImplementationInternalTest, FetchResolvedData_PermissionDenied_ReturnsNotPermitted)
@@ -936,6 +939,10 @@ TEST(AppGatewayImplementationInternalTest, FetchResolvedData_PermissionDenied_Re
         const auto rc = impl.FetchResolvedData(ctx, "permission.method", "{}", "gateway", resolution);
         EXPECT_EQ(Core::ERROR_GENERAL, rc);
         EXPECT_THAT(resolution, ::testing::HasSubstr("NotPermitted"));
+
+        // Prevent destructor from releasing stack-owned mocks after their lifetime ends.
+        impl.mAuthenticator = nullptr;
+        impl.mService = nullptr;
 }
 
 TEST(AppGatewayResponderHeaderTest, AppIdRegistry_AddGetRemove)
