@@ -29,6 +29,8 @@
 #include <algorithm>
 #include <sstream>
 #include <set>
+#include "ObjectUtils.h"
+#include "UtilsFirebolt.h"
 
 using namespace WPEFramework;
 
@@ -36,7 +38,8 @@ using namespace WPEFramework;
 
 // Valid network events that can be subscribed to
 static const std::set<string> VALID_NETWORK_EVENT = {
-    "device.onnetworkchanged"
+    "device.onnetworkchanged",
+    "network.onconnectedchanged"
 };
 
 class NetworkDelegate : public BaseEventDelegate
@@ -49,11 +52,17 @@ public:
 
     ~NetworkDelegate()
     {
-        if (mNetworkManager != nullptr)
+        if (nullptr != mNetworkManager)
         {
+            if (mNotificationHandler.GetRegistered())
+            {
+                mNetworkManager->Unregister(&mNotificationHandler);
+            }
             mNetworkManager->Release();
             mNetworkManager = nullptr;
         }
+
+        
     }
 
     bool HandleSubscription(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen)
@@ -74,17 +83,18 @@ public:
                 LOGINFO("Registering for NetworkManager notifications");
                 mNetworkManager->Register(&mNotificationHandler);
                 mNotificationHandler.SetRegistered(true);
-                return true;
             }
             else
             {
                 LOGTRACE("Is NetworkManager registered = %s", mNotificationHandler.GetRegistered() ? "true" : "false");
             }
+            return true;
         }
         else
         {
             // Not removing the notification subscription for cases where only one event is removed
             RemoveNotification(event, cb);
+            return true;
         }
         return false;
     }
@@ -96,9 +106,10 @@ public:
         if (VALID_NETWORK_EVENT.find(StringUtils::toLower(event)) != VALID_NETWORK_EVENT.end())
         {
             // Handle NetworkManager event
-            registrationError = HandleSubscription(cb, event, listen);
+            registrationError = !HandleSubscription(cb, event, listen);
             return true;
         }
+        registrationError = true; // event not recognized - signal error to caller
         return false;
     }
 
@@ -116,6 +127,30 @@ public:
             }
         }
         return mNetworkManager;
+    }
+
+    Core::hresult GetNetworkConnected(string &result) {
+        result.clear();
+
+        Exchange::INetworkManager *networkManager = GetNetworkManagerInterface();
+        if (networkManager == nullptr) {
+            LOGERR("NetworkManager interface not available");
+            result = "{\"error\":\"NetworkManager not available\"}";
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        string interface;
+        Core::hresult rc = networkManager->GetPrimaryInterface(interface);
+        if (rc == Core::ERROR_NONE) {
+            // Transform the response: return_or_error(.result, "couldn't get network connected status")
+            // Return the boolean result directly as per transform specification
+            result = interface.empty() ? "false" : "true";
+            return Core::ERROR_NONE;
+        } else {
+            LOGERR("Failed to get primary interface on NetworkManager, error: %u", rc);
+            ErrorUtils::CustomInternal("Failed to get NetworkInfo", result);
+            return Core::ERROR_GENERAL;
+        }
     }
 
     // PUBLIC_INTERFACE
@@ -220,6 +255,7 @@ private:
         void onActiveInterfaceChange(const string prevActiveInterface, const string currentActiveInterface)
         {
             LOGDBG("onActiveInterfaceChange: prev=%s, current=%s", prevActiveInterface.c_str(), currentActiveInterface.c_str());
+            mParent.Dispatch("Network.onConnectedChanged", ObjectUtils::CreateBooleanJsonString("value", currentActiveInterface.empty() ? false : true) );
         }
 
         void onIPAddressChange(const string interface, const string ipversion, const string ipaddress, const Exchange::INetworkManager::IPStatus status)

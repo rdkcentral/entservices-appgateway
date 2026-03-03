@@ -25,6 +25,14 @@
 #include "UtilsCallsign.h"
 using namespace WPEFramework;
 using namespace std;
+
+#define LEGACY_FIREBOLT_VERSION "0"
+#define RDK8_FIREBOLT_VERSION "8"
+#define RDK8_SUFFIX ".v8"
+#define RDK8_SUFFIX_LENGTH 3
+#define ENABLE_DEBUG_FOR_CONNECTION "enableDebugForConnection"
+#define DISABLE_DEBUG_FOR_CONNECTION "disableDebugForConnection"
+
 class ContextUtils {
     public:
         // Implement a static method which accepts a Exchange::IAppNotifications::Context object and
@@ -35,6 +43,7 @@ class ContextUtils {
             appGatewayContext.requestId = notificationsContext.requestId;
             appGatewayContext.connectionId = notificationsContext.connectionId;
             appGatewayContext.appId = notificationsContext.appId;
+            appGatewayContext.version = notificationsContext.version;
             return appGatewayContext;
         }
 
@@ -47,11 +56,34 @@ class ContextUtils {
             notificationsContext.connectionId = appGatewayContext.connectionId;
             notificationsContext.appId = appGatewayContext.appId;
             notificationsContext.origin = origin;
+            notificationsContext.version = appGatewayContext.version;
             return notificationsContext;
         }
 
         static bool IsOriginGateway(const string& origin) {
-            return origin == APP_GATEWAY_CALLSIGN;
+            return APP_GATEWAY_CALLSIGN == origin;
+        }
+
+        static bool IsRDK8Compliant(const string& version) {
+            return RDK8_FIREBOLT_VERSION == version;
+        }
+
+        static string GetEventNameFromContextBasedonVersion(const string& version, const string& baseEventName) {
+            if (RDK8_FIREBOLT_VERSION == version ) {
+                return GetRDK8VersionedEventName(baseEventName);
+            }
+            return baseEventName;
+        }
+
+        static string GetRDK8VersionedEventName(const string& baseEventName) {
+            return baseEventName + RDK8_SUFFIX;
+        }
+
+        static string GetBaseEventNameFromVersionedEvent(const string& versionedEventName) {
+            if (versionedEventName.size() > RDK8_SUFFIX_LENGTH && RDK8_SUFFIX == versionedEventName.substr(versionedEventName.size() - RDK8_SUFFIX_LENGTH)) {
+                return versionedEventName.substr(0, versionedEventName.size() - RDK8_SUFFIX_LENGTH);
+            }
+            return versionedEventName;
         }
 };
 #endif

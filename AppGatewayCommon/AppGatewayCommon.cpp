@@ -22,6 +22,7 @@
 #include "StringUtils.h"
 #include "UtilsFirebolt.h"
 #include "UtilsJsonValidation.h"
+#include "ContextUtils.h"
 
 
 #define API_VERSION_NUMBER_MAJOR    APPGATEWAYCOMMON_MAJOR_VERSION
@@ -199,19 +200,23 @@ namespace Plugin {
             return self->GetVoiceGuidanceHints(result);
         }},
         { "accessibility.voiceguidancesettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
             (void)payload;
-            return self->GetVoiceGuidanceSettings(result);
+            return self->GetVoiceGuidanceSettings(!ContextUtils::IsRDK8Compliant(ctx.version), result);
         }},
         { "accessibility.voiceguidance", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
             (void)payload;
-            return self->GetVoiceGuidanceSettings(result);
+            return self->GetVoiceGuidanceSettings(true, result);
         }},
         { "accessibility.audiodescriptionsettings", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
             (void)payload;
             return self->GetAudioDescription(result);
+        }},
+        { "accessibility.audiodescription", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetAudioDescriptionsEnabled(result);
         }},
         { "audiodescriptions.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
@@ -282,6 +287,22 @@ namespace Plugin {
         { "commoninternal.getlastintent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->GetLastIntent(ctx,payload,result);
         }},
+        {"advertising.advertisingid", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->HandleAppDelegateRequest(ctx, "advertising.advertisingid", payload, result);
+        }},
+        {"device.uid", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->HandleAppDelegateRequest(ctx, "device.uid", payload, result);
+        }},
+        {"discovery.watched", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            LOGINFO("Received discovery.watched event. AppId: %s, Payload: %s", ctx.appId.c_str(), payload.c_str());
+            result = "null";
+            return Core::ERROR_NONE; // No-op for now, as this is only used for RDK8 compliance which requires no action on the AppGatewayCommon side when this event is received.
+        }},
+        {"network.connected", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetNetworkConnected(result);
+        }}
     };
 
     Core::hresult AppGatewayCommon::HandleAppGatewayRequest(const Exchange::GatewayContext &context /* @in */,
@@ -418,6 +439,13 @@ namespace Plugin {
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
+            }
+            // lowermethod starts with metrics. just log the payload for now, as this is only used for RDK8 compliance and there are no specific requirements around handling this event for RDK8 compliance other than not returning an error when it's received.
+            else if (lowerMethod.rfind("metrics.", 0) == 0)
+            {
+                LOGINFO("Received %s event. AppId: %s, Payload: %s", method.c_str(), context.appId.c_str(), payload.c_str());
+                result = "null";
+                return Core::ERROR_NONE; // No-op for now, as this is only used for RDK8 compliance which requires no action on the AppGatewayCommon side when this event is received.
             }
 
             // If method not found, return error
@@ -940,7 +968,7 @@ namespace Plugin {
             return userSettingsDelegate->SetVoiceGuidanceHints(enabled);
         }
 
-        Core::hresult AppGatewayCommon::GetVoiceGuidanceSettings(string &result)
+        Core::hresult AppGatewayCommon::GetVoiceGuidanceSettings(const bool addSpeed, string &result)
         {
             if (!mDelegate)
             {
@@ -955,42 +983,12 @@ namespace Plugin {
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            // Get voice guidance enabled state
-            string enabledResult;
-            Core::hresult enabledStatus = userSettingsDelegate->GetVoiceGuidance(enabledResult);
-            if (enabledStatus != Core::ERROR_NONE)
+            const bool updated = userSettingsDelegate->UpdateVoiceGuidanceSettings(addSpeed, result);
+            if (false == updated)
             {
-                result = "{\"error\":\"couldn't get voiceguidance enabled state\"}";
-                return enabledStatus;
+                // Error message already updated in result as part of UpdateVoiceGuidanceSettings
+                return Core::ERROR_GENERAL;
             }
-
-            // Get voice guidance rate (speed)
-            double rate;
-            Core::hresult rateStatus = userSettingsDelegate->GetVoiceGuidanceRate(rate);
-            if (rateStatus != Core::ERROR_NONE)
-            {
-                result = "{\"error\":\"couldn't get voiceguidance rate\"}";
-                return rateStatus;
-            }
-
-            // Get navigation hints
-            string hintsResult;
-            Core::hresult hintsStatus = userSettingsDelegate->GetVoiceGuidanceHints(hintsResult);
-            if (hintsStatus != Core::ERROR_NONE)
-            {
-                result = "{\"error\":\"couldn't get voiceguidance hints\"}";
-                return hintsStatus;
-            }
-
-            // Construct the combined JSON response
-            // Format: {"enabled": <bool>, "speed": <rate>, "rate": <rate>, "navigationHints": <bool>}
-            std::ostringstream jsonStream;
-            jsonStream << "{\"enabled\": " << enabledResult
-                       << ", \"speed\": " << rate
-                       << ", \"rate\": " << rate
-                       << ", \"navigationHints\": " << hintsResult << "}";
-
-            result = jsonStream.str();
 
             return Core::ERROR_NONE;
         }
@@ -1010,43 +1008,7 @@ namespace Plugin {
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            // Get closed captions enabled state
-            string enabledResult;
-            Core::hresult enabledStatus = userSettingsDelegate->GetCaptions(enabledResult);
-            if (enabledStatus != Core::ERROR_NONE)
-            {
-                result = "{\"error\":\"couldn't get closed captions enabled state\"}";
-                return enabledStatus;
-            }
-
-            // Get preferred captions languages
-            string languagesResult;
-            Core::hresult languagesStatus = userSettingsDelegate->GetPreferredCaptionsLanguages(languagesResult);
-            if (languagesStatus != Core::ERROR_NONE)
-            {
-                result = "{\"error\":\"couldn't get preferred captions languages\"}";
-                return languagesStatus;
-            }
-
-            // Get closed captions styles from UserSettings delegate
-            string stylesResult = "{}";
-            Core::hresult stylesStatus = userSettingsDelegate->GetClosedCaptionsStyle(stylesResult);
-            if (stylesStatus != Core::ERROR_NONE)
-            {
-                LOGWARN("Couldn't get closed captions styles, using empty object");
-                stylesResult = "{}";
-            }
-
-            // Construct the combined JSON response
-            // Format: {"enabled": <bool>, "preferredLanguages": <array>, "styles": {<style properties>}}
-            std::ostringstream jsonStream;
-            jsonStream << "{\"enabled\": " << enabledResult
-                       << ", \"preferredLanguages\": " << languagesResult
-                       << ", \"styles\": " << stylesResult << "}";
-
-            result = jsonStream.str();
-
-            return Core::ERROR_NONE;
+            return userSettingsDelegate->GetClosedCaptionSettings(result);
         }
 
         Core::hresult AppGatewayCommon::GetInternetConnectionStatus(string &result)
@@ -1065,6 +1027,24 @@ namespace Plugin {
             }
 
             return networkDelegate->GetInternetConnectionStatus(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetNetworkConnected(string &result)
+        {
+            if (!mDelegate)
+            {
+                result = "{\"error\":\"couldn't get network connected status\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            auto networkDelegate = mDelegate->getNetworkDelegate();
+            if (!networkDelegate)
+            {
+                result = "{\"error\":\"couldn't get network connected status\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            return networkDelegate->GetNetworkConnected(result);
         }
 
         Core::hresult AppGatewayCommon::GetFirmwareVersion(string &result /* @out */)
@@ -1235,6 +1215,24 @@ namespace Plugin {
             // 
             allowed = true;
             return Core::ERROR_NONE;
+        }
+
+        Core::hresult AppGatewayCommon::HandleAppDelegateRequest(const Exchange::GatewayContext& context ,
+                                          const string& method ,
+                                          const string& payload /*@opaque */,
+                                          string& result /*@out @opaque */) {
+            if (!mDelegate) {
+                ErrorUtils::CustomInternal("Settings delegate not available", result);
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto appDelegate = mDelegate->getAppDelegate();
+            if (!appDelegate) {
+                ErrorUtils::CustomInternal("App delegate not available", result);
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            return appDelegate->HandleAppGatewayRequest(context, method, payload, result);
+        
         }
 
 } // namespace Plugin

@@ -29,6 +29,7 @@
 #include <map>
 #include <unordered_set>
 #include <sstream>
+#include <unordered_map>
 
 
 namespace WPEFramework {
@@ -59,6 +60,9 @@ namespace Plugin {
         Core::hresult GetGatewayConnectionContext(const uint32_t connectionId /* @in */,
                 const string& contextKey /* @in */, 
                  string& contextValue /* @out */) override;
+        Core::hresult RecordGatewayConnectionContext(const uint32_t connectionId ,
+                const string& contextKey ,
+                const string& contextValue) override;
         
         virtual Core::hresult Register(Exchange::IAppGatewayResponder::INotification *notification) override;
         virtual Core::hresult Unregister(Exchange::IAppGatewayResponder::INotification *notification) override;
@@ -175,7 +179,7 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                mParent.mWsManager.DispatchNotificationToConnection(mConnectionId, mPayload, mDesignator);
+                mParent.mWsManager.DispatchNotificationToConnection(mConnectionId, mDesignator, mPayload);
             }
 
         private:
@@ -292,6 +296,29 @@ namespace Plugin {
             std::mutex mAppIdMutex;
         };
 
+        // Create new Registry for Debug Disabled Connections
+        class DebugDisabledConnectionsRegistry {
+        public:
+            void Add(const uint32_t connectionId) {
+                std::lock_guard<std::mutex> lock(mDebugDisabledMutex);
+                mDebugDisabledConnections[connectionId] = true;
+            }
+
+            void Remove(const uint32_t connectionId) {
+                std::lock_guard<std::mutex> lock(mDebugDisabledMutex);
+                mDebugDisabledConnections.erase(connectionId);
+            }
+
+            bool IsDebugDisabled(const uint32_t connectionId) {
+                std::lock_guard<std::mutex> lock(mDebugDisabledMutex);
+                return mDebugDisabledConnections.find(connectionId) != mDebugDisabledConnections.end();
+            }
+
+            private:
+            std::unordered_map<uint32_t,bool> mDebugDisabledConnections;
+            std::mutex mDebugDisabledMutex;
+        };
+
         // Create new Registry for JSON RPC compliant connections
         class CompliantJsonRpcRegistry {
         public:
@@ -340,7 +367,7 @@ namespace Plugin {
 
 
         void ReturnMessageInSocket(const uint32_t connectionId, const int requestId, const string payload ) {
-            if (mEnhancedLoggingEnabled) {
+            if (mEnhancedLoggingEnabled || !mDebugDisabledConnectionsRegistry.IsDebugDisabled(connectionId)) {
                 LOGDBG("<--[[a-%d-%d]] payload=%s",
                         connectionId, requestId, payload.c_str());
             }
@@ -361,6 +388,7 @@ namespace Plugin {
         std::list<Exchange::IAppGatewayResponder::INotification*> mConnectionStatusNotification;
         bool mEnhancedLoggingEnabled;
         CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
+        DebugDisabledConnectionsRegistry mDebugDisabledConnectionsRegistry;
     };
 } // namespace Plugin
 } // namespace WPEFramework

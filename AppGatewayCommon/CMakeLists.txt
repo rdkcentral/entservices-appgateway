@@ -49,13 +49,18 @@ set_target_properties(${MODULE_NAME} PROPERTIES
         CXX_STANDARD 11
         CXX_STANDARD_REQUIRED YES)
 
+if(ENABLE_FIREBOLT_TEXTTRACK)
+    target_compile_definitions(${MODULE_NAME} PRIVATE ENABLE_FIREBOLT_TEXTTRACK)
+endif()
+
 target_compile_definitions(${MODULE_NAME} PRIVATE MODULE_NAME=Plugin_${PLUGIN_NAME})
 
 target_link_libraries(${MODULE_NAME}
         PRIVATE
         CompileSettingsDebug::CompileSettingsDebug
         ${NAMESPACE}Plugins::${NAMESPACE}Plugins
-        ${NAMESPACE}Definitions::${NAMESPACE}Definitions)
+        ${NAMESPACE}Definitions::${NAMESPACE}Definitions
+        uuid)
 
 # To error any missing links
 target_link_options(${MODULE_NAME} PRIVATE -Wl,-z,defs)
