@@ -28,7 +28,9 @@
 
 #include "Module.h"
 
+#include "AppGateway.h"
 #include "AppGatewayImplementation.h"
+#include "AppGatewayResponderImplementation.h"
 #include "Resolver.h"
 
 #include "WorkerPoolImplementation.h"
@@ -165,6 +167,19 @@ public:
         (override));
 
     // NOTE: The rest of IAppNotifications methods (Emit/Cleanup) are not needed for these L1 tests.
+};
+
+class AppGatewayResponderNotificationMock : public Exchange::IAppGatewayResponder::INotification {
+public:
+    ~AppGatewayResponderNotificationMock() override = default;
+
+    BEGIN_INTERFACE_MAP(AppGatewayResponderNotificationMock)
+    INTERFACE_ENTRY(Exchange::IAppGatewayResponder::INotification)
+    END_INTERFACE_MAP
+
+    MOCK_METHOD(void, AddRef, (), (const, override));
+    MOCK_METHOD(uint32_t, Release, (), (const, override));
+    MOCK_METHOD(void, OnAppConnectionChanged, (const string&, const uint32_t, const bool), (override));
 };
 
 static Exchange::GatewayContext MakeContext()
@@ -737,6 +752,62 @@ TEST(AppGatewayImplementationTest, AppGateway_ComRpc_AdditionalContext_WrapsPara
     // After Resolve() returns, production should have released its QueryInterface reference,
     // so we must release the test-owned reference to avoid a leaked mock at process exit.
     handler->Release();
+}
+
+TEST(AppGatewayPluginTest, AppGateway_InitializeFailsWithoutRoots_ThenDeinitialize)
+{
+    Core::Sink<AppGateway> plugin;
+    NiceMock<ServiceMock> service;
+
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(::testing::Return(Core::ERROR_NONE));
+
+    const string response = plugin.Initialize(&service);
+    EXPECT_FALSE(response.empty());
+
+    plugin.Deinitialize(&service);
+}
+
+TEST(AppGatewayPluginTest, AppGateway_Information_EmptyString)
+{
+    Core::Sink<AppGateway> plugin;
+    EXPECT_TRUE(plugin.Information().empty());
+}
+
+TEST(AppGatewayResponderImplementationTest, RegisterUnregisterAndNotify)
+{
+    Core::Sink<AppGatewayResponderImplementation> responder;
+    ::testing::StrictMock<AppGatewayResponderNotificationMock> notification;
+
+    EXPECT_CALL(notification, AddRef()).Times(1);
+    EXPECT_EQ(Core::ERROR_NONE, responder.Register(&notification));
+
+    EXPECT_CALL(notification, OnAppConnectionChanged(::testing::StrEq("test.app"), 55u, true)).Times(1);
+    responder.OnConnectionStatusChanged("test.app", 55u, true);
+
+    EXPECT_CALL(notification, Release()).Times(1).WillOnce(::testing::Return(Core::ERROR_NONE));
+    EXPECT_EQ(Core::ERROR_NONE, responder.Unregister(&notification));
+    EXPECT_EQ(Core::ERROR_GENERAL, responder.Unregister(&notification));
+}
+
+TEST(AppGatewayResponderImplementationTest, RegisterSameNotificationTwice_AddRefOnlyOnce)
+{
+    Core::Sink<AppGatewayResponderImplementation> responder;
+    ::testing::StrictMock<AppGatewayResponderNotificationMock> notification;
+
+    EXPECT_CALL(notification, AddRef()).Times(1);
+    EXPECT_EQ(Core::ERROR_NONE, responder.Register(&notification));
+    EXPECT_EQ(Core::ERROR_NONE, responder.Register(&notification));
+
+    EXPECT_CALL(notification, Release()).Times(1).WillOnce(::testing::Return(Core::ERROR_NONE));
+    EXPECT_EQ(Core::ERROR_NONE, responder.Unregister(&notification));
+}
+
+TEST(AppGatewayResponderImplementationTest, GetGatewayConnectionContext_ReturnsNone)
+{
+    Core::Sink<AppGatewayResponderImplementation> responder;
+    string value;
+    EXPECT_EQ(Core::ERROR_NONE, responder.GetGatewayConnectionContext(10, "jsonrpc.compliant", value));
 }
 
 int main(int argc, char** argv)
