@@ -93,6 +93,20 @@ static Exchange::GatewayContext MakeContext()
     return ctx;
 }
 
+class TestEmitter : public Exchange::IAppNotificationHandler::IEmitter {
+public:
+    void Emit(const string& event, const string& payload, const string& appId) override
+    {
+        (void)event;
+        (void)payload;
+        (void)appId;
+    }
+
+    BEGIN_INTERFACE_MAP(TestEmitter)
+    INTERFACE_ENTRY(Exchange::IAppNotificationHandler::IEmitter)
+    END_INTERFACE_MAP
+};
+
 class AppGatewayCommonTest : public ::testing::Test {
 protected:
     Core::Sink<AppGatewayCommon> plugin;
@@ -131,8 +145,10 @@ TEST_F(AppGatewayCommonTest, AGC_L1_003_HandleAppEventNotifier_SubmitsJob)
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
 
+    Core::Sink<TestEmitter> emitter;
+
     bool status = false;
-    const auto rc = plugin.HandleAppEventNotifier(nullptr, "Device.onHdrChanged", true, status);
+    const auto rc = plugin.HandleAppEventNotifier(&emitter, "Device.onHdrChanged", true, status);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
