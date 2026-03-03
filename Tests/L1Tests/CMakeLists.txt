@@ -208,6 +208,10 @@ set(APPGATEWAY_L1TEST_SRC "")
 set(APPGATEWAY_L1TEST_INC "")
 set(APPGATEWAY_L1TEST_LIB "")
 
+set(APPGATEWAYCOMMON_L1TEST_SRC "")
+set(APPGATEWAYCOMMON_L1TEST_INC "")
+set(APPGATEWAYCOMMON_L1TEST_LIB "")
+
 if(PLUGIN_APPGATEWAY)
     message(STATUS "AppGateway L1 tests: ENABLED (PLUGIN_APPGATEWAY=ON)")
 
@@ -225,6 +229,24 @@ if(PLUGIN_APPGATEWAY)
     )
 else()
     message(STATUS "AppGateway L1 tests: DISABLED (set -DPLUGIN_APPGATEWAY=ON to enable)")
+endif()
+
+if(PLUGIN_APPGATEWAYCOMMON)
+    message(STATUS "AppGatewayCommon L1 tests: ENABLED (PLUGIN_APPGATEWAYCOMMON=ON)")
+
+    list(APPEND APPGATEWAYCOMMON_L1TEST_SRC tests/test_AppGatewayCommon.cpp)
+
+    list(APPEND APPGATEWAYCOMMON_L1TEST_INC
+        ../../helpers
+        ../../AppGatewayCommon
+    )
+
+    list(APPEND APPGATEWAYCOMMON_L1TEST_LIB
+        AppGatewayCommon
+        ${NAMESPACE}Plugins::${NAMESPACE}Plugins
+    )
+else()
+    message(STATUS "AppGatewayCommon L1 tests: DISABLED (set -DPLUGIN_APPGATEWAYCOMMON=ON to enable)")
 endif()
 
 #########################################################################################
@@ -323,7 +345,7 @@ write_config(PLUGINS ${PLUGIN_NAME})
 # -----------------------------------------------------------------------------
 # AppGatewayL1Test executable (required by the workflow/script)
 # -----------------------------------------------------------------------------
-if(PLUGIN_APPGATEWAY)
+if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON)
     # Prefer CONFIG mode so imported targets (GTest::gtest, GTest::gmock, etc.) are defined.
     # In some environments CMake's module-mode FindGTest is picked up first and only sets
     # variables like GTEST_LIBRARIES (leading to "Found GTest: <path>/libgtest.a" but
@@ -380,11 +402,12 @@ if(PLUGIN_APPGATEWAY)
         endif()
     endif()
 
-    add_executable(AppGatewayL1Test ${APPGATEWAY_L1TEST_SRC})
+    if(PLUGIN_APPGATEWAY)
+        add_executable(AppGatewayL1Test ${APPGATEWAY_L1TEST_SRC})
 
-    target_include_directories(AppGatewayL1Test
-        PRIVATE
-        ${APPGATEWAY_L1TEST_INC}
+        target_include_directories(AppGatewayL1Test
+            PRIVATE
+            ${APPGATEWAY_L1TEST_INC}
 
         # NOTE: variable name comes from upstream file; keep as-is to avoid broad changes.
         ${CMAKE_install_prefix}/include
@@ -392,25 +415,61 @@ if(PLUGIN_APPGATEWAY)
         ${CMAKE_SOURCE_DIR}/Tests/mocks
         ${CMAKE_SOURCE_DIR}/../mocks
 
-        ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
-    )
+            ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
+        )
 
-    target_link_libraries(AppGatewayL1Test PRIVATE
-        ${APPGATEWAY_L1TEST_LIB}
-        GTest::gmock
-        GTest::gtest
-        GTest::gtest_main
-        Threads::Threads
-    )
+        target_link_libraries(AppGatewayL1Test PRIVATE
+            ${APPGATEWAY_L1TEST_LIB}
+            GTest::gmock
+            GTest::gtest
+            GTest::gtest_main
+            Threads::Threads
+        )
 
-    target_compile_definitions(AppGatewayL1Test PRIVATE
-        UNIT_TEST
-        DISABLE_SECURITY_TOKEN
-    )
+        target_compile_definitions(AppGatewayL1Test PRIVATE
+            UNIT_TEST
+            DISABLE_SECURITY_TOKEN
+        )
 
-    if(_L1TESTS_USE_THUNDER_R4)
-        target_compile_definitions(AppGatewayL1Test PRIVATE USE_THUNDER_R4)
+        if(_L1TESTS_USE_THUNDER_R4)
+            target_compile_definitions(AppGatewayL1Test PRIVATE USE_THUNDER_R4)
+        endif()
+
+        install(TARGETS AppGatewayL1Test RUNTIME DESTINATION bin)
     endif()
 
-    install(TARGETS AppGatewayL1Test RUNTIME DESTINATION bin)
+    if(PLUGIN_APPGATEWAYCOMMON)
+        add_executable(AppGatewayCommonL1Test ${APPGATEWAYCOMMON_L1TEST_SRC})
+
+        target_include_directories(AppGatewayCommonL1Test
+            PRIVATE
+            ${APPGATEWAYCOMMON_L1TEST_INC}
+
+            ${CMAKE_install_prefix}/include
+
+            ${CMAKE_SOURCE_DIR}/Tests/mocks
+            ${CMAKE_SOURCE_DIR}/../mocks
+
+            ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
+        )
+
+        target_link_libraries(AppGatewayCommonL1Test PRIVATE
+            ${APPGATEWAYCOMMON_L1TEST_LIB}
+            GTest::gmock
+            GTest::gtest
+            GTest::gtest_main
+            Threads::Threads
+        )
+
+        target_compile_definitions(AppGatewayCommonL1Test PRIVATE
+            UNIT_TEST
+            DISABLE_SECURITY_TOKEN
+        )
+
+        if(_L1TESTS_USE_THUNDER_R4)
+            target_compile_definitions(AppGatewayCommonL1Test PRIVATE USE_THUNDER_R4)
+        endif()
+
+        install(TARGETS AppGatewayCommonL1Test RUNTIME DESTINATION bin)
+    endif()
 endif()
