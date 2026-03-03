@@ -503,12 +503,21 @@ jobs:
 
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
 
-          CRYPTALGO_LIB_PATH="$(find "$GITHUB_WORKSPACE/install/usr" -type f \( -name 'libWPEFrameworkCryptalgo.so' -o -name 'libWPEFrameworkCryptalgo.so.*' \) -print -quit | xargs -r dirname || true)"
-          if [ -n "${CRYPTALGO_LIB_PATH}" ]; then
-            echo "Discovered Cryptalgo library path: ${CRYPTALGO_LIB_PATH}"
-          fi
+          EXTRA_LIB_DIRS="$(
+            {
+              find "$GITHUB_WORKSPACE/install/usr" -type f -name '*.so*' -printf '%h\n' 2>/dev/null || true
+              find "$GITHUB_WORKSPACE/thunder/install/usr" -type f -name '*.so*' -printf '%h\n' 2>/dev/null || true
+            } | sort -u | paste -sd: -
+          )"
 
-          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins${CRYPTALGO_LIB_PATH:+:${CRYPTALGO_LIB_PATH}}:${LD_LIBRARY_PATH:-}"
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins${EXTRA_LIB_DIRS:+:${EXTRA_LIB_DIRS}}:${LD_LIBRARY_PATH:-}"
+          echo "LD_LIBRARY_PATH configured for runtime resolution"
+
+          CRYPTALGO_FILE="$(find "$GITHUB_WORKSPACE" -type f \( -name 'libWPEFrameworkCryptalgo.so.1' -o -name 'libWPEFrameworkCryptalgo.so' -o -name 'libWPEFrameworkCryptalgo.so.*' \) -print -quit 2>/dev/null || true)"
+          if [ -z "${CRYPTALGO_FILE}" ]; then
+            echo "ERROR: libWPEFrameworkCryptalgo.so.* not found anywhere under workspace"
+            exit 1
+          fi
           export GTEST_OUTPUT="json:$(pwd)/rdkL1TestResults.json"
 
           # Deterministic cleanup:
@@ -561,28 +570,41 @@ jobs:
 
       - name: Run unit tests with valgrind
         if: ${{ !env.ACT }}
-        run: >
-          PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
-          LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:$(find $GITHUB_WORKSPACE/install/usr -type f \( -name libWPEFrameworkCryptalgo.so -o -name 'libWPEFrameworkCryptalgo.so.*' \) -print -quit | xargs -r dirname):${LD_LIBRARY_PATH}
-          GTEST_OUTPUT="json:$(pwd)/rdkL1TestResults.json"
-          valgrind
-          --tool=memcheck
-          --log-file=valgrind_log
-          --leak-check=yes
-          --show-reachable=yes
-          --track-fds=yes
-          --fair-sched=try
-          build/entservices-appgateway-l1tests-only/AppGatewayL1Test &&
-          valgrind
-          --tool=memcheck
-          --log-file=valgrind_log_appgatewaycommon
-          --leak-check=yes
-          --show-reachable=yes
-          --track-fds=yes
-          --fair-sched=try
-          build/entservices-appgateway-l1tests-only/AppGatewayCommonL1Test &&
-          cp -rf $(pwd)/rdkL1TestResults.json $GITHUB_WORKSPACE/rdkL1TestResultsWithValgrind.json &&
-          rm -rf $(pwd)/rdkL1TestResults.json
+        run: |
+          set -euo pipefail
+
+          export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
+
+          EXTRA_LIB_DIRS="$(
+            {
+              find "$GITHUB_WORKSPACE/install/usr" -type f -name '*.so*' -printf '%h\n' 2>/dev/null || true
+              find "$GITHUB_WORKSPACE/thunder/install/usr" -type f -name '*.so*' -printf '%h\n' 2>/dev/null || true
+            } | sort -u | paste -sd: -
+          )"
+
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins${EXTRA_LIB_DIRS:+:${EXTRA_LIB_DIRS}}:${LD_LIBRARY_PATH:-}"
+          export GTEST_OUTPUT="json:$(pwd)/rdkL1TestResults.json"
+
+          valgrind \
+            --tool=memcheck \
+            --log-file=valgrind_log \
+            --leak-check=yes \
+            --show-reachable=yes \
+            --track-fds=yes \
+            --fair-sched=try \
+            build/entservices-appgateway-l1tests-only/AppGatewayL1Test
+
+          valgrind \
+            --tool=memcheck \
+            --log-file=valgrind_log_appgatewaycommon \
+            --leak-check=yes \
+            --show-reachable=yes \
+            --track-fds=yes \
+            --fair-sched=try \
+            build/entservices-appgateway-l1tests-only/AppGatewayCommonL1Test
+
+          cp -rf "$(pwd)/rdkL1TestResults.json" "$GITHUB_WORKSPACE/rdkL1TestResultsWithValgrind.json"
+          rm -rf "$(pwd)/rdkL1TestResults.json"
 
       - name: Generate coverage report (lcov + HTML via genhtml)
         # NOTE:
