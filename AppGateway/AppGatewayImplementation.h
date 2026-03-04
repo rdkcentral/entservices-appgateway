@@ -116,22 +116,10 @@ namespace Plugin {
         };
 
         Core::hresult HandleEvent(const Context &context, const string &alias, const string &event, const string &origin,  const bool listen);
-<<<<<<< HEAD
                 
         void ReturnMessageInSocket(const Context& context, const string payload ) {
             Core::SafeSyncType<Core::CriticalSection> lock(mAppGatewayResponderLock);
             if (nullptr == mAppGatewayResponder) {
-=======
-
-        void ReturnMessageInSocket(const Context& context, const string payload)
-        {
-            if (mService == nullptr) {
-                LOGWARN("ReturnMessageInSocket called during shutdown (mService is null)");
-                return;
-            }
-
-            if (mAppGatewayResponder == nullptr) {
->>>>>>> 135561b (Adding Thread sync issues during deactivation / destruction)
                 mAppGatewayResponder = mService->QueryInterface<Exchange::IAppGatewayResponder>();
                 if (nullptr == mAppGatewayResponder) {
                     LOGERR("AppGateway Responder not available");
