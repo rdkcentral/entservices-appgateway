@@ -63,14 +63,12 @@ namespace Plugin {
         class EXTERNAL RespondJob : public Core::IDispatch
         {
         protected:
-            RespondJob(AppGatewayImplementation* parent,
+            RespondJob(Exchange::IAppGatewayResponder* responder,
                        const Context& context,
-                       const std::string& payload,
-                       const std::string& destination)
-                : mParent(parent)
+                       const std::string& payload)
+                : mResponder(responder)
                 , mPayload(payload)
                 , mContext(context)
-                , mDestination(destination)
             {
             }
 
@@ -78,41 +76,38 @@ namespace Plugin {
             RespondJob() = delete;
             RespondJob(const RespondJob&) = delete;
             RespondJob& operator=(const RespondJob&) = delete;
-            ~RespondJob() override = default;
+            ~RespondJob() override
+            {
+                if (mResponder != nullptr) {
+                    mResponder->Release();
+                    mResponder = nullptr;
+                }
+            }
 
         public:
-            static Core::ProxyType<Core::IDispatch> Create(AppGatewayImplementation* parent,
+            static Core::ProxyType<Core::IDispatch> Create(Exchange::IAppGatewayResponder* responder,
                                                           const Context& context,
-                                                          const std::string& payload,
-                                                          const std::string& origin)
+                                                          const std::string& payload)
             {
                 return (Core::ProxyType<Core::IDispatch>(
-                    Core::ProxyType<RespondJob>::Create(parent, context, payload, origin)));
+                    Core::ProxyType<RespondJob>::Create(responder, context, payload)));
             }
 
             void Dispatch() override
             {
-                if (mParent == nullptr) {
+                if (mResponder == nullptr) {
                     return;
                 }
 
-                // If shutdown has started, never call into plugin methods that touch IShell/other plugins.
-                if (mParent->mShuttingDown.load(std::memory_order_acquire)) {
-                    return;
-                }
-
-                if (ContextUtils::IsOriginGateway(mDestination)) {
-                    mParent->ReturnMessageInSocket(mContext, mPayload);
-                } else {
-                    mParent->SendToLaunchDelegate(mContext, mPayload);
+                if (Core::ERROR_NONE != mResponder->Respond(mContext, mPayload)) {
+                    LOGERR("Failed to Respond");
                 }
             }
 
         private:
-            AppGatewayImplementation* mParent;
+            Exchange::IAppGatewayResponder* mResponder;
             const std::string mPayload;
             const Context mContext;
-            const std::string mDestination;
         };
 
         Core::hresult HandleEvent(const Context &context, const string &alias, const string &event, const string &origin,  const bool listen);

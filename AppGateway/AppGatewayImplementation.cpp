@@ -383,7 +383,18 @@ namespace WPEFramework
                 LOGTRACE("Final resolution: %s", resolution.c_str());
 
                 if (!mShuttingDown.load(std::memory_order_acquire)) {
-                    Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context, resolution, origin));
+                    Exchange::IAppGatewayResponder* responder = nullptr;
+                    if (ContextUtils::IsOriginGateway(origin)) {
+                        responder = mService->QueryInterface<Exchange::IAppGatewayResponder>();
+                    } else {
+                        responder = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
+                    }
+
+                    if (responder != nullptr) {
+                        Core::IWorkerPool::Instance().Submit(RespondJob::Create(responder, context, resolution));
+                    } else {
+                        LOGERR("Responder interface not available");
+                    }
                 } else {
                     LOGWARN("Dropping async RespondJob during shutdown");
                 }

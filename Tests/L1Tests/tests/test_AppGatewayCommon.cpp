@@ -259,7 +259,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_038_039_VoiceGuidanceSettings_NullDelegate_R
     plugin.mDelegate.reset();
 
     string result;
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetVoiceGuidanceSettings(result));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetVoiceGuidanceSettings(true, result));
     EXPECT_EQ("{\"error\":\"couldn't get voice guidance settings\"}", result);
 }
 
