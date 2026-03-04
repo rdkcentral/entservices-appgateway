@@ -390,7 +390,7 @@ namespace WPEFramework
                         responder = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
                     }
 
-                    if (responder != nullptr) {
+                    if (nullptr != responder) {
                         Core::IWorkerPool::Instance().Submit(RespondJob::Create(responder, context, resolution));
                     } else {
                         LOGERR("Responder interface not available");

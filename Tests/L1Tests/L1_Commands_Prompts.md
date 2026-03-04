@@ -23,11 +23,13 @@ sudo apt -y install docker.io
 
 ## Repo Setup and Local Run
 
-- checkout https://github.com/rdkcentral/entservices-appgateway.git , branch feature/AI_L1 and create a branch on top of this for now.
+- Checkout https://github.com/rdkcentral/entservices-appgateway.git, branch `feature/AI_L1`, and create your working branch on top.
 
 ```bash
-cd entservices-appgatewat
-act -W .github/workflows/L1-tests.yml -r --bind GITHUB_TOKEN=ghp_zcTUgrDFsy....
+cd entservices-appgateway
+act -W .github/workflows/L1-tests.yml -r --bind
+# Optional: pass token via env (never hardcode it in docs)
+# GITHUB_TOKEN=<your_token> act -W .github/workflows/L1-tests.yml -r --bind
 ```
 
 - I’ve used this command on Ubuntu, token is not mandatory.

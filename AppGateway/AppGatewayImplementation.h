@@ -78,7 +78,7 @@ namespace Plugin {
             RespondJob& operator=(const RespondJob&) = delete;
             ~RespondJob() override
             {
-                if (mResponder != nullptr) {
+                if (nullptr != mResponder) {
                     mResponder->Release();
                     mResponder = nullptr;
                 }
@@ -95,7 +95,7 @@ namespace Plugin {
 
             void Dispatch() override
             {
-                if (mResponder == nullptr) {
+                if (nullptr == mResponder) {
                     return;
                 }
 

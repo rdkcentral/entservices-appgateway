@@ -340,7 +340,7 @@ else()
 endif()
 
 # Always write the L1Tests plugin config JSON used by the test runtime.
-write_config(PLUGINS ${PLUGIN_NAME})
+write_config(${PLUGIN_NAME})
 
 # -----------------------------------------------------------------------------
 # AppGatewayL1Test executable (required by the workflow/script)
@@ -409,8 +409,7 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON)
             PRIVATE
             ${APPGATEWAY_L1TEST_INC}
 
-        # NOTE: variable name comes from upstream file; keep as-is to avoid broad changes.
-        ${CMAKE_install_prefix}/include
+        ${CMAKE_INSTALL_PREFIX}/include
 
         ${CMAKE_SOURCE_DIR}/Tests/mocks
         ${CMAKE_SOURCE_DIR}/../mocks
@@ -445,7 +444,7 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON)
             PRIVATE
             ${APPGATEWAYCOMMON_L1TEST_INC}
 
-            ${CMAKE_install_prefix}/include
+            ${CMAKE_INSTALL_PREFIX}/include
 
             ${CMAKE_SOURCE_DIR}/Tests/mocks
             ${CMAKE_SOURCE_DIR}/../mocks

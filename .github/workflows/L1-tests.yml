@@ -29,8 +29,8 @@ env:
   BUILD_TYPE: Debug
   THUNDER_REF: "R4.4.1"
   INTERFACES_REF: "RDKEMW-13978"
-  AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME}}
-  AUTOMATICS_PASSCODE: ${{ secrets. AUTOMATICS_PASSCODE}}
+  AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME }}
+  AUTOMATICS_PASSCODE: ${{ secrets.AUTOMATICS_PASSCODE }}
 
   # Opt-in toggles (default behavior unchanged):
   # - ENABLE_GDB=1 enables running unit tests under gdb (batch mode)
@@ -226,11 +226,11 @@ jobs:
 
       - name: Set clang toolchain
         if: ${{ matrix.compiler == 'clang' }}
-        run: echo "TOOLCHAIN_FILE=$GITHUB_WORKSPACE/entservices-testframework/Tests/clang.cmake" >> $GITHUB_ENV
+        run: echo "TOOLCHAIN_FILE=$GITHUB_WORKSPACE/Tests/clang.cmake" >> $GITHUB_ENV
 
       - name: Set gcc/with-coverage toolchain
         if: ${{ matrix.compiler == 'gcc' && matrix.coverage == 'with-coverage' && !env.ACT }}
-        run: echo "TOOLCHAIN_FILE=$GITHUB_WORKSPACE/entservices-testframework/Tests/gcc-with-coverage.cmake" >> $GITHUB_ENV
+        run: echo "TOOLCHAIN_FILE=$GITHUB_WORKSPACE/Tests/gcc-with-coverage.cmake" >> $GITHUB_ENV
 
       - name: Build googletest
         if: steps.cache.outputs.cache-hit != 'true'
@@ -244,7 +244,7 @@ jobs:
           -DBUILD_TYPE=Debug
           -DBUILD_GMOCK=ON
           -DBUILD_SHARED_LIBS=OFF
-          -DCMAKE_POSITION_INDEPENDENTENT_CODE=ON
+          -DCMAKE_POSITION_INDEPENDENT_CODE=ON
           &&
           cmake --build build/googletest -j8
           &&
