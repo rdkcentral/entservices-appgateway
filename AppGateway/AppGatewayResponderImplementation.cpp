@@ -59,11 +59,17 @@ namespace WPEFramework
         {
             LOGINFO("AppGatewayResponderImplementation destructor");
             
-            // Clear WebSocket handlers before destruction to prevent use-after-free
-            mWsManager.SetMessageHandler(nullptr);
-            mWsManager.SetAuthHandler(nullptr);
-            mWsManager.SetDisconnectHandler(nullptr);
-            // Note: WebSocketConnectionManager destructor will handle channel cleanup
+            // Note: 
+            // The safe destruction sequence is:
+            // 1. This destructor body runs (releases mService, mResolver, mAuthenticator)
+            // 2. mWsManager destructor runs automatically (member destruction in reverse order)
+            // 3. mWsManager destructor deletes mChannel
+            // 4. WebSocketChannel::~WebSocketChannel() calls Close(1000) - waits for socket thread to stop
+            // 5. After Close() returns, no more callbacks can invoke the handlers
+            // 6. Handler std::functions are destroyed when mWsManager is destroyed
+            //
+            // For in-flight worker pool jobs (WsMsgJob, etc.): Thunder's plugin lifecycle ensures
+            // the worker pool drains plugin-related jobs before destroying plugin implementations.
             
             if (nullptr != mService)
             {
