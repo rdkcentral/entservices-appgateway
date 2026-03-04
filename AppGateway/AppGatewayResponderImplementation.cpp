@@ -59,15 +59,12 @@ namespace WPEFramework
         {
             LOGINFO("AppGatewayResponderImplementation destructor");
             
-            // Note: 
-            // The safe destruction sequence is:
-            // 1. This destructor body runs (releases mService, mResolver, mAuthenticator)
-            // 2. mWsManager destructor runs automatically (member destruction in reverse order)
-            // 3. mWsManager destructor deletes mChannel
-            // 4. WebSocketChannel::~WebSocketChannel() calls Close(1000) - waits for socket thread to stop
-            // 5. After Close() returns, no more callbacks can invoke the handlers
-            // 6. Handler std::functions are destroyed when mWsManager is destroyed
-
+            // Clear WebSocket handlers before destruction to prevent use-after-free
+            mWsManager.SetMessageHandler(nullptr);
+            mWsManager.SetAuthHandler(nullptr);
+            mWsManager.SetDisconnectHandler(nullptr);
+            // Note: WebSocketConnectionManager destructor will handle channel cleanup
+            
             if (nullptr != mService)
             {
                 mService->Release();
