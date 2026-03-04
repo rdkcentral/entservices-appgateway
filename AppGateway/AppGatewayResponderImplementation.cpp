@@ -67,10 +67,7 @@ namespace WPEFramework
             // 4. WebSocketChannel::~WebSocketChannel() calls Close(1000) - waits for socket thread to stop
             // 5. After Close() returns, no more callbacks can invoke the handlers
             // 6. Handler std::functions are destroyed when mWsManager is destroyed
-            //
-            // For in-flight worker pool jobs (WsMsgJob, etc.): Thunder's plugin lifecycle ensures
-            // the worker pool drains plugin-related jobs before destroying plugin implementations.
-            
+
             if (nullptr != mService)
             {
                 mService->Release();
