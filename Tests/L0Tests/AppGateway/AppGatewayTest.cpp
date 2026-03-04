@@ -151,7 +151,8 @@ static uint32_t Test_JsonRpcResolve_Success()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "JSON-RPC resolve returns ERROR_UNKNOWN_METHOD (resolve is not JSON-RPC exposed)");
+        ExpectEqU32(tr, rc, ERROR_NONE, "JSON-RPC resolve returns ERROR_NONE");
+        ExpectEqStr(tr, jsonResponse, "null", "JSON-RPC resolve response payload matches resolver result");
 
         dispatcher->Release();
     }
@@ -181,8 +182,8 @@ static uint32_t Test_DirectResolver_Success()
         std::string resolution;
         const uint32_t rc = resolver->Resolve(ctx, "org.rdk.AppGateway", "dummy.method", "{}", resolution);
 
-        ExpectEqU32(tr, rc, WPEFramework::Core::ERROR_GENERAL, "Direct Resolve() returns ERROR_GENERAL for unknown alias in current config");
-        ExpectTrue(tr, resolution.find("NotSupported") != std::string::npos, "Direct Resolve() returns NotSupported payload");
+        ExpectEqU32(tr, rc, ERROR_NONE, "Direct Resolve() returns ERROR_NONE");
+        ExpectEqStr(tr, resolution, "null", "Direct Resolve() returns 'null'");
 
         resolver->Release();
     }
@@ -206,7 +207,7 @@ static uint32_t Test_JsonRpcResolve_Error_NotPermitted()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "NotPermitted JSON-RPC path returns ERROR_UNKNOWN_METHOD");
+        ExpectEqU32(tr, rc, ERROR_PRIVILIGED_REQUEST, "NotPermitted maps to ERROR_PRIVILIGED_REQUEST");
         dispatcher->Release();
     }
 
@@ -229,7 +230,7 @@ static uint32_t Test_JsonRpcResolve_Error_NotSupported()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "NotSupported JSON-RPC path returns ERROR_UNKNOWN_METHOD");
+        ExpectEqU32(tr, rc, ERROR_NOT_SUPPORTED, "NotSupported maps to ERROR_NOT_SUPPORTED");
         dispatcher->Release();
     }
 
@@ -252,7 +253,7 @@ static uint32_t Test_JsonRpcResolve_Error_NotAvailable()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "NotAvailable JSON-RPC path returns ERROR_UNKNOWN_METHOD");
+        ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "NotAvailable maps to ERROR_UNAVAILABLE");
         dispatcher->Release();
     }
 
@@ -275,7 +276,7 @@ static uint32_t Test_JsonRpcResolve_Error_MalformedInput()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", badJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "Malformed JSON for resolve returns ERROR_UNKNOWN_METHOD");
+        ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "Malformed JSON returns ERROR_BAD_REQUEST");
         dispatcher->Release();
     }
 
@@ -292,7 +293,7 @@ static uint32_t Test_JsonRpcResolve_Error_MissingHandler_WhenResolverMissing()
     PluginAndService ps(L0Test::ServiceMock::Config(false, false));
 
     const std::string initResult = ps.plugin->Initialize(ps.service);
-    (void)initResult;
+    ExpectTrue(tr, !initResult.empty(), "Initialize() fails when resolver/responder are missing (expected)");
 
     auto dispatcher = ps.plugin->QueryInterface<IDispatcher>();
     ExpectTrue(tr, dispatcher != nullptr, "IDispatcher is still available even if Initialize() failed");
@@ -301,7 +302,7 @@ static uint32_t Test_JsonRpcResolve_Error_MissingHandler_WhenResolverMissing()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        // In the current interface contract resolve is not exposed over JSON-RPC.
+        // Because Register() did not happen, "resolve" is not in the dispatcher.
         ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "Missing resolve handler returns ERROR_UNKNOWN_METHOD");
         dispatcher->Release();
     }

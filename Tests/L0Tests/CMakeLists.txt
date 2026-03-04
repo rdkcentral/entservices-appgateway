@@ -396,7 +396,7 @@ if(APPGW_L0_ENABLE_APPGATEWAY)
 endif()
 
 # ---------------------------------------------------------------------------
-# AppGatewayCommon L0 test 
+# AppGatewayCommon L0 test
 # ---------------------------------------------------------------------------
 
 set(APPGWC_L0_SOURCES
