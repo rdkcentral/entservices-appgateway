@@ -538,7 +538,7 @@ namespace WPEFramework
                     if (ObjectUtils::HasBooleanEntry(params_obj, "listen", resultValue)) {
                         LOGTRACE("Event method '%s' with listen: %s", method.c_str(), resultValue ? "true" : "false");
                         string eventName = method;
-                        if (mResolverPtr->IsVersionedEvent(method)) {
+                        if ((mResolverPtr != nullptr) && mResolverPtr->IsVersionedEvent(method)) {
                             eventName = ContextUtils::GetEventNameFromContextBasedonVersion(context.version, method);
                         }
                         

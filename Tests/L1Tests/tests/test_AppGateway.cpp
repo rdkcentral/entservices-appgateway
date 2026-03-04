@@ -922,6 +922,42 @@ TEST(AppGatewayImplementationInternalTest, PreProcessEvent_ValidListen_Subscribe
         impl.mAppNotifications = nullptr;
 }
 
+    TEST(AppGatewayImplementationInternalTest, PreProcessEvent_VersionedEvent_UsesRdk8Suffix)
+    {
+        Core::Sink<AppGatewayImplementation> impl;
+        ::testing::NiceMock<AppNotificationsMock> appNotifications;
+
+        impl.mAppNotifications = &appNotifications;
+        impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+        const std::string cfg = "/tmp/appgw.versioned.event.json";
+        WriteTextFile(cfg, R"json(
+            {
+                "resolutions": {
+                "event.method": {
+                    "alias": "org.rdk.AppGatewayCommon",
+                    "versionedEvent": true
+                }
+                }
+            }
+        )json");
+        ASSERT_TRUE(impl.mResolverPtr->LoadConfig(cfg));
+
+        EXPECT_CALL(appNotifications, Subscribe(::testing::_, true, ::testing::StrEq("org.rdk.AppGatewayCommon"), ::testing::StrEq("event.method.v8")))
+            .WillOnce(::testing::Return(Core::ERROR_NONE));
+
+        auto ctx = MakeContext();
+        ctx.version = "8";
+        std::string resolution;
+        const auto rc = impl.PreProcessEvent(ctx, "org.rdk.AppGatewayCommon", "event.method", "gateway", R"json({"listen":true})json", resolution);
+
+        EXPECT_EQ(Core::ERROR_NONE, rc);
+        EXPECT_THAT(resolution, ::testing::HasSubstr("\"listening\":true"));
+        EXPECT_THAT(resolution, ::testing::HasSubstr("\"event\":\"event.method\""));
+
+        impl.mAppNotifications = nullptr;
+    }
+
 TEST(AppGatewayImplementationInternalTest, FetchResolvedData_PermissionDenied_ReturnsNotPermitted)
 {
         Core::Sink<AppGatewayImplementation> impl;
