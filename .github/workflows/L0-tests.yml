@@ -1,0 +1,308 @@
+name: L0-tests
+
+on:
+  push:
+    branches: [ main, develop, feature/AI_L1 ]
+  pull_request:
+    branches: [ main, develop, feature/AI_L1 ]
+  workflow_call:
+    inputs:
+      caller_source:
+        description: "Specifies the source type (e.g., local or test framework) for the workflow."
+        required: true
+        type: string
+      enable_gdb:
+        description: "Opt-in: run the L0 test binary under gdb in batch mode (prints stack trace on crash)."
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      RDKCM_RDKE:
+        required: true
+
+env:
+  BUILD_TYPE: Debug
+  THUNDER_REF: "R4.4.1"
+  INTERFACES_REF: "RDKEMW-13978"
+  ENABLE_GDB: ${{ (inputs.enable_gdb && '1') || '0' }}
+
+jobs:
+  L0-tests:
+    name: Build and run L0 tests
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Set up cache
+        if: ${{ !env.ACT }}
+        id: cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            thunder/build/Thunder
+            thunder/build/entservices-apis
+            thunder/build/ThunderTools
+            thunder/install
+            !thunder/install/etc/WPEFramework/plugins
+            !thunder/install/usr/lib/wpeframework/plugins
+          key: ${{ runner.os }}-${{ env.THUNDER_REF }}-${{ env.INTERFACES_REF }}-l0-1
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - run: pip install jsonref
+
+      - name: ACK External Trigger
+        run: |
+          echo "Message: External Trigger Received for L0 Tests"
+          echo "Trigger Source: ${{ inputs.caller_source }}"
+
+      - name: Set up CMake
+        uses: jwlawson/actions-setup-cmake@v1.13
+        with:
+          cmake-version: '3.16.x'
+
+      - name: Install packages
+        run: >
+          sudo apt update
+          &&
+          sudo apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libjsoncpp-dev gdb ninja-build
+
+      - name: Build trower-base64
+        run: |
+          if [ ! -d "trower-base64" ]; then
+            git clone https://github.com/xmidt-org/trower-base64.git
+          fi
+          cd trower-base64
+          meson setup --warnlevel 3 --werror build
+          ninja -C build
+          sudo ninja -C build install
+
+      - name: Checkout entservices-appgateway
+        if: ${{ !env.ACT }}
+        uses: actions/checkout@v3
+
+      - name: Checkout Thunder
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v3
+        with:
+          repository: rdkcentral/Thunder
+          path: Thunder
+          ref: ${{env.THUNDER_REF}}
+
+      - name: Checkout ThunderTools
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v3
+        with:
+          repository: rdkcentral/ThunderTools
+          path: ThunderTools
+          ref: R4.4.3
+
+      - name: Checkout entservices-apis
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v3
+        with:
+          repository: rdkcentral/entservices-apis
+          path: entservices-apis
+          ref: ${{env.INTERFACES_REF}}
+
+      - name: Build ThunderTools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: >
+          cmake -G Ninja
+          -S "$GITHUB_WORKSPACE/ThunderTools"
+          -B build/ThunderTools
+          -DEXCEPTIONS_ENABLE=ON
+          -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
+          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          &&
+          cmake --build build/ThunderTools -j8
+          &&
+          cmake --install build/ThunderTools
+
+      - name: Build Thunder
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: >
+          cmake -G Ninja
+          -S "$GITHUB_WORKSPACE/Thunder"
+          -B build/Thunder
+          -DMESSAGING=ON
+          -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
+          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          -DBUILD_TYPE=Debug
+          -DBINDING=127.0.0.1
+          -DPORT=55555
+          -DEXCEPTIONS_ENABLE=ON
+          &&
+          cmake --build build/Thunder -j8
+          &&
+          cmake --install build/Thunder
+
+      - name: Build entservices-apis
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: >
+          cmake -G Ninja
+          -S "$GITHUB_WORKSPACE/entservices-apis"
+          -B build/entservices-apis
+          -DEXCEPTIONS_ENABLE=ON
+          -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
+          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          &&
+          cmake --build build/entservices-apis -j8
+          &&
+          cmake --install build/entservices-apis
+
+      - name: Ensure ConfigGenerator executable exists in local prefix (act/CI)
+        run: |
+          set -euo pipefail
+
+          prefix="$GITHUB_WORKSPACE/install/usr"
+          mkdir -p "$prefix/bin"
+
+          if command -v "$prefix/bin/ConfigGenerator" >/dev/null 2>&1; then
+            echo "ConfigGenerator already present at: $prefix/bin/ConfigGenerator"
+            exit 0
+          fi
+
+          impl="$prefix/sbin/ConfigGenerator/config_generator.py"
+          if [ ! -f "$impl" ]; then
+            echo "ERROR: Expected ConfigGenerator python implementation not found at: $impl"
+            find "$prefix" -maxdepth 4 -type f -name 'config_generator.py' -o -name 'ConfigGenerator' 2>/dev/null || true
+            exit 1
+          fi
+
+          cat > "$prefix/bin/ConfigGenerator" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          PREFIX="$(cd "${SCRIPT_DIR}/.." && pwd)"
+          exec python3 "${PREFIX}/sbin/ConfigGenerator/config_generator.py" "$@"
+          EOF
+
+          chmod +x "$prefix/bin/ConfigGenerator"
+
+      - name: Stage INetworkManager.h into install prefix (required for AppGateway compile)
+        run: |
+          set -euo pipefail
+          dst_dir="$GITHUB_WORKSPACE/install/usr/include/WPEFramework/interfaces"
+          mkdir -p "$dst_dir"
+          url="https://raw.githubusercontent.com/rdkcentral/networkmanager/develop/interface/INetworkManager.h"
+          curl -fsSL "$url" -o "$dst_dir/INetworkManager.h"
+
+      - name: Build AppGateway plugin and stage to install prefix
+        run: |
+          set -euo pipefail
+
+          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+          export PATH="$GITHUB_WORKSPACE/install/usr/bin:$PATH"
+
+          cmake -G Ninja \
+            -S "$GITHUB_WORKSPACE" \
+            -B build/entservices-appgateway-l0 \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
+            -DConfigGenerator_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator" \
+            -DWPEFrameworkPlugins_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFrameworkPlugins" \
+            -DDISABLE_SECURITY_TOKEN=ON \
+            -DUSE_THUNDER_R4=ON \
+            -DPLUGIN_APPGATEWAY=ON \
+            -DPLUGIN_APPGATEWAYCOMMON=OFF \
+            -DCMAKE_VERBOSE_MAKEFILE=ON
+
+          cmake --build build/entservices-appgateway-l0 --target AppGateway -- -j"$(nproc)"
+
+          mkdir -p "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins"
+          cp -f build/entservices-appgateway-l0/AppGateway/libAppGateway.so "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/"
+          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppGateway.so"
+
+      - name: Build AppGateway L0 tests (Tests/L0Tests)
+        run: |
+          set -euo pipefail
+
+          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+          export PREFIX="$GITHUB_WORKSPACE/install/usr"
+
+          cmake -G Ninja \
+            -S "$GITHUB_WORKSPACE/Tests/L0Tests" \
+            -B build/entservices-appgateway-l0tests-only \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
+            -DPREFIX="$PREFIX" \
+            -DAPPGW_ENABLE_COVERAGE=ON
+
+          cmake --build build/entservices-appgateway-l0tests-only --target appgateway_l0test -- -j"$(nproc)"
+
+      - name: Stage AppGateway resolution.base.json into config root (avoid /etc)
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/app-gateway
+          cp -f "$GITHUB_WORKSPACE/AppGateway/resolutions/resolution.base.json" /tmp/app-gateway/resolution.base.json
+          echo "APPGATEWAY_CONFIG_PATH=/tmp/app-gateway" >> "$GITHUB_ENV"
+          echo "APPGATEWAY_RESOLUTIONS_PATH=/tmp/app-gateway" >> "$GITHUB_ENV"
+
+      - name: Run L0 tests (optionally under gdb)
+        run: |
+          set -euo pipefail
+
+          export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH:-}"
+
+          test_bin="build/entservices-appgateway-l0tests-only/appgateway_l0test"
+          test -x "$test_bin"
+
+          if [ "${ENABLE_GDB:-0}" = "1" ]; then
+            gdb -q -batch -ex "set pagination off" -ex "run" -ex "bt full" --args "$test_bin" | tee l0-test.log
+          else
+            "$test_bin" | tee l0-test.log
+          fi
+
+      - name: Generate coverage report (lcov + HTML via genhtml)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+
+          ARTIFACT_ROOT="$GITHUB_WORKSPACE"
+          rm -rf "$ARTIFACT_ROOT/coverage-html" coverage.info filtered_coverage.info || true
+          mkdir -p "$ARTIFACT_ROOT/coverage-html"
+
+          build_dir="$GITHUB_WORKSPACE/build/entservices-appgateway-l0tests-only"
+
+          lcov -c -o coverage.info -d "$build_dir" || true
+
+          if [ ! -s coverage.info ]; then
+            echo "coverage.info missing/empty; skipping filtering + HTML generation"
+            exit 0
+          fi
+
+          lcov \
+            -r coverage.info \
+            '/usr/include/*' \
+            '*/install/usr/include/*' \
+            '*/Tests/L0Tests/*' \
+            '*/Thunder/*' \
+            -o filtered_coverage.info || true
+
+          if [ ! -s filtered_coverage.info ]; then
+            echo "filtered_coverage.info missing/empty; skipping HTML generation"
+            exit 0
+          fi
+
+          genhtml \
+            -o "$ARTIFACT_ROOT/coverage-html" \
+            -t "entservices-appgateway L0 coverage" \
+            filtered_coverage.info || true
+
+      - name: Upload artifacts
+        if: ${{ !env.ACT }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-L0-appgateway
+          path: |
+            coverage-html/
+            coverage.info
+            filtered_coverage.info
+            l0-test.log
+          if-no-files-found: warn
