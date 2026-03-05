@@ -82,6 +82,8 @@ jobs:
       - name: Checkout entservices-appgateway
         if: ${{ !env.ACT }}
         uses: actions/checkout@v3
+        with:
+          ref: feature/AI_L1
 
       - name: Checkout Thunder
         if: steps.cache.outputs.cache-hit != 'true'
@@ -107,6 +109,13 @@ jobs:
           path: entservices-apis
           ref: ${{env.INTERFACES_REF}}
 
+      - name: Apply patches ThunderTools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cd $GITHUB_WORKSPACE/ThunderTools
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/00010-R4.4-Add-support-for-project-dir.patch
+          cd -
+
       - name: Build ThunderTools
         if: steps.cache.outputs.cache-hit != 'true'
         run: >
@@ -121,6 +130,17 @@ jobs:
           cmake --build build/ThunderTools -j8
           &&
           cmake --install build/ThunderTools
+
+      - name: Apply patches Thunder
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cd $GITHUB_WORKSPACE/Thunder
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/Use_Legact_Alt_Based_On_ThunderTools_R4.4.3.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/error_code_R4_4.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/1004-Add-support-for-project-dir.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/RDKEMW-733-Add-ENTOS-IDS.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/Jsonrpc_dynamic_error_handling.patch
+          cd -
 
       - name: Build Thunder
         if: steps.cache.outputs.cache-hit != 'true'
@@ -140,6 +160,13 @@ jobs:
           cmake --build build/Thunder -j8
           &&
           cmake --install build/Thunder
+
+      - name: Apply patches entservices-apis
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cd $GITHUB_WORKSPACE/entservices-apis
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/RDKEMW-1007.patch
+          cd -
 
       - name: Build entservices-apis
         if: steps.cache.outputs.cache-hit != 'true'
