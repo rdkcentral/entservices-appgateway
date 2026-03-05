@@ -42,7 +42,6 @@ All AppGateway telemetry markers follow this pattern:
 | Marker Name | Reporting | Unit | Description |
 |-------------|-----------|------|-------------|
 | `AppGwBootstrapDuration_split` | Once (startup) | ms | Total time to bootstrap all plugins |
-| `AppGwBootstrapPluginCount_split` | Once (startup) | count | Number of plugins successfully loaded |
 | `AppGwWebSocketConnections_split` | Periodic | count | Active WebSocket connections |
 | `AppGwTotalCalls_split` | Periodic | count | Total API calls in reporting period |
 | `AppGwSuccessfulCalls_split` | Periodic | count | Successful API calls |

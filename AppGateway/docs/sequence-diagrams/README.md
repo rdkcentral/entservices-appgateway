@@ -20,7 +20,7 @@ This directory contains detailed sequence diagrams for all App Gateway telemetry
 
 1. **Bootstrap Time Tracking**
    - Measured once during AppGateway initialization
-   - Reports individual metrics: `AppGwBootstrapDuration_split` (ms) and `AppGwBootstrapPluginCount_split` (count)
+   - Reports individual metrics: `AppGwBootstrapDuration_split` (ms)
    - Data Type: METRIC (for trending)
 
 2. **Health Stats Reporting**

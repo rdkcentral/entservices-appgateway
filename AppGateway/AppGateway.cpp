@@ -65,6 +65,7 @@ namespace Plugin {
         ASSERT(service != nullptr);
         ASSERT(mAppGateway == nullptr);
         ASSERT(mResponder == nullptr);
+        ASSERT(mTelemetry == nullptr);
 
         LOGINFO("AppGateway::Initialize: PID=%u", getpid());
         // Measure bootstrap time

@@ -858,26 +858,13 @@ namespace AppGatewayTelemetryHelper {
     } while(0)
 
 //=============================================================================
-// 4. RESPONSE TRACKING MACRO
+// 5. RESPONSE TRACKING MACRO
 //=============================================================================
 
 /**
- * @brief Track response payload by delegating JSON-RPC parsing to AppGateway telemetry
+ * @brief Track response payload by delegating response parsing to AppGateway telemetry
  * @param context Gateway context with request/connection/app info
- * @param payload Raw JSON-RPC 2.0 response string
- * 
- * **Purpose**:
- * - Centralizes JSON-RPC 2.0 response parsing in AppGatewayTelemetry
- * - Simplifies responder implementations (no local parsing needed)
- * - Automatically determines success (has "result") or failure (has "error")
- * - Calls RecordResponse() internally after parsing
- * 
- * Example (in responder):
- *   void ReturnMessageInSocket(uint32_t connectionId, const string& result, int requestId) {
- *       Exchange::GatewayContext context = {requestId, connectionId, appId};
- *       AGW_TRACK_RESPONSE_PAYLOAD(context, result);  // Delegate parsing to AppGateway
- *       SendToClient(result);
- *   }
+ * @param payload appGateway response string
  */
 #define AGW_TRACK_RESPONSE_PAYLOAD(context, payload) \
     do { \

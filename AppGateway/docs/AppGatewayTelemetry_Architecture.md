@@ -75,7 +75,6 @@ The App Gateway Telemetry module provides comprehensive telemetry collection and
 ║  ╠════════════════════════════════════════════════════════════════════════╣  ║
 ║  ║ SendT2Event() - Individual metrics sent to T2:                         ║  ║
 ║  ║ • AppGwBootstrapDuration_split                                         ║  ║
-║  ║ • AppGwBootstrapPluginCount_split                                      ║  ║
 ║  ║ • AppGwWebSocketConnections_split                                      ║  ║
 ║  ║ • AppGwTotalCalls_split                                                ║  ║
 ║  ║ • AppGwSuccessfulCalls_split                                           ║  ║

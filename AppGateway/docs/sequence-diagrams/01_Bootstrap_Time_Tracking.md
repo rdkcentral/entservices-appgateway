@@ -94,22 +94,9 @@ sequenceDiagram
 }
 ```
 
-**Metric 2 Name:** `AppGwBootstrapPluginCount_split`
-
-**Metric Payload Format:**
-```json
-{
-  "sum": 8,
-  "count": 1,
-  "unit": "count",
-  "reporting_interval_sec": 3600
-}
-```
-
 **Compact Format:**
 ```
 AppGwBootstrapDuration_split: 2500,1,ms,3600
-AppGwBootstrapPluginCount_split: 8,1,count,3600
 ```
 
 ## Configuration

@@ -47,7 +47,7 @@
  * Plugins should use the helper functions from UtilsAppGatewayTelemetry.h:
  *   - AGW_REPORT_API_ERROR() - Reports API failures (uses RecordTelemetryEvent)
  *   - AGW_REPORT_EXTERNAL_SERVICE_ERROR() - Reports external service failures (uses RecordTelemetryEvent)
- *   - AGW_REPORT_API_LATENCY() - Reports API call latency (uses RecordTelemetryEvent with JSON)
+ *   - AGW_REPORT_API_LATENCY() - Reports API call latency
  *   - AGW_REPORT_SERVICE_LATENCY() - Reports external service latency (uses RecordTelemetryMetric with aggregation)
  * 
  * Direct COM-RPC interface usage (if helper macros unavailable):
@@ -331,7 +331,7 @@
 // NOTE: These are internal constants for existing plugins - not for documentation examples
 //=============================================================================
 
-
+// Only opensource plugins here.
 #define AGW_PLUGIN_APPGATEWAY                       "AppGateway"
 #define AGW_PLUGIN_FBADVERTISING                    "FbAdvertising"
 #define AGW_PLUGIN_FBDISCOVERY                      "FbDiscovery"
