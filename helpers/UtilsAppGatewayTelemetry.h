@@ -325,14 +325,8 @@ namespace AppGatewayTelemetryHelper {
         /**
          * @brief Track response payload for automatic success/failure detection
          * @param context Gateway context with request/connection/app info
-         * @param payload JSON-RPC 2.0 response payload string
+         * @param payload appGateway response payload string
          * @return Core::hresult
-         * 
-         * This method sends the entire response payload to AppGatewayTelemetry
-         * which will parse it as JSON-RPC 2.0 and automatically determine if it's
-         * a success (has "result") or failure (has "error") response.
-         * 
-         * Uses AGW_MARKER_RESPONSE_PAYLOAD_TRACKING event marker internally.
          */
         Core::hresult TrackResponsePayload(const Exchange::GatewayContext& context, const std::string& payload)
         {
@@ -693,7 +687,7 @@ namespace AppGatewayTelemetryHelper {
  *   } // Timer automatically records on scope exit
  */
 #define AGW_RECORD_BOOTSTRAP_TIME() \
-    WPEFramework::Plugin::AppGatewayTelemetryHelper::ScopedBootstrapTimer __bootstrapTimer(&GetLocalTelemetryClient())
+    WPEFramework::Plugin::AppGatewayTelemetryHelper::ScopedBootstrapTimer bootstrapTimer(&GetLocalTelemetryClient())
 
 //=============================================================================
 // 3. ERROR REPORTING MACROS (Events via RecordTelemetryEvent)
