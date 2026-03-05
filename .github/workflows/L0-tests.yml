@@ -301,6 +301,7 @@ jobs:
           set -euo pipefail
 
           export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+          export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake${CMAKE_MODULE_PATH:+:$CMAKE_MODULE_PATH}"
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:$PATH"
 
           cmake -G Ninja \
@@ -308,6 +309,8 @@ jobs:
             -B build/entservices-appgateway-l0 \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
+            -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH" \
+            -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake" \
             -DConfigGenerator_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator" \
             -DWPEFrameworkPlugins_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFrameworkPlugins" \
             -DDISABLE_SECURITY_TOKEN=ON \
@@ -327,6 +330,7 @@ jobs:
           set -euo pipefail
 
           export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+          export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake${CMAKE_MODULE_PATH:+:$CMAKE_MODULE_PATH}"
           export PREFIX="$GITHUB_WORKSPACE/install/usr"
 
           cmake -G Ninja \
@@ -334,6 +338,8 @@ jobs:
             -B build/entservices-appgateway-l0tests-only \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
+            -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH" \
+            -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake" \
             -DPREFIX="$PREFIX" \
             -DAPPGW_ENABLE_COVERAGE=ON
 
