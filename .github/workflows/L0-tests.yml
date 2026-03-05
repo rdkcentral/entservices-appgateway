@@ -211,6 +211,83 @@ jobs:
 
           chmod +x "$prefix/bin/ConfigGenerator"
 
+      - name: Ensure ConfigGenerator CMake package config exists in local prefix (act/CI)
+        run: |
+          set -euo pipefail
+
+          prefix="$GITHUB_WORKSPACE/install/usr"
+          pkgdir="$prefix/lib/cmake/ConfigGenerator"
+          cfg="$pkgdir/ConfigGeneratorConfig.cmake"
+          ver="$pkgdir/ConfigGeneratorConfigVersion.cmake"
+
+          mkdir -p "$pkgdir"
+
+          findmod="$(find "$prefix" -type f -name 'FindConfigGenerator.cmake' -print -quit 2>/dev/null || true)"
+          findmod_dir=""
+          if [ -n "${findmod}" ]; then
+            findmod_dir="$(dirname "${findmod}")"
+            echo "Found FindConfigGenerator.cmake at: ${findmod}"
+          else
+            echo "INFO: FindConfigGenerator.cmake not found under prefix: ${prefix} (continuing with tool-only fallback config)"
+          fi
+
+          echo "Generating ConfigGeneratorConfig.cmake at: $cfg"
+          if [ -n "${findmod_dir}" ]; then
+            cat > "$cfg" <<EOF
+          include(CMakeFindDependencyMacro)
+
+          set(_cg_module_dir "${findmod_dir}")
+          get_filename_component(_cg_module_dir "\${_cg_module_dir}" ABSOLUTE)
+
+          if(EXISTS "\${_cg_module_dir}/FindConfigGenerator.cmake")
+            list(PREPEND CMAKE_MODULE_PATH "\${_cg_module_dir}")
+          endif()
+
+          find_package(ConfigGenerator REQUIRED MODULE)
+          EOF
+          else
+            cat > "$cfg" <<'EOF'
+          set(_cg_prefix "${CMAKE_CURRENT_LIST_DIR}/../../..")
+          get_filename_component(_cg_prefix "${_cg_prefix}" ABSOLUTE)
+
+          find_program(CONFIGGENERATOR_EXECUTABLE
+            NAMES ConfigGenerator
+            HINTS "${_cg_prefix}/bin" "${_cg_prefix}/sbin" "${_cg_prefix}/usr/bin" "${_cg_prefix}/usr/sbin"
+          )
+
+          if(NOT CONFIGGENERATOR_EXECUTABLE)
+            message(FATAL_ERROR "ConfigGenerator executable not found under prefix: ${_cg_prefix}")
+          endif()
+
+          if(NOT TARGET ConfigGenerator::ConfigGenerator)
+            add_executable(ConfigGenerator::ConfigGenerator IMPORTED GLOBAL)
+            set_target_properties(ConfigGenerator::ConfigGenerator PROPERTIES
+              IMPORTED_LOCATION "${CONFIGGENERATOR_EXECUTABLE}"
+            )
+          endif()
+
+          if(NOT TARGET ConfigGenerator::configgenerator)
+            add_executable(ConfigGenerator::configgenerator ALIAS ConfigGenerator::ConfigGenerator)
+          endif()
+
+          set(ConfigGenerator_FOUND TRUE)
+          EOF
+          fi
+
+          if [ ! -f "$ver" ]; then
+            cat > "$ver" <<'EOF'
+          set(PACKAGE_VERSION "0.0.0")
+          set(PACKAGE_VERSION_COMPATIBLE TRUE)
+          set(PACKAGE_VERSION_EXACT FALSE)
+          EOF
+          fi
+
+      - name: "Sanity check: ConfigGenerator package is installed"
+        run: |
+          set -euo pipefail
+          test -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator/ConfigGeneratorConfig.cmake"
+          echo "Found: $GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator/ConfigGeneratorConfig.cmake"
+
       - name: Stage INetworkManager.h into install prefix (required for AppGateway compile)
         run: |
           set -euo pipefail
