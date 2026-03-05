@@ -414,7 +414,7 @@ namespace WPEFramework
             std::string permissionGroup;
             if (mResolverPtr->HasPermissionGroup(method, permissionGroup)) {
                 LOGTRACE("Method '%s' requires permission group '%s'", method.c_str(), permissionGroup.c_str());
-                if (SetupAppGatewayAuthenticator()) {
+                if (nullptr != GetAppGatewayAuthenticatorInterface()) {
                     bool allowed = false;
                     if (Core::ERROR_NONE != mAuthenticator->CheckPermissionGroup(context.appId, permissionGroup, allowed)) {
                         LOGERR("Failed to check permission group '%s' for appId '%s'", permissionGroup.c_str(), context.appId.c_str());
@@ -525,7 +525,12 @@ namespace WPEFramework
                     // Use ObjectUtils::HasBooleanEntry and populate resultValue
                     if (ObjectUtils::HasBooleanEntry(params_obj, "listen", resultValue)) {
                         LOGTRACE("Event method '%s' with listen: %s", method.c_str(), resultValue ? "true" : "false");
-                        auto ret_value = HandleEvent(context, alias, method, origin, resultValue);
+                        string eventName = method;
+                        if (mResolverPtr->IsVersionedEvent(method)) {
+                            eventName = ContextUtils::GetEventNameFromContextBasedonVersion(context.version, method);
+                        }
+                        
+                        auto ret_value = HandleEvent(context, alias, eventName, origin, resultValue);
                         JsonObject returnResult;
                         returnResult["listening"] = resultValue;
                         returnResult["event"] = method;
@@ -544,40 +549,46 @@ namespace WPEFramework
         }
 
         Core::hresult AppGatewayImplementation::HandleEvent(const Context &context, const string &alias,  const string &event, const string &origin, const bool listen) {
-            if (mAppNotifications == nullptr) {
+            Core::SafeSyncType<Core::CriticalSection> lock(mAppNotificationsLock);
+            if (nullptr == mAppNotifications) {
                 mAppNotifications = mService->QueryInterfaceByCallsign<Exchange::IAppNotifications>(APP_NOTIFICATIONS_CALLSIGN);
-                if (mAppNotifications == nullptr) {
-                    LOGERR("IAppNotifications interface not available");
+                if (nullptr == mAppNotifications) {
+                    LOGERR("Failed to get IAppNotifications interface");
                     return Core::ERROR_GENERAL;
+                } else {
+                    LOGINFO("IAppNotifications interface acquired");
                 }
             }
-
             return mAppNotifications->Subscribe(ContextUtils::ConvertAppGatewayToNotificationContext(context,origin), listen, alias, event);
         }
 
         void AppGatewayImplementation::SendToLaunchDelegate(const Context& context, const string& payload)
         {
-            if ( mInternalGatewayResponder==nullptr ) {
+            Core::SafeSyncType<Core::CriticalSection> lock(mInternalGatewayResponderLock);
+            if (nullptr == mInternalGatewayResponder) {
                 mInternalGatewayResponder = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
-                if (mInternalGatewayResponder == nullptr) {
-                    LOGERR("Internal Responder not available Not available");
+                if (nullptr == mInternalGatewayResponder) {
+                    LOGERR("Failed to get Internal Responder interface");
                     return;
+                } else {
+                    LOGINFO("Internal Responder interface acquired");
                 }
             }
-
             mInternalGatewayResponder->Respond(context, payload);
-
         }
 
-        bool AppGatewayImplementation::SetupAppGatewayAuthenticator() {
-            if ( mAuthenticator==nullptr ) {
+        Exchange::IAppGatewayAuthenticator* AppGatewayImplementation::GetAppGatewayAuthenticatorInterface() {
+            Core::SafeSyncType<Core::CriticalSection> lock(mAuthenticatorLock);
+            if (nullptr == mAuthenticator) {
                 mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
-                if (mAuthenticator == nullptr) {
+                if (nullptr == mAuthenticator) {
                     LOGERR("AppGateway Authenticator not available");
-                    return false;
+                    return nullptr;
+                } else {
+                    LOGINFO("AppGateway Authenticator interface acquired");
                 }
             }
-            return true;
+            return mAuthenticator;
         }
 
         // Helper: read a string key from a JSON file; returns empty if any step fails.

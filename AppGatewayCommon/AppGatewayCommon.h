@@ -154,7 +154,7 @@ namespace WPEFramework {
             Core::hresult GetSpeed(double &speed /* @out */);
             Core::hresult GetVoiceGuidanceHints(string &result /* @out */);
             Core::hresult SetVoiceGuidanceHints(const bool enabled /* @in */);
-            Core::hresult GetVoiceGuidanceSettings(string &result /* @out */);
+            Core::hresult GetVoiceGuidanceSettings(const bool addSpeed, string &result /* @out */);
             Core::hresult GetClosedCaptionsSettings(string &result /* @out */);
             Core::hresult GetFirmwareVersion(string &result /* @out */);
             Core::hresult GetScreenResolution(string &result /* out */);
@@ -170,7 +170,11 @@ namespace WPEFramework {
             Core::hresult Lifecycle2Close(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult DispatchLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult GetLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
-
+            Core::hresult HandleAppDelegateRequest(const Exchange::GatewayContext& context ,
+                                          const string& method ,
+                                          const string& payload /*@opaque */,
+                                          string& result /*@out @opaque */);
+            Core::hresult GetNetworkConnected(string &result /* @out */);
         private:
             PluginHost::IShell* mShell;
             uint32_t mConnectionId;

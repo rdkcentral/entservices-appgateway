@@ -103,7 +103,7 @@ class LifecycleDelegate : public BaseEventDelegate
         {
             RemoveNotification(event, cb);
         }
-        return false;
+        return true;
     }
 
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError)
@@ -113,9 +113,10 @@ class LifecycleDelegate : public BaseEventDelegate
         if (VALID_LIFECYCLE_EVENT.find(StringUtils::toLower(event)) != VALID_LIFECYCLE_EVENT.end())
         {
             // Handle LifecycleManagerState event
-            registrationError = HandleSubscription(cb, event, listen);
+            registrationError = !HandleSubscription(cb, event, listen);
             return true;
         }
+        registrationError = true; // event not recognized - signal error to caller
         return false;
     }
 
@@ -589,12 +590,14 @@ class LifecycleDelegate : public BaseEventDelegate
 
     Exchange::ILifecycleManagerState* GetLifecycleManagerStateInterface()
     {
-        if (mLifecycleManagerState == nullptr && mShell != nullptr)
+        Core::SafeSyncType<Core::CriticalSection> lock(mLifecycleManagerStateLock);
+        if (nullptr == mLifecycleManagerState && nullptr != mShell)
         {
             mLifecycleManagerState = mShell->QueryInterfaceByCallsign<Exchange::ILifecycleManagerState>(LIFECYCLE_MANAGER_CALLSIGN);
-            if (mLifecycleManagerState == nullptr)
-            {
+            if (nullptr == mLifecycleManagerState) {
                 LOGERR("Failed to get LifecycleManagerState COM interface");
+            } else {
+                LOGINFO("LifecycleManagerState COM interface acquired successfully");
             }
         }
         return mLifecycleManagerState;
@@ -602,12 +605,14 @@ class LifecycleDelegate : public BaseEventDelegate
 
     Exchange::IRDKWindowManager* GetWindowManagerInterface()
     {
-        if (mWindowManager == nullptr && mShell != nullptr)
+        Core::SafeSyncType<Core::CriticalSection> lock(mWindowManagerLock);
+        if (nullptr == mWindowManager && nullptr != mShell)
         {
             mWindowManager = mShell->QueryInterfaceByCallsign<Exchange::IRDKWindowManager>(WINDOW_MANAGER_CALLSIGN);
-            if (mWindowManager == nullptr)
-            {
+            if (nullptr == mWindowManager) {
                 LOGERR("Failed to get RDKWindowManager COM interface");
+            } else {
+                LOGINFO("RDKWindowManager COM interface acquired successfully");
             }
         }
         return mWindowManager;
@@ -654,6 +659,8 @@ class LifecycleDelegate : public BaseEventDelegate
     
     private:
         PluginHost::IShell *mShell;
+        mutable Core::CriticalSection mLifecycleManagerStateLock;
+        mutable Core::CriticalSection mWindowManagerLock;
         Exchange::ILifecycleManagerState *mLifecycleManagerState;
         Exchange::IRDKWindowManager *mWindowManager;
         Core::Sink<LifecycleNotificationHandler> mNotificationHandler;
