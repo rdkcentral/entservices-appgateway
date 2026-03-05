@@ -319,11 +319,14 @@ jobs:
             -DPLUGIN_APPGATEWAYCOMMON=OFF \
             -DCMAKE_VERBOSE_MAKEFILE=ON
 
-          cmake --build build/entservices-appgateway-l0 --target AppGateway -- -j"$(nproc)"
+          cmake --build build/entservices-appgateway-l0 -- -j"$(nproc)"
 
           mkdir -p "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins"
-          cp -f build/entservices-appgateway-l0/AppGateway/libAppGateway.so "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/"
-          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppGateway.so"
+          find build/entservices-appgateway-l0 -type f \( -name "libAppGateway.so*" -o -name "libWPEFrameworkAppGateway.so*" \) -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
+
+          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppGateway.so" || \
+          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libWPEFrameworkAppGateway.so" || \
+          (echo "Missing AppGateway plugin library in staged plugin dir" && find build/entservices-appgateway-l0 -type f -name "lib*AppGateway*.so*" 2>/dev/null || true && exit 1)
 
       - name: Build AppGateway L0 tests (Tests/L0Tests)
         run: |
