@@ -21,6 +21,7 @@
 #include <plugins/JSONRPC.h>
 #include <plugins/IShell.h>
 #include "AppGatewayImplementation.h"
+#include "AppGatewayTelemetry.h"
 #include "UtilsLogging.h"
 #include "ContextUtils.h"
 #include "ObjectUtils.h"
@@ -417,6 +418,8 @@ namespace WPEFramework
                     bool allowed = false;
                     if (Core::ERROR_NONE != mAuthenticator->CheckPermissionGroup(context.appId, permissionGroup, allowed)) {
                         LOGERR("Failed to check permission group '%s' for appId '%s'", permissionGroup.c_str(), context.appId.c_str());
+                        // Track external service error - Permission service failure
+                        AppGatewayTelemetry::getInstance().RecordExternalServiceErrorInternal(context, AGW_SERVICE_PERMISSION);
                         ErrorUtils::NotPermitted(resolution);
                         return Core::ERROR_GENERAL;
                     }
@@ -491,8 +494,13 @@ namespace WPEFramework
             Exchange::IAppGatewayRequestHandler *requestHandler = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayRequestHandler>(alias);
             if (requestHandler != nullptr) {
                 std::string finalParams = UpdateContext(context, method, params, origin, true);
+
                 if (Core::ERROR_NONE != requestHandler->HandleAppGatewayRequest(context, method, finalParams, resolution)) {
                     LOGERR("HandleAppGatewayRequest failed for callsign: %s", alias.c_str());
+                    
+                    // Record API error for telemetry
+                    AppGatewayTelemetry::getInstance().RecordApiError(context, method);
+                    
                     if (resolution.empty()){
                         ErrorUtils::CustomInternal("HandleAppGatewayRequest failed", resolution);
                     }

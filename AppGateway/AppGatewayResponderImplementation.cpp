@@ -21,6 +21,7 @@
 #include <plugins/JSONRPC.h>
 #include <plugins/IShell.h>
 #include "AppGatewayResponderImplementation.h"
+#include "AppGatewayTelemetry.h"
 #include "UtilsLogging.h"
 #include "UtilsConnections.h"
 #include "UtilsCallsign.h"
@@ -151,6 +152,11 @@ namespace WPEFramework
                     if (Core::ERROR_NONE == mAuthenticator->Authenticate(sessionId,appId)) {
                         LOGTRACE("APP ID %s", appId.c_str());
                         mAppIdRegistry.Add(connectionId, appId);
+                        
+                        // Track WebSocket connection for telemetry (connection-level event, requestId=0)
+                        Exchange::GatewayContext context = {0, connectionId, appId};
+                        AppGatewayTelemetry::getInstance().IncrementWebSocketConnections(context);
+                        
                         mCompliantJsonRpcRegistry.CheckAndAddCompliantJsonRpc(connectionId, token);
                         #ifdef ENABLE_APP_GATEWAY_AUTOMATION
                         // Check if this is the automation client
@@ -167,6 +173,10 @@ namespace WPEFramework
                         return true;
                     }
 
+                    // Track external service error - Authentication service failure (auth failed, no appId available)
+                    Exchange::GatewayContext authFailContext = {0, connectionId, "UNKNOWN"};
+                    AppGatewayTelemetry::getInstance().RecordExternalServiceErrorInternal(authFailContext, AGW_SERVICE_AUTHENTICATION);
+
                     return false;
                 });
 
@@ -174,11 +184,19 @@ namespace WPEFramework
                 [this](const uint32_t connectionId)
                 {
                     LOGINFO("Connection disconnected: %d", connectionId);
+                    
+                    // Track WebSocket disconnection for telemetry (connection-level event, requestId=0)
                     string appId;
                     if (!mAppIdRegistry.Get(connectionId, appId)) {
                         LOGERR("No App ID found for connection %d during disconnect", connectionId);
+                        appId = "UNKNOWN";
                     } else {
                         LOGINFO("App ID %s found for connection %d during disconnect", appId.c_str(), connectionId);
+                    }
+                    Exchange::GatewayContext context = {0, connectionId, appId};
+                    AppGatewayTelemetry::getInstance().DecrementWebSocketConnections(context);
+                    
+                    if (appId != "UNKNOWN") {
                         Core::IWorkerPool::Instance().Submit(ConnectionStatusNotificationJob::Create(this, connectionId, appId, false));
                     }
                     
@@ -252,29 +270,41 @@ namespace WPEFramework
             std::string resolution;
             string appId;
 
-            if (mAppIdRegistry.Get(connectionId, appId)) {
+            // Get appId first to create proper context
+            bool hasAppId = mAppIdRegistry.Get(connectionId, appId);
+            if (!hasAppId) {
+                appId = "UNKNOWN";
+            }
+
+            string version  = LEGACY_FIREBOLT_VERSION;
+            if (mCompliantJsonRpcRegistry.IsCompliantJsonRpc(connectionId)) {
+                version = RDK8_FIREBOLT_VERSION;
+            }
+            // Create context 
+            Context context = {
+                requestId,
+                connectionId,
+                appId,
+                std::move(version)
+            };
+
+            // Track total API calls for telemetry
+            AppGatewayTelemetry::getInstance().IncrementTotalCalls(context);
+
+            if (hasAppId) {
 
                 if (mEnhancedLoggingEnabled || !mDebugDisabledConnectionsRegistry.IsDebugDisabled(connectionId)) {
                     LOGDBG("%s-->[[a-%d-%d]] method=%s, params=%s",
                            appId.c_str(),connectionId, requestId, method.c_str(), params.c_str());
                 }
 
-                string version  = LEGACY_FIREBOLT_VERSION;
-                if (mCompliantJsonRpcRegistry.IsCompliantJsonRpc(connectionId)) {
-                    version = RDK8_FIREBOLT_VERSION;
-                }
-                // App Id is available
-                Context context = {
-                    requestId,
-                    connectionId,
-                    appId,
-                    std::move(version)
-                };
-
                 if (nullptr == mResolver) {
                     mResolver = mService->QueryInterface<Exchange::IAppGatewayResolver>();
                     if (nullptr == mResolver) {
                         LOGERR("Resolver interface not available");
+                        // Track failed call
+                        AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
+                        AppGatewayTelemetry::getInstance().RecordApiError(context, method);
                         return;
                     } else {
                         LOGINFO("Resolver interface acquired");
@@ -283,13 +313,45 @@ namespace WPEFramework
 
                 if (Core::ERROR_NONE != mResolver->Resolve(context, APP_GATEWAY_CALLSIGN, method, params, resolution)) {
                     LOGERR("Resolver Failure");
+                    // Track failed call and specific API error
+                    AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
+                    AppGatewayTelemetry::getInstance().RecordApiError(context, method);
+                } else {
+                    // Track successful call
+                    // Response will be sent asynchronously, so we will track success/failure when sending the response back to client
                 }
             } else {
                 LOGERR("No App ID found for connection %d. Terminate connection", connectionId);
+                // Track failed call due to missing appId
+                AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
                 mWsManager.Close(connectionId);
             }
         }
 
+        void AppGatewayResponderImplementation::ReturnMessageInSocket(const uint32_t connectionId, 
+                                                    const int requestId, const string payload ) {
+            if (mEnhancedLoggingEnabled || !mDebugDisabledConnectionsRegistry.IsDebugDisabled(connectionId)) {
+                LOGDBG("<--[[a-%d-%d]] payload=%s",
+                        connectionId, requestId, payload.c_str());
+            }
+
+            // Get appId for context
+            string appId;
+            if (!mAppIdRegistry.Get(connectionId, appId)) {
+                appId = "UNKNOWN";
+            }
+
+            // Create context for telemetry
+            Exchange::GatewayContext context = {(uint32_t)requestId, connectionId, appId};
+            AppGatewayTelemetry::getInstance().RecordTelemetryEvent(
+                context,
+                AGW_MARKER_RESPONSE_PAYLOAD_TRACKING,
+                payload
+            );
+            
+            // Send response back to client
+            mWsManager.SendMessageToConnection(connectionId, payload, requestId);
+        }
 
         Core::hresult AppGatewayResponderImplementation::Register(Exchange::IAppGatewayResponder::INotification *notification)
         {
