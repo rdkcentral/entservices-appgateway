@@ -2065,6 +2065,8 @@ public:
         return nullptr;
     }
     void Terminate() override {}
+    uint32_t Launch() override { return Core::ERROR_NONE; }
+    void PostMortem() override {}
     
     void AddRef() const override { ++mRefCount; }
     uint32_t Release() const override {
