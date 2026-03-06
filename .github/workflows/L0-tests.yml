@@ -82,8 +82,6 @@ jobs:
       - name: Checkout entservices-appgateway
         if: ${{ !env.ACT }}
         uses: actions/checkout@v3
-        with:
-          ref: feature/AI_L1
 
       - name: Checkout Thunder
         if: steps.cache.outputs.cache-hit != 'true'
