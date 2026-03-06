@@ -256,6 +256,15 @@ namespace L0Test {
             return WPEFramework::Core::ERROR_NONE;
         }
 
+        WPEFramework::Core::hresult RecordGatewayConnectionContext(const uint32_t connectionId,
+                                                                   const string& contextKey,
+                                                                   const string& contextValue) override
+        {
+            std::lock_guard<std::mutex> lock(_ctxMutex);
+            _contexts[connectionId][contextKey] = contextValue;
+            return WPEFramework::Core::ERROR_NONE;
+        }
+
         WPEFramework::Core::hresult Register(INotification* notification) override
         {
             if (notification == nullptr) {
