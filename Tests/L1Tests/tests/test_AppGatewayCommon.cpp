@@ -8476,6 +8476,8 @@ TEST_F(AppGatewayCommonTest, AGC_L1_362_UserSettings_HandleEvent_InvalidEvent)
     // Invalid events should set registrationError to true
     EXPECT_TRUE(registrationError);
     
+    // Allow async EventRegistrationJob to complete before cleanup
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     emitter->Release();
     plugin.Deinitialize(&service);
 }
@@ -8581,6 +8583,8 @@ TEST_F(AppGatewayCommonTest, AGC_L1_365_TTS_HandleSubscription_NoTTSInterface)
     // status should be true (error) because HandleSubscription returns false
     EXPECT_TRUE(status);
     
+    // Allow async EventRegistrationJob to complete before cleanup
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     emitter->Release();
     plugin.Deinitialize(&service);
 }
