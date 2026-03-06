@@ -4,6 +4,8 @@
 #include <fstream>
 #include <sys/stat.h>
 #include <cstdlib>
+#include <thread>
+#include <chrono>
 
 #include <core/core.h>
 #include <interfaces/IConfiguration.h>
@@ -151,8 +153,13 @@ private:
 
 static std::string ComputeRepoRoot()
 {
+    const char* envRepoRoot = std::getenv("APPGATEWAY_TEST_REPO_ROOT");
+    if (envRepoRoot != nullptr && *envRepoRoot != '\0') {
+        return envRepoRoot;
+    }
+
     const std::string f = __FILE__;
-    const std::string marker = "/tests/l0/appgateway/l0test/";
+    const std::string marker = "/Tests/L0Tests/AppGateway/";
     const auto pos = f.rfind(marker);
     if (pos != std::string::npos) {
         return f.substr(0, pos);
@@ -162,7 +169,21 @@ static std::string ComputeRepoRoot()
 
 static std::string BaseResolutionsPath()
 {
-    return ComputeRepoRoot() + "/plugin/AppGateway/resolutions/resolution.base.json";
+    const char* env = std::getenv("APPGATEWAY_RESOLUTIONS_PATH");
+    if (env != nullptr && *env != '\0') {
+        const std::string path = env;
+        struct stat st;
+        if (stat(path.c_str(), &st) == 0) {
+            if (S_ISREG(st.st_mode)) {
+                return path;
+            }
+            if (S_ISDIR(st.st_mode)) {
+                return path + "/resolution.base.json";
+            }
+        }
+    }
+
+    return ComputeRepoRoot() + "/AppGateway/resolutions/resolution.base.json";
 }
 
 static WPEFramework::Exchange::GatewayContext MakeContext()
@@ -228,6 +249,11 @@ static void ConfigureImplOrFail(TestResult& tr,
     ExpectEqU32(tr, cfgRc, ERROR_NONE, "AppGatewayImplementation::Configure(paths) returns ERROR_NONE");
 }
 
+static void DrainAsyncRespondJobs()
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+}
+
 } // namespace
 
 // PUBLIC_INTERFACE
@@ -265,6 +291,7 @@ uint32_t Test_AppGatewayImplementation_PermissionGroup_Denied()
             ExpectTrue(tr, auth->checkPermissionCount > 0, "CheckPermissionGroup called");
         }
 
+        DrainAsyncRespondJobs();
         impl->Release();
         service->Release();
     }
@@ -300,6 +327,7 @@ uint32_t Test_AppGatewayImplementation_PermissionGroup_Allowed_ComRpcDisabled()
 
         ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "Allowed permissionGroup + COM-RPC disabled returns ERROR_UNAVAILABLE");
 
+        DrainAsyncRespondJobs();
         impl->Release();
         service->Release();
     }
@@ -349,6 +377,7 @@ uint32_t Test_AppGatewayImplementation_EventListen_TriggersNotify()
                        "Notify payload includes original event method");
         }
 
+        DrainAsyncRespondJobs();
         impl->Release();
         service->Release();
     }
@@ -398,6 +427,7 @@ uint32_t Test_AppGatewayImplementation_IncludeContext_Path_Executes()
         ExpectEqU32(tr, rc, ERROR_NONE, "IncludeContext override resolves successfully");
         ExpectTrue(tr, !resolution.empty(), "Resolution not empty");
 
+        DrainAsyncRespondJobs();
         impl->Release();
         service->Release();
     }
@@ -459,6 +489,7 @@ uint32_t Test_AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAdditionalC
             ExpectTrue(tr, handler->lastPayload.find("\"origin\"") != std::string::npos, "Payload contains origin inside _additionalContext");
         }
 
+        DrainAsyncRespondJobs();
         impl->Release();
         service->Release();
     }

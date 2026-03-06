@@ -1,6 +1,8 @@
 #include <iostream>
 #include <string>
 #include <limits>
+#include <thread>
+#include <chrono>
 
 #include <core/core.h>
 #include <plugins/IDispatcher.h>
@@ -88,6 +90,11 @@ struct PluginAndService {
         }
     }
 };
+
+static void DrainAsyncRespondJobs()
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+}
 
 } // namespace
 
@@ -240,6 +247,7 @@ uint32_t Test_Json_Boundary_RequestId_ConnectionId() {
         dispatcher->Release();
     }
 
+    DrainAsyncRespondJobs();
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
@@ -277,6 +285,7 @@ uint32_t Test_Json_Params_Empty_Equals_EmptyObject() {
         dispatcher->Release();
     }
 
+    DrainAsyncRespondJobs();
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
@@ -306,6 +315,7 @@ uint32_t Test_Json_EmptyAppId_BadRequest() {
         dispatcher->Release();
     }
 
+    DrainAsyncRespondJobs();
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }

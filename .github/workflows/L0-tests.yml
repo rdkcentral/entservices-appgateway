@@ -346,13 +346,20 @@ jobs:
 
           cmake --build build/entservices-appgateway-l0tests-only --target appgateway_l0test -- -j"$(nproc)"
 
-      - name: Stage AppGateway resolution.base.json into config root (avoid /etc)
+      - name: Stage AppGateway resolution config for tests
         run: |
           set -euo pipefail
           mkdir -p /tmp/app-gateway
           cp -f "$GITHUB_WORKSPACE/AppGateway/resolutions/resolution.base.json" /tmp/app-gateway/resolution.base.json
-          echo "APPGATEWAY_CONFIG_PATH=/tmp/app-gateway" >> "$GITHUB_ENV"
-          echo "APPGATEWAY_RESOLUTIONS_PATH=/tmp/app-gateway" >> "$GITHUB_ENV"
+          if [ -w /etc ] || [ "$(id -u)" = "0" ]; then
+            mkdir -p /etc/app-gateway
+            cp -f "$GITHUB_WORKSPACE/AppGateway/resolutions/resolution.base.json" /etc/app-gateway/resolution.base.json
+          elif command -v sudo >/dev/null 2>&1; then
+            sudo mkdir -p /etc/app-gateway
+            sudo cp -f "$GITHUB_WORKSPACE/AppGateway/resolutions/resolution.base.json" /etc/app-gateway/resolution.base.json
+          fi
+          echo "APPGATEWAY_CONFIG_PATH=/etc/app-gateway" >> "$GITHUB_ENV"
+          echo "APPGATEWAY_RESOLUTIONS_PATH=/tmp/app-gateway/resolution.base.json" >> "$GITHUB_ENV"
 
       - name: Run L0 tests (optionally under gdb)
         run: |
