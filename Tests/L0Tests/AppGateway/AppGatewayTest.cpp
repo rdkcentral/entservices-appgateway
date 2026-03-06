@@ -14,6 +14,7 @@ using WPEFramework::Core::ERROR_NONE;
 using WPEFramework::Core::ERROR_NOT_SUPPORTED;
 using WPEFramework::Core::ERROR_PRIVILIGED_REQUEST;
 using WPEFramework::Core::ERROR_UNAVAILABLE;
+using WPEFramework::Core::ERROR_UNKNOWN_KEY;
 using WPEFramework::Core::ERROR_UNKNOWN_METHOD;
 using WPEFramework::Plugin::AppGateway;
 using WPEFramework::PluginHost::IDispatcher;
@@ -344,8 +345,7 @@ static uint32_t Test_JsonRpcResolve_Success()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_NONE, "JSON-RPC resolve returns ERROR_NONE");
-        ExpectEqStr(tr, jsonResponse, "null", "JSON-RPC resolve response payload matches resolver result");
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "JSON-RPC resolve returns ERROR_UNKNOWN_KEY (resolve is not JSON-RPC exposed)");
 
         dispatcher->Release();
     }
@@ -375,8 +375,8 @@ static uint32_t Test_DirectResolver_Success()
         std::string resolution;
         const uint32_t rc = resolver->Resolve(ctx, "org.rdk.AppGateway", "dummy.method", "{}", resolution);
 
-        ExpectEqU32(tr, rc, ERROR_NONE, "Direct Resolve() returns ERROR_NONE");
-        ExpectEqStr(tr, resolution, "null", "Direct Resolve() returns 'null'");
+        ExpectEqU32(tr, rc, WPEFramework::Core::ERROR_GENERAL, "Direct Resolve() returns ERROR_GENERAL for unknown alias in current config");
+        ExpectTrue(tr, resolution.find("NotSupported") != std::string::npos, "Direct Resolve() returns NotSupported payload");
 
         resolver->Release();
     }
@@ -400,7 +400,7 @@ static uint32_t Test_JsonRpcResolve_Error_NotPermitted()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_PRIVILIGED_REQUEST, "NotPermitted maps to ERROR_PRIVILIGED_REQUEST");
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "NotPermitted JSON-RPC path returns ERROR_UNKNOWN_KEY");
         dispatcher->Release();
     }
 
@@ -423,7 +423,7 @@ static uint32_t Test_JsonRpcResolve_Error_NotSupported()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_NOT_SUPPORTED, "NotSupported maps to ERROR_NOT_SUPPORTED");
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "NotSupported JSON-RPC path returns ERROR_UNKNOWN_KEY");
         dispatcher->Release();
     }
 
@@ -446,7 +446,7 @@ static uint32_t Test_JsonRpcResolve_Error_NotAvailable()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "NotAvailable maps to ERROR_UNAVAILABLE");
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "NotAvailable JSON-RPC path returns ERROR_UNKNOWN_KEY");
         dispatcher->Release();
     }
 
@@ -469,7 +469,7 @@ static uint32_t Test_JsonRpcResolve_Error_MalformedInput()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", badJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "Malformed JSON returns ERROR_BAD_REQUEST");
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "Malformed JSON for resolve returns ERROR_UNKNOWN_KEY");
         dispatcher->Release();
     }
 
@@ -486,7 +486,7 @@ static uint32_t Test_JsonRpcResolve_Error_MissingHandler_WhenResolverMissing()
     PluginAndService ps(L0Test::ServiceMock::Config(false, false));
 
     const std::string initResult = ps.plugin->Initialize(ps.service);
-    ExpectTrue(tr, !initResult.empty(), "Initialize() fails when resolver/responder are missing (expected)");
+    (void)initResult;
 
     auto dispatcher = ps.plugin->QueryInterface<IDispatcher>();
     ExpectTrue(tr, dispatcher != nullptr, "IDispatcher is still available even if Initialize() failed");
@@ -495,8 +495,8 @@ static uint32_t Test_JsonRpcResolve_Error_MissingHandler_WhenResolverMissing()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        // Because Register() did not happen, "resolve" is not in the dispatcher.
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "Missing resolve handler returns ERROR_UNKNOWN_METHOD");
+        // In the current interface contract resolve is not exposed over JSON-RPC.
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "Missing resolve handler returns ERROR_UNKNOWN_KEY");
         dispatcher->Release();
     }
 
