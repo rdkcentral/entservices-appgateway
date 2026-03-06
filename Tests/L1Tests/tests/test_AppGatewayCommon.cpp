@@ -2168,7 +2168,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_177_HandleAppEventNotifier_Subscribe)
     EXPECT_TRUE(status);
     
     // Give time for the async job to execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     emitter->Release();
     plugin.Deinitialize(&service);
@@ -2197,7 +2197,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_178_HandleAppEventNotifier_Unsubscribe)
     EXPECT_TRUE(status);
     
     // Give time for the async job to execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     emitter->Release();
     plugin.Deinitialize(&service);
@@ -2225,7 +2225,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_179_HandleAppEventNotifier_NullEmitter)
     EXPECT_TRUE(status);
     
     // Give time for the async job to execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     plugin.Deinitialize(&service);
 }
@@ -2258,7 +2258,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_180_HandleAppEventNotifier_MultipleEvents)
     EXPECT_TRUE(status2);
     
     // Give time for the async jobs to execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     emitter1->Release();
     emitter2->Release();
@@ -3306,7 +3306,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_207_TTS_HandleSubscription_Subscribe)
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     emitter->Release();
     plugin.Deinitialize(&service);
@@ -3341,7 +3341,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_208_TTS_HandleSubscription_Unsubscribe)
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     emitter->Release();
     plugin.Deinitialize(&service);
@@ -3454,7 +3454,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_211_Network_HandleSubscription_Subscribe)
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     emitter->Release();
     plugin.Deinitialize(&service);
@@ -3492,7 +3492,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_212_Network_HandleSubscription_NetworkConnec
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     emitter->Release();
     plugin.Deinitialize(&service);
@@ -3534,7 +3534,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_213_UserSettings_HandleSubscription_Localiza
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     emitter->Release();
     plugin.Deinitialize(&service);
@@ -3572,7 +3572,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_214_UserSettings_HandleSubscription_Accessib
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     emitter->Release();
     plugin.Deinitialize(&service);
@@ -3610,7 +3610,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_215_UserSettings_HandleSubscription_ClosedCa
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     emitter->Release();
     plugin.Deinitialize(&service);
@@ -3933,7 +3933,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_315_Network_HandleSubscription_Unsubscribe)
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     emitter->Release();
     plugin.Deinitialize(&service);
@@ -3976,7 +3976,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_316_Network_HandleSubscription_AlreadyRegist
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     emitter1->Release();
     emitter2->Release();
@@ -4087,7 +4087,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_320_Network_NotificationHandler_OnInterfaceS
     plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", true, status);
     
     // Give the async job time to complete
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Access mDelegate through plugin, then get NetworkDelegate
     auto networkDelegate = plugin.mDelegate->getNetworkDelegate();
@@ -4150,7 +4150,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_321_Network_NotificationHandler_OnInternetSt
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     auto networkDelegate = plugin.mDelegate->getNetworkDelegate();
     if (networkDelegate) {
@@ -5658,7 +5658,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_266_LifecycleDelegate_HandleLifecycleUpdate_
         Exchange::ILifecycleManager::ACTIVE);
     
     // Give time for dispatch job to execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Verify state was updated
     auto stateInfo = lifecycleDelegate->mLifecycleStateRegistry.GetLifecycleStateInfo("instance-update-1");
@@ -5699,7 +5699,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_267_LifecycleDelegate_HandleLifecycle1Update
         Exchange::ILifecycleManager::PAUSED);
     
     // Give time for dispatch job to execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     plugin.Deinitialize(&service);
 }
@@ -5735,7 +5735,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_268_LifecycleDelegate_HandleLifecycle1Update
         Exchange::ILifecycleManager::PAUSED, 
         Exchange::ILifecycleManager::SUSPENDED);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     plugin.Deinitialize(&service);
 }
@@ -5771,7 +5771,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_269_LifecycleDelegate_HandleLifecycle1Update
         Exchange::ILifecycleManager::SUSPENDED, 
         Exchange::ILifecycleManager::UNLOADED);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     plugin.Deinitialize(&service);
 }
@@ -5808,7 +5808,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_270_LifecycleDelegate_HandleLifecycle1Update
         Exchange::ILifecycleManager::INITIALIZING, 
         Exchange::ILifecycleManager::ACTIVE);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     plugin.Deinitialize(&service);
 }
@@ -5845,7 +5845,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_271_LifecycleDelegate_HandleLifecycle1Update
         Exchange::ILifecycleManager::INITIALIZING, 
         Exchange::ILifecycleManager::ACTIVE);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     plugin.Deinitialize(&service);
 }
@@ -5879,7 +5879,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_272_LifecycleDelegate_HandleAppFocusForLifec
     // Call HandleAppFocusForLifecycle1
     lifecycleDelegate->HandleAppFocusForLifecycle1("instance-focus");
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Verify app is now focused
     EXPECT_TRUE(lifecycleDelegate->mFocusedAppRegistry.IsAppInstanceIdFocused("instance-focus"));
@@ -5917,7 +5917,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_273_LifecycleDelegate_HandleAppBlurForLifecy
     // Call HandleAppBlurForLifecycle1
     lifecycleDelegate->HandleAppBlurForLifecycle1("instance-blur");
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Verify app is no longer focused
     EXPECT_FALSE(lifecycleDelegate->mFocusedAppRegistry.IsAppInstanceIdFocused("instance-blur"));
@@ -5956,7 +5956,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_274_LifecycleDelegate_HandleLifecycle1Update
         Exchange::ILifecycleManager::SUSPENDED, 
         Exchange::ILifecycleManager::HIBERNATED);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     plugin.Deinitialize(&service);
 }
@@ -5992,7 +5992,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_275_LifecycleDelegate_HandleLifecycle1Update
         Exchange::ILifecycleManager::ACTIVE, 
         Exchange::ILifecycleManager::TERMINATING);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     plugin.Deinitialize(&service);
 }
@@ -6056,7 +6056,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_277_LifecycleDelegate_DispatchLastKnownInten
     // Call DispatchLastKnownIntent
     lifecycleDelegate->DispatchLastKnownIntent("test.app");
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     plugin.Deinitialize(&service);
 }
@@ -6874,7 +6874,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_322_UserSettings_NotificationHandler_OnAudio
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "accessibility.onaudiodescriptionsettingschanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     auto userSettingsDelegate = plugin.mDelegate->getUserSettings();
     if (userSettingsDelegate) {
@@ -6917,7 +6917,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_323_UserSettings_NotificationHandler_OnPrefe
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "localization.onpreferredaudiolanguageschanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     auto userSettingsDelegate = plugin.mDelegate->getUserSettings();
     if (userSettingsDelegate) {
@@ -6960,7 +6960,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_324_UserSettings_NotificationHandler_OnPrese
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "localization.onlocalechanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     auto userSettingsDelegate = plugin.mDelegate->getUserSettings();
     if (userSettingsDelegate) {
@@ -7010,7 +7010,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_325_UserSettings_NotificationHandler_OnCapti
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "closedcaptions.onenabledchanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     auto userSettingsDelegate = plugin.mDelegate->getUserSettings();
     if (userSettingsDelegate) {
@@ -7058,7 +7058,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_326_UserSettings_NotificationHandler_OnPrefe
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "closedcaptions.onpreferredlanguageschanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     auto userSettingsDelegate = plugin.mDelegate->getUserSettings();
     if (userSettingsDelegate) {
@@ -7100,7 +7100,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_327_UserSettings_NotificationHandler_OnHighC
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "accessibility.onhighcontrastuichanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     auto userSettingsDelegate = plugin.mDelegate->getUserSettings();
     if (userSettingsDelegate) {
@@ -7159,7 +7159,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_328_UserSettings_NotificationHandler_OnVoice
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "accessibility.onvoiceguidancesettingschanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     auto userSettingsDelegate = plugin.mDelegate->getUserSettings();
     if (userSettingsDelegate) {
@@ -8190,7 +8190,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_356_UserSettings_NotificationHandler_OnPrefe
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "closedcaptions.onpreferredlanguageschanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     auto userSettingsDelegate = plugin.mDelegate->getUserSettings();
     if (userSettingsDelegate) {
@@ -8232,7 +8232,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_357_UserSettings_NotificationHandler_OnHighC
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "accessibility.onhighcontrastuichanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     auto userSettingsDelegate = plugin.mDelegate->getUserSettings();
     if (userSettingsDelegate) {
@@ -8274,7 +8274,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_358_UserSettings_NotificationHandler_OnPrese
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "localization.onpresentationlanguagechanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     auto userSettingsDelegate = plugin.mDelegate->getUserSettings();
     if (userSettingsDelegate) {
@@ -8316,7 +8316,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_359_UserSettings_NotificationHandler_OnPrese
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "localization.onlocalechanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     auto userSettingsDelegate = plugin.mDelegate->getUserSettings();
     if (userSettingsDelegate) {
@@ -8373,7 +8373,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_360_UserSettings_NotificationHandler_OnVoice
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "accessibility.onvoiceguidancesettingschanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     auto userSettingsDelegate = plugin.mDelegate->getUserSettings();
     if (userSettingsDelegate) {
@@ -8430,7 +8430,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_361_UserSettings_NotificationHandler_OnVoice
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "accessibility.onvoiceguidancesettingschanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     auto userSettingsDelegate = plugin.mDelegate->getUserSettings();
     if (userSettingsDelegate) {
@@ -8504,7 +8504,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_363_UserSettings_HandleSubscription_Unsubscr
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "accessibility.onaudiodescriptionchanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     // status will be true if event was handled (which is expected behavior)
     
     // Unsubscribe - this is the main test path
@@ -8609,12 +8609,12 @@ TEST_F(AppGatewayCommonTest, AGC_L1_366_TTS_HandleSubscription_AlreadyRegistered
     MockEmitter* emitter1 = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter1, "texttospeech.onvoicechanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Register for second TTS event - should use already registered path
     MockEmitter* emitter2 = new MockEmitter();
     plugin.HandleAppEventNotifier(emitter2, "texttospeech.onspeechcomplete", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     emitter1->Release();
     emitter2->Release();
@@ -8650,7 +8650,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_367_TTS_NotificationHandler_OnVoiceChanged)
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "texttospeech.onvoicechanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Trigger notification
     auto ttsDelegate = plugin.mDelegate->ttsDelegate;
@@ -8691,7 +8691,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_368_TTS_NotificationHandler_OnSpeechReady)
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "texttospeech.onwillspeak", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Trigger notification
     auto ttsDelegate = plugin.mDelegate->ttsDelegate;
@@ -8732,7 +8732,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_369_TTS_NotificationHandler_OnSpeechStarted)
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechstart", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Trigger notification
     auto ttsDelegate = plugin.mDelegate->ttsDelegate;
@@ -8773,7 +8773,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_370_TTS_NotificationHandler_OnSpeechPaused)
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechpause", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Trigger notification
     auto ttsDelegate = plugin.mDelegate->ttsDelegate;
@@ -8814,7 +8814,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_371_TTS_NotificationHandler_OnSpeechResumed)
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechresume", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Trigger notification
     auto ttsDelegate = plugin.mDelegate->ttsDelegate;
@@ -8855,7 +8855,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_372_TTS_NotificationHandler_OnSpeechInterrup
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechinterrupted", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Trigger notification
     auto ttsDelegate = plugin.mDelegate->ttsDelegate;
@@ -8896,7 +8896,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_373_TTS_NotificationHandler_OnNetworkError)
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "texttospeech.onnetworkerror", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Trigger notification
     auto ttsDelegate = plugin.mDelegate->ttsDelegate;
@@ -8937,7 +8937,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_374_TTS_NotificationHandler_OnPlaybackError)
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "texttospeech.onplaybackerror", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Trigger notification
     auto ttsDelegate = plugin.mDelegate->ttsDelegate;
@@ -8978,7 +8978,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_375_TTS_NotificationHandler_OnSpeechComplete
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechcomplete", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Trigger notification
     auto ttsDelegate = plugin.mDelegate->ttsDelegate;
@@ -9019,7 +9019,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_376_TTS_NotificationHandler_OnTTSStateChange
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "texttospeech.onttsstatechanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Trigger notification
     auto ttsDelegate = plugin.mDelegate->ttsDelegate;
@@ -9060,7 +9060,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_377_TTS_Destructor_WithRegisteredNotificatio
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "texttospeech.onvoicechanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Don't release emitter before deinitialize - let destructor clean up
     emitter->Release();
@@ -9105,7 +9105,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_378_TTS_NotificationHandler_SetGetRegistered
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "texttospeech.onvoicechanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Now should be registered
     EXPECT_TRUE(ttsDelegate->mNotificationHandler.GetRegistered());
