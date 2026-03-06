@@ -359,10 +359,11 @@ jobs:
             sudo cp -f "$GITHUB_WORKSPACE/AppGateway/resolutions/resolution.base.json" /etc/app-gateway/resolution.base.json
           fi
           echo "APPGATEWAY_CONFIG_PATH=/etc/app-gateway" >> "$GITHUB_ENV"
-          echo "APPGATEWAY_RESOLUTIONS_PATH=/tmp/app-gateway/resolution.base.json" >> "$GITHUB_ENV"
+          echo "APPGATEWAY_RESOLUTIONS_PATH=/etc/app-gateway/resolution.base.json" >> "$GITHUB_ENV"
 
       - name: Run L0 tests
-        continue-on-error: ${{ env.ENABLE_GDB == '1' }}
+        id: run_l0_tests
+        continue-on-error: true
         run: |
           set -euo pipefail
 
@@ -371,7 +372,7 @@ jobs:
 
           test_bin="build/entservices-appgateway-l0tests-only/appgateway_l0test"
           test -x "$test_bin"
-          "$test_bin" | tee l0-test.log
+          "$test_bin" 2>&1 | tee l0-test.log
 
       - name: Summarize failed tests
         if: ${{ always() }}
@@ -379,9 +380,9 @@ jobs:
           set -euo pipefail
           if [ -f l0-test.log ]; then
             echo "==== Failed test cases (if any) ===="
-            grep -E '^\[  FAILED  \]' l0-test.log || echo "No explicit [  FAILED  ] lines found"
+            grep -E '^\[ +FAILED +\]' l0-test.log || echo "No explicit [ FAILED ] lines found"
             echo "==== Total failures ===="
-            grep -E 'AppGateway l0test total failures' l0-test.log || true
+            grep -E 'AppGateway l0test total failures:? [0-9]+' l0-test.log || true
           else
             echo "l0-test.log not found"
           fi
@@ -401,9 +402,15 @@ jobs:
 
       - name: Fail workflow if tests failed
         if: ${{ always() }}
+        env:
+          RUN_L0_TESTS_OUTCOME: ${{ steps.run_l0_tests.outcome }}
         run: |
           set -euo pipefail
-          if [ -f l0-test.log ] && grep -q 'AppGateway l0test total failures: [1-9][0-9]*' l0-test.log; then
+          if [ "${RUN_L0_TESTS_OUTCOME}" != "success" ]; then
+            echo "L0 test execution step failed (non-zero exit)"
+            exit 1
+          fi
+          if [ -f l0-test.log ] && grep -Eq 'AppGateway l0test total failures:? [1-9][0-9]*' l0-test.log; then
             echo "L0 tests reported failures"
             exit 1
           fi
