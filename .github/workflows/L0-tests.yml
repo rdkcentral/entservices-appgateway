@@ -372,7 +372,19 @@ jobs:
 
           test_bin="build/entservices-appgateway-l0tests-only/appgateway_l0test"
           test -x "$test_bin"
+
+          set +e
           "$test_bin" 2>&1 | tee l0-test.log
+          test_rc=$?
+          set -e
+
+          echo "==== Failed test cases (run step) ===="
+          grep -E '^\[ +FAILED +\]' l0-test.log || true
+          grep -E '^FAIL:' l0-test.log || true
+          echo "==== Total failures (run step) ===="
+          grep -E 'AppGateway l0test total failures:? [0-9]+' l0-test.log || true
+
+          exit "$test_rc"
 
       - name: Summarize failed tests
         if: ${{ always() }}
@@ -406,12 +418,31 @@ jobs:
           RUN_L0_TESTS_OUTCOME: ${{ steps.run_l0_tests.outcome }}
         run: |
           set -euo pipefail
+          failed=0
+
           if [ "${RUN_L0_TESTS_OUTCOME}" != "success" ]; then
             echo "L0 test execution step failed (non-zero exit)"
-            exit 1
+            failed=1
           fi
-          if [ -f l0-test.log ] && grep -Eq 'AppGateway l0test total failures:? [1-9][0-9]*' l0-test.log; then
-            echo "L0 tests reported failures"
+
+          if [ -f l0-test.log ]; then
+            echo "==== Failed test cases (final gate) ===="
+            grep -E '^\[ +FAILED +\]' l0-test.log || true
+            grep -E '^FAIL:' l0-test.log || true
+
+            echo "==== Total failures (final gate) ===="
+            grep -E 'AppGateway l0test total failures:? [0-9]+' l0-test.log || true
+
+            if grep -Eq 'AppGateway l0test total failures:? [1-9][0-9]*' l0-test.log; then
+              echo "L0 tests reported failures"
+              failed=1
+            fi
+          else
+            echo "l0-test.log not found in final gate"
+            failed=1
+          fi
+
+          if [ "$failed" -ne 0 ]; then
             exit 1
           fi
 
