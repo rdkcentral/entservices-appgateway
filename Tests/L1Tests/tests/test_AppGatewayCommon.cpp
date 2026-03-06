@@ -1973,6 +1973,9 @@ TEST_F(AppGatewayCommonTest, AGC_L1_168_EventRegistrationJob_Dispatch_WithDelega
     // This will exercise the Dispatch method
     job->Dispatch();
     
+    // Wait for async job to complete before cleanup
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
     job.Release();
     emitter->Release();
     
@@ -4049,6 +4052,9 @@ TEST_F(AppGatewayCommonTest, AGC_L1_319_Network_HandleSubscription_NoNetworkMana
     
     // The async job will fail, but the synchronous call returns success
     EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    // Wait for async job to complete before cleanup
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     emitter->Release();
     plugin.Deinitialize(&service);
