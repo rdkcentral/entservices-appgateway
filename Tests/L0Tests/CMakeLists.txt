@@ -21,6 +21,7 @@ set(PREFIX "${PREFIX}" CACHE STRING "Install prefix to locate Thunder/WPEFramewo
 message(STATUS "Using PREFIX='${PREFIX}'")
 
 set(APPGW_L0_SOURCES
+    ${CMAKE_SOURCE_DIR}/../../AppGateway/Module.cpp
     ${CMAKE_SOURCE_DIR}/../../AppGateway/AppGateway.cpp
     ${CMAKE_SOURCE_DIR}/../../AppGateway/Resolver.cpp
     ${CMAKE_SOURCE_DIR}/../../AppGateway/AppGatewayImplementation.cpp
