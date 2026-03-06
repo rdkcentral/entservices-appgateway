@@ -4,6 +4,8 @@
 #include <fstream>
 #include <cstdlib>
 #include <cerrno>
+#include <thread>
+#include <chrono>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -209,6 +211,10 @@ struct PluginAndService {
     }
 };
 
+static void DrainAsyncRespondJobs() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+}
+
 } // namespace
 
 // PUBLIC_INTERFACE
@@ -244,6 +250,7 @@ uint32_t Test_Resolver_Configure_WithBaseOnly_LoadsOK() {
         resolver->Release();
     }
 
+    DrainAsyncRespondJobs();
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
@@ -340,6 +347,7 @@ uint32_t Test_Resolver_Resolve_UnknownMethod_ReturnsNotFound() {
         std::cerr << "NOTE: Skipping Resolve() because preconditions (Configure(&shell) / Configure(paths)) failed." << std::endl;
     }
 
+    DrainAsyncRespondJobs();
     impl->Release();
     service->Release();
     return tr.failures;
@@ -393,6 +401,7 @@ uint32_t Test_Resolver_Resolve_MalformedParams_ReturnsBadRequest() {
         std::cerr << "NOTE: Skipping Resolve() because preconditions (Configure(&shell) / Configure(paths)) failed." << std::endl;
     }
 
+    DrainAsyncRespondJobs();
     impl->Release();
     service->Release();
     return tr.failures;
@@ -446,6 +455,7 @@ uint32_t Test_Resolver_Configure_InvalidJson_ReturnsError() {
         std::cerr << "NOTE: Skipping Configure(invalid json) because Configure(&shell) failed." << std::endl;
     }
 
+    DrainAsyncRespondJobs();
     impl->Release();
     service->Release();
     return tr.failures;
