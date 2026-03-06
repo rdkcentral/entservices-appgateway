@@ -35,6 +35,10 @@
 #include "ServiceMock.h"
 #include "ThunderPortability.h"
 #include "WorkerPoolImplementation.h"
+#include "IUserSettingsMock.h"
+// #include "INetworkManagerMock.h"  // Disabled: mock is incomplete (interface has many pure virtual methods)
+#include "ISharedStorageMock.h"
+#include "ITextToSpeechMock.h"
 
 using namespace WPEFramework;
 using namespace WPEFramework::Plugin;
@@ -2258,5 +2262,1864 @@ TEST_F(AppGatewayCommonTest, AGC_L1_180_HandleAppEventNotifier_MultipleEvents)
     emitter2->Release();
     plugin.Deinitialize(&service);
 }
+
+// ============================================================================
+// USERSETTINGSDELEGATE - Tests with mocked IUserSettings COM interface
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_181_UserSettings_GetVoiceGuidance_Success)
+{
+    // Create mock IUserSettings
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    // Set up the mock to return success with enabled=true
+    EXPECT_CALL(*mockUserSettings, GetVoiceGuidance(_))
+        .WillOnce([](bool& enabled) {
+            enabled = true;
+            return Core::ERROR_NONE;
+        });
+    
+    // Create service mock that returns our mock UserSettings
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "voiceguidance.enabled", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("true", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_182_UserSettings_GetVoiceGuidance_Disabled)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetVoiceGuidance(_))
+        .WillOnce([](bool& enabled) {
+            enabled = false;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "voiceguidance.enabled", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("false", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_183_UserSettings_SetVoiceGuidance_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, SetVoiceGuidance(true))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "voiceguidance.setenabled", "{\"value\":true}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_184_UserSettings_GetAudioDescription_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetAudioDescription(_))
+        .WillOnce([](bool& enabled) {
+            enabled = true;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "audiodescriptions.enabled", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("true", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_185_UserSettings_SetAudioDescription_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, SetAudioDescription(true))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "audiodescriptions.setenabled", "{\"value\":true}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_186_UserSettings_GetCaptions_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetCaptions(_))
+        .WillOnce([](bool& enabled) {
+            enabled = true;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "closedcaptions.enabled", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("true", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_187_UserSettings_SetCaptions_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, SetCaptions(true))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "closedcaptions.setenabled", "{\"value\":true}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_188_UserSettings_GetHighContrast_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetHighContrast(_))
+        .WillOnce([](bool& enabled) {
+            enabled = true;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "accessibility.highcontrastui", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("true", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_189_UserSettings_GetPresentationLanguage_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetPresentationLanguage(_))
+        .WillOnce([](string& lang) {
+            lang = "en-US";
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.language", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("\"en\"", result);  // Should extract "en" from "en-US"
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_190_UserSettings_GetLocale_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetPresentationLanguage(_))
+        .WillOnce([](string& lang) {
+            lang = "en-US";
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.locale", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("\"en-US\"", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_191_UserSettings_SetLocale_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, SetPresentationLanguage(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.setlocale", "{\"value\":\"en-US\"}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_192_UserSettings_GetPreferredAudioLanguages_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetPreferredAudioLanguages(_))
+        .WillOnce([](string& langs) {
+            langs = "eng,fra,spa";
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.preferredaudiolanguages", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("[\"eng\",\"fra\",\"spa\"]", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_193_UserSettings_SetPreferredAudioLanguages_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, SetPreferredAudioLanguages(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.setpreferredaudiolanguages", "{\"value\":[\"eng\",\"fra\"]}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_194_UserSettings_SetPreferredCaptionsLanguages_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, SetPreferredCaptionsLanguages(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "closedcaptions.setpreferredlanguages", "{\"value\":[\"eng\",\"fra\"]}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_195_UserSettings_SetVoiceGuidanceRate_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, SetVoiceGuidanceRate(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "voiceguidance.setspeed", "{\"value\":1.5}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_196_UserSettings_SetVoiceGuidanceHints_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, SetVoiceGuidanceHints(true))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "voiceguidance.setnavigationhints", "{\"value\":true}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_197_UserSettings_GetVoiceGuidanceHints_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetVoiceGuidanceHints(_))
+        .WillOnce([](bool& hints) {
+            hints = true;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "voiceguidance.navigationhints", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("true", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+// ============================================================================
+// NETWORKDELEGATE - Tests with mocked INetworkManager COM interface
+// NOTE: Disabled because INetworkManager interface has many pure virtual methods
+// that need to be mocked. Re-enable when mock is complete.
+// ============================================================================
+
+#if 0  // Disabled: INetworkManager mock incomplete
+TEST_F(AppGatewayCommonTest, AGC_L1_198_Network_GetNetworkConnected_HasInterface)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    EXPECT_CALL(*mockNetworkManager, GetPrimaryInterface(_))
+        .WillOnce([](string& iface) {
+            iface = "eth0";
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("true", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_199_Network_GetNetworkConnected_NoInterface)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    EXPECT_CALL(*mockNetworkManager, GetPrimaryInterface(_))
+        .WillOnce([](string& iface) {
+            iface = "";  // Empty means not connected
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("false", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_200_Network_GetInternetConnectionStatus_Ethernet)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    NiceMock<Exchange::MockInterfaceDetailsIterator>* mockIterator = new NiceMock<Exchange::MockInterfaceDetailsIterator>();
+    
+    // Set up iterator to return one connected ethernet interface
+    EXPECT_CALL(*mockIterator, Next(_))
+        .WillOnce([](Exchange::INetworkManager::InterfaceDetails& iface) {
+            iface.type = Exchange::INetworkManager::INTERFACE_TYPE_ETHERNET;
+            iface.name = "eth0";
+            iface.connected = true;
+            return true;
+        })
+        .WillRepeatedly(Return(false));
+    
+    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
+        .WillOnce([mockIterator](Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces) {
+            mockIterator->AddRef();
+            interfaces = mockIterator;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.internetconnectionstatus", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(result.find("\"type\":\"ethernet\"") != string::npos);
+    EXPECT_TRUE(result.find("\"state\":\"connected\"") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockIterator;
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_201_Network_GetInternetConnectionStatus_WiFi)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    NiceMock<Exchange::MockInterfaceDetailsIterator>* mockIterator = new NiceMock<Exchange::MockInterfaceDetailsIterator>();
+    
+    EXPECT_CALL(*mockIterator, Next(_))
+        .WillOnce([](Exchange::INetworkManager::InterfaceDetails& iface) {
+            iface.type = Exchange::INetworkManager::INTERFACE_TYPE_WIFI;
+            iface.name = "wlan0";
+            iface.connected = true;
+            return true;
+        })
+        .WillRepeatedly(Return(false));
+    
+    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
+        .WillOnce([mockIterator](Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces) {
+            mockIterator->AddRef();
+            interfaces = mockIterator;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.internetconnectionstatus", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(result.find("\"type\":\"wifi\"") != string::npos);
+    EXPECT_TRUE(result.find("\"state\":\"connected\"") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockIterator;
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_202_Network_GetInternetConnectionStatus_NoConnectedInterface)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    NiceMock<Exchange::MockInterfaceDetailsIterator>* mockIterator = new NiceMock<Exchange::MockInterfaceDetailsIterator>();
+    
+    // No connected interfaces
+    EXPECT_CALL(*mockIterator, Next(_))
+        .WillOnce([](Exchange::INetworkManager::InterfaceDetails& iface) {
+            iface.type = Exchange::INetworkManager::INTERFACE_TYPE_ETHERNET;
+            iface.name = "eth0";
+            iface.connected = false;  // Not connected
+            return true;
+        })
+        .WillRepeatedly(Return(false));
+    
+    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
+        .WillOnce([mockIterator](Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces) {
+            mockIterator->AddRef();
+            interfaces = mockIterator;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.internetconnectionstatus", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("{}", result);  // Empty object when no connected interface
+    
+    plugin.Deinitialize(&service);
+    delete mockIterator;
+    delete mockNetworkManager;
+}
+#endif  // Disabled: INetworkManager mock incomplete
+
+// ============================================================================
+// APPDELEGATE - Tests with mocked ISharedStorage COM interface
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_203_App_GetDeviceUID_ExistingValue)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    
+    // GetValue returns success with existing UID
+    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string& key, string& value, uint32_t& ttl, bool& success) {
+            if (key == "fireboltDeviceUid") {
+                value = "existing-uid-12345";
+                ttl = 0;
+                success = true;
+                return Core::ERROR_NONE;
+            }
+            return Core::ERROR_GENERAL;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.uid", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("existing-uid-12345", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockSharedStorage;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_204_App_GetDeviceUID_NewValue)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    
+    // GetValue returns error (no existing value), then SetValue is called
+    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce(Return(Core::ERROR_GENERAL));  // No existing value
+    
+    EXPECT_CALL(*mockSharedStorage, SetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string&, const string&, uint32_t, Exchange::ISharedStorage::Success& success) {
+            success.success = true;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.uid", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // Result should be a UUID (36 chars with hyphens)
+    EXPECT_EQ(36u, result.length());
+    
+    plugin.Deinitialize(&service);
+    delete mockSharedStorage;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_205_App_GetAdvertisingId_ExistingValue)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    
+    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string& key, string& value, uint32_t& ttl, bool& success) {
+            if (key == "fireboltAdvertisingId") {
+                value = "ad-id-12345";
+                ttl = 0;
+                success = true;
+                return Core::ERROR_NONE;
+            }
+            return Core::ERROR_GENERAL;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "advertising.advertisingid", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(result.find("\"ifa\":\"ad-id-12345\"") != string::npos);
+    EXPECT_TRUE(result.find("\"ifa_type\":\"sessionid\"") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockSharedStorage;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_206_App_GetAdvertisingId_NewValue)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    
+    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce(Return(Core::ERROR_GENERAL));  // No existing value
+    
+    EXPECT_CALL(*mockSharedStorage, SetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string&, const string&, uint32_t, Exchange::ISharedStorage::Success& success) {
+            success.success = true;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "advertising.advertisingid", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(result.find("\"ifa\":") != string::npos);
+    EXPECT_TRUE(result.find("\"ifa_type\":\"sessionid\"") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockSharedStorage;
+}
+
+// ============================================================================
+// TTSDELEGATE - Tests with mocked ITextToSpeech COM interface
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_207_TTS_HandleSubscription_Subscribe)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Subscribe to a TTS event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onVoiceChanged", true, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+    delete mockTTS;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_208_TTS_HandleSubscription_Unsubscribe)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Unsubscribe from a TTS event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechComplete", false, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+    delete mockTTS;
+}
+
+// ============================================================================
+// USERSETTINGSDELEGATE - Additional error path tests
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_209_UserSettings_GetVoiceGuidance_COMError)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetVoiceGuidance(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "voiceguidance.enabled", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_210_UserSettings_SetVoiceGuidance_COMError)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, SetVoiceGuidance(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "voiceguidance.setenabled", "{\"value\":true}", result);
+    
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+// ============================================================================
+// NETWORKDELEGATE - Event subscription tests
+// NOTE: Disabled because INetworkManager interface has many pure virtual methods
+// ============================================================================
+
+#if 0  // Disabled: INetworkManager mock incomplete
+TEST_F(AppGatewayCommonTest, AGC_L1_211_Network_HandleSubscription_Subscribe)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    EXPECT_CALL(*mockNetworkManager, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Subscribe to a network event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", true, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_212_Network_HandleSubscription_NetworkConnectedChanged)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    EXPECT_CALL(*mockNetworkManager, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Subscribe to network.onconnectedchanged event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "network.onconnectedchanged", true, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+#endif  // Disabled: INetworkManager mock incomplete
+
+// ============================================================================
+// USERSETTINGSDELEGATE - Event subscription tests
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_213_UserSettings_HandleSubscription_LocalizationEvents)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Subscribe to localization.onlocalechanged event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "localization.onlocalechanged", true, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_214_UserSettings_HandleSubscription_AccessibilityEvents)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Subscribe to accessibility.onaudiodescriptionsettingschanged event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "accessibility.onaudiodescriptionsettingschanged", true, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_215_UserSettings_HandleSubscription_ClosedCaptionsEvents)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Subscribe to closedcaptions.onenabledchanged event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "closedcaptions.onenabledchanged", true, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+// ============================================================================
+// APPDELEGATE - Error handling tests
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_216_App_GetDeviceUID_SetValueFails)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    
+    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce(Return(Core::ERROR_GENERAL));  // No existing value
+    
+    EXPECT_CALL(*mockSharedStorage, SetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string&, const string&, uint32_t, Exchange::ISharedStorage::Success& success) {
+            success.success = false;  // SetValue fails
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.uid", "{}", result);
+    
+    // When SetValue fails, the code returns ERROR_GENERAL and populates result with error message
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    // The error message is a JSON-RPC formatted error with "code" and "Text" fields
+    EXPECT_TRUE(result.find("Failed to set") != string::npos || result.find("code") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockSharedStorage;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_217_App_GetAdvertisingId_SetValueFails)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    
+    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce(Return(Core::ERROR_GENERAL));  // No existing value
+    
+    EXPECT_CALL(*mockSharedStorage, SetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string&, const string&, uint32_t, Exchange::ISharedStorage::Success& success) {
+            success.success = false;  // SetValue fails
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "advertising.advertisingid", "{}", result);
+    
+    // When SetValue fails, the code returns ERROR_GENERAL and populates result with error message
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    // The error message is a JSON-RPC formatted error with "code" and "Text" fields
+    EXPECT_TRUE(result.find("Failed to set") != string::npos || result.find("code") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockSharedStorage;
+}
+
+// ============================================================================
+// NETWORKDELEGATE - GetPrimaryInterface error handling
+// NOTE: Disabled because INetworkManager interface has many pure virtual methods
+// ============================================================================
+
+#if 0  // Disabled: INetworkManager mock incomplete
+TEST_F(AppGatewayCommonTest, AGC_L1_218_Network_GetNetworkConnected_COMError)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    EXPECT_CALL(*mockNetworkManager, GetPrimaryInterface(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_219_Network_GetAvailableInterfaces_COMError)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.internetconnectionstatus", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+#endif  // Disabled: INetworkManager mock incomplete
+
+// ============================================================================
+// USERSETTINGSDELEGATE - Additional method tests
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_220_UserSettings_GetAudioDescriptionSettings_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetAudioDescription(_))
+        .WillOnce([](bool& enabled) {
+            enabled = true;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "accessibility.audiodescriptionsettings", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(result.find("\"enabled\":true") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+// ============================================================================
+// Additional UserSettingsDelegate tests for improved coverage
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_221_UserSettings_GetPreferredAudioLanguages_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetPreferredAudioLanguages(_))
+        .WillOnce([](string& languages) {
+            languages = "eng,fra,spa";
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.preferredaudiolanguages", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // Result should contain the languages as a JSON array
+    EXPECT_TRUE(result.find("eng") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_222_UserSettings_SetPreferredAudioLanguages_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, SetPreferredAudioLanguages(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.setpreferredaudiolanguages", "{\"value\":[\"eng\",\"fra\"]}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_223_UserSettings_GetHighContrast_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetHighContrast(_))
+        .WillOnce([](bool& enabled) {
+            enabled = true;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    // Use correct method name: accessibility.highcontrastui
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "accessibility.highcontrastui", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("true", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+// Note: AGC_L1_224 and AGC_L1_226 removed - no set methods for highcontrast and setlanguage in AppGatewayCommon
+
+TEST_F(AppGatewayCommonTest, AGC_L1_225_UserSettings_GetPresentationLanguage_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetPresentationLanguage(_))
+        .WillOnce([](string& language) {
+            language = "en-US";
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.language", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(result.find("en-US") != string::npos || result.find("en") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+// AGC_L1_226 removed - no localization.setlanguage method in AppGatewayCommon
+
+TEST_F(AppGatewayCommonTest, AGC_L1_227_UserSettings_GetCaptions_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetCaptions(_))
+        .WillOnce([](bool& enabled) {
+            enabled = true;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "closedcaptions.enabled", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("true", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_228_UserSettings_SetCaptions_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, SetCaptions(true))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "closedcaptions.setenabled", "{\"value\":true}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_229_UserSettings_GetVoiceGuidanceRate_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, GetVoiceGuidanceRate(_))
+        .WillOnce([](double& rate) {
+            rate = 1.5;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "voiceguidance.speed", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(result.find("1.5") != string::npos || result.find("1.") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_230_UserSettings_SetVoiceGuidanceRate_Success)
+{
+    NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
+    
+    EXPECT_CALL(*mockUserSettings, SetVoiceGuidanceRate(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockUserSettings](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.UserSettings") {
+                mockUserSettings->AddRef();
+                return static_cast<void*>(mockUserSettings);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "voiceguidance.setspeed", "{\"value\":2.0}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    plugin.Deinitialize(&service);
+    delete mockUserSettings;
+}
+
+// AGC_L1_231 removed - no voiceguidance.hints method in AppGatewayCommon
 
 } // namespace
