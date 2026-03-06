@@ -2088,6 +2088,17 @@ private:
 
 TEST_F(AppGatewayCommonTest, AGC_L1_175_Deactivated_MatchingConnectionId)
 {
+    // Initialize the plugin first to set up mShell (required by Deactivated's ASSERT)
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string response = plugin.Initialize(&service);
+    EXPECT_TRUE(response.empty());
+    
     // Set the plugin's mConnectionId to a known value
     plugin.mConnectionId = 12345;
     
@@ -2095,11 +2106,14 @@ TEST_F(AppGatewayCommonTest, AGC_L1_175_Deactivated_MatchingConnectionId)
     MockRemoteConnection* connection = new MockRemoteConnection(12345);
     
     // Call Deactivated - this should trigger the deactivation logic
-    // Note: This requires mShell to be set, which may not be in test environment
-    // The test verifies the method can be called without crashing
+    // which submits a job to the worker pool
     plugin.Deactivated(connection);
     
+    // Give time for the async job to potentially execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
     connection->Release();
+    plugin.Deinitialize(&service);
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_176_Deactivated_DifferentConnectionId)
@@ -2120,8 +2134,24 @@ TEST_F(AppGatewayCommonTest, AGC_L1_176_Deactivated_DifferentConnectionId)
 // APPGATEWAYCOMMON.CPP - HandleAppEventNotifier() method
 // ============================================================================
 
+// Note: These tests verify that HandleAppEventNotifier submits an EventRegistrationJob
+// to the worker pool. The job's Dispatch() method accesses mDelegate, which is set up
+// during Initialize(). Tests that don't initialize the plugin will cause segfaults
+// when the async job runs. We initialize the plugin to avoid this.
+
 TEST_F(AppGatewayCommonTest, AGC_L1_177_HandleAppEventNotifier_Subscribe)
 {
+    // Initialize the plugin first to set up mDelegate
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string response = plugin.Initialize(&service);
+    EXPECT_TRUE(response.empty());
+    
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     
@@ -2131,14 +2161,26 @@ TEST_F(AppGatewayCommonTest, AGC_L1_177_HandleAppEventNotifier_Subscribe)
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
     
-    // Give time for the async job to potentially execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // Give time for the async job to execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     emitter->Release();
+    plugin.Deinitialize(&service);
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_178_HandleAppEventNotifier_Unsubscribe)
 {
+    // Initialize the plugin first to set up mDelegate
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string response = plugin.Initialize(&service);
+    EXPECT_TRUE(response.empty());
+    
     MockEmitter* emitter = new MockEmitter();
     bool status = false;
     
@@ -2148,14 +2190,26 @@ TEST_F(AppGatewayCommonTest, AGC_L1_178_HandleAppEventNotifier_Unsubscribe)
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
     
-    // Give time for the async job to potentially execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // Give time for the async job to execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     emitter->Release();
+    plugin.Deinitialize(&service);
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_179_HandleAppEventNotifier_NullEmitter)
 {
+    // Initialize the plugin first to set up mDelegate
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string response = plugin.Initialize(&service);
+    EXPECT_TRUE(response.empty());
+    
     bool status = false;
     
     // Test with null emitter
@@ -2164,12 +2218,25 @@ TEST_F(AppGatewayCommonTest, AGC_L1_179_HandleAppEventNotifier_NullEmitter)
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
     
-    // Give time for the async job to potentially execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // Give time for the async job to execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    plugin.Deinitialize(&service);
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_180_HandleAppEventNotifier_MultipleEvents)
 {
+    // Initialize the plugin first to set up mDelegate
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string response = plugin.Initialize(&service);
+    EXPECT_TRUE(response.empty());
+    
     MockEmitter* emitter1 = new MockEmitter();
     MockEmitter* emitter2 = new MockEmitter();
     bool status1 = false;
@@ -2184,11 +2251,12 @@ TEST_F(AppGatewayCommonTest, AGC_L1_180_HandleAppEventNotifier_MultipleEvents)
     EXPECT_TRUE(status1);
     EXPECT_TRUE(status2);
     
-    // Give time for the async jobs to potentially execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // Give time for the async jobs to execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     emitter1->Release();
     emitter2->Release();
+    plugin.Deinitialize(&service);
 }
 
 } // namespace
