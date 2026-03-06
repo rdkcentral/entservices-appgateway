@@ -36,7 +36,12 @@ set(APPGW_L0_SOURCES
 
 add_executable(appgateway_l0test ${APPGW_L0_SOURCES})
 
-target_compile_definitions(appgateway_l0test PRIVATE MODULE_NAME=AppGateway_L0Test)
+target_compile_definitions(appgateway_l0test PRIVATE
+    MODULE_NAME=AppGateway_L0Test
+    APPGATEWAY_MAJOR_VERSION=1
+    APPGATEWAY_MINOR_VERSION=0
+    APPGATEWAY_PATCH_VERSION=0
+)
 
 if(APPGW_ENABLE_COVERAGE)
     target_compile_options(appgateway_l0test PRIVATE -O0 -g --coverage)
