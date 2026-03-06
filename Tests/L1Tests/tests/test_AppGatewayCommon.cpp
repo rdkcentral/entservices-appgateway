@@ -8518,6 +8518,8 @@ TEST_F(AppGatewayCommonTest, AGC_L1_363_UserSettings_HandleSubscription_Unsubscr
     // Unsubscribe - this is the main test path
     plugin.HandleAppEventNotifier(emitter, "accessibility.onaudiodescriptionchanged", false, status);
     
+    // Allow async EventRegistrationJob to complete before cleanup
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     emitter->Release();
     plugin.Deinitialize(&service);
 }
