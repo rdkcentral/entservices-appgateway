@@ -1945,9 +1945,16 @@ TEST_F(AppGatewayCommonTest, AGC_L1_167_EventRegistrationJob_CreateWithNullCallb
 
 TEST_F(AppGatewayCommonTest, AGC_L1_168_EventRegistrationJob_Dispatch_WithDelegate)
 {
-    // This test requires the delegate to be set up
-    // The Dispatch method calls mParent.mDelegate->HandleAppEventNotifier
-    // Since mDelegate is initialized in the fixture, this should work
+    // Initialize the plugin first so mDelegate is set
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
     
     MockEmitter* emitter = new MockEmitter();
     
@@ -1962,10 +1969,23 @@ TEST_F(AppGatewayCommonTest, AGC_L1_168_EventRegistrationJob_Dispatch_WithDelega
     
     job.Release();
     emitter->Release();
+    
+    plugin.Deinitialize(&service);
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_169_EventRegistrationJob_Dispatch_UnsubscribeListen)
 {
+    // Initialize the plugin first so mDelegate is set
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
     MockEmitter* emitter = new MockEmitter();
     
     // Test with listen=false (unsubscribe)
@@ -1978,6 +1998,8 @@ TEST_F(AppGatewayCommonTest, AGC_L1_169_EventRegistrationJob_Dispatch_Unsubscrib
     
     job.Release();
     emitter->Release();
+    
+    plugin.Deinitialize(&service);
 }
 
 // ============================================================================
@@ -2025,6 +2047,146 @@ TEST_F(AppGatewayCommonTest, AGC_L1_174_QueryInterface_UnknownInterface)
     // Query for an unknown interface ID should return nullptr
     void* result = plugin.QueryInterface(0xDEADBEEF);
     EXPECT_EQ(nullptr, result);
+}
+
+// ============================================================================
+// APPGATEWAYCOMMON.CPP - Deactivated() method
+// ============================================================================
+
+// Mock IRemoteConnection for testing Deactivated
+class MockRemoteConnection : public RPC::IRemoteConnection {
+public:
+    MockRemoteConnection(uint32_t id) : mId(id), mRefCount(1) {}
+    
+    uint32_t Id() const override { return mId; }
+    uint32_t RemoteId() const override { return 0; }
+    void* Acquire(const uint32_t waitTime, const string& className, const uint32_t interfaceId, const uint32_t version) override {
+        (void)waitTime; (void)className; (void)interfaceId; (void)version;
+        return nullptr;
+    }
+    void Terminate() override {}
+    
+    void AddRef() const override { ++mRefCount; }
+    uint32_t Release() const override {
+        if (--mRefCount == 0) {
+            delete this;
+            return Core::ERROR_DESTRUCTION_SUCCEEDED;
+        }
+        return Core::ERROR_NONE;
+    }
+    
+    BEGIN_INTERFACE_MAP(MockRemoteConnection)
+    INTERFACE_ENTRY(RPC::IRemoteConnection)
+    END_INTERFACE_MAP
+    
+private:
+    uint32_t mId;
+    mutable uint32_t mRefCount;
+};
+
+TEST_F(AppGatewayCommonTest, AGC_L1_175_Deactivated_MatchingConnectionId)
+{
+    // Set the plugin's mConnectionId to a known value
+    plugin.mConnectionId = 12345;
+    
+    // Create a mock connection with the same ID
+    MockRemoteConnection* connection = new MockRemoteConnection(12345);
+    
+    // Call Deactivated - this should trigger the deactivation logic
+    // Note: This requires mShell to be set, which may not be in test environment
+    // The test verifies the method can be called without crashing
+    plugin.Deactivated(connection);
+    
+    connection->Release();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_176_Deactivated_DifferentConnectionId)
+{
+    // Set the plugin's mConnectionId to a known value
+    plugin.mConnectionId = 12345;
+    
+    // Create a mock connection with a different ID
+    MockRemoteConnection* connection = new MockRemoteConnection(99999);
+    
+    // Call Deactivated with non-matching ID - should not trigger deactivation
+    plugin.Deactivated(connection);
+    
+    connection->Release();
+}
+
+// ============================================================================
+// APPGATEWAYCOMMON.CPP - HandleAppEventNotifier() method
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_177_HandleAppEventNotifier_Subscribe)
+{
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Test subscribing to an event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "localization.onlanguagechanged", true, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    // Give time for the async job to potentially execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
+    emitter->Release();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_178_HandleAppEventNotifier_Unsubscribe)
+{
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Test unsubscribing from an event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "localization.onlanguagechanged", false, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    // Give time for the async job to potentially execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
+    emitter->Release();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_179_HandleAppEventNotifier_NullEmitter)
+{
+    bool status = false;
+    
+    // Test with null emitter
+    Core::hresult rc = plugin.HandleAppEventNotifier(nullptr, "test.event", true, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    // Give time for the async job to potentially execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_180_HandleAppEventNotifier_MultipleEvents)
+{
+    MockEmitter* emitter1 = new MockEmitter();
+    MockEmitter* emitter2 = new MockEmitter();
+    bool status1 = false;
+    bool status2 = false;
+    
+    // Subscribe to multiple events
+    Core::hresult rc1 = plugin.HandleAppEventNotifier(emitter1, "localization.onlanguagechanged", true, status1);
+    Core::hresult rc2 = plugin.HandleAppEventNotifier(emitter2, "accessibility.onvoiceguidancesettingschanged", true, status2);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc1);
+    EXPECT_EQ(Core::ERROR_NONE, rc2);
+    EXPECT_TRUE(status1);
+    EXPECT_TRUE(status2);
+    
+    // Give time for the async jobs to potentially execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
+    emitter1->Release();
+    emitter2->Release();
 }
 
 } // namespace
