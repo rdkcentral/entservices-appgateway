@@ -92,6 +92,7 @@ endif()
 find_library(WPEFRAMEWORK_CORE_LIB NAMES WPEFrameworkCore ThunderCore HINTS "${PREFIX}/lib")
 find_library(WPEFRAMEWORK_MESSAGING_LIB NAMES WPEFrameworkMessaging ThunderMessaging HINTS "${PREFIX}/lib")
 find_library(WPEFRAMEWORK_PLUGINS_LIB NAMES WPEFrameworkPlugins ThunderPlugins HINTS "${PREFIX}/lib")
+find_library(WPEFRAMEWORK_WEBSOCKET_LIB NAMES WPEFrameworkWebSocket ThunderWebSocket HINTS "${PREFIX}/lib")
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
@@ -104,6 +105,9 @@ if(WPEFRAMEWORK_MESSAGING_LIB)
 endif()
 if(WPEFRAMEWORK_PLUGINS_LIB)
     target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_PLUGINS_LIB})
+endif()
+if(WPEFRAMEWORK_WEBSOCKET_LIB)
+    target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_WEBSOCKET_LIB})
 endif()
 
 find_library(APPGATEWAY_PLUGIN_LIB
