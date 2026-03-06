@@ -23,6 +23,7 @@ message(STATUS "Using PREFIX='${PREFIX}'")
 set(APPGW_L0_SOURCES
     ${CMAKE_SOURCE_DIR}/../../AppGateway/AppGateway.cpp
     ${CMAKE_SOURCE_DIR}/../../AppGateway/Resolver.cpp
+    ${CMAKE_SOURCE_DIR}/../../AppGateway/AppGatewayResponderImplementation.cpp
     AppGateway/AppGatewayTest.cpp
     AppGateway/AppGateway_Init_DeinitTests.cpp
     AppGateway/AppGateway_JsonRpcResolveTests.cpp
