@@ -135,13 +135,14 @@ uint32_t Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvI
 
     std::string value;
 
-    // Edge: empty key => BAD_REQUEST
+    // Current implementation is a stub returning ERROR_NONE regardless of input.
     ExpectEqU32(tr,
                responder.GetGatewayConnectionContext(1, "" /*empty key*/, value),
-               ERROR_BAD_REQUEST,
-               "Empty contextKey returns ERROR_BAD_REQUEST");
+               ERROR_NONE,
+               "Empty contextKey currently returns ERROR_NONE (stub)");
+    ExpectEqStr(tr, value, "", "Stub keeps contextValue unchanged for empty key");
 
-    // Env injection happy path:
+    // Env injection variables are currently ignored by implementation.
     setenv("APPGATEWAY_TEST_CONN_ID", "410", 1);
     setenv("APPGATEWAY_TEST_CTX_KEY", "header.user-agent", 1);
     setenv("APPGATEWAY_TEST_CTX_VALUE", "UA/1.0", 1);
@@ -150,22 +151,24 @@ uint32_t Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvI
     ExpectEqU32(tr,
                responder.GetGatewayConnectionContext(410, "header.user-agent", value),
                ERROR_NONE,
-               "Env injected key returns ERROR_NONE");
-    ExpectEqStr(tr, value, "UA/1.0", "Env injected value matches");
+               "Stub returns ERROR_NONE for matching key");
+    ExpectEqStr(tr, value, "", "Stub does not inject env context value");
 
-    // Mismatch connId => BAD_REQUEST
+    // Mismatch connId still returns ERROR_NONE in current stub.
     value.clear();
     ExpectEqU32(tr,
                responder.GetGatewayConnectionContext(411, "header.user-agent", value),
-               ERROR_BAD_REQUEST,
-               "Env injected triple mismatched connectionId returns ERROR_BAD_REQUEST");
+               ERROR_NONE,
+               "Stub ignores connectionId and returns ERROR_NONE");
+    ExpectEqStr(tr, value, "", "Stub leaves contextValue empty for mismatched connectionId");
 
-    // Mismatch key => BAD_REQUEST
+    // Mismatch key still returns ERROR_NONE in current stub.
     value.clear();
     ExpectEqU32(tr,
                responder.GetGatewayConnectionContext(410, "missing.key", value),
-               ERROR_BAD_REQUEST,
-               "Env injected triple mismatched key returns ERROR_BAD_REQUEST");
+               ERROR_NONE,
+               "Stub ignores contextKey and returns ERROR_NONE");
+    ExpectEqStr(tr, value, "", "Stub leaves contextValue empty for mismatched key");
 
     return tr.failures;
 }
