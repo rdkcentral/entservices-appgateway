@@ -361,7 +361,33 @@ jobs:
           echo "APPGATEWAY_CONFIG_PATH=/etc/app-gateway" >> "$GITHUB_ENV"
           echo "APPGATEWAY_RESOLUTIONS_PATH=/tmp/app-gateway/resolution.base.json" >> "$GITHUB_ENV"
 
-      - name: Run L0 tests (optionally under gdb)
+      - name: Run L0 tests
+        continue-on-error: ${{ env.ENABLE_GDB == '1' }}
+        run: |
+          set -euo pipefail
+
+          export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH:-}"
+
+          test_bin="build/entservices-appgateway-l0tests-only/appgateway_l0test"
+          test -x "$test_bin"
+          "$test_bin" | tee l0-test.log
+
+      - name: Summarize failed tests
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -f l0-test.log ]; then
+            echo "==== Failed test cases (if any) ===="
+            grep -E '^\[  FAILED  \]' l0-test.log || echo "No explicit [  FAILED  ] lines found"
+            echo "==== Total failures ===="
+            grep -E 'AppGateway l0test total failures' l0-test.log || true
+          else
+            echo "l0-test.log not found"
+          fi
+
+      - name: Run L0 tests under gdb (opt-in on failure)
+        if: ${{ failure() && env.ENABLE_GDB == '1' }}
         run: |
           set -euo pipefail
 
@@ -371,10 +397,15 @@ jobs:
           test_bin="build/entservices-appgateway-l0tests-only/appgateway_l0test"
           test -x "$test_bin"
 
-          if [ "${ENABLE_GDB:-0}" = "1" ]; then
-            gdb -q -batch -ex "set pagination off" -ex "run" -ex "bt full" --args "$test_bin" | tee l0-test.log
-          else
-            "$test_bin" | tee l0-test.log
+          gdb -q -batch -ex "set pagination off" -ex "run" -ex "bt full" --args "$test_bin" | tee l0-test-gdb.log
+
+      - name: Fail workflow if tests failed
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -f l0-test.log ] && grep -q 'AppGateway l0test total failures: [1-9][0-9]*' l0-test.log; then
+            echo "L0 tests reported failures"
+            exit 1
           fi
 
       - name: Generate coverage report (lcov + HTML via genhtml)
