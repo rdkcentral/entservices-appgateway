@@ -28,6 +28,8 @@
 
 #define private public
 #include "AppGatewayCommon.h"
+#include "delegate/UserSettingsDelegate.h"
+#include "delegate/LifecycleDelegate.h"
 #undef private
 
 #include "ServiceMock.h"
@@ -1250,6 +1252,779 @@ TEST_F(AppGatewayCommonTest, AGC_L1_121_HandleAppDelegateRequest_NullSettingsDel
     const auto rc = plugin.HandleAppDelegateRequest(ctx, "advertising.advertisingid", "{}", result);
 
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+// ============================================================================
+// USERSETTINGSDELEGATE STATIC HELPER FUNCTIONS
+// ============================================================================
+
+TEST(UserSettingsHelperTest, AGC_L1_122_FontFamilyToString_AllValues)
+{
+    // Test all FontFamily enum values
+    EXPECT_STREQ("null", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CONTENT_DEFAULT));
+    EXPECT_STREQ("monospaced_serif", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::MONOSPACED_SERIF));
+    EXPECT_STREQ("proportional_serif", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::PROPORTIONAL_SERIF));
+    EXPECT_STREQ("monospaced_sanserif", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::MONOSPACE_SANS_SERIF));
+    EXPECT_STREQ("proportional_sanserif", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::PROPORTIONAL_SANS_SERIF));
+    EXPECT_STREQ("casual", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CASUAL));
+    EXPECT_STREQ("cursive", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CURSIVE));
+    EXPECT_STREQ("smallcaps", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::SMALL_CAPITAL));
+    
+    // Test invalid/unknown value falls through to default
+    EXPECT_STREQ("null", FontFamilyToString(static_cast<Exchange::ITextTrackClosedCaptionsStyle::FontFamily>(999)));
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_123_FontSizeToNumber_AllValues)
+{
+    // Test all FontSize enum values
+    EXPECT_EQ(-1, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT));
+    EXPECT_EQ(0, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::SMALL));
+    EXPECT_EQ(1, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::REGULAR));
+    EXPECT_EQ(2, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::LARGE));
+    EXPECT_EQ(3, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::EXTRA_LARGE));
+    
+    // Test invalid/unknown value falls through to default
+    EXPECT_EQ(-1, FontSizeToNumber(static_cast<Exchange::ITextTrackClosedCaptionsStyle::FontSize>(999)));
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_124_FontEdgeToString_AllValues)
+{
+    // Test all FontEdge enum values
+    EXPECT_STREQ("null", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::CONTENT_DEFAULT));
+    EXPECT_STREQ("none", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::NONE));
+    EXPECT_STREQ("raised", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RAISED));
+    EXPECT_STREQ("depressed", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::DEPRESSED));
+    EXPECT_STREQ("uniform", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::UNIFORM));
+    EXPECT_STREQ("drop_shadow_left", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::LEFT_DROP_SHADOW));
+    EXPECT_STREQ("drop_shadow_right", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RIGHT_DROP_SHADOW));
+    
+    // Test invalid/unknown value falls through to default
+    EXPECT_STREQ("null", FontEdgeToString(static_cast<Exchange::ITextTrackClosedCaptionsStyle::FontEdge>(999)));
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_125_ParseCommaSeparatedLanguages_ValidInput)
+{
+    JsonArray result;
+    ParseCommaSeparatedLanguages("eng,fra,spa", result);
+    
+    EXPECT_EQ(3u, result.Length());
+    
+    JsonArray::Iterator it = result.Elements();
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("eng", it.Current().String());
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("fra", it.Current().String());
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("spa", it.Current().String());
+    EXPECT_FALSE(it.Next());
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_126_ParseCommaSeparatedLanguages_WithWhitespace)
+{
+    JsonArray result;
+    ParseCommaSeparatedLanguages("eng , fra , spa", result);
+    
+    EXPECT_EQ(3u, result.Length());
+    
+    JsonArray::Iterator it = result.Elements();
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("eng", it.Current().String());
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("fra", it.Current().String());
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("spa", it.Current().String());
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_127_ParseCommaSeparatedLanguages_EmptyInput)
+{
+    JsonArray result;
+    ParseCommaSeparatedLanguages("", result);
+    
+    EXPECT_EQ(0u, result.Length());
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_128_ParseCommaSeparatedLanguages_SingleLanguage)
+{
+    JsonArray result;
+    ParseCommaSeparatedLanguages("eng", result);
+    
+    EXPECT_EQ(1u, result.Length());
+    
+    JsonArray::Iterator it = result.Elements();
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("eng", it.Current().String());
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_129_ParseCommaSeparatedLanguages_WhitespaceOnly)
+{
+    JsonArray result;
+    ParseCommaSeparatedLanguages("   ,   ,   ", result);
+    
+    // All whitespace tokens should be skipped
+    EXPECT_EQ(0u, result.Length());
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_130_ConvertToCommaSeparatedLanguages_JsonArray)
+{
+    string result = ConvertToCommaSeparatedLanguages("[\"eng\",\"fra\",\"spa\"]");
+    
+    EXPECT_EQ("eng,fra,spa", result);
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_131_ConvertToCommaSeparatedLanguages_EmptyArray)
+{
+    string result = ConvertToCommaSeparatedLanguages("[]");
+    
+    EXPECT_EQ("", result);
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_132_ConvertToCommaSeparatedLanguages_QuotedString)
+{
+    string result = ConvertToCommaSeparatedLanguages("\"eng\"");
+    
+    EXPECT_EQ("eng", result);
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_133_ConvertToCommaSeparatedLanguages_UnquotedString)
+{
+    string result = ConvertToCommaSeparatedLanguages("eng");
+    
+    EXPECT_EQ("eng", result);
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_134_ConvertToCommaSeparatedLanguages_SingleElementArray)
+{
+    string result = ConvertToCommaSeparatedLanguages("[\"eng\"]");
+    
+    EXPECT_EQ("eng", result);
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_135_BuildClosedCaptionsStyleJson_AllFieldsSet)
+{
+    Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle style;
+    style.fontFamily = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CASUAL;
+    style.fontSize = Exchange::ITextTrackClosedCaptionsStyle::FontSize::LARGE;
+    style.fontColor = "#FFFFFF";
+    style.fontOpacity = 100;
+    style.fontEdge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RAISED;
+    style.fontEdgeColor = "#000000";
+    style.backgroundColor = "#000000";
+    style.backgroundOpacity = 80;
+    style.windowColor = "#FF0000";
+    style.windowOpacity = 50;
+    
+    JsonObject styles;
+    BuildClosedCaptionsStyleJson(style, styles);
+    
+    EXPECT_EQ("casual", styles["fontFamily"].String());
+    EXPECT_EQ(2, styles["fontSize"].Number());
+    EXPECT_EQ("#FFFFFF", styles["fontColor"].String());
+    EXPECT_EQ(100, styles["fontOpacity"].Number());
+    EXPECT_EQ("raised", styles["fontEdge"].String());
+    EXPECT_EQ("#000000", styles["fontEdgeColor"].String());
+    EXPECT_EQ("#000000", styles["backgroundColor"].String());
+    EXPECT_EQ(80, styles["backgroundOpacity"].Number());
+    EXPECT_EQ("#FF0000", styles["windowColor"].String());
+    EXPECT_EQ(50, styles["windowOpacity"].Number());
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_136_BuildClosedCaptionsStyleJson_DefaultValues)
+{
+    Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle style;
+    style.fontFamily = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CONTENT_DEFAULT;
+    style.fontSize = Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT;
+    style.fontColor = "";
+    style.fontOpacity = -1;
+    style.fontEdge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::CONTENT_DEFAULT;
+    style.fontEdgeColor = "";
+    style.backgroundColor = "";
+    style.backgroundOpacity = -1;
+    style.windowColor = "";
+    style.windowOpacity = -1;
+    
+    JsonObject styles;
+    BuildClosedCaptionsStyleJson(style, styles);
+    
+    // With default values, these fields should NOT be present in the JSON
+    EXPECT_FALSE(styles.HasLabel("fontFamily"));
+    EXPECT_FALSE(styles.HasLabel("fontSize"));
+    EXPECT_FALSE(styles.HasLabel("fontColor"));
+    EXPECT_FALSE(styles.HasLabel("fontOpacity"));
+    EXPECT_FALSE(styles.HasLabel("fontEdge"));
+    EXPECT_FALSE(styles.HasLabel("fontEdgeColor"));
+    EXPECT_FALSE(styles.HasLabel("backgroundColor"));
+    EXPECT_FALSE(styles.HasLabel("backgroundOpacity"));
+    EXPECT_FALSE(styles.HasLabel("windowColor"));
+    EXPECT_FALSE(styles.HasLabel("windowOpacity"));
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_137_BuildClosedCaptionsStyleJson_PartialValues)
+{
+    Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle style;
+    style.fontFamily = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CURSIVE;
+    style.fontSize = Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT;
+    style.fontColor = "#FF0000";
+    style.fontOpacity = -1;
+    style.fontEdge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::CONTENT_DEFAULT;
+    style.fontEdgeColor = "";
+    style.backgroundColor = "#0000FF";
+    style.backgroundOpacity = 75;
+    style.windowColor = "";
+    style.windowOpacity = -1;
+    
+    JsonObject styles;
+    BuildClosedCaptionsStyleJson(style, styles);
+    
+    // Present fields
+    EXPECT_EQ("cursive", styles["fontFamily"].String());
+    EXPECT_EQ("#FF0000", styles["fontColor"].String());
+    EXPECT_EQ("#0000FF", styles["backgroundColor"].String());
+    EXPECT_EQ(75, styles["backgroundOpacity"].Number());
+    
+    // Absent fields
+    EXPECT_FALSE(styles.HasLabel("fontSize"));
+    EXPECT_FALSE(styles.HasLabel("fontOpacity"));
+    EXPECT_FALSE(styles.HasLabel("fontEdge"));
+    EXPECT_FALSE(styles.HasLabel("fontEdgeColor"));
+    EXPECT_FALSE(styles.HasLabel("windowColor"));
+    EXPECT_FALSE(styles.HasLabel("windowOpacity"));
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_138_BuildClosedCaptionsSettingsResponse_WithLanguages)
+{
+    JsonObject styles;
+    styles["fontFamily"] = "casual";
+    styles["fontSize"] = 2;
+    
+    string result = BuildClosedCaptionsSettingsResponse(true, "eng,fra", styles);
+    
+    JsonObject parsed;
+    ASSERT_TRUE(parsed.FromString(result));
+    
+    EXPECT_EQ(true, parsed["enabled"].Boolean());
+    EXPECT_TRUE(parsed.HasLabel("styles"));
+    EXPECT_TRUE(parsed.HasLabel("preferredLanguages"));
+    
+    JsonArray languages = parsed["preferredLanguages"].Array();
+    EXPECT_EQ(2u, languages.Length());
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_139_BuildClosedCaptionsSettingsResponse_EmptyLanguages)
+{
+    JsonObject styles;
+    
+    string result = BuildClosedCaptionsSettingsResponse(false, "", styles);
+    
+    JsonObject parsed;
+    ASSERT_TRUE(parsed.FromString(result));
+    
+    EXPECT_EQ(false, parsed["enabled"].Boolean());
+    
+    // Empty languages should default to ["eng"]
+    JsonArray languages = parsed["preferredLanguages"].Array();
+    EXPECT_EQ(1u, languages.Length());
+    
+    JsonArray::Iterator it = languages.Elements();
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("eng", it.Current().String());
+}
+
+// ============================================================================
+// LIFECYCLEDELEGATE STATIC HELPER FUNCTIONS
+// ============================================================================
+
+TEST(LifecycleDelegateTest, AGC_L1_140_LifecycleStateToString_AllValues)
+{
+    // Test all LifecycleState enum values
+    EXPECT_EQ("unloaded", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::UNLOADED));
+    EXPECT_EQ("loading", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::LOADING));
+    EXPECT_EQ("initializing", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::INITIALIZING));
+    EXPECT_EQ("paused", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::PAUSED));
+    EXPECT_EQ("active", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::ACTIVE));
+    EXPECT_EQ("suspended", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::SUSPENDED));
+    EXPECT_EQ("hibernated", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::HIBERNATED));
+    EXPECT_EQ("terminating", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::TERMINATING));
+    
+    // Test invalid/unknown value falls through to default
+    EXPECT_EQ("", LifecycleDelegate::LifecycleStateToString(static_cast<Exchange::ILifecycleManager::LifecycleState>(999)));
+}
+
+TEST(LifecycleDelegateTest, AGC_L1_141_Lifecycle2StateToLifecycle1String_AllValues)
+{
+    // Test mapping from Lifecycle2 states to Lifecycle1 strings
+    // UNLOADED and TERMINATING both map to "unloading"
+    EXPECT_EQ("unloading", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::UNLOADED));
+    EXPECT_EQ("unloading", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::TERMINATING));
+    
+    // LOADING and INITIALIZING both map to "initializing"
+    EXPECT_EQ("initializing", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::LOADING));
+    EXPECT_EQ("initializing", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::INITIALIZING));
+    
+    // PAUSED maps to "inactive"
+    EXPECT_EQ("inactive", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::PAUSED));
+    
+    // ACTIVE maps to "foreground"
+    EXPECT_EQ("foreground", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::ACTIVE));
+    
+    // SUSPENDED and HIBERNATED both map to "suspended"
+    EXPECT_EQ("suspended", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::SUSPENDED));
+    EXPECT_EQ("suspended", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::HIBERNATED));
+    
+    // Test invalid/unknown value falls through to default
+    EXPECT_EQ("", LifecycleDelegate::Lifecycle2StateToLifecycle1String(static_cast<Exchange::ILifecycleManager::LifecycleState>(999)));
+}
+
+// ============================================================================
+// LIFECYCLEDELEGATE INNER CLASSES - AppIdInstanceIdMap
+// ============================================================================
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_142_AppIdInstanceIdMap_AddAndGet)
+{
+    LifecycleDelegate::AppIdInstanceIdMap map;
+    
+    map.AddAppInstanceId("app1", "instance1");
+    map.AddAppInstanceId("app2", "instance2");
+    
+    EXPECT_EQ("instance1", map.GetAppInstanceId("app1"));
+    EXPECT_EQ("instance2", map.GetAppInstanceId("app2"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_143_AppIdInstanceIdMap_GetAppId_ReverseLookup)
+{
+    LifecycleDelegate::AppIdInstanceIdMap map;
+    
+    map.AddAppInstanceId("app1", "instance1");
+    map.AddAppInstanceId("app2", "instance2");
+    
+    EXPECT_EQ("app1", map.GetAppId("instance1"));
+    EXPECT_EQ("app2", map.GetAppId("instance2"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_144_AppIdInstanceIdMap_GetNonExistent)
+{
+    LifecycleDelegate::AppIdInstanceIdMap map;
+    
+    // Non-existent app should return empty string
+    EXPECT_EQ("", map.GetAppInstanceId("nonexistent"));
+    EXPECT_EQ("", map.GetAppId("nonexistent"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_145_AppIdInstanceIdMap_Remove)
+{
+    LifecycleDelegate::AppIdInstanceIdMap map;
+    
+    map.AddAppInstanceId("app1", "instance1");
+    EXPECT_EQ("instance1", map.GetAppInstanceId("app1"));
+    
+    map.RemoveAppInstanceId("app1");
+    EXPECT_EQ("", map.GetAppInstanceId("app1"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_146_AppIdInstanceIdMap_OverwriteExisting)
+{
+    LifecycleDelegate::AppIdInstanceIdMap map;
+    
+    map.AddAppInstanceId("app1", "instance1");
+    EXPECT_EQ("instance1", map.GetAppInstanceId("app1"));
+    
+    // Overwrite with new instance
+    map.AddAppInstanceId("app1", "instance2");
+    EXPECT_EQ("instance2", map.GetAppInstanceId("app1"));
+}
+
+// ============================================================================
+// LIFECYCLEDELEGATE INNER CLASSES - NavigationIntentRegistry
+// ============================================================================
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_147_NavigationIntentRegistry_AddAndGet)
+{
+    LifecycleDelegate::NavigationIntentRegistry registry;
+    
+    registry.AddNavigationIntent("instance1", "navigate-to-home");
+    registry.AddNavigationIntent("instance2", "navigate-to-settings");
+    
+    EXPECT_EQ("navigate-to-home", registry.GetNavigationIntent("instance1"));
+    EXPECT_EQ("navigate-to-settings", registry.GetNavigationIntent("instance2"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_148_NavigationIntentRegistry_GetNonExistent)
+{
+    LifecycleDelegate::NavigationIntentRegistry registry;
+    
+    EXPECT_EQ("", registry.GetNavigationIntent("nonexistent"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_149_NavigationIntentRegistry_Remove)
+{
+    LifecycleDelegate::NavigationIntentRegistry registry;
+    
+    registry.AddNavigationIntent("instance1", "navigate-to-home");
+    EXPECT_EQ("navigate-to-home", registry.GetNavigationIntent("instance1"));
+    
+    registry.RemoveNavigationIntent("instance1");
+    EXPECT_EQ("", registry.GetNavigationIntent("instance1"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_150_NavigationIntentRegistry_OverwriteExisting)
+{
+    LifecycleDelegate::NavigationIntentRegistry registry;
+    
+    registry.AddNavigationIntent("instance1", "navigate-to-home");
+    EXPECT_EQ("navigate-to-home", registry.GetNavigationIntent("instance1"));
+    
+    // Overwrite with new intent
+    registry.AddNavigationIntent("instance1", "navigate-to-settings");
+    EXPECT_EQ("navigate-to-settings", registry.GetNavigationIntent("instance1"));
+}
+
+// ============================================================================
+// LIFECYCLEDELEGATE INNER CLASSES - FocusedAppRegistry
+// ============================================================================
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_151_FocusedAppRegistry_SetAndGet)
+{
+    LifecycleDelegate::FocusedAppRegistry registry;
+    
+    registry.SetFocusedAppInstanceId("instance1");
+    
+    EXPECT_EQ("instance1", registry.GetFocusedAppInstanceId());
+    EXPECT_TRUE(registry.IsAppInstanceIdFocused("instance1"));
+    EXPECT_FALSE(registry.IsAppInstanceIdFocused("instance2"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_152_FocusedAppRegistry_Clear)
+{
+    LifecycleDelegate::FocusedAppRegistry registry;
+    
+    registry.SetFocusedAppInstanceId("instance1");
+    EXPECT_TRUE(registry.IsAppInstanceIdFocused("instance1"));
+    
+    registry.ClearFocusedAppInstanceId();
+    EXPECT_FALSE(registry.IsAppInstanceIdFocused("instance1"));
+    EXPECT_EQ("", registry.GetFocusedAppInstanceId());
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_153_FocusedAppRegistry_GetFocusedEventData_Focused)
+{
+    LifecycleDelegate::FocusedAppRegistry registry;
+    
+    registry.SetFocusedAppInstanceId("instance1");
+    
+    string eventData = registry.GetFocusedEventData("instance1");
+    
+    JsonObject parsed;
+    ASSERT_TRUE(parsed.FromString(eventData));
+    EXPECT_TRUE(parsed["value"].Boolean());
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_154_FocusedAppRegistry_GetFocusedEventData_NotFocused)
+{
+    LifecycleDelegate::FocusedAppRegistry registry;
+    
+    registry.SetFocusedAppInstanceId("instance1");
+    
+    // Get event data for a different instance (not focused)
+    string eventData = registry.GetFocusedEventData("instance2");
+    
+    JsonObject parsed;
+    ASSERT_TRUE(parsed.FromString(eventData));
+    EXPECT_FALSE(parsed["value"].Boolean());
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_155_FocusedAppRegistry_ChangeFocus)
+{
+    LifecycleDelegate::FocusedAppRegistry registry;
+    
+    registry.SetFocusedAppInstanceId("instance1");
+    EXPECT_TRUE(registry.IsAppInstanceIdFocused("instance1"));
+    
+    // Change focus to another instance
+    registry.SetFocusedAppInstanceId("instance2");
+    EXPECT_FALSE(registry.IsAppInstanceIdFocused("instance1"));
+    EXPECT_TRUE(registry.IsAppInstanceIdFocused("instance2"));
+}
+
+// ============================================================================
+// LIFECYCLEDELEGATE INNER CLASSES - LifecycleStateRegistry
+// ============================================================================
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_156_LifecycleStateRegistry_AddAndGetState)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::UNLOADED, Exchange::ILifecycleManager::INITIALIZING);
+    
+    LifecycleDelegate::LifecycleStateInfo info = registry.GetLifecycleStateInfo("instance1");
+    
+    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.previousState);
+    EXPECT_EQ(Exchange::ILifecycleManager::INITIALIZING, info.currentState);
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_157_LifecycleStateRegistry_UpdateState)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::UNLOADED, Exchange::ILifecycleManager::INITIALIZING);
+    
+    // Update to new state
+    registry.UpdateLifecycleState("instance1", Exchange::ILifecycleManager::ACTIVE);
+    
+    LifecycleDelegate::LifecycleStateInfo info = registry.GetLifecycleStateInfo("instance1");
+    
+    // Previous state should now be INITIALIZING, current should be ACTIVE
+    EXPECT_EQ(Exchange::ILifecycleManager::INITIALIZING, info.previousState);
+    EXPECT_EQ(Exchange::ILifecycleManager::ACTIVE, info.currentState);
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_158_LifecycleStateRegistry_IsAppLifecycleActive)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::INITIALIZING, Exchange::ILifecycleManager::ACTIVE);
+    registry.AddLifecycleState("instance2", Exchange::ILifecycleManager::ACTIVE, Exchange::ILifecycleManager::PAUSED);
+    
+    EXPECT_TRUE(registry.IsAppLifecycleActive("instance1"));
+    EXPECT_FALSE(registry.IsAppLifecycleActive("instance2"));
+    EXPECT_FALSE(registry.IsAppLifecycleActive("nonexistent"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_159_LifecycleStateRegistry_GetNonExistent)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    // Non-existent app should return default state (UNLOADED, UNLOADED)
+    LifecycleDelegate::LifecycleStateInfo info = registry.GetLifecycleStateInfo("nonexistent");
+    
+    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.previousState);
+    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.currentState);
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_160_LifecycleStateRegistry_Remove)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::UNLOADED, Exchange::ILifecycleManager::ACTIVE);
+    EXPECT_TRUE(registry.IsAppLifecycleActive("instance1"));
+    
+    registry.RemoveLifecycleStateInfo("instance1");
+    
+    // After removal, should return default (UNLOADED, UNLOADED)
+    LifecycleDelegate::LifecycleStateInfo info = registry.GetLifecycleStateInfo("instance1");
+    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.previousState);
+    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.currentState);
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_161_LifecycleStateRegistry_GetLifecycle1StateJson)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::INITIALIZING, Exchange::ILifecycleManager::ACTIVE);
+    
+    string jsonState = registry.GetLifecycle1StateJson("instance1");
+    
+    JsonObject parsed;
+    ASSERT_TRUE(parsed.FromString(jsonState));
+    
+    // INITIALIZING maps to "initializing", ACTIVE maps to "foreground"
+    EXPECT_EQ("initializing", parsed["previous"].String());
+    EXPECT_EQ("foreground", parsed["state"].String());
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_162_LifecycleStateRegistry_GetLifecycle2StateJson)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::INITIALIZING, Exchange::ILifecycleManager::ACTIVE);
+    
+    string jsonState = registry.GetLifecycle2StateJson("instance1");
+    
+    JsonObject parsed;
+    ASSERT_TRUE(parsed.FromString(jsonState));
+    
+    EXPECT_EQ("initializing", parsed["oldState"].String());
+    EXPECT_EQ("active", parsed["newState"].String());
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_163_LifecycleStateRegistry_GetLifecycle1StateJson_NonExistent)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    string jsonState = registry.GetLifecycle1StateJson("nonexistent");
+    
+    EXPECT_EQ("{}", jsonState);
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_164_LifecycleStateRegistry_GetLifecycle2StateJson_NonExistent)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    string jsonState = registry.GetLifecycle2StateJson("nonexistent");
+    
+    EXPECT_EQ("{}", jsonState);
+}
+
+// ============================================================================
+// APPGATEWAYCOMMON.H - Information() method
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_165_Information_ReturnsEmptyString)
+{
+    // Information() method should return an empty string
+    string info = plugin.Information();
+    EXPECT_EQ("", info);
+}
+
+// ============================================================================
+// APPGATEWAYCOMMON.H - EventRegistrationJob inner class
+// ============================================================================
+
+// Mock emitter for testing EventRegistrationJob
+class MockEmitter : public Exchange::IAppNotificationHandler::IEmitter {
+public:
+    MockEmitter() : mRefCount(1) {}
+    
+    void Emit(const string& event, const string& payload, const string& appId) override {
+        mLastEvent = event;
+        mLastPayload = payload;
+        mLastAppId = appId;
+    }
+    
+    void AddRef() const override {
+        ++mRefCount;
+    }
+    
+    uint32_t Release() const override {
+        if (--mRefCount == 0) {
+            delete this;
+            return Core::ERROR_DESTRUCTION_SUCCEEDED;
+        }
+        return Core::ERROR_NONE;
+    }
+    
+    BEGIN_INTERFACE_MAP(MockEmitter)
+    INTERFACE_ENTRY(Exchange::IAppNotificationHandler::IEmitter)
+    END_INTERFACE_MAP
+    
+    string mLastEvent;
+    string mLastPayload;
+    string mLastAppId;
+    mutable uint32_t mRefCount;
+};
+
+TEST_F(AppGatewayCommonTest, AGC_L1_166_EventRegistrationJob_Create)
+{
+    MockEmitter* emitter = new MockEmitter();
+    
+    // Create an EventRegistrationJob
+    Core::ProxyType<Core::IDispatch> job = AppGatewayCommon::EventRegistrationJob::Create(
+        &plugin, emitter, "test.event", true);
+    
+    EXPECT_TRUE(job.IsValid());
+    
+    // The emitter should have been AddRef'd by the job
+    EXPECT_EQ(2u, emitter->mRefCount);
+    
+    // Release the job - this should release the emitter reference
+    job.Release();
+    
+    // Clean up the emitter
+    emitter->Release();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_167_EventRegistrationJob_CreateWithNullCallback)
+{
+    // Create an EventRegistrationJob with null callback
+    Core::ProxyType<Core::IDispatch> job = AppGatewayCommon::EventRegistrationJob::Create(
+        &plugin, nullptr, "test.event", false);
+    
+    EXPECT_TRUE(job.IsValid());
+    
+    // Release the job
+    job.Release();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_168_EventRegistrationJob_Dispatch_WithDelegate)
+{
+    // This test requires the delegate to be set up
+    // The Dispatch method calls mParent.mDelegate->HandleAppEventNotifier
+    // Since mDelegate is initialized in the fixture, this should work
+    
+    MockEmitter* emitter = new MockEmitter();
+    
+    Core::ProxyType<Core::IDispatch> job = AppGatewayCommon::EventRegistrationJob::Create(
+        &plugin, emitter, "localization.onlanguagechanged", true);
+    
+    EXPECT_TRUE(job.IsValid());
+    
+    // Dispatch should call HandleAppEventNotifier on the delegate
+    // This will exercise the Dispatch method
+    job->Dispatch();
+    
+    job.Release();
+    emitter->Release();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_169_EventRegistrationJob_Dispatch_UnsubscribeListen)
+{
+    MockEmitter* emitter = new MockEmitter();
+    
+    // Test with listen=false (unsubscribe)
+    Core::ProxyType<Core::IDispatch> job = AppGatewayCommon::EventRegistrationJob::Create(
+        &plugin, emitter, "localization.onlanguagechanged", false);
+    
+    EXPECT_TRUE(job.IsValid());
+    
+    job->Dispatch();
+    
+    job.Release();
+    emitter->Release();
+}
+
+// ============================================================================
+// APPGATEWAYCOMMON.H - QueryInterface (via INTERFACE_MAP macros)
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_170_QueryInterface_IPlugin)
+{
+    void* result = plugin.QueryInterface(PluginHost::IPlugin::ID);
+    EXPECT_NE(nullptr, result);
+    if (result) {
+        static_cast<PluginHost::IPlugin*>(result)->Release();
+    }
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_171_QueryInterface_IAppGatewayRequestHandler)
+{
+    void* result = plugin.QueryInterface(Exchange::IAppGatewayRequestHandler::ID);
+    EXPECT_NE(nullptr, result);
+    if (result) {
+        static_cast<Exchange::IAppGatewayRequestHandler*>(result)->Release();
+    }
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_172_QueryInterface_IAppNotificationHandler)
+{
+    void* result = plugin.QueryInterface(Exchange::IAppNotificationHandler::ID);
+    EXPECT_NE(nullptr, result);
+    if (result) {
+        static_cast<Exchange::IAppNotificationHandler*>(result)->Release();
+    }
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_173_QueryInterface_IAppGatewayAuthenticator)
+{
+    void* result = plugin.QueryInterface(Exchange::IAppGatewayAuthenticator::ID);
+    EXPECT_NE(nullptr, result);
+    if (result) {
+        static_cast<Exchange::IAppGatewayAuthenticator*>(result)->Release();
+    }
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_174_QueryInterface_UnknownInterface)
+{
+    // Query for an unknown interface ID should return nullptr
+    void* result = plugin.QueryInterface(0xDEADBEEF);
+    EXPECT_EQ(nullptr, result);
 }
 
 } // namespace
