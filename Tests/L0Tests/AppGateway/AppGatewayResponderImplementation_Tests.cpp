@@ -48,7 +48,7 @@ public:
     ~ConnChangeCollector() override = default;
 
     // Stack-owned collector: keep refcounting no-op/deterministic for tests.
-    uint32_t AddRef() const override { return 1; }
+    void AddRef() const override {}
     uint32_t Release() const override { return WPEFramework::Core::ERROR_NONE; }
     void* QueryInterface(const uint32_t id) override
     {

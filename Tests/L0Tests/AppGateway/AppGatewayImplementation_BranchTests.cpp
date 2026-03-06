@@ -89,7 +89,7 @@ public:
 
     ~SimpleStringIterator() override = default;
 
-    uint32_t AddRef() const override { return _refCount.fetch_add(1) + 1; }
+    void AddRef() const override { _refCount.fetch_add(1); }
     uint32_t Release() const override
     {
         const uint32_t n = _refCount.fetch_sub(1) - 1;

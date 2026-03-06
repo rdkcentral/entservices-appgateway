@@ -53,8 +53,8 @@ public:
         : _items(items), _index(0), _refCount(1) {}
     ~SimpleStringIterator() override = default;
 
-    uint32_t AddRef() const override {
-        return ++_refCount;
+    void AddRef() const override {
+        ++_refCount;
     }
     uint32_t Release() const override {
         const uint32_t n = --_refCount;
