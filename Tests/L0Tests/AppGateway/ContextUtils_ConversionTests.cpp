@@ -16,7 +16,7 @@
 
 using WPEFramework::Core::ERROR_BAD_REQUEST;
 using WPEFramework::Core::ERROR_NONE;
-using WPEFramework::Core::ERROR_UNKNOWN_KEY;
+using WPEFramework::Core::ERROR_UNKNOWN_METHOD;
 using WPEFramework::Plugin::AppGateway;
 using WPEFramework::PluginHost::IDispatcher;
 using WPEFramework::PluginHost::IPlugin;
@@ -231,7 +231,7 @@ uint32_t Test_Json_Boundary_RequestId_ConnectionId() {
             const std::string paramsJson = BuildResolveParamsJson(0u, 0u, appId, origin, method, "{}");
             std::string response;
             const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, response);
-            ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "resolve returns ERROR_UNKNOWN_KEY for requestId=0, connectionId=0");
+            ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "resolve returns ERROR_UNKNOWN_METHOD for requestId=0, connectionId=0");
         }
 
         // requestId/connectionId = UINT32_MAX
@@ -240,7 +240,7 @@ uint32_t Test_Json_Boundary_RequestId_ConnectionId() {
             const std::string paramsJson = BuildResolveParamsJson(maxv, maxv, appId, origin, method, "{}");
             std::string response;
             const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, response);
-            ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "resolve returns ERROR_UNKNOWN_KEY for requestId/connectionId UINT32_MAX");
+            ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "resolve returns ERROR_UNKNOWN_METHOD for requestId/connectionId UINT32_MAX");
         }
 
         dispatcher->Release();
@@ -278,8 +278,8 @@ uint32_t Test_Json_Params_Empty_Equals_EmptyObject() {
         const uint32_t rc1 = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", jsonEmpty, respEmpty);
         const uint32_t rc2 = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", jsonObject, respObject);
 
-        ExpectEqU32(tr, rc1, ERROR_UNKNOWN_KEY, "resolve with params '' returns ERROR_UNKNOWN_KEY");
-        ExpectEqU32(tr, rc2, ERROR_UNKNOWN_KEY, "resolve with params '{}' returns ERROR_UNKNOWN_KEY");
+        ExpectEqU32(tr, rc1, ERROR_UNKNOWN_METHOD, "resolve with params '' returns ERROR_UNKNOWN_METHOD");
+        ExpectEqU32(tr, rc2, ERROR_UNKNOWN_METHOD, "resolve with params '{}' returns ERROR_UNKNOWN_METHOD");
         dispatcher->Release();
     }
 
@@ -309,7 +309,7 @@ uint32_t Test_Json_EmptyAppId_BadRequest() {
         const std::string paramsJson = BuildResolveParamsJson(1001u, 9999u, "" /* empty appId */, origin, method, "{}");
         std::string response;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, response);
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "empty appId path returns ERROR_UNKNOWN_KEY");
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "empty appId path returns ERROR_UNKNOWN_METHOD");
         dispatcher->Release();
     }
 

@@ -12,7 +12,7 @@ using WPEFramework::Core::ERROR_BAD_REQUEST;
 using WPEFramework::Core::ERROR_NONE;
 using WPEFramework::Core::ERROR_NOT_SUPPORTED;
 using WPEFramework::Core::ERROR_UNAVAILABLE;
-using WPEFramework::Core::ERROR_UNKNOWN_KEY;
+using WPEFramework::Core::ERROR_UNKNOWN_METHOD;
 using WPEFramework::Plugin::AppGateway;
 using WPEFramework::PluginHost::IDispatcher;
 using WPEFramework::PluginHost::IPlugin;
@@ -152,7 +152,7 @@ static std::string BuildResolveParamsJson(bool withRequestId,
 
 // PUBLIC_INTERFACE
 uint32_t Test_Resolve_HappyPath_JSONRPC() {
-    /** JSON-RPC "resolve" is not exposed in current interface (@json:omit); expect unknown-key style error. */
+    /** JSON-RPC "resolve" is not exposed in current interface (@json:omit); expect unknown-method style error. */
     CheckResolutionsEnvOnce();
     TestResult tr;
 
@@ -170,7 +170,7 @@ uint32_t Test_Resolve_HappyPath_JSONRPC() {
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "Resolve_HappyPath_JSONRPC returns ERROR_UNKNOWN_KEY");
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "Resolve_HappyPath_JSONRPC returns ERROR_UNKNOWN_METHOD");
         dispatcher->Release();
     }
 
@@ -180,7 +180,7 @@ uint32_t Test_Resolve_HappyPath_JSONRPC() {
 
 // PUBLIC_INTERFACE
 uint32_t Test_Resolve_MissingFields_BadRequest() {
-    /** Since JSON-RPC resolve is omitted, malformed/missing payload variants still return ERROR_UNKNOWN_KEY. */
+    /** Since JSON-RPC resolve is omitted, malformed/missing payload variants still return ERROR_UNKNOWN_METHOD. */
     CheckResolutionsEnvOnce();
     TestResult tr;
 
@@ -198,35 +198,35 @@ uint32_t Test_Resolve_MissingFields_BadRequest() {
         {
             const std::string paramsJson = BuildResolveParamsJson(false, true, true, true, true, true);
             const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, response);
-            ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "Missing requestId => ERROR_UNKNOWN_KEY");
+            ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "Missing requestId => ERROR_UNKNOWN_METHOD");
         }
         // Missing connectionId
         response.clear();
         {
             const std::string paramsJson = BuildResolveParamsJson(true, false, true, true, true, true);
             const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, response);
-            ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "Missing connectionId => ERROR_UNKNOWN_KEY");
+            ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "Missing connectionId => ERROR_UNKNOWN_METHOD");
         }
         // Missing appId
         response.clear();
         {
             const std::string paramsJson = BuildResolveParamsJson(true, true, false, true, true, true);
             const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, response);
-            ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "Missing appId => ERROR_UNKNOWN_KEY");
+            ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "Missing appId => ERROR_UNKNOWN_METHOD");
         }
         // Missing origin
         response.clear();
         {
             const std::string paramsJson = BuildResolveParamsJson(true, true, true, false, true, true);
             const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, response);
-            ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "Missing origin => ERROR_UNKNOWN_KEY");
+            ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "Missing origin => ERROR_UNKNOWN_METHOD");
         }
         // Missing method
         response.clear();
         {
             const std::string paramsJson = BuildResolveParamsJson(true, true, true, true, false, true);
             const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, response);
-            ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "Missing method => ERROR_UNKNOWN_KEY");
+            ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "Missing method => ERROR_UNKNOWN_METHOD");
         }
 
         dispatcher->Release();
@@ -238,7 +238,7 @@ uint32_t Test_Resolve_MissingFields_BadRequest() {
 
 // PUBLIC_INTERFACE
 uint32_t Test_Resolve_ParamsEmpty_DefaultsToEmptyObject() {
-    /** JSON-RPC resolve omitted: payload shape does not change ERROR_UNKNOWN_KEY behavior. */
+    /** JSON-RPC resolve omitted: payload shape does not change ERROR_UNKNOWN_METHOD behavior. */
     CheckResolutionsEnvOnce();
     TestResult tr;
 
@@ -257,7 +257,7 @@ uint32_t Test_Resolve_ParamsEmpty_DefaultsToEmptyObject() {
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "Params empty defaults path returns ERROR_UNKNOWN_KEY");
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "Params empty defaults path returns ERROR_UNKNOWN_METHOD");
         dispatcher->Release();
     }
 
@@ -285,7 +285,7 @@ uint32_t Test_Resolve_ImplementationError_Propagates() {
         {
             const std::string paramsJson = BuildResolveParamsJson(true, true, true, true, true, true, "l0.notAvailable");
             const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, response);
-            ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "Implementation error NOT_AVAILABLE path returns ERROR_UNKNOWN_KEY");
+            ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "Implementation error NOT_AVAILABLE path returns ERROR_UNKNOWN_METHOD");
         }
 
         // NOT_SUPPORTED
@@ -293,7 +293,7 @@ uint32_t Test_Resolve_ImplementationError_Propagates() {
         {
             const std::string paramsJson = BuildResolveParamsJson(true, true, true, true, true, true, "l0.notSupported");
             const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, response);
-            ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "Implementation error NOT_SUPPORTED path returns ERROR_UNKNOWN_KEY");
+            ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "Implementation error NOT_SUPPORTED path returns ERROR_UNKNOWN_METHOD");
         }
 
         dispatcher->Release();

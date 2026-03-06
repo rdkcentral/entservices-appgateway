@@ -14,7 +14,6 @@ using WPEFramework::Core::ERROR_NONE;
 using WPEFramework::Core::ERROR_NOT_SUPPORTED;
 using WPEFramework::Core::ERROR_PRIVILIGED_REQUEST;
 using WPEFramework::Core::ERROR_UNAVAILABLE;
-using WPEFramework::Core::ERROR_UNKNOWN_KEY;
 using WPEFramework::Core::ERROR_UNKNOWN_METHOD;
 using WPEFramework::Plugin::AppGateway;
 using WPEFramework::PluginHost::IDispatcher;
@@ -345,7 +344,7 @@ static uint32_t Test_JsonRpcResolve_Success()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "JSON-RPC resolve returns ERROR_UNKNOWN_KEY (resolve is not JSON-RPC exposed)");
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "JSON-RPC resolve returns ERROR_UNKNOWN_METHOD (resolve is not JSON-RPC exposed)");
 
         dispatcher->Release();
     }
@@ -400,7 +399,7 @@ static uint32_t Test_JsonRpcResolve_Error_NotPermitted()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "NotPermitted JSON-RPC path returns ERROR_UNKNOWN_KEY");
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "NotPermitted JSON-RPC path returns ERROR_UNKNOWN_METHOD");
         dispatcher->Release();
     }
 
@@ -423,7 +422,7 @@ static uint32_t Test_JsonRpcResolve_Error_NotSupported()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "NotSupported JSON-RPC path returns ERROR_UNKNOWN_KEY");
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "NotSupported JSON-RPC path returns ERROR_UNKNOWN_METHOD");
         dispatcher->Release();
     }
 
@@ -446,7 +445,7 @@ static uint32_t Test_JsonRpcResolve_Error_NotAvailable()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "NotAvailable JSON-RPC path returns ERROR_UNKNOWN_KEY");
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "NotAvailable JSON-RPC path returns ERROR_UNKNOWN_METHOD");
         dispatcher->Release();
     }
 
@@ -469,7 +468,7 @@ static uint32_t Test_JsonRpcResolve_Error_MalformedInput()
         std::string jsonResponse;
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", badJson, jsonResponse);
 
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "Malformed JSON for resolve returns ERROR_UNKNOWN_KEY");
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "Malformed JSON for resolve returns ERROR_UNKNOWN_METHOD");
         dispatcher->Release();
     }
 
@@ -496,7 +495,7 @@ static uint32_t Test_JsonRpcResolve_Error_MissingHandler_WhenResolverMissing()
         const uint32_t rc = dispatcher->Invoke(nullptr, 0, 0, "", "resolve", paramsJson, jsonResponse);
 
         // In the current interface contract resolve is not exposed over JSON-RPC.
-        ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "Missing resolve handler returns ERROR_UNKNOWN_KEY");
+        ExpectEqU32(tr, rc, ERROR_UNKNOWN_METHOD, "Missing resolve handler returns ERROR_UNKNOWN_METHOD");
         dispatcher->Release();
     }
 
