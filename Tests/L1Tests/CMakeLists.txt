@@ -135,6 +135,12 @@ if(PLUGIN_APPGATEWAY)
     add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGateway ${CMAKE_BINARY_DIR}/AppGateway)
 endif()
 
+if(PLUGIN_APPNOTIFICATIONS)
+    # AppNotifications/CMakeLists.txt defines the implementation library target
+    # which AppNotificationsL1Test must link against to resolve symbols.
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppNotifications ${CMAKE_BINARY_DIR}/AppNotifications)
+endif()
+
 if(PLUGIN_APPGATEWAYCOMMON)
     # Also allow building/staging AppGatewayCommon plugin shared library from
     # the same L1Tests-only build when requested.
@@ -212,6 +218,10 @@ set(APPGATEWAYCOMMON_L1TEST_SRC "")
 set(APPGATEWAYCOMMON_L1TEST_INC "")
 set(APPGATEWAYCOMMON_L1TEST_LIB "")
 
+set(APPNOTIFICATIONS_L1TEST_SRC "")
+set(APPNOTIFICATIONS_L1TEST_INC "")
+set(APPNOTIFICATIONS_L1TEST_LIB "")
+
 if(PLUGIN_APPGATEWAY)
     message(STATUS "AppGateway L1 tests: ENABLED (PLUGIN_APPGATEWAY=ON)")
 
@@ -247,6 +257,24 @@ if(PLUGIN_APPGATEWAYCOMMON)
     )
 else()
     message(STATUS "AppGatewayCommon L1 tests: DISABLED (set -DPLUGIN_APPGATEWAYCOMMON=ON to enable)")
+endif()
+
+if(PLUGIN_APPNOTIFICATIONS)
+    message(STATUS "AppNotifications L1 tests: ENABLED (PLUGIN_APPNOTIFICATIONS=ON)")
+
+    list(APPEND APPNOTIFICATIONS_L1TEST_SRC tests/test_AppNotifications.cpp)
+
+    list(APPEND APPNOTIFICATIONS_L1TEST_INC
+        ../../helpers
+        ../../AppNotifications
+    )
+
+    list(APPEND APPNOTIFICATIONS_L1TEST_LIB
+        AppNotifications
+        ${NAMESPACE}Plugins::${NAMESPACE}Plugins
+    )
+else()
+    message(STATUS "AppNotifications L1 tests: DISABLED (set -DPLUGIN_APPNOTIFICATIONS=ON to enable)")
 endif()
 
 #########################################################################################
@@ -345,7 +373,7 @@ write_config(${PLUGIN_NAME})
 # -----------------------------------------------------------------------------
 # AppGatewayL1Test executable (required by the workflow/script)
 # -----------------------------------------------------------------------------
-if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON)
+if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS)
     # Prefer CONFIG mode so imported targets (GTest::gtest, GTest::gmock, etc.) are defined.
     # In some environments CMake's module-mode FindGTest is picked up first and only sets
     # variables like GTEST_LIBRARIES (leading to "Found GTest: <path>/libgtest.a" but
@@ -470,5 +498,40 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON)
         endif()
 
         install(TARGETS AppGatewayCommonL1Test RUNTIME DESTINATION bin)
+    endif()
+
+    if(PLUGIN_APPNOTIFICATIONS)
+        add_executable(AppNotificationsL1Test ${APPNOTIFICATIONS_L1TEST_SRC})
+
+        target_include_directories(AppNotificationsL1Test
+            PRIVATE
+            ${APPNOTIFICATIONS_L1TEST_INC}
+
+            ${CMAKE_INSTALL_PREFIX}/include
+
+            ${CMAKE_SOURCE_DIR}/Tests/mocks
+            ${CMAKE_SOURCE_DIR}/../mocks
+
+            ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
+        )
+
+        target_link_libraries(AppNotificationsL1Test PRIVATE
+            ${APPNOTIFICATIONS_L1TEST_LIB}
+            GTest::gmock
+            GTest::gtest
+            GTest::gtest_main
+            Threads::Threads
+        )
+
+        target_compile_definitions(AppNotificationsL1Test PRIVATE
+            UNIT_TEST
+            DISABLE_SECURITY_TOKEN
+        )
+
+        if(_L1TESTS_USE_THUNDER_R4)
+            target_compile_definitions(AppNotificationsL1Test PRIVATE USE_THUNDER_R4)
+        endif()
+
+        install(TARGETS AppNotificationsL1Test RUNTIME DESTINATION bin)
     endif()
 endif()
