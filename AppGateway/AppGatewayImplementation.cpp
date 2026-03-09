@@ -549,17 +549,24 @@ namespace WPEFramework
         }
 
         Core::hresult AppGatewayImplementation::HandleEvent(const Context &context, const string &alias,  const string &event, const string &origin, const bool listen) {
-            Core::SafeSyncType<Core::CriticalSection> lock(mAppNotificationsLock);
-            if (nullptr == mAppNotifications) {
-                mAppNotifications = mService->QueryInterfaceByCallsign<Exchange::IAppNotifications>(APP_NOTIFICATIONS_CALLSIGN);
+            Exchange::IAppNotifications* notifications = nullptr;
+            
+            {
+                Core::SafeSyncType<Core::CriticalSection> lock(mAppNotificationsLock);
                 if (nullptr == mAppNotifications) {
-                    LOGERR("Failed to get IAppNotifications interface");
-                    return Core::ERROR_GENERAL;
-                } else {
-                    LOGINFO("IAppNotifications interface acquired");
+                    mAppNotifications = mService->QueryInterfaceByCallsign<Exchange::IAppNotifications>(APP_NOTIFICATIONS_CALLSIGN);
+                    if (nullptr == mAppNotifications) {
+                        LOGERR("Failed to get IAppNotifications interface");
+                        return Core::ERROR_GENERAL;
+                    } else {
+                        LOGINFO("IAppNotifications interface acquired");
+                    }
                 }
+                notifications = mAppNotifications;
             }
-            return mAppNotifications->Subscribe(ContextUtils::ConvertAppGatewayToNotificationContext(context,origin), listen, alias, event);
+            // Lock released - safe to make COM-RPC call
+            
+            return notifications->Subscribe(ContextUtils::ConvertAppGatewayToNotificationContext(context, origin), listen, alias, event);
         }
 
         void AppGatewayImplementation::SendToLaunchDelegate(const Context& context, const string& payload)
