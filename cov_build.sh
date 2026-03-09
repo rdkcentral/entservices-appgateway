@@ -24,7 +24,7 @@ cmake -G Ninja -S "$GITHUB_WORKSPACE" -B build/entservices-appgateway \
 -DPLUGIN_APPGATEWAY=ON \
 -DPLUGIN_APPNOTIFICATIONS=ON \
 -DPLUGIN_APPGATEWAYCOMMON=ON \
--DBUILD_ENABLE_TELEMETRY_LOGGING=OFF \
+-DBUILD_ENABLE_TELEMETRY_LOGGING=FALSE \
 -DCMAKE_CXX_FLAGS="-DEXCEPTIONS_ENABLE=ON \
 -I ${GITHUB_WORKSPACE}/entservices-testframework/Tests/headers \
 -I ${GITHUB_WORKSPACE}/entservices-testframework/Tests/headers/audiocapturemgr \
