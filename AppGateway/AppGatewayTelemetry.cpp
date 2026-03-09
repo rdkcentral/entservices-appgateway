@@ -422,9 +422,13 @@ namespace Plugin {
         const std::string prefix = AGW_INTERNAL_PLUGIN_PREFIX;
         const std::string methodTag = "_MethodName_";
 
+        // Check if it ends with "_Success_split" or "_Error_split"
+        bool hasSuccessSuffix = false;
+
         if (metricName.length() > successSuffix.length() && 
             successSuffix == metricName.substr(metricName.length() - successSuffix.length())) {
             isError = false;
+            hasSuccessSuffix = true;
         } else if (metricName.length() > errorSuffix.length() && 
                    errorSuffix == metricName.substr(metricName.length() - errorSuffix.length())) {
             isError = true;
@@ -586,9 +590,13 @@ namespace Plugin {
         const std::string prefix = AGW_INTERNAL_PLUGIN_PREFIX;
         const std::string serviceTag = "_ServiceName_";
 
+        // Check if it ends with "_Success_split" or "_Error_split"
+        bool hasSuccessSuffix = false;
+
         if (metricName.length() > successSuffix.length() && 
             successSuffix == metricName.substr(metricName.length() - successSuffix.length())) {
             isError = false;
+            hasSuccessSuffix = true;
         } else if (metricName.length() > errorSuffix.length() && 
                    errorSuffix == metricName.substr(metricName.length() - errorSuffix.length())) {
             isError = true;
