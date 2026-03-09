@@ -563,10 +563,13 @@ namespace WPEFramework
                     }
                 }
                 notifications = mAppNotifications;
+                notifications->AddRef();  // Take a local reference
             }
             // Lock released - safe to make COM-RPC call
             
-            return notifications->Subscribe(ContextUtils::ConvertAppGatewayToNotificationContext(context, origin), listen, alias, event);
+            Core::hresult result = notifications->Subscribe(ContextUtils::ConvertAppGatewayToNotificationContext(context, origin), listen, alias, event);
+            notifications->Release();  // Release local reference
+            return result;
         }
 
         void AppGatewayImplementation::SendToLaunchDelegate(const Context& context, const string& payload)
@@ -584,11 +587,13 @@ namespace WPEFramework
                         LOGINFO("Internal Responder interface acquired");
                     }
                 }
-                responder = mInternalGatewayResponder;  // Just copy the pointer, no AddRef
+                responder = mInternalGatewayResponder;
+                responder->AddRef();  // Take a local reference
             }
             // Lock released - safe to make COM-RPC call
             
-            responder->Respond(context, payload);  // Uses the cached interface
+            responder->Respond(context, payload);
+            responder->Release();  // Release local reference
         }
 
         Exchange::IAppGatewayAuthenticator* AppGatewayImplementation::GetAppGatewayAuthenticatorInterface() {
