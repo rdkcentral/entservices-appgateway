@@ -470,6 +470,7 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON)
             GTest::gtest
             GTest::gtest_main
             Threads::Threads
+            uuid
         )
 
         target_compile_definitions(AppGatewayCommonL1Test PRIVATE

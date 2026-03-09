@@ -46,8 +46,10 @@ using namespace WPEFramework;
 using namespace WPEFramework::Plugin;
 using ::testing::_;
 using ::testing::AnyNumber;
+using ::testing::DoAll;
 using ::testing::NiceMock;
 using ::testing::Return;
+using ::testing::SetArgReferee;
 
 namespace {
 
@@ -123,6 +125,168 @@ protected:
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(120));
     }
+};
+
+// Mock emitter for testing EventRegistrationJob
+class MockEmitter : public Exchange::IAppNotificationHandler::IEmitter {
+public:
+    MockEmitter() : mRefCount(1) {}
+    
+    void Emit(const string& event, const string& payload, const string& appId) override {
+        mLastEvent = event;
+        mLastPayload = payload;
+        mLastAppId = appId;
+    }
+    
+    void AddRef() const override {
+        ++mRefCount;
+    }
+    
+    uint32_t Release() const override {
+        if (--mRefCount == 0) {
+            delete this;
+            return Core::ERROR_DESTRUCTION_SUCCEEDED;
+        }
+        return Core::ERROR_NONE;
+    }
+    
+    BEGIN_INTERFACE_MAP(MockEmitter)
+    INTERFACE_ENTRY(Exchange::IAppNotificationHandler::IEmitter)
+    END_INTERFACE_MAP
+    
+    string mLastEvent;
+    string mLastPayload;
+    string mLastAppId;
+    mutable uint32_t mRefCount;
+};
+
+// Mock IRemoteConnection for testing Deactivated
+class MockRemoteConnection : public RPC::IRemoteConnection {
+public:
+    MockRemoteConnection(uint32_t id) : mId(id), mRefCount(1) {}
+    
+    uint32_t Id() const override { return mId; }
+    uint32_t RemoteId() const override { return 0; }
+    void* Acquire(const uint32_t waitTime, const string& className, const uint32_t interfaceId, const uint32_t version) override {
+        (void)waitTime; (void)className; (void)interfaceId; (void)version;
+        return nullptr;
+    }
+    void Terminate() override {}
+    uint32_t Launch() override { return Core::ERROR_NONE; }
+    void PostMortem() override {}
+    
+    void AddRef() const override { ++mRefCount; }
+    uint32_t Release() const override {
+        if (--mRefCount == 0) {
+            delete this;
+            return Core::ERROR_DESTRUCTION_SUCCEEDED;
+        }
+        return Core::ERROR_NONE;
+    }
+    
+    BEGIN_INTERFACE_MAP(MockRemoteConnection)
+    INTERFACE_ENTRY(RPC::IRemoteConnection)
+    END_INTERFACE_MAP
+    
+private:
+    uint32_t mId;
+    mutable uint32_t mRefCount;
+};
+
+// Mock for ILocalDispatcher to test JSONRPC-based methods
+class MockLocalDispatcher : public PluginHost::ILocalDispatcher {
+public:
+    MockLocalDispatcher() : mRefCount(1), mPlugin(nullptr) {}
+    
+    void AddRef() const override { ++mRefCount; }
+    
+    uint32_t Release() const override {
+        if (--mRefCount == 0) {
+            delete this;
+            return Core::ERROR_DESTRUCTION_SUCCEEDED;
+        }
+        return Core::ERROR_NONE;
+    }
+    
+    // IDispatcher interface - required methods
+    Core::hresult Validate(const string& token, const string& method, const string& parameters) const override {
+        (void)token;
+        (void)method;
+        (void)parameters;
+        return Core::ERROR_NONE;
+    }
+    
+    Core::hresult Invoke(ICallback* callback, const uint32_t channelId, const uint32_t id, const string& token,
+                         const string& method, const string& parameters, string& response) override {
+        (void)callback;
+        return Invoke(channelId, id, token, method, parameters, response);
+    }
+    
+    Core::hresult Revoke(ICallback* callback) override {
+        (void)callback;
+        return Core::ERROR_NONE;
+    }
+    
+    // ILocalDispatcher interface
+    Core::hresult Invoke(const uint32_t channelId, const uint32_t id, const string& token,
+                         const string& method, const string& parameters, string& response) override {
+        (void)channelId;
+        (void)id;
+        (void)token;
+        
+        // Extract method name from designator (format: "callsign.1.method")
+        auto lastDot = method.rfind('.');
+        string methodName = (lastDot != string::npos) ? method.substr(lastDot + 1) : method;
+        
+        // Return configured response based on method
+        auto it = mResponses.find(methodName);
+        if (it != mResponses.end()) {
+            response = it->second.response;
+            return it->second.result;
+        }
+        
+        // Default response
+        response = "{}";
+        return Core::ERROR_NONE;
+    }
+    
+    ILocalDispatcher* Local() override {
+        // Return this to indicate dispatcher is valid
+        return this;
+    }
+    
+    void Activate(PluginHost::IShell* service) override {
+        (void)service;
+    }
+    
+    void Deactivate() override {
+    }
+    
+    void Dropped(const uint32_t channelId) override {
+        (void)channelId;
+    }
+    
+    BEGIN_INTERFACE_MAP(MockLocalDispatcher)
+    INTERFACE_ENTRY(PluginHost::ILocalDispatcher)
+    END_INTERFACE_MAP
+    
+    // Configure responses for methods
+    struct MethodResponse {
+        string response;
+        Core::hresult result;
+    };
+    
+    void SetResponse(const string& method, const string& response, Core::hresult result = Core::ERROR_NONE) {
+        mResponses[method] = {response, result};
+    }
+    
+    void ClearResponses() {
+        mResponses.clear();
+    }
+    
+    std::map<string, MethodResponse> mResponses;
+    mutable uint32_t mRefCount;
+    PluginHost::IPlugin* mPlugin;
 };
 
 // ============================================================================
@@ -396,6 +560,164 @@ TEST_F(AppGatewayCommonTest, AGC_L1_120_AddAdditionalInfo_ReturnsNull)
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_EQ("null", result);
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_142_AppIdInstanceIdMap_AddAndGet)
+{
+    LifecycleDelegate::AppIdInstanceIdMap map;
+    
+    map.AddAppInstanceId("app1", "instance1");
+    map.AddAppInstanceId("app2", "instance2");
+    
+    EXPECT_EQ("instance1", map.GetAppInstanceId("app1"));
+    EXPECT_EQ("instance2", map.GetAppInstanceId("app2"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_143_AppIdInstanceIdMap_GetAppId_ReverseLookup)
+{
+    LifecycleDelegate::AppIdInstanceIdMap map;
+    
+    map.AddAppInstanceId("app1", "instance1");
+    map.AddAppInstanceId("app2", "instance2");
+    
+    EXPECT_EQ("app1", map.GetAppId("instance1"));
+    EXPECT_EQ("app2", map.GetAppId("instance2"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_144_AppIdInstanceIdMap_GetNonExistent)
+{
+    LifecycleDelegate::AppIdInstanceIdMap map;
+    
+    // Non-existent app should return empty string
+    EXPECT_EQ("", map.GetAppInstanceId("nonexistent"));
+    EXPECT_EQ("", map.GetAppId("nonexistent"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_145_AppIdInstanceIdMap_Remove)
+{
+    LifecycleDelegate::AppIdInstanceIdMap map;
+    
+    map.AddAppInstanceId("app1", "instance1");
+    EXPECT_EQ("instance1", map.GetAppInstanceId("app1"));
+    
+    map.RemoveAppInstanceId("app1");
+    EXPECT_EQ("", map.GetAppInstanceId("app1"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_146_AppIdInstanceIdMap_OverwriteExisting)
+{
+    LifecycleDelegate::AppIdInstanceIdMap map;
+    
+    map.AddAppInstanceId("app1", "instance1");
+    EXPECT_EQ("instance1", map.GetAppInstanceId("app1"));
+    
+    // Overwrite with new instance
+    map.AddAppInstanceId("app1", "instance2");
+    EXPECT_EQ("instance2", map.GetAppInstanceId("app1"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_147_NavigationIntentRegistry_AddAndGet)
+{
+    LifecycleDelegate::NavigationIntentRegistry registry;
+    
+    registry.AddNavigationIntent("instance1", "navigate-to-home");
+    registry.AddNavigationIntent("instance2", "navigate-to-settings");
+    
+    EXPECT_EQ("navigate-to-home", registry.GetNavigationIntent("instance1"));
+    EXPECT_EQ("navigate-to-settings", registry.GetNavigationIntent("instance2"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_148_NavigationIntentRegistry_GetNonExistent)
+{
+    LifecycleDelegate::NavigationIntentRegistry registry;
+    
+    EXPECT_EQ("", registry.GetNavigationIntent("nonexistent"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_149_NavigationIntentRegistry_Remove)
+{
+    LifecycleDelegate::NavigationIntentRegistry registry;
+    
+    registry.AddNavigationIntent("instance1", "navigate-to-home");
+    EXPECT_EQ("navigate-to-home", registry.GetNavigationIntent("instance1"));
+    
+    registry.RemoveNavigationIntent("instance1");
+    EXPECT_EQ("", registry.GetNavigationIntent("instance1"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_150_NavigationIntentRegistry_OverwriteExisting)
+{
+    LifecycleDelegate::NavigationIntentRegistry registry;
+    
+    registry.AddNavigationIntent("instance1", "navigate-to-home");
+    EXPECT_EQ("navigate-to-home", registry.GetNavigationIntent("instance1"));
+    
+    // Overwrite with new intent
+    registry.AddNavigationIntent("instance1", "navigate-to-settings");
+    EXPECT_EQ("navigate-to-settings", registry.GetNavigationIntent("instance1"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_151_FocusedAppRegistry_SetAndGet)
+{
+    LifecycleDelegate::FocusedAppRegistry registry;
+    
+    registry.SetFocusedAppInstanceId("instance1");
+    
+    EXPECT_EQ("instance1", registry.GetFocusedAppInstanceId());
+    EXPECT_TRUE(registry.IsAppInstanceIdFocused("instance1"));
+    EXPECT_FALSE(registry.IsAppInstanceIdFocused("instance2"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_152_FocusedAppRegistry_Clear)
+{
+    LifecycleDelegate::FocusedAppRegistry registry;
+    
+    registry.SetFocusedAppInstanceId("instance1");
+    EXPECT_TRUE(registry.IsAppInstanceIdFocused("instance1"));
+    
+    registry.ClearFocusedAppInstanceId();
+    EXPECT_FALSE(registry.IsAppInstanceIdFocused("instance1"));
+    EXPECT_EQ("", registry.GetFocusedAppInstanceId());
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_153_FocusedAppRegistry_GetFocusedEventData_Focused)
+{
+    LifecycleDelegate::FocusedAppRegistry registry;
+    
+    registry.SetFocusedAppInstanceId("instance1");
+    
+    string eventData = registry.GetFocusedEventData("instance1");
+    
+    JsonObject parsed;
+    ASSERT_TRUE(parsed.FromString(eventData));
+    EXPECT_TRUE(parsed["value"].Boolean());
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_154_FocusedAppRegistry_GetFocusedEventData_NotFocused)
+{
+    LifecycleDelegate::FocusedAppRegistry registry;
+    
+    registry.SetFocusedAppInstanceId("instance1");
+    
+    // Get event data for a different instance (not focused)
+    string eventData = registry.GetFocusedEventData("instance2");
+    
+    JsonObject parsed;
+    ASSERT_TRUE(parsed.FromString(eventData));
+    EXPECT_FALSE(parsed["value"].Boolean());
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_155_FocusedAppRegistry_ChangeFocus)
+{
+    LifecycleDelegate::FocusedAppRegistry registry;
+    
+    registry.SetFocusedAppInstanceId("instance1");
+    EXPECT_TRUE(registry.IsAppInstanceIdFocused("instance1"));
+    
+    // Change focus to another instance
+    registry.SetFocusedAppInstanceId("instance2");
+    EXPECT_FALSE(registry.IsAppInstanceIdFocused("instance1"));
+    EXPECT_TRUE(registry.IsAppInstanceIdFocused("instance2"));
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_165_Information_ReturnsEmptyString)
@@ -679,7 +1001,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_180_HandleAppEventNotifier_MultipleEvents)
     plugin.Deinitialize(&service);
 }
 
-// Test TTS OnNetworkError notification
 TEST_F(AppGatewayCommonTest, AGC_L1_373_TTS_NotificationHandler_OnNetworkError)
 {
     NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
@@ -720,7 +1041,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_373_TTS_NotificationHandler_OnNetworkError)
     plugin.Deinitialize(&service);
 }
 
-// Test AppDelegate::HandleAppGatewayRequest - Unsupported method
 TEST_F(AppGatewayCommonTest, AGC_L1_492_AppDelegate_HandleAppGatewayRequest_UnsupportedMethod)
 {
     NiceMock<ServiceMock> service;
@@ -1232,6 +1552,277 @@ TEST_F(AppGatewayCommonTest, AGC_L1_107_SetVoiceGuidanceHints_NullDelegate_Retur
 
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetVoiceGuidanceHints(true));
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetVoiceGuidanceHints(false));
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_122_FontFamilyToString_AllValues)
+{
+    // Test all FontFamily enum values
+    EXPECT_STREQ("null", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CONTENT_DEFAULT));
+    EXPECT_STREQ("monospaced_serif", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::MONOSPACED_SERIF));
+    EXPECT_STREQ("proportional_serif", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::PROPORTIONAL_SERIF));
+    EXPECT_STREQ("monospaced_sanserif", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::MONOSPACE_SANS_SERIF));
+    EXPECT_STREQ("proportional_sanserif", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::PROPORTIONAL_SANS_SERIF));
+    EXPECT_STREQ("casual", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CASUAL));
+    EXPECT_STREQ("cursive", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CURSIVE));
+    EXPECT_STREQ("smallcaps", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::SMALL_CAPITAL));
+    
+    // Test invalid/unknown value falls through to default
+    EXPECT_STREQ("null", FontFamilyToString(static_cast<Exchange::ITextTrackClosedCaptionsStyle::FontFamily>(999)));
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_123_FontSizeToNumber_AllValues)
+{
+    // Test all FontSize enum values
+    EXPECT_EQ(-1, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT));
+    EXPECT_EQ(0, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::SMALL));
+    EXPECT_EQ(1, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::REGULAR));
+    EXPECT_EQ(2, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::LARGE));
+    EXPECT_EQ(3, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::EXTRA_LARGE));
+    
+    // Test invalid/unknown value falls through to default
+    EXPECT_EQ(-1, FontSizeToNumber(static_cast<Exchange::ITextTrackClosedCaptionsStyle::FontSize>(999)));
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_124_FontEdgeToString_AllValues)
+{
+    // Test all FontEdge enum values
+    EXPECT_STREQ("null", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::CONTENT_DEFAULT));
+    EXPECT_STREQ("none", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::NONE));
+    EXPECT_STREQ("raised", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RAISED));
+    EXPECT_STREQ("depressed", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::DEPRESSED));
+    EXPECT_STREQ("uniform", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::UNIFORM));
+    EXPECT_STREQ("drop_shadow_left", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::LEFT_DROP_SHADOW));
+    EXPECT_STREQ("drop_shadow_right", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RIGHT_DROP_SHADOW));
+    
+    // Test invalid/unknown value falls through to default
+    EXPECT_STREQ("null", FontEdgeToString(static_cast<Exchange::ITextTrackClosedCaptionsStyle::FontEdge>(999)));
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_125_ParseCommaSeparatedLanguages_ValidInput)
+{
+    JsonArray result;
+    ParseCommaSeparatedLanguages("eng,fra,spa", result);
+    
+    EXPECT_EQ(3u, result.Length());
+    
+    JsonArray::Iterator it = result.Elements();
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("eng", it.Current().String());
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("fra", it.Current().String());
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("spa", it.Current().String());
+    EXPECT_FALSE(it.Next());
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_126_ParseCommaSeparatedLanguages_WithWhitespace)
+{
+    JsonArray result;
+    ParseCommaSeparatedLanguages("eng , fra , spa", result);
+    
+    EXPECT_EQ(3u, result.Length());
+    
+    JsonArray::Iterator it = result.Elements();
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("eng", it.Current().String());
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("fra", it.Current().String());
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("spa", it.Current().String());
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_127_ParseCommaSeparatedLanguages_EmptyInput)
+{
+    JsonArray result;
+    ParseCommaSeparatedLanguages("", result);
+    
+    EXPECT_EQ(0u, result.Length());
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_128_ParseCommaSeparatedLanguages_SingleLanguage)
+{
+    JsonArray result;
+    ParseCommaSeparatedLanguages("eng", result);
+    
+    EXPECT_EQ(1u, result.Length());
+    
+    JsonArray::Iterator it = result.Elements();
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("eng", it.Current().String());
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_129_ParseCommaSeparatedLanguages_WhitespaceOnly)
+{
+    JsonArray result;
+    ParseCommaSeparatedLanguages("   ,   ,   ", result);
+    
+    // All whitespace tokens should be skipped
+    EXPECT_EQ(0u, result.Length());
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_130_ConvertToCommaSeparatedLanguages_JsonArray)
+{
+    string result = ConvertToCommaSeparatedLanguages("[\"eng\",\"fra\",\"spa\"]");
+    
+    EXPECT_EQ("eng,fra,spa", result);
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_131_ConvertToCommaSeparatedLanguages_EmptyArray)
+{
+    string result = ConvertToCommaSeparatedLanguages("[]");
+    
+    EXPECT_EQ("", result);
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_132_ConvertToCommaSeparatedLanguages_QuotedString)
+{
+    string result = ConvertToCommaSeparatedLanguages("\"eng\"");
+    
+    EXPECT_EQ("eng", result);
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_133_ConvertToCommaSeparatedLanguages_UnquotedString)
+{
+    string result = ConvertToCommaSeparatedLanguages("eng");
+    
+    EXPECT_EQ("eng", result);
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_134_ConvertToCommaSeparatedLanguages_SingleElementArray)
+{
+    string result = ConvertToCommaSeparatedLanguages("[\"eng\"]");
+    
+    EXPECT_EQ("eng", result);
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_135_BuildClosedCaptionsStyleJson_AllFieldsSet)
+{
+    Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle style;
+    style.fontFamily = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CASUAL;
+    style.fontSize = Exchange::ITextTrackClosedCaptionsStyle::FontSize::LARGE;
+    style.fontColor = "#FFFFFF";
+    style.fontOpacity = 100;
+    style.fontEdge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RAISED;
+    style.fontEdgeColor = "#000000";
+    style.backgroundColor = "#000000";
+    style.backgroundOpacity = 80;
+    style.windowColor = "#FF0000";
+    style.windowOpacity = 50;
+    
+    JsonObject styles;
+    BuildClosedCaptionsStyleJson(style, styles);
+    
+    EXPECT_EQ("casual", styles["fontFamily"].String());
+    EXPECT_EQ(2, styles["fontSize"].Number());
+    EXPECT_EQ("#FFFFFF", styles["fontColor"].String());
+    EXPECT_EQ(100, styles["fontOpacity"].Number());
+    EXPECT_EQ("raised", styles["fontEdge"].String());
+    EXPECT_EQ("#000000", styles["fontEdgeColor"].String());
+    EXPECT_EQ("#000000", styles["backgroundColor"].String());
+    EXPECT_EQ(80, styles["backgroundOpacity"].Number());
+    EXPECT_EQ("#FF0000", styles["windowColor"].String());
+    EXPECT_EQ(50, styles["windowOpacity"].Number());
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_136_BuildClosedCaptionsStyleJson_DefaultValues)
+{
+    Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle style;
+    style.fontFamily = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CONTENT_DEFAULT;
+    style.fontSize = Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT;
+    style.fontColor = "";
+    style.fontOpacity = -1;
+    style.fontEdge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::CONTENT_DEFAULT;
+    style.fontEdgeColor = "";
+    style.backgroundColor = "";
+    style.backgroundOpacity = -1;
+    style.windowColor = "";
+    style.windowOpacity = -1;
+    
+    JsonObject styles;
+    BuildClosedCaptionsStyleJson(style, styles);
+    
+    // With default values, these fields should NOT be present in the JSON
+    EXPECT_FALSE(styles.HasLabel("fontFamily"));
+    EXPECT_FALSE(styles.HasLabel("fontSize"));
+    EXPECT_FALSE(styles.HasLabel("fontColor"));
+    EXPECT_FALSE(styles.HasLabel("fontOpacity"));
+    EXPECT_FALSE(styles.HasLabel("fontEdge"));
+    EXPECT_FALSE(styles.HasLabel("fontEdgeColor"));
+    EXPECT_FALSE(styles.HasLabel("backgroundColor"));
+    EXPECT_FALSE(styles.HasLabel("backgroundOpacity"));
+    EXPECT_FALSE(styles.HasLabel("windowColor"));
+    EXPECT_FALSE(styles.HasLabel("windowOpacity"));
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_137_BuildClosedCaptionsStyleJson_PartialValues)
+{
+    Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle style;
+    style.fontFamily = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CURSIVE;
+    style.fontSize = Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT;
+    style.fontColor = "#FF0000";
+    style.fontOpacity = -1;
+    style.fontEdge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::CONTENT_DEFAULT;
+    style.fontEdgeColor = "";
+    style.backgroundColor = "#0000FF";
+    style.backgroundOpacity = 75;
+    style.windowColor = "";
+    style.windowOpacity = -1;
+    
+    JsonObject styles;
+    BuildClosedCaptionsStyleJson(style, styles);
+    
+    // Present fields
+    EXPECT_EQ("cursive", styles["fontFamily"].String());
+    EXPECT_EQ("#FF0000", styles["fontColor"].String());
+    EXPECT_EQ("#0000FF", styles["backgroundColor"].String());
+    EXPECT_EQ(75, styles["backgroundOpacity"].Number());
+    
+    // Absent fields
+    EXPECT_FALSE(styles.HasLabel("fontSize"));
+    EXPECT_FALSE(styles.HasLabel("fontOpacity"));
+    EXPECT_FALSE(styles.HasLabel("fontEdge"));
+    EXPECT_FALSE(styles.HasLabel("fontEdgeColor"));
+    EXPECT_FALSE(styles.HasLabel("windowColor"));
+    EXPECT_FALSE(styles.HasLabel("windowOpacity"));
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_138_BuildClosedCaptionsSettingsResponse_WithLanguages)
+{
+    JsonObject styles;
+    styles["fontFamily"] = "casual";
+    styles["fontSize"] = 2;
+    
+    string result = BuildClosedCaptionsSettingsResponse(true, "eng,fra", styles);
+    
+    JsonObject parsed;
+    ASSERT_TRUE(parsed.FromString(result));
+    
+    EXPECT_EQ(true, parsed["enabled"].Boolean());
+    EXPECT_TRUE(parsed.HasLabel("styles"));
+    EXPECT_TRUE(parsed.HasLabel("preferredLanguages"));
+    
+    JsonArray languages = parsed["preferredLanguages"].Array();
+    EXPECT_EQ(2u, languages.Length());
+}
+
+TEST(UserSettingsHelperTest, AGC_L1_139_BuildClosedCaptionsSettingsResponse_EmptyLanguages)
+{
+    JsonObject styles;
+    
+    string result = BuildClosedCaptionsSettingsResponse(false, "", styles);
+    
+    JsonObject parsed;
+    ASSERT_TRUE(parsed.FromString(result));
+    
+    EXPECT_EQ(false, parsed["enabled"].Boolean());
+    
+    // Empty languages should default to ["eng"]
+    JsonArray languages = parsed["preferredLanguages"].Array();
+    EXPECT_EQ(1u, languages.Length());
+    
+    JsonArray::Iterator it = languages.Elements();
+    ASSERT_TRUE(it.Next());
+    EXPECT_EQ("eng", it.Current().String());
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_181_UserSettings_GetVoiceGuidance_Success)
@@ -2338,7 +2929,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_230_UserSettings_SetVoiceGuidanceRate_Succes
     delete mockUserSettings;
 }
 
-// Test GetSpeed with rate >= 1.56 (should return speed 2.0)
 TEST_F(AppGatewayCommonTest, AGC_L1_279_GetSpeed_Rate156_ReturnsSpeed2)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -2374,7 +2964,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_279_GetSpeed_Rate156_ReturnsSpeed2)
     delete mockUserSettings;
 }
 
-// Test GetSpeed with rate >= 1.38 (should return speed 1.67)
 TEST_F(AppGatewayCommonTest, AGC_L1_280_GetSpeed_Rate138_ReturnsSpeed167)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -2410,7 +2999,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_280_GetSpeed_Rate138_ReturnsSpeed167)
     delete mockUserSettings;
 }
 
-// Test GetSpeed with rate >= 1.19 (should return speed 1.33)
 TEST_F(AppGatewayCommonTest, AGC_L1_281_GetSpeed_Rate119_ReturnsSpeed133)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -2446,7 +3034,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_281_GetSpeed_Rate119_ReturnsSpeed133)
     delete mockUserSettings;
 }
 
-// Test GetSpeed with rate >= 1.0 (should return speed 1.0)
 TEST_F(AppGatewayCommonTest, AGC_L1_282_GetSpeed_Rate100_ReturnsSpeed100)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -2482,7 +3069,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_282_GetSpeed_Rate100_ReturnsSpeed100)
     delete mockUserSettings;
 }
 
-// Test GetSpeed with rate < 1.0 (should return speed 0.5)
 TEST_F(AppGatewayCommonTest, AGC_L1_283_GetSpeed_RateLow_ReturnsSpeed05)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -2518,7 +3104,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_283_GetSpeed_RateLow_ReturnsSpeed05)
     delete mockUserSettings;
 }
 
-// Test GetSpeed when GetVoiceGuidanceRate fails
 TEST_F(AppGatewayCommonTest, AGC_L1_284_GetSpeed_COMError_ReturnsError)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -2550,7 +3135,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_284_GetSpeed_COMError_ReturnsError)
     delete mockUserSettings;
 }
 
-// Test SetSpeed with speed == 2.0 (should set rate 10.0)
 TEST_F(AppGatewayCommonTest, AGC_L1_285_SetSpeed_Speed2_SetsRate10)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -2581,7 +3165,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_285_SetSpeed_Speed2_SetsRate10)
     delete mockUserSettings;
 }
 
-// Test SetSpeed with speed >= 1.67 (should set rate 1.38)
 TEST_F(AppGatewayCommonTest, AGC_L1_286_SetSpeed_Speed167_SetsRate138)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -2612,7 +3195,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_286_SetSpeed_Speed167_SetsRate138)
     delete mockUserSettings;
 }
 
-// Test SetSpeed with speed >= 1.33 (should set rate 1.19)
 TEST_F(AppGatewayCommonTest, AGC_L1_287_SetSpeed_Speed133_SetsRate119)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -2643,7 +3225,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_287_SetSpeed_Speed133_SetsRate119)
     delete mockUserSettings;
 }
 
-// Test SetSpeed with speed >= 1.0 (should set rate 1.0)
 TEST_F(AppGatewayCommonTest, AGC_L1_288_SetSpeed_Speed100_SetsRate100)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -2674,7 +3255,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_288_SetSpeed_Speed100_SetsRate100)
     delete mockUserSettings;
 }
 
-// Test SetSpeed with speed < 1.0 (should set rate 0.1)
 TEST_F(AppGatewayCommonTest, AGC_L1_289_SetSpeed_SpeedLow_SetsRate01)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -2705,7 +3285,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_289_SetSpeed_SpeedLow_SetsRate01)
     delete mockUserSettings;
 }
 
-// Test GetVoiceGuidanceSettings with valid delegate and addSpeed=true
 TEST_F(AppGatewayCommonTest, AGC_L1_290_GetVoiceGuidanceSettings_WithAddSpeed_Success)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -2746,7 +3325,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_290_GetVoiceGuidanceSettings_WithAddSpeed_Su
     delete mockUserSettings;
 }
 
-// Test GetVoiceGuidanceSettings with valid delegate and addSpeed=false
 TEST_F(AppGatewayCommonTest, AGC_L1_291_GetVoiceGuidanceSettings_WithoutAddSpeed_Success)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -2787,7 +3365,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_291_GetVoiceGuidanceSettings_WithoutAddSpeed
     delete mockUserSettings;
 }
 
-// Test GetClosedCaptionsSettings success path
 TEST_F(AppGatewayCommonTest, AGC_L1_292_GetClosedCaptionsSettings_Success)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3406,7 +3983,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_334_UserSettings_GetClosedCaptionSettings_La
     plugin.Deinitialize(&service);
 }
 
-// Test GetClosedCaptionSettings success path
 TEST_F(AppGatewayCommonTest, AGC_L1_335_UserSettings_GetClosedCaptionSettings_Success)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3451,7 +4027,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_335_UserSettings_GetClosedCaptionSettings_Su
     plugin.Deinitialize(&service);
 }
 
-// Test GetAudioDescriptionsEnabled success path
 TEST_F(AppGatewayCommonTest, AGC_L1_336_UserSettings_GetAudioDescriptionsEnabled_Success)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3489,7 +4064,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_336_UserSettings_GetAudioDescriptionsEnabled
     plugin.Deinitialize(&service);
 }
 
-// Test GetAudioDescriptionsEnabled error path
 TEST_F(AppGatewayCommonTest, AGC_L1_337_UserSettings_GetAudioDescriptionsEnabled_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3523,7 +4097,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_337_UserSettings_GetAudioDescriptionsEnabled
     plugin.Deinitialize(&service);
 }
 
-// Test GetHighContrast error path
 TEST_F(AppGatewayCommonTest, AGC_L1_338_UserSettings_GetHighContrast_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3557,7 +4130,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_338_UserSettings_GetHighContrast_Error)
     plugin.Deinitialize(&service);
 }
 
-// Test GetCaptions error path
 TEST_F(AppGatewayCommonTest, AGC_L1_339_UserSettings_GetCaptions_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3591,7 +4163,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_339_UserSettings_GetCaptions_Error)
     plugin.Deinitialize(&service);
 }
 
-// Test SetVoiceGuidance error path
 TEST_F(AppGatewayCommonTest, AGC_L1_340_UserSettings_SetVoiceGuidance_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3624,7 +4195,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_340_UserSettings_SetVoiceGuidance_Error)
     plugin.Deinitialize(&service);
 }
 
-// Test SetAudioDescriptionsEnabled error path
 TEST_F(AppGatewayCommonTest, AGC_L1_341_UserSettings_SetAudioDescriptionsEnabled_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3657,7 +4227,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_341_UserSettings_SetAudioDescriptionsEnabled
     plugin.Deinitialize(&service);
 }
 
-// Test SetCaptions error path
 TEST_F(AppGatewayCommonTest, AGC_L1_342_UserSettings_SetCaptions_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3690,7 +4259,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_342_UserSettings_SetCaptions_Error)
     plugin.Deinitialize(&service);
 }
 
-// Test SetVoiceGuidanceRate error path
 TEST_F(AppGatewayCommonTest, AGC_L1_343_UserSettings_SetVoiceGuidanceRate_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3723,7 +4291,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_343_UserSettings_SetVoiceGuidanceRate_Error)
     plugin.Deinitialize(&service);
 }
 
-// Test SetVoiceGuidanceHints error path
 TEST_F(AppGatewayCommonTest, AGC_L1_344_UserSettings_SetVoiceGuidanceHints_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3756,7 +4323,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_344_UserSettings_SetVoiceGuidanceHints_Error
     plugin.Deinitialize(&service);
 }
 
-// Test GetVoiceGuidanceHints error path
 TEST_F(AppGatewayCommonTest, AGC_L1_345_UserSettings_GetVoiceGuidanceHints_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3790,7 +4356,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_345_UserSettings_GetVoiceGuidanceHints_Error
     plugin.Deinitialize(&service);
 }
 
-// Test GetPresentationLanguage error path
 TEST_F(AppGatewayCommonTest, AGC_L1_346_UserSettings_GetPresentationLanguage_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3824,7 +4389,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_346_UserSettings_GetPresentationLanguage_Err
     plugin.Deinitialize(&service);
 }
 
-// Test GetPresentationLanguage empty result
 TEST_F(AppGatewayCommonTest, AGC_L1_347_UserSettings_GetPresentationLanguage_Empty)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3861,7 +4425,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_347_UserSettings_GetPresentationLanguage_Emp
     plugin.Deinitialize(&service);
 }
 
-// Test GetPresentationLanguage without dash
 TEST_F(AppGatewayCommonTest, AGC_L1_348_UserSettings_GetPresentationLanguage_NoDash)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3899,7 +4462,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_348_UserSettings_GetPresentationLanguage_NoD
     plugin.Deinitialize(&service);
 }
 
-// Test GetLocale error path
 TEST_F(AppGatewayCommonTest, AGC_L1_349_UserSettings_GetLocale_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3933,7 +4495,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_349_UserSettings_GetLocale_Error)
     plugin.Deinitialize(&service);
 }
 
-// Test GetLocale empty result
 TEST_F(AppGatewayCommonTest, AGC_L1_350_UserSettings_GetLocale_Empty)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3970,7 +4531,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_350_UserSettings_GetLocale_Empty)
     plugin.Deinitialize(&service);
 }
 
-// Test SetLocale error path
 TEST_F(AppGatewayCommonTest, AGC_L1_351_UserSettings_SetLocale_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4003,7 +4563,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_351_UserSettings_SetLocale_Error)
     plugin.Deinitialize(&service);
 }
 
-// Test GetPreferredAudioLanguages error path
 TEST_F(AppGatewayCommonTest, AGC_L1_352_UserSettings_GetPreferredAudioLanguages_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4038,7 +4597,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_352_UserSettings_GetPreferredAudioLanguages_
     plugin.Deinitialize(&service);
 }
 
-// Test SetPreferredAudioLanguages error path
 TEST_F(AppGatewayCommonTest, AGC_L1_353_UserSettings_SetPreferredAudioLanguages_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4071,7 +4629,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_353_UserSettings_SetPreferredAudioLanguages_
     plugin.Deinitialize(&service);
 }
 
-// Test SetPreferredCaptionsLanguages error path
 TEST_F(AppGatewayCommonTest, AGC_L1_354_UserSettings_SetPreferredCaptionsLanguages_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4104,7 +4661,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_354_UserSettings_SetPreferredCaptionsLanguag
     plugin.Deinitialize(&service);
 }
 
-// Test GetAudioDescription error path
 TEST_F(AppGatewayCommonTest, AGC_L1_355_UserSettings_GetAudioDescription_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4138,7 +4694,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_355_UserSettings_GetAudioDescription_Error)
     plugin.Deinitialize(&service);
 }
 
-// Test OnPreferredCaptionsLanguagesChanged notification
 TEST_F(AppGatewayCommonTest, AGC_L1_356_UserSettings_NotificationHandler_OnPreferredCaptionsLanguagesChanged)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4185,7 +4740,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_356_UserSettings_NotificationHandler_OnPrefe
     plugin.Deinitialize(&service);
 }
 
-// Test OnHighContrastChanged notification
 TEST_F(AppGatewayCommonTest, AGC_L1_357_UserSettings_NotificationHandler_OnHighContrastChanged)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4227,7 +4781,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_357_UserSettings_NotificationHandler_OnHighC
     plugin.Deinitialize(&service);
 }
 
-// Test OnPresentationLanguageChanged notification with dash
 TEST_F(AppGatewayCommonTest, AGC_L1_358_UserSettings_NotificationHandler_OnPresentationLanguageChanged)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4269,7 +4822,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_358_UserSettings_NotificationHandler_OnPrese
     plugin.Deinitialize(&service);
 }
 
-// Test OnPresentationLanguageChanged notification without dash (warning path)
 TEST_F(AppGatewayCommonTest, AGC_L1_359_UserSettings_NotificationHandler_OnPresentationLanguageChanged_NoDash)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4311,7 +4863,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_359_UserSettings_NotificationHandler_OnPrese
     plugin.Deinitialize(&service);
 }
 
-// Test OnVoiceGuidanceRateChanged notification
 TEST_F(AppGatewayCommonTest, AGC_L1_360_UserSettings_NotificationHandler_OnVoiceGuidanceRateChanged)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4368,7 +4919,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_360_UserSettings_NotificationHandler_OnVoice
     plugin.Deinitialize(&service);
 }
 
-// Test OnVoiceGuidanceHintsChanged notification
 TEST_F(AppGatewayCommonTest, AGC_L1_361_UserSettings_NotificationHandler_OnVoiceGuidanceHintsChanged)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4425,7 +4975,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_361_UserSettings_NotificationHandler_OnVoice
     plugin.Deinitialize(&service);
 }
 
-// Test HandleEvent with invalid event
 TEST_F(AppGatewayCommonTest, AGC_L1_362_UserSettings_HandleEvent_InvalidEvent)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4459,7 +5008,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_362_UserSettings_HandleEvent_InvalidEvent)
     plugin.Deinitialize(&service);
 }
 
-// Test HandleSubscription unsubscribe path
 TEST_F(AppGatewayCommonTest, AGC_L1_363_UserSettings_HandleSubscription_Unsubscribe)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4501,7 +5049,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_363_UserSettings_HandleSubscription_Unsubscr
     plugin.Deinitialize(&service);
 }
 
-// Test GetVoiceGuidanceRate error path
 TEST_F(AppGatewayCommonTest, AGC_L1_364_UserSettings_GetVoiceGuidanceRate_Error)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4655,6 +5202,162 @@ TEST_F(AppGatewayCommonTest, AGC_L1_089_CommonInternalGetLastIntent_ViaHandlerMa
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
 
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+TEST(LifecycleDelegateTest, AGC_L1_140_LifecycleStateToString_AllValues)
+{
+    // Test all LifecycleState enum values
+    EXPECT_EQ("unloaded", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::UNLOADED));
+    EXPECT_EQ("loading", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::LOADING));
+    EXPECT_EQ("initializing", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::INITIALIZING));
+    EXPECT_EQ("paused", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::PAUSED));
+    EXPECT_EQ("active", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::ACTIVE));
+    EXPECT_EQ("suspended", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::SUSPENDED));
+    EXPECT_EQ("hibernated", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::HIBERNATED));
+    EXPECT_EQ("terminating", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::TERMINATING));
+    
+    // Test invalid/unknown value falls through to default
+    EXPECT_EQ("", LifecycleDelegate::LifecycleStateToString(static_cast<Exchange::ILifecycleManager::LifecycleState>(999)));
+}
+
+TEST(LifecycleDelegateTest, AGC_L1_141_Lifecycle2StateToLifecycle1String_AllValues)
+{
+    // Test mapping from Lifecycle2 states to Lifecycle1 strings
+    // UNLOADED and TERMINATING both map to "unloading"
+    EXPECT_EQ("unloading", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::UNLOADED));
+    EXPECT_EQ("unloading", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::TERMINATING));
+    
+    // LOADING and INITIALIZING both map to "initializing"
+    EXPECT_EQ("initializing", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::LOADING));
+    EXPECT_EQ("initializing", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::INITIALIZING));
+    
+    // PAUSED maps to "inactive"
+    EXPECT_EQ("inactive", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::PAUSED));
+    
+    // ACTIVE maps to "foreground"
+    EXPECT_EQ("foreground", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::ACTIVE));
+    
+    // SUSPENDED and HIBERNATED both map to "suspended"
+    EXPECT_EQ("suspended", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::SUSPENDED));
+    EXPECT_EQ("suspended", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::HIBERNATED));
+    
+    // Test invalid/unknown value falls through to default
+    EXPECT_EQ("", LifecycleDelegate::Lifecycle2StateToLifecycle1String(static_cast<Exchange::ILifecycleManager::LifecycleState>(999)));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_156_LifecycleStateRegistry_AddAndGetState)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::UNLOADED, Exchange::ILifecycleManager::INITIALIZING);
+    
+    LifecycleDelegate::LifecycleStateInfo info = registry.GetLifecycleStateInfo("instance1");
+    
+    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.previousState);
+    EXPECT_EQ(Exchange::ILifecycleManager::INITIALIZING, info.currentState);
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_157_LifecycleStateRegistry_UpdateState)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::UNLOADED, Exchange::ILifecycleManager::INITIALIZING);
+    
+    // Update to new state
+    registry.UpdateLifecycleState("instance1", Exchange::ILifecycleManager::ACTIVE);
+    
+    LifecycleDelegate::LifecycleStateInfo info = registry.GetLifecycleStateInfo("instance1");
+    
+    // Previous state should now be INITIALIZING, current should be ACTIVE
+    EXPECT_EQ(Exchange::ILifecycleManager::INITIALIZING, info.previousState);
+    EXPECT_EQ(Exchange::ILifecycleManager::ACTIVE, info.currentState);
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_158_LifecycleStateRegistry_IsAppLifecycleActive)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::INITIALIZING, Exchange::ILifecycleManager::ACTIVE);
+    registry.AddLifecycleState("instance2", Exchange::ILifecycleManager::ACTIVE, Exchange::ILifecycleManager::PAUSED);
+    
+    EXPECT_TRUE(registry.IsAppLifecycleActive("instance1"));
+    EXPECT_FALSE(registry.IsAppLifecycleActive("instance2"));
+    EXPECT_FALSE(registry.IsAppLifecycleActive("nonexistent"));
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_159_LifecycleStateRegistry_GetNonExistent)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    // Non-existent app should return default state (UNLOADED, UNLOADED)
+    LifecycleDelegate::LifecycleStateInfo info = registry.GetLifecycleStateInfo("nonexistent");
+    
+    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.previousState);
+    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.currentState);
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_160_LifecycleStateRegistry_Remove)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::UNLOADED, Exchange::ILifecycleManager::ACTIVE);
+    EXPECT_TRUE(registry.IsAppLifecycleActive("instance1"));
+    
+    registry.RemoveLifecycleStateInfo("instance1");
+    
+    // After removal, should return default (UNLOADED, UNLOADED)
+    LifecycleDelegate::LifecycleStateInfo info = registry.GetLifecycleStateInfo("instance1");
+    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.previousState);
+    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.currentState);
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_161_LifecycleStateRegistry_GetLifecycle1StateJson)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::INITIALIZING, Exchange::ILifecycleManager::ACTIVE);
+    
+    string jsonState = registry.GetLifecycle1StateJson("instance1");
+    
+    JsonObject parsed;
+    ASSERT_TRUE(parsed.FromString(jsonState));
+    
+    // INITIALIZING maps to "initializing", ACTIVE maps to "foreground"
+    EXPECT_EQ("initializing", parsed["previous"].String());
+    EXPECT_EQ("foreground", parsed["state"].String());
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_162_LifecycleStateRegistry_GetLifecycle2StateJson)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::INITIALIZING, Exchange::ILifecycleManager::ACTIVE);
+    
+    string jsonState = registry.GetLifecycle2StateJson("instance1");
+    
+    JsonObject parsed;
+    ASSERT_TRUE(parsed.FromString(jsonState));
+    
+    EXPECT_EQ("initializing", parsed["oldState"].String());
+    EXPECT_EQ("active", parsed["newState"].String());
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_163_LifecycleStateRegistry_GetLifecycle1StateJson_NonExistent)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    string jsonState = registry.GetLifecycle1StateJson("nonexistent");
+    
+    EXPECT_EQ("{}", jsonState);
+}
+
+TEST(LifecycleDelegateInnerClassTest, AGC_L1_164_LifecycleStateRegistry_GetLifecycle2StateJson_NonExistent)
+{
+    LifecycleDelegate::LifecycleStateRegistry registry;
+    
+    string jsonState = registry.GetLifecycle2StateJson("nonexistent");
+    
+    EXPECT_EQ("{}", jsonState);
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_232_LifecycleClose_UserExit_Success)
@@ -6220,7 +6923,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_278_LifecycleDelegate_HandleEvent_AllValidEv
     plugin.Deinitialize(&service);
 }
 
-// Test LifecycleDelegate::Lifecycle2Close - Deactivate reason
 TEST_F(AppGatewayCommonTest, AGC_L1_493_LifecycleDelegate_Lifecycle2Close_Deactivate)
 {
     NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
@@ -6253,7 +6955,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_493_LifecycleDelegate_Lifecycle2Close_Deacti
     delete mockLifecycleManager;
 }
 
-// Test LifecycleDelegate::Lifecycle2Close - KillReload reason
 TEST_F(AppGatewayCommonTest, AGC_L1_494_LifecycleDelegate_Lifecycle2Close_KillReload)
 {
     NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
@@ -6286,7 +6987,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_494_LifecycleDelegate_Lifecycle2Close_KillRe
     delete mockLifecycleManager;
 }
 
-// Test LifecycleDelegate::Lifecycle2Close - KillReactivate reason
 TEST_F(AppGatewayCommonTest, AGC_L1_495_LifecycleDelegate_Lifecycle2Close_KillReactivate)
 {
     NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
@@ -6319,7 +7019,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_495_LifecycleDelegate_Lifecycle2Close_KillRe
     delete mockLifecycleManager;
 }
 
-// Test LifecycleDelegate::Lifecycle2Close - Unknown reason defaults to ERROR
 TEST_F(AppGatewayCommonTest, AGC_L1_496_LifecycleDelegate_Lifecycle2Close_UnknownReason)
 {
     NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
@@ -6352,7 +7051,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_496_LifecycleDelegate_Lifecycle2Close_Unknow
     delete mockLifecycleManager;
 }
 
-// Test LifecycleDelegate::LifecycleReady - Success with mock
 TEST_F(AppGatewayCommonTest, AGC_L1_497_LifecycleDelegate_LifecycleReady_Success)
 {
     NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
@@ -6568,7 +7266,258 @@ TEST_F(AppGatewayCommonTest, AGC_L1_179_HandleAppEventNotifier_NullEmitter)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::HandleEvent - Register for video resolution event
+TEST(SystemDelegateTest, AGC_L1_379_SetFlagsFromSupported_EmptyArray)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":[]}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_FALSE(result);  // No recognized tokens
+    EXPECT_FALSE(stereo);
+    EXPECT_FALSE(dd51);
+    EXPECT_FALSE(dd51p);
+    EXPECT_FALSE(atmos);
+}
+
+TEST(SystemDelegateTest, AGC_L1_380_SetFlagsFromSupported_PCM)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":[\"PCM\"]}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_TRUE(result);
+    EXPECT_TRUE(stereo);
+    EXPECT_FALSE(dd51);
+    EXPECT_FALSE(dd51p);
+    EXPECT_FALSE(atmos);
+}
+
+TEST(SystemDelegateTest, AGC_L1_381_SetFlagsFromSupported_STEREO)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":[\"STEREO\"]}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_TRUE(result);
+    EXPECT_TRUE(stereo);
+    EXPECT_FALSE(dd51);
+    EXPECT_FALSE(dd51p);
+    EXPECT_FALSE(atmos);
+}
+
+TEST(SystemDelegateTest, AGC_L1_382_SetFlagsFromSupported_AC3)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":[\"AC3\"]}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_TRUE(result);
+    EXPECT_FALSE(stereo);
+    EXPECT_TRUE(dd51);
+    EXPECT_FALSE(dd51p);
+    EXPECT_FALSE(atmos);
+}
+
+TEST(SystemDelegateTest, AGC_L1_383_SetFlagsFromSupported_DolbyAC3)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":[\"DOLBY AC3\"]}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_TRUE(result);
+    EXPECT_FALSE(stereo);
+    EXPECT_TRUE(dd51);
+    EXPECT_FALSE(dd51p);
+    EXPECT_FALSE(atmos);
+}
+
+TEST(SystemDelegateTest, AGC_L1_384_SetFlagsFromSupported_DolbyDigital)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":[\"DOLBY DIGITAL\"]}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_TRUE(result);
+    EXPECT_FALSE(stereo);
+    EXPECT_TRUE(dd51);
+    EXPECT_FALSE(dd51p);
+    EXPECT_FALSE(atmos);
+}
+
+TEST(SystemDelegateTest, AGC_L1_385_SetFlagsFromSupported_EAC3)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":[\"EAC3\"]}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_TRUE(result);
+    EXPECT_FALSE(stereo);
+    EXPECT_FALSE(dd51);  // EAC3 should NOT trigger dd51
+    EXPECT_TRUE(dd51p);
+    EXPECT_FALSE(atmos);
+}
+
+TEST(SystemDelegateTest, AGC_L1_386_SetFlagsFromSupported_DDPlus)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":[\"DD+\"]}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_TRUE(result);
+    EXPECT_FALSE(stereo);
+    EXPECT_FALSE(dd51);
+    EXPECT_TRUE(dd51p);
+    EXPECT_FALSE(atmos);
+}
+
+TEST(SystemDelegateTest, AGC_L1_387_SetFlagsFromSupported_DolbyDigitalPlus)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":[\"DOLBY DIGITAL PLUS\"]}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_TRUE(result);
+    EXPECT_FALSE(stereo);
+    EXPECT_TRUE(dd51);  // Contains "DOLBY DIGITAL"
+    EXPECT_TRUE(dd51p);
+    EXPECT_FALSE(atmos);
+}
+
+TEST(SystemDelegateTest, AGC_L1_388_SetFlagsFromSupported_AC4)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":[\"AC4\"]}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_TRUE(result);
+    EXPECT_FALSE(stereo);
+    EXPECT_FALSE(dd51);
+    EXPECT_TRUE(dd51p);
+    EXPECT_FALSE(atmos);
+}
+
+TEST(SystemDelegateTest, AGC_L1_389_SetFlagsFromSupported_ATMOS)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":[\"ATMOS\"]}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_TRUE(result);
+    EXPECT_FALSE(stereo);
+    EXPECT_FALSE(dd51);
+    EXPECT_FALSE(dd51p);
+    EXPECT_TRUE(atmos);
+}
+
+TEST(SystemDelegateTest, AGC_L1_390_SetFlagsFromSupported_MultipleFormats)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":[\"PCM\",\"AC3\",\"EAC3\",\"ATMOS\"]}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_TRUE(result);
+    EXPECT_TRUE(stereo);
+    EXPECT_TRUE(dd51);
+    EXPECT_TRUE(dd51p);
+    EXPECT_TRUE(atmos);
+}
+
+TEST(SystemDelegateTest, AGC_L1_391_SetFlagsFromSupported_NotArray)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":\"PCM\"}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_FALSE(result);  // Not an array
+    EXPECT_FALSE(stereo);
+    EXPECT_FALSE(dd51);
+    EXPECT_FALSE(dd51p);
+    EXPECT_FALSE(atmos);
+}
+
+TEST(SystemDelegateTest, AGC_L1_392_SetFlagsFromSupported_EmptyToken)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":[\"\",\"PCM\"]}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_TRUE(result);
+    EXPECT_TRUE(stereo);  // PCM should still be recognized
+}
+
+TEST(SystemDelegateTest, AGC_L1_393_SetFlagsFromSupported_CaseInsensitive)
+{
+    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    
+    WPEFramework::Core::JSON::VariantContainer container;
+    container.FromString("{\"supportedAudioFormat\":[\"pcm\",\"ac3\",\"eac3\",\"atmos\"]}");
+    auto supported = container.Get("supportedAudioFormat");
+    
+    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    
+    EXPECT_TRUE(result);
+    EXPECT_TRUE(stereo);
+    EXPECT_TRUE(dd51);
+    EXPECT_TRUE(dd51p);
+    EXPECT_TRUE(atmos);
+}
+
 TEST_F(AppGatewayCommonTest, AGC_L1_394_SystemDelegate_HandleEvent_VideoResolution_Register)
 {
     NiceMock<ServiceMock> service;
@@ -6595,7 +7544,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_394_SystemDelegate_HandleEvent_VideoResoluti
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::HandleEvent - Register for screen resolution event
 TEST_F(AppGatewayCommonTest, AGC_L1_395_SystemDelegate_HandleEvent_ScreenResolution_Register)
 {
     NiceMock<ServiceMock> service;
@@ -6622,7 +7570,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_395_SystemDelegate_HandleEvent_ScreenResolut
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::HandleEvent - Register for HDCP event
 TEST_F(AppGatewayCommonTest, AGC_L1_396_SystemDelegate_HandleEvent_Hdcp_Register)
 {
     NiceMock<ServiceMock> service;
@@ -6649,7 +7596,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_396_SystemDelegate_HandleEvent_Hdcp_Register
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::HandleEvent - Register for HDR event
 TEST_F(AppGatewayCommonTest, AGC_L1_397_SystemDelegate_HandleEvent_Hdr_Register)
 {
     NiceMock<ServiceMock> service;
@@ -6676,7 +7622,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_397_SystemDelegate_HandleEvent_Hdr_Register)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::HandleEvent - Register for audio event
 TEST_F(AppGatewayCommonTest, AGC_L1_398_SystemDelegate_HandleEvent_Audio_Register)
 {
     NiceMock<ServiceMock> service;
@@ -6703,7 +7648,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_398_SystemDelegate_HandleEvent_Audio_Registe
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::HandleEvent - Register for device name event
 TEST_F(AppGatewayCommonTest, AGC_L1_399_SystemDelegate_HandleEvent_DeviceName_Register)
 {
     NiceMock<ServiceMock> service;
@@ -6730,7 +7674,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_399_SystemDelegate_HandleEvent_DeviceName_Re
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::HandleEvent - Register for name event (alternate)
 TEST_F(AppGatewayCommonTest, AGC_L1_400_SystemDelegate_HandleEvent_NameChanged_Register)
 {
     NiceMock<ServiceMock> service;
@@ -6757,7 +7700,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_400_SystemDelegate_HandleEvent_NameChanged_R
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::HandleEvent - Unregister
 TEST_F(AppGatewayCommonTest, AGC_L1_401_SystemDelegate_HandleEvent_Unregister)
 {
     NiceMock<ServiceMock> service;
@@ -6790,7 +7732,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_401_SystemDelegate_HandleEvent_Unregister)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::HandleEvent - Unknown event
 TEST_F(AppGatewayCommonTest, AGC_L1_402_SystemDelegate_HandleEvent_UnknownEvent)
 {
     NiceMock<ServiceMock> service;
@@ -6817,7 +7758,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_402_SystemDelegate_HandleEvent_UnknownEvent)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::HandleEvent - Case insensitive
 TEST_F(AppGatewayCommonTest, AGC_L1_403_SystemDelegate_HandleEvent_CaseInsensitive)
 {
     NiceMock<ServiceMock> service;
@@ -6845,7 +7785,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_403_SystemDelegate_HandleEvent_CaseInsensiti
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceMake - Link unavailable
 TEST_F(AppGatewayCommonTest, AGC_L1_404_SystemDelegate_GetDeviceMake_LinkUnavailable)
 {
     NiceMock<ServiceMock> service;
@@ -6870,7 +7809,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_404_SystemDelegate_GetDeviceMake_LinkUnavail
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceMake - Success with ILocalDispatcher
 TEST_F(AppGatewayCommonTest, AGC_L1_405_SystemDelegate_GetDeviceMake_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -6904,7 +7842,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_405_SystemDelegate_GetDeviceMake_Success)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceMake - Empty make returns "unknown"
 TEST_F(AppGatewayCommonTest, AGC_L1_406_SystemDelegate_GetDeviceMake_EmptyReturnsUnknown)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -6938,7 +7875,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_406_SystemDelegate_GetDeviceMake_EmptyReturn
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceName - Link unavailable
 TEST_F(AppGatewayCommonTest, AGC_L1_407_SystemDelegate_GetDeviceName_LinkUnavailable)
 {
     NiceMock<ServiceMock> service;
@@ -6963,7 +7899,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_407_SystemDelegate_GetDeviceName_LinkUnavail
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceName - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_408_SystemDelegate_GetDeviceName_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -6997,7 +7932,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_408_SystemDelegate_GetDeviceName_Success)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceName - Empty returns default
 TEST_F(AppGatewayCommonTest, AGC_L1_409_SystemDelegate_GetDeviceName_EmptyReturnsDefault)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7031,7 +7965,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_409_SystemDelegate_GetDeviceName_EmptyReturn
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::SetDeviceName - Link unavailable
 TEST_F(AppGatewayCommonTest, AGC_L1_410_SystemDelegate_SetDeviceName_LinkUnavailable)
 {
     NiceMock<ServiceMock> service;
@@ -7054,7 +7987,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_410_SystemDelegate_SetDeviceName_LinkUnavail
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::SetDeviceName - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_411_SystemDelegate_SetDeviceName_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7086,7 +8018,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_411_SystemDelegate_SetDeviceName_Success)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::SetDeviceName - Failure
 TEST_F(AppGatewayCommonTest, AGC_L1_412_SystemDelegate_SetDeviceName_Failure)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7118,7 +8049,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_412_SystemDelegate_SetDeviceName_Failure)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceSku - Link unavailable
 TEST_F(AppGatewayCommonTest, AGC_L1_413_SystemDelegate_GetDeviceSku_LinkUnavailable)
 {
     NiceMock<ServiceMock> service;
@@ -7141,7 +8071,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_413_SystemDelegate_GetDeviceSku_LinkUnavaila
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceSku - Success with underscore split
 TEST_F(AppGatewayCommonTest, AGC_L1_414_SystemDelegate_GetDeviceSku_SuccessWithUnderscore)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7175,7 +8104,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_414_SystemDelegate_GetDeviceSku_SuccessWithU
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceSku - Success without underscore
 TEST_F(AppGatewayCommonTest, AGC_L1_415_SystemDelegate_GetDeviceSku_SuccessNoUnderscore)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7209,7 +8137,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_415_SystemDelegate_GetDeviceSku_SuccessNoUnd
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceSku - Missing stbVersion
 TEST_F(AppGatewayCommonTest, AGC_L1_416_SystemDelegate_GetDeviceSku_MissingStbVersion)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7242,7 +8169,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_416_SystemDelegate_GetDeviceSku_MissingStbVe
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceSku - Empty stbVersion
 TEST_F(AppGatewayCommonTest, AGC_L1_417_SystemDelegate_GetDeviceSku_EmptyStbVersion)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7276,7 +8202,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_417_SystemDelegate_GetDeviceSku_EmptyStbVers
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceSku - RPC failure
 TEST_F(AppGatewayCommonTest, AGC_L1_418_SystemDelegate_GetDeviceSku_RpcFailure)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7309,7 +8234,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_418_SystemDelegate_GetDeviceSku_RpcFailure)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetFirmwareVersion - Link unavailable
 TEST_F(AppGatewayCommonTest, AGC_L1_419_SystemDelegate_GetFirmwareVersion_LinkUnavailable)
 {
     NiceMock<ServiceMock> service;
@@ -7332,7 +8256,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_419_SystemDelegate_GetFirmwareVersion_LinkUn
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetFirmwareVersion - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_420_SystemDelegate_GetFirmwareVersion_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7370,7 +8293,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_420_SystemDelegate_GetFirmwareVersion_Succes
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetFirmwareVersion - Missing receiverVersion
 TEST_F(AppGatewayCommonTest, AGC_L1_421_SystemDelegate_GetFirmwareVersion_MissingReceiverVersion)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7403,7 +8325,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_421_SystemDelegate_GetFirmwareVersion_Missin
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetFirmwareVersion - Empty receiverVersion
 TEST_F(AppGatewayCommonTest, AGC_L1_422_SystemDelegate_GetFirmwareVersion_EmptyReceiverVersion)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7436,7 +8357,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_422_SystemDelegate_GetFirmwareVersion_EmptyR
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetFirmwareVersion - Empty stbVersion
 TEST_F(AppGatewayCommonTest, AGC_L1_423_SystemDelegate_GetFirmwareVersion_EmptyStbVersion)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7469,7 +8389,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_423_SystemDelegate_GetFirmwareVersion_EmptyS
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetFirmwareVersion - Invalid version format
 TEST_F(AppGatewayCommonTest, AGC_L1_424_SystemDelegate_GetFirmwareVersion_InvalidFormat)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7502,7 +8421,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_424_SystemDelegate_GetFirmwareVersion_Invali
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetFirmwareVersion - RPC failure
 TEST_F(AppGatewayCommonTest, AGC_L1_425_SystemDelegate_GetFirmwareVersion_RpcFailure)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7535,7 +8453,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_425_SystemDelegate_GetFirmwareVersion_RpcFai
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetFirmwareVersion - Cached response
 TEST_F(AppGatewayCommonTest, AGC_L1_426_SystemDelegate_GetFirmwareVersion_Cached)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7574,7 +8491,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_426_SystemDelegate_GetFirmwareVersion_Cached
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetCountryCode - Link unavailable
 TEST_F(AppGatewayCommonTest, AGC_L1_427_SystemDelegate_GetCountryCode_LinkUnavailable)
 {
     NiceMock<ServiceMock> service;
@@ -7599,7 +8515,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_427_SystemDelegate_GetCountryCode_LinkUnavai
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetCountryCode - USA territory
 TEST_F(AppGatewayCommonTest, AGC_L1_428_SystemDelegate_GetCountryCode_USA)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7633,7 +8548,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_428_SystemDelegate_GetCountryCode_USA)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetCountryCode - CAN territory
 TEST_F(AppGatewayCommonTest, AGC_L1_429_SystemDelegate_GetCountryCode_CAN)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7667,7 +8581,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_429_SystemDelegate_GetCountryCode_CAN)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetCountryCode - ITA territory
 TEST_F(AppGatewayCommonTest, AGC_L1_430_SystemDelegate_GetCountryCode_ITA)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7701,7 +8614,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_430_SystemDelegate_GetCountryCode_ITA)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetCountryCode - GBR territory
 TEST_F(AppGatewayCommonTest, AGC_L1_431_SystemDelegate_GetCountryCode_GBR)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7735,7 +8647,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_431_SystemDelegate_GetCountryCode_GBR)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetCountryCode - IRL territory
 TEST_F(AppGatewayCommonTest, AGC_L1_432_SystemDelegate_GetCountryCode_IRL)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7769,7 +8680,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_432_SystemDelegate_GetCountryCode_IRL)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetCountryCode - AUS territory
 TEST_F(AppGatewayCommonTest, AGC_L1_433_SystemDelegate_GetCountryCode_AUS)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7803,7 +8713,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_433_SystemDelegate_GetCountryCode_AUS)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetCountryCode - AUT territory
 TEST_F(AppGatewayCommonTest, AGC_L1_434_SystemDelegate_GetCountryCode_AUT)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7837,7 +8746,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_434_SystemDelegate_GetCountryCode_AUT)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetCountryCode - CHE territory
 TEST_F(AppGatewayCommonTest, AGC_L1_435_SystemDelegate_GetCountryCode_CHE)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7871,7 +8779,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_435_SystemDelegate_GetCountryCode_CHE)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetCountryCode - DEU territory
 TEST_F(AppGatewayCommonTest, AGC_L1_436_SystemDelegate_GetCountryCode_DEU)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7905,7 +8812,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_436_SystemDelegate_GetCountryCode_DEU)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetCountryCode - Unknown territory returns empty
 TEST_F(AppGatewayCommonTest, AGC_L1_437_SystemDelegate_GetCountryCode_UnknownTerritory)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7939,7 +8845,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_437_SystemDelegate_GetCountryCode_UnknownTer
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::SetCountryCode - Link unavailable
 TEST_F(AppGatewayCommonTest, AGC_L1_438_SystemDelegate_SetCountryCode_LinkUnavailable)
 {
     NiceMock<ServiceMock> service;
@@ -7962,7 +8867,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_438_SystemDelegate_SetCountryCode_LinkUnavai
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::SetCountryCode - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_439_SystemDelegate_SetCountryCode_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -7994,7 +8898,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_439_SystemDelegate_SetCountryCode_Success)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::SetCountryCode - Failure
 TEST_F(AppGatewayCommonTest, AGC_L1_440_SystemDelegate_SetCountryCode_Failure)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8026,7 +8929,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_440_SystemDelegate_SetCountryCode_Failure)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::SetCountryCode - Country code conversions
 TEST_F(AppGatewayCommonTest, AGC_L1_441_SystemDelegate_SetCountryCode_Conversions)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8064,7 +8966,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_441_SystemDelegate_SetCountryCode_Conversion
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetTimeZone - Link unavailable
 TEST_F(AppGatewayCommonTest, AGC_L1_442_SystemDelegate_GetTimeZone_LinkUnavailable)
 {
     NiceMock<ServiceMock> service;
@@ -8087,7 +8988,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_442_SystemDelegate_GetTimeZone_LinkUnavailab
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetTimeZone - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_443_SystemDelegate_GetTimeZone_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8121,7 +9021,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_443_SystemDelegate_GetTimeZone_Success)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetTimeZone - Failure
 TEST_F(AppGatewayCommonTest, AGC_L1_444_SystemDelegate_GetTimeZone_Failure)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8154,7 +9053,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_444_SystemDelegate_GetTimeZone_Failure)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::SetTimeZone - Link unavailable
 TEST_F(AppGatewayCommonTest, AGC_L1_445_SystemDelegate_SetTimeZone_LinkUnavailable)
 {
     NiceMock<ServiceMock> service;
@@ -8177,7 +9075,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_445_SystemDelegate_SetTimeZone_LinkUnavailab
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::SetTimeZone - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_446_SystemDelegate_SetTimeZone_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8209,7 +9106,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_446_SystemDelegate_SetTimeZone_Success)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::SetTimeZone - Failure
 TEST_F(AppGatewayCommonTest, AGC_L1_447_SystemDelegate_SetTimeZone_Failure)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8241,7 +9137,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_447_SystemDelegate_SetTimeZone_Failure)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetSecondScreenFriendlyName - Alias to GetDeviceName
 TEST_F(AppGatewayCommonTest, AGC_L1_448_SystemDelegate_GetSecondScreenFriendlyName)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8275,7 +9170,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_448_SystemDelegate_GetSecondScreenFriendlyNa
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetScreenResolution - Success with w/h at top level
 TEST_F(AppGatewayCommonTest, AGC_L1_449_SystemDelegate_GetScreenResolution_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8309,7 +9203,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_449_SystemDelegate_GetScreenResolution_Succe
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetScreenResolution - Invoke fails returns default
 TEST_F(AppGatewayCommonTest, AGC_L1_450_SystemDelegate_GetScreenResolution_InvokeFails)
 {
     NiceMock<ServiceMock> service;
@@ -8335,7 +9228,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_450_SystemDelegate_GetScreenResolution_Invok
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetScreenResolution - Nested result with w/h
 TEST_F(AppGatewayCommonTest, AGC_L1_451_SystemDelegate_GetScreenResolution_NestedResult)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8369,7 +9261,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_451_SystemDelegate_GetScreenResolution_Neste
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetScreenResolution - Nested result with width/height
 TEST_F(AppGatewayCommonTest, AGC_L1_452_SystemDelegate_GetScreenResolution_NestedWidthHeight)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8403,7 +9294,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_452_SystemDelegate_GetScreenResolution_Neste
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetVideoResolution - 4K screen gives 4K video
 TEST_F(AppGatewayCommonTest, AGC_L1_453_SystemDelegate_GetVideoResolution_UHD)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8437,7 +9327,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_453_SystemDelegate_GetVideoResolution_UHD)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetVideoResolution - HD screen gives HD video
 TEST_F(AppGatewayCommonTest, AGC_L1_454_SystemDelegate_GetVideoResolution_FHD)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8471,7 +9360,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_454_SystemDelegate_GetVideoResolution_FHD)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetHdcp - HDCP 1.4 detected
 TEST_F(AppGatewayCommonTest, AGC_L1_455_SystemDelegate_GetHdcp_14)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8505,7 +9393,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_455_SystemDelegate_GetHdcp_14)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetHdcp - HDCP 2.2 detected
 TEST_F(AppGatewayCommonTest, AGC_L1_456_SystemDelegate_GetHdcp_22)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8539,7 +9426,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_456_SystemDelegate_GetHdcp_22)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetHdcp - Invoke fails returns default
 TEST_F(AppGatewayCommonTest, AGC_L1_457_SystemDelegate_GetHdcp_InvokeFails)
 {
     NiceMock<ServiceMock> service;
@@ -8563,7 +9449,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_457_SystemDelegate_GetHdcp_InvokeFails)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetHdcp - Nested result structure
 TEST_F(AppGatewayCommonTest, AGC_L1_458_SystemDelegate_GetHdcp_NestedResult)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8597,7 +9482,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_458_SystemDelegate_GetHdcp_NestedResult)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetHdr - HDR10 capability
 TEST_F(AppGatewayCommonTest, AGC_L1_459_SystemDelegate_GetHdr_HDR10)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8632,7 +9516,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_459_SystemDelegate_GetHdr_HDR10)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetHdr - Dolby Vision capability
 TEST_F(AppGatewayCommonTest, AGC_L1_460_SystemDelegate_GetHdr_DolbyVision)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8667,7 +9550,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_460_SystemDelegate_GetHdr_DolbyVision)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetHdr - HLG capability
 TEST_F(AppGatewayCommonTest, AGC_L1_461_SystemDelegate_GetHdr_HLG)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8702,7 +9584,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_461_SystemDelegate_GetHdr_HLG)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetHdr - HDR10Plus capability
 TEST_F(AppGatewayCommonTest, AGC_L1_462_SystemDelegate_GetHdr_HDR10Plus)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8737,7 +9618,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_462_SystemDelegate_GetHdr_HDR10Plus)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetHdr - Multiple HDR capabilities
 TEST_F(AppGatewayCommonTest, AGC_L1_463_SystemDelegate_GetHdr_Multiple)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8772,7 +9652,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_463_SystemDelegate_GetHdr_Multiple)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetHdr - Invoke fails
 TEST_F(AppGatewayCommonTest, AGC_L1_464_SystemDelegate_GetHdr_InvokeFails)
 {
     NiceMock<ServiceMock> service;
@@ -8796,7 +9675,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_464_SystemDelegate_GetHdr_InvokeFails)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetAudio - Stereo PCM
 TEST_F(AppGatewayCommonTest, AGC_L1_465_SystemDelegate_GetAudio_Stereo)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8830,7 +9708,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_465_SystemDelegate_GetAudio_Stereo)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetAudio - Dolby Digital (AC3)
 TEST_F(AppGatewayCommonTest, AGC_L1_466_SystemDelegate_GetAudio_DolbyDigital)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8864,7 +9741,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_466_SystemDelegate_GetAudio_DolbyDigital)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetAudio - Dolby Digital Plus (EAC3)
 TEST_F(AppGatewayCommonTest, AGC_L1_467_SystemDelegate_GetAudio_DolbyDigitalPlus)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8898,7 +9774,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_467_SystemDelegate_GetAudio_DolbyDigitalPlus
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetAudio - Dolby Atmos
 TEST_F(AppGatewayCommonTest, AGC_L1_468_SystemDelegate_GetAudio_Atmos)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8932,7 +9807,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_468_SystemDelegate_GetAudio_Atmos)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetAudio - Multiple formats
 TEST_F(AppGatewayCommonTest, AGC_L1_469_SystemDelegate_GetAudio_Multiple)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -8966,7 +9840,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_469_SystemDelegate_GetAudio_Multiple)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetAudio - Invoke fails
 TEST_F(AppGatewayCommonTest, AGC_L1_470_SystemDelegate_GetAudio_InvokeFails)
 {
     NiceMock<ServiceMock> service;
@@ -8990,7 +9863,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_470_SystemDelegate_GetAudio_InvokeFails)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetAudio - Nested result structure
 TEST_F(AppGatewayCommonTest, AGC_L1_471_SystemDelegate_GetAudio_NestedResult)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9024,7 +9896,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_471_SystemDelegate_GetAudio_NestedResult)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetAudio - DD+ format
 TEST_F(AppGatewayCommonTest, AGC_L1_472_SystemDelegate_GetAudio_DDPlus)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9058,7 +9929,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_472_SystemDelegate_GetAudio_DDPlus)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetAudio - AC4 format
 TEST_F(AppGatewayCommonTest, AGC_L1_473_SystemDelegate_GetAudio_AC4)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9092,7 +9962,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_473_SystemDelegate_GetAudio_AC4)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceSku - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_474_SystemDelegate_GetDeviceSku_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9126,7 +9995,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_474_SystemDelegate_GetDeviceSku_Success)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceSku - No underscore in stbVersion
 TEST_F(AppGatewayCommonTest, AGC_L1_475_SystemDelegate_GetDeviceSku_NoUnderscore)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9160,7 +10028,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_475_SystemDelegate_GetDeviceSku_NoUnderscore
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceSku - Missing stbVersion
 TEST_F(AppGatewayCommonTest, AGC_L1_476_SystemDelegate_GetDeviceSku_MissingStbVersion)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9194,7 +10061,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_476_SystemDelegate_GetDeviceSku_MissingStbVe
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetDeviceSku - Invoke fails
 TEST_F(AppGatewayCommonTest, AGC_L1_477_SystemDelegate_GetDeviceSku_InvokeFails)
 {
     NiceMock<ServiceMock> service;
@@ -9217,7 +10083,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_477_SystemDelegate_GetDeviceSku_InvokeFails)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetFirmwareVersion - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_478_SystemDelegate_GetFirmwareVersion_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9255,7 +10120,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_478_SystemDelegate_GetFirmwareVersion_Succes
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetTimeZone - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_479_SystemDelegate_GetTimeZone_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9289,7 +10153,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_479_SystemDelegate_GetTimeZone_Success)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetTimeZone - Invoke fails
 TEST_F(AppGatewayCommonTest, AGC_L1_480_SystemDelegate_GetTimeZone_InvokeFails)
 {
     NiceMock<ServiceMock> service;
@@ -9312,7 +10175,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_480_SystemDelegate_GetTimeZone_InvokeFails)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::EmitOnVideoResolutionChanged - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_481_SystemDelegate_EmitOnVideoResolutionChanged_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9344,7 +10206,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_481_SystemDelegate_EmitOnVideoResolutionChan
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::EmitOnScreenResolutionChanged - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_482_SystemDelegate_EmitOnScreenResolutionChanged_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9376,7 +10237,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_482_SystemDelegate_EmitOnScreenResolutionCha
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::EmitOnHdcpChanged - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_483_SystemDelegate_EmitOnHdcpChanged_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9408,7 +10268,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_483_SystemDelegate_EmitOnHdcpChanged_Success
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::EmitOnHdrChanged - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_484_SystemDelegate_EmitOnHdrChanged_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9440,7 +10299,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_484_SystemDelegate_EmitOnHdrChanged_Success)
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::EmitOnNameChanged - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_485_SystemDelegate_EmitOnNameChanged_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9472,7 +10330,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_485_SystemDelegate_EmitOnNameChanged_Success
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::EmitOnAudioChanged - Success
 TEST_F(AppGatewayCommonTest, AGC_L1_486_SystemDelegate_EmitOnAudioChanged_Success)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9504,7 +10361,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_486_SystemDelegate_EmitOnAudioChanged_Succes
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::EmitOnVideoResolutionChanged - Failure (no link)
 TEST_F(AppGatewayCommonTest, AGC_L1_487_SystemDelegate_EmitOnVideoResolutionChanged_Failure)
 {
     NiceMock<ServiceMock> service;
@@ -9526,7 +10382,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_487_SystemDelegate_EmitOnVideoResolutionChan
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetVideoResolution - Parse error handling
 TEST_F(AppGatewayCommonTest, AGC_L1_499_SystemDelegate_GetVideoResolution_ParseError)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -9560,7 +10415,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_499_SystemDelegate_GetVideoResolution_ParseE
     plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::GetFirmwareVersion - Cached value
 TEST_F(AppGatewayCommonTest, AGC_L1_500_SystemDelegate_GetFirmwareVersion_Cached)
 {
     MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
@@ -10687,7 +11541,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_217_App_GetAdvertisingId_SetValueFails)
     delete mockSharedStorage;
 }
 
-// Test AppDelegate::GetDeviceUID - SharedStorage GetValue fails, SetValue succeeds
 TEST_F(AppGatewayCommonTest, AGC_L1_488_AppDelegate_GetDeviceUID_CreateNew_Success)
 {
     NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
@@ -10728,7 +11581,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_488_AppDelegate_GetDeviceUID_CreateNew_Succe
     plugin.Deinitialize(&service);
 }
 
-// Test AppDelegate::GetDeviceUID - SharedStorage SetValue fails
 TEST_F(AppGatewayCommonTest, AGC_L1_489_AppDelegate_GetDeviceUID_SetValueFails)
 {
     NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
@@ -10768,7 +11620,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_489_AppDelegate_GetDeviceUID_SetValueFails)
     plugin.Deinitialize(&service);
 }
 
-// Test AppDelegate::GetAdvertisingId - SharedStorage GetValue fails, SetValue fails
 TEST_F(AppGatewayCommonTest, AGC_L1_490_AppDelegate_GetAdvertisingId_SetValueFails)
 {
     NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
@@ -10808,7 +11659,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_490_AppDelegate_GetAdvertisingId_SetValueFai
     plugin.Deinitialize(&service);
 }
 
-// Test AppDelegate::GetAdvertisingId - Success with existing value
 TEST_F(AppGatewayCommonTest, AGC_L1_491_AppDelegate_GetAdvertisingId_ExistingValue)
 {
     NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
@@ -10924,7 +11774,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_208_TTS_HandleSubscription_Unsubscribe)
     delete mockTTS;
 }
 
-// Test TTS HandleSubscription when TTS interface is not available
 TEST_F(AppGatewayCommonTest, AGC_L1_365_TTS_HandleSubscription_NoTTSInterface)
 {
     NiceMock<ServiceMock> service;
@@ -10953,7 +11802,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_365_TTS_HandleSubscription_NoTTSInterface)
     plugin.Deinitialize(&service);
 }
 
-// Test TTS double registration (already registered path)
 TEST_F(AppGatewayCommonTest, AGC_L1_366_TTS_HandleSubscription_AlreadyRegistered)
 {
     NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
@@ -10995,7 +11843,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_366_TTS_HandleSubscription_AlreadyRegistered
     plugin.Deinitialize(&service);
 }
 
-// Test TTS OnVoiceChanged notification
 TEST_F(AppGatewayCommonTest, AGC_L1_367_TTS_NotificationHandler_OnVoiceChanged)
 {
     NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
@@ -11036,7 +11883,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_367_TTS_NotificationHandler_OnVoiceChanged)
     plugin.Deinitialize(&service);
 }
 
-// Test TTS OnSpeechReady notification
 TEST_F(AppGatewayCommonTest, AGC_L1_368_TTS_NotificationHandler_OnSpeechReady)
 {
     NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
@@ -11077,7 +11923,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_368_TTS_NotificationHandler_OnSpeechReady)
     plugin.Deinitialize(&service);
 }
 
-// Test TTS OnSpeechStarted notification
 TEST_F(AppGatewayCommonTest, AGC_L1_369_TTS_NotificationHandler_OnSpeechStarted)
 {
     NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
@@ -11118,7 +11963,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_369_TTS_NotificationHandler_OnSpeechStarted)
     plugin.Deinitialize(&service);
 }
 
-// Test TTS OnSpeechPaused notification
 TEST_F(AppGatewayCommonTest, AGC_L1_370_TTS_NotificationHandler_OnSpeechPaused)
 {
     NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
@@ -11159,7 +12003,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_370_TTS_NotificationHandler_OnSpeechPaused)
     plugin.Deinitialize(&service);
 }
 
-// Test TTS OnSpeechResumed notification
 TEST_F(AppGatewayCommonTest, AGC_L1_371_TTS_NotificationHandler_OnSpeechResumed)
 {
     NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
@@ -11200,7 +12043,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_371_TTS_NotificationHandler_OnSpeechResumed)
     plugin.Deinitialize(&service);
 }
 
-// Test TTS OnSpeechInterrupted notification
 TEST_F(AppGatewayCommonTest, AGC_L1_372_TTS_NotificationHandler_OnSpeechInterrupted)
 {
     NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
@@ -11241,7 +12083,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_372_TTS_NotificationHandler_OnSpeechInterrup
     plugin.Deinitialize(&service);
 }
 
-// Test TTS OnPlaybackError notification
 TEST_F(AppGatewayCommonTest, AGC_L1_374_TTS_NotificationHandler_OnPlaybackError)
 {
     NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
@@ -11282,7 +12123,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_374_TTS_NotificationHandler_OnPlaybackError)
     plugin.Deinitialize(&service);
 }
 
-// Test TTS OnSpeechComplete notification
 TEST_F(AppGatewayCommonTest, AGC_L1_375_TTS_NotificationHandler_OnSpeechComplete)
 {
     NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
@@ -11323,7 +12163,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_375_TTS_NotificationHandler_OnSpeechComplete
     plugin.Deinitialize(&service);
 }
 
-// Test TTS OnTTSStateChanged notification
 TEST_F(AppGatewayCommonTest, AGC_L1_376_TTS_NotificationHandler_OnTTSStateChanged)
 {
     NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
@@ -11364,7 +12203,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_376_TTS_NotificationHandler_OnTTSStateChange
     plugin.Deinitialize(&service);
 }
 
-// Test TTS destructor with registered notification handler
 TEST_F(AppGatewayCommonTest, AGC_L1_377_TTS_Destructor_WithRegisteredNotifications)
 {
     NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
@@ -11402,7 +12240,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_377_TTS_Destructor_WithRegisteredNotificatio
     plugin.Deinitialize(&service);
 }
 
-// Test TTS SetRegistered and GetRegistered methods
 TEST_F(AppGatewayCommonTest, AGC_L1_378_TTS_NotificationHandler_SetGetRegistered)
 {
     NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
@@ -11464,7 +12301,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_121_HandleAppDelegateRequest_NullSettingsDel
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
 }
 
-// Test GetSpeed with null userSettings delegate returns error
 TEST_F(AppGatewayCommonTest, AGC_L1_293_GetSpeed_NullUserSettingsDelegate_ReturnsError)
 {
     NiceMock<ServiceMock> service;
@@ -11707,7 +12543,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_311_GetVoiceGuidanceSettings_NullUserSetting
     plugin.mDelegate.reset();
 }
 
-// Test SettingsDelegate::HandleAppEventNotifier - No matching delegate
 TEST_F(AppGatewayCommonTest, AGC_L1_498_SettingsDelegate_HandleAppEventNotifier_NoMatchingDelegate)
 {
     NiceMock<ServiceMock> service;
@@ -11719,17 +12554,19 @@ TEST_F(AppGatewayCommonTest, AGC_L1_498_SettingsDelegate_HandleAppEventNotifier_
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
     
-    class MockEmitter : public Exchange::IAppNotificationHandler::IEmitter {
+    class LocalMockEmitter : public Exchange::IAppNotificationHandler::IEmitter {
     public:
-        void Emit(const string& event, const string& payload) override {}
+        void Emit(const string& event, const string& payload, const string& appId) override {
+            (void)event; (void)payload; (void)appId;
+        }
         void AddRef() const override {}
         uint32_t Release() const override { return 0; }
-        BEGIN_INTERFACE_MAP(MockEmitter)
+        BEGIN_INTERFACE_MAP(LocalMockEmitter)
         INTERFACE_ENTRY(Exchange::IAppNotificationHandler::IEmitter)
         END_INTERFACE_MAP
     };
     
-    MockEmitter emitter;
+    LocalMockEmitter emitter;
     
     plugin.mDelegate->HandleAppEventNotifier(&emitter, "unknown.event", true);
     
