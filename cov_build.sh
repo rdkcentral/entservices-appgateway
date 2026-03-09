@@ -57,7 +57,7 @@ cmake -G Ninja -S "$GITHUB_WORKSPACE" -B build/entservices-appgateway \
 -include ${GITHUB_WORKSPACE}/entservices-testframework/Tests/headers/Dobby/IpcService/IpcFactory.h \
 -Wall -Werror -Wno-error=format \
 -Wl,-wrap,system -Wl,-wrap,popen -Wl,-wrap,syslog \
--DENABLE_TELEMETRY_LOGGING -DUSE_IARMBUS \
+-DUSE_IARMBUS \
 -DENABLE_SYSTEM_GET_STORE_DEMO_LINK -DENABLE_DEEP_SLEEP \
 -DENABLE_SET_WAKEUP_SRC_CONFIG -DENABLE_THERMAL_PROTECTION \
 -DUSE_DRM_SCREENCAPTURE -DHAS_API_SYSTEM -DHAS_API_POWERSTATE \
