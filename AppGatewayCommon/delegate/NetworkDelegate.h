@@ -109,7 +109,6 @@ public:
 
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError)
     {
-        LOGDBG("Checking for handle event");
         // Check if event is present in VALID_NETWORK_EVENT make check case insensitive
         if (VALID_NETWORK_EVENT.find(StringUtils::toLower(event)) != VALID_NETWORK_EVENT.end())
         {

@@ -108,7 +108,6 @@ class LifecycleDelegate : public BaseEventDelegate
 
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError)
     {
-        LOGDBG("Checking for handle event");
         // Check if event is present in VALID_LIFECYCLE_EVENT make check case insensitive
         if (VALID_LIFECYCLE_EVENT.find(StringUtils::toLower(event)) != VALID_LIFECYCLE_EVENT.end())
         {
