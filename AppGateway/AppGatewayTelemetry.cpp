@@ -422,18 +422,12 @@ namespace Plugin {
         const std::string prefix = AGW_INTERNAL_PLUGIN_PREFIX;
         const std::string methodTag = "_MethodName_";
 
-        // Check if it ends with "_Success_split" or "_Error_split"
-        bool hasSuccessSuffix = false;
-        bool hasErrorSuffix = false;
-
         if (metricName.length() > successSuffix.length() && 
             successSuffix == metricName.substr(metricName.length() - successSuffix.length())) {
             isError = false;
-            hasSuccessSuffix = true;
         } else if (metricName.length() > errorSuffix.length() && 
                    errorSuffix == metricName.substr(metricName.length() - errorSuffix.length())) {
             isError = true;
-            hasErrorSuffix = true;
         } else {
             return false;
         }
@@ -592,18 +586,12 @@ namespace Plugin {
         const std::string prefix = AGW_INTERNAL_PLUGIN_PREFIX;
         const std::string serviceTag = "_ServiceName_";
 
-        // Check if it ends with "_Success_split" or "_Error_split"
-        bool hasSuccessSuffix = false;
-        bool hasErrorSuffix = false;
-
         if (metricName.length() > successSuffix.length() && 
             successSuffix == metricName.substr(metricName.length() - successSuffix.length())) {
             isError = false;
-            hasSuccessSuffix = true;
         } else if (metricName.length() > errorSuffix.length() && 
                    errorSuffix == metricName.substr(metricName.length() - errorSuffix.length())) {
             isError = true;
-            hasErrorSuffix = true;
         } else {
             return false;
         }
@@ -1192,7 +1180,6 @@ namespace Plugin {
 
         // Send each plugin/method combination as a separate T2 marker
         for (const auto& item : mApiMethodStats) {
-            const std::string& apiKey = item.first;
             const ApiMethodStats& stats = item.second;
             
             if (stats.successCount == 0 && stats.errorCount == 0) {
@@ -1266,7 +1253,6 @@ namespace Plugin {
 
         // Send each plugin/API combination using common marker AGW_MARKER_API_LATENCY
         for (const auto& item : mApiLatencyStats) {
-            const std::string& latencyKey = item.first;
             const ApiLatencyStats& stats = item.second;
             
             if (stats.count == 0) {
@@ -1313,7 +1299,6 @@ namespace Plugin {
 
         // Send each plugin/service combination using common marker AGW_MARKER_SERVICE_LATENCY
         for (const auto& item : mServiceLatencyStats) {
-            const std::string& latencyKey = item.first;
             const ServiceLatencyStats& stats = item.second;
             
             if (stats.count == 0) {
@@ -1360,7 +1345,6 @@ namespace Plugin {
 
         // Send each plugin/service combination as a separate T2 marker
         for (const auto& item : mServiceMethodStats) {
-            const std::string& serviceKey = item.first;
             const ServiceMethodStats& stats = item.second;
             
             if (stats.successCount == 0 && stats.errorCount == 0) {
@@ -1724,7 +1708,6 @@ namespace Plugin {
 
         // Send each plugin/method combination as a separate T2 event
         for (const auto& item : apiMethodStats) {
-            const std::string& apiKey = item.first;
             const ApiMethodStats& stats = item.second;
             
             if (stats.successCount == 0 && stats.errorCount == 0) {
@@ -1789,7 +1772,6 @@ namespace Plugin {
 
         // Send each plugin/API combination
         for (const auto& item : apiLatencyStats) {
-            const std::string& latencyKey = item.first;
             const ApiLatencyStats& stats = item.second;
             
             if (stats.count == 0) {
@@ -1829,7 +1811,6 @@ namespace Plugin {
 
         // Send each plugin/service combination
         for (const auto& item : serviceMethodStats) {
-            const std::string& serviceKey = item.first;
             const ServiceMethodStats& stats = item.second;
             
             if (stats.successCount == 0 && stats.errorCount == 0) {
@@ -1889,7 +1870,6 @@ namespace Plugin {
 
         // Send each plugin/service combination
         for (const auto& item : serviceLatencyStats) {
-            const std::string& latencyKey = item.first;
             const ServiceLatencyStats& stats = item.second;
             
             if (stats.count == 0) {
