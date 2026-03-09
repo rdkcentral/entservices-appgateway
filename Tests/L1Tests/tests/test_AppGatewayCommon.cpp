@@ -125,6 +125,11 @@ protected:
     }
 };
 
+// ============================================================================
+// SECTION 1: CORE PLUGIN TESTS
+// Tests for Initialize, Deinitialize, QueryInterface, routing, and general plugin behavior
+// ============================================================================
+
 TEST_F(AppGatewayCommonTest, AGC_L1_001_002_InitializeAndDeinitialize_Success)
 {
     NiceMock<ServiceMock> service;
@@ -176,6 +181,46 @@ TEST_F(AppGatewayCommonTest, AGC_L1_004_UnknownMethod_ReturnsUnknownKey)
     EXPECT_FALSE(result.empty());
 }
 
+TEST_F(AppGatewayCommonTest, AGC_L1_005_006_007_010_012_014_015_017_019_021_023_024_025_NullDelegate)
+{
+    plugin.mDelegate.reset();
+    const auto ctx = MakeContext();
+
+    const std::vector<std::string> methods = {
+        "device.make",
+        "device.name",
+        "device.sku",
+        "localization.countrycode",
+        "localization.timezone",
+        "device.network",
+        "voiceguidance.enabled",
+        "audiodescriptions.enabled",
+        "closedcaptions.enabled",
+        "localization.locale",
+        "localization.language",
+        "localization.preferredaudiolanguages",
+        "closedcaptions.preferredlanguages"
+    };
+
+    for (const auto& method : methods) {
+        string result;
+        const auto rc = plugin.HandleAppGatewayRequest(ctx, method, "{}", result);
+        EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc) << "method=" << method;
+    }
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_008_DeviceSetName_ValidPayload_NoDelegate)
+{
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.setname", "{\"value\":\"Bedroom\"}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
 TEST_F(AppGatewayCommonTest, AGC_L1_009_DeviceSetName_InvalidPayload)
 {
     const auto ctx = MakeContext();
@@ -212,34 +257,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_011_013_016_018_020_022_026_027_InvalidPaylo
     }
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_005_006_007_010_012_014_015_017_019_021_023_024_025_NullDelegate)
-{
-    plugin.mDelegate.reset();
-    const auto ctx = MakeContext();
-
-    const std::vector<std::string> methods = {
-        "device.make",
-        "device.name",
-        "device.sku",
-        "localization.countrycode",
-        "localization.timezone",
-        "device.network",
-        "voiceguidance.enabled",
-        "audiodescriptions.enabled",
-        "closedcaptions.enabled",
-        "localization.locale",
-        "localization.language",
-        "localization.preferredaudiolanguages",
-        "closedcaptions.preferredlanguages"
-    };
-
-    for (const auto& method : methods) {
-        string result;
-        const auto rc = plugin.HandleAppGatewayRequest(ctx, method, "{}", result);
-        EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc) << "method=" << method;
-    }
-}
-
 TEST_F(AppGatewayCommonTest, AGC_L1_042_DefaultCapabilityFallbacks_WhenDelegateUnavailable)
 {
     plugin.mDelegate.reset();
@@ -262,64 +279,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_042_DefaultCapabilityFallbacks_WhenDelegateU
     EXPECT_EQ("{\"stereo\":true,\"dolbyDigital5.1\":false,\"dolbyDigital5.1+\":false,\"dolbyAtmos\":false}", result);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_038_039_VoiceGuidanceSettings_NullDelegate_ReturnsUnavailable)
-{
-    plugin.mDelegate.reset();
-
-    string result;
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetVoiceGuidanceSettings(true, result));
-    EXPECT_EQ("{\"error\":\"couldn't get voice guidance settings\"}", result);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_040_041_ClosedCaptionsSettings_NullDelegate_ReturnsUnavailable)
-{
-    plugin.mDelegate.reset();
-
-    string result;
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetClosedCaptionsSettings(result));
-    EXPECT_EQ("{\"error\":\"couldn't get closed captions settings\"}", result);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_028_032_GetSpeed_NullDelegate_ReturnsUnavailable)
-{
-    plugin.mDelegate.reset();
-
-    double speed = 0.0;
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetSpeed(speed));
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_033_037_SetSpeed_NullDelegate_ReturnsUnavailable)
-{
-    plugin.mDelegate.reset();
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(2.0));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.67));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.33));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.0));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(0.8));
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_044_045_LifecycleAndAuth_NullDelegate_ReturnUnavailable)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-    string out;
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.Authenticate("session-1", out));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetSessionId("test.app", out));
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.LifecycleReady(ctx, "{}", result));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.LifecycleClose(ctx, "{}", result));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.LifecycleState(ctx, "{}", result));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.Lifecycle2State(ctx, "{}", result));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.Lifecycle2Close(ctx, "{}", result));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.LifecycleFinished(ctx, "{}", result));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.DispatchLastIntent(ctx, "{}", result));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetLastIntent(ctx, "{}", result));
-}
-
 TEST_F(AppGatewayCommonTest, AGC_L1_046_CheckPermissionGroup_DefaultAllowed)
 {
     bool allowed = false;
@@ -329,24 +288,464 @@ TEST_F(AppGatewayCommonTest, AGC_L1_046_CheckPermissionGroup_DefaultAllowed)
     EXPECT_TRUE(allowed);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_043_FirmwareVersion_NullDelegate_ReturnsUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_061_Metrics_Prefix_ReturnsNull)
 {
-    plugin.mDelegate.reset();
-
+    const auto ctx = MakeContext();
     string result;
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetFirmwareVersion(result));
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "metrics.action", "{\"type\":\"app_loaded\"}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_008_DeviceSetName_ValidPayload_NoDelegate)
+TEST_F(AppGatewayCommonTest, AGC_L1_062_Metrics_AnySubMethod_ReturnsNull)
+{
+    const auto ctx = MakeContext();
+    string result;
+
+    // Test various metrics sub-methods
+    EXPECT_EQ(Core::ERROR_NONE, plugin.HandleAppGatewayRequest(ctx, "metrics.startContent", "{}", result));
+    EXPECT_EQ("null", result);
+
+    result.clear();
+    EXPECT_EQ(Core::ERROR_NONE, plugin.HandleAppGatewayRequest(ctx, "metrics.stopContent", "{}", result));
+    EXPECT_EQ("null", result);
+
+    result.clear();
+    EXPECT_EQ(Core::ERROR_NONE, plugin.HandleAppGatewayRequest(ctx, "Metrics.Ready", "{}", result));
+    EXPECT_EQ("null", result);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_063_DiscoveryWatched_ReturnsNull)
+{
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "discovery.watched", "{\"entityId\":\"123\"}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_072_DeviceUid_NoDelegate)
 {
     plugin.mDelegate.reset();
 
     const auto ctx = MakeContext();
     string result;
 
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.setname", "{\"value\":\"Bedroom\"}", result);
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.uid", "{}", result);
 
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_074_DeviceVersion_NoDelegate)
+{
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.version", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_079_DeviceAudio_NoDelegate)
+{
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.audio", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_EQ("{\"stereo\":true,\"dolbyDigital5.1\":false,\"dolbyDigital5.1+\":false,\"dolbyAtmos\":false}", result);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_111_GetDeviceName_NullDelegate)
+{
+    plugin.mDelegate.reset();
+
+    string result;
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetDeviceName(result));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_112_SetDeviceName_NullDelegate)
+{
+    plugin.mDelegate.reset();
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetDeviceName("TestDevice"));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_119_SetName_ReturnsNull)
+{
+    string result;
+    const auto rc = plugin.SetName("TestValue", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_120_AddAdditionalInfo_ReturnsNull)
+{
+    string result;
+    const auto rc = plugin.AddAdditionalInfo("{\"key\":\"value\"}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_165_Information_ReturnsEmptyString)
+{
+    // Information() method should return an empty string
+    string info = plugin.Information();
+    EXPECT_EQ("", info);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_166_EventRegistrationJob_Create)
+{
+    MockEmitter* emitter = new MockEmitter();
+    
+    // Create an EventRegistrationJob
+    Core::ProxyType<Core::IDispatch> job = AppGatewayCommon::EventRegistrationJob::Create(
+        &plugin, emitter, "test.event", true);
+    
+    EXPECT_TRUE(job.IsValid());
+    
+    // The emitter should have been AddRef'd by the job
+    EXPECT_EQ(2u, emitter->mRefCount);
+    
+    // Release the job - this should release the emitter reference
+    job.Release();
+    
+    // Clean up the emitter
+    emitter->Release();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_167_EventRegistrationJob_CreateWithNullCallback)
+{
+    // Create an EventRegistrationJob with null callback
+    Core::ProxyType<Core::IDispatch> job = AppGatewayCommon::EventRegistrationJob::Create(
+        &plugin, nullptr, "test.event", false);
+    
+    EXPECT_TRUE(job.IsValid());
+    
+    // Release the job
+    job.Release();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_168_EventRegistrationJob_Dispatch_WithDelegate)
+{
+    // Initialize the plugin first so mDelegate is set
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    
+    Core::ProxyType<Core::IDispatch> job = AppGatewayCommon::EventRegistrationJob::Create(
+        &plugin, emitter, "localization.onlanguagechanged", true);
+    
+    EXPECT_TRUE(job.IsValid());
+    
+    // Dispatch should call HandleAppEventNotifier on the delegate
+    // This will exercise the Dispatch method
+    job->Dispatch();
+    
+    // Wait for async job to complete before cleanup
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    job.Release();
+    emitter->Release();
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_169_EventRegistrationJob_Dispatch_UnsubscribeListen)
+{
+    // Initialize the plugin first so mDelegate is set
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    
+    // Test with listen=false (unsubscribe)
+    Core::ProxyType<Core::IDispatch> job = AppGatewayCommon::EventRegistrationJob::Create(
+        &plugin, emitter, "localization.onlanguagechanged", false);
+    
+    EXPECT_TRUE(job.IsValid());
+    
+    job->Dispatch();
+    
+    job.Release();
+    emitter->Release();
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_170_QueryInterface_IPlugin)
+{
+    void* result = plugin.QueryInterface(PluginHost::IPlugin::ID);
+    EXPECT_NE(nullptr, result);
+    if (result) {
+        static_cast<PluginHost::IPlugin*>(result)->Release();
+    }
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_171_QueryInterface_IAppGatewayRequestHandler)
+{
+    void* result = plugin.QueryInterface(Exchange::IAppGatewayRequestHandler::ID);
+    EXPECT_NE(nullptr, result);
+    if (result) {
+        static_cast<Exchange::IAppGatewayRequestHandler*>(result)->Release();
+    }
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_172_QueryInterface_IAppNotificationHandler)
+{
+    void* result = plugin.QueryInterface(Exchange::IAppNotificationHandler::ID);
+    EXPECT_NE(nullptr, result);
+    if (result) {
+        static_cast<Exchange::IAppNotificationHandler*>(result)->Release();
+    }
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_173_QueryInterface_IAppGatewayAuthenticator)
+{
+    void* result = plugin.QueryInterface(Exchange::IAppGatewayAuthenticator::ID);
+    EXPECT_NE(nullptr, result);
+    if (result) {
+        static_cast<Exchange::IAppGatewayAuthenticator*>(result)->Release();
+    }
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_174_QueryInterface_UnknownInterface)
+{
+    // Query for an unknown interface ID should return nullptr
+    void* result = plugin.QueryInterface(0xDEADBEEF);
+    EXPECT_EQ(nullptr, result);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_175_Deactivated_MatchingConnectionId)
+{
+    // Initialize the plugin first to set up mShell (required by Deactivated's ASSERT)
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string response = plugin.Initialize(&service);
+    EXPECT_TRUE(response.empty());
+    
+    // Set the plugin's mConnectionId to a known value
+    plugin.mConnectionId = 12345;
+    
+    // Create a mock connection with the same ID
+    MockRemoteConnection* connection = new MockRemoteConnection(12345);
+    
+    // Call Deactivated - this should trigger the deactivation logic
+    // which submits a job to the worker pool
+    plugin.Deactivated(connection);
+    
+    // Give time for the async job to potentially execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
+    connection->Release();
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_176_Deactivated_DifferentConnectionId)
+{
+    // Set the plugin's mConnectionId to a known value
+    plugin.mConnectionId = 12345;
+    
+    // Create a mock connection with a different ID
+    MockRemoteConnection* connection = new MockRemoteConnection(99999);
+    
+    // Call Deactivated with non-matching ID - should not trigger deactivation
+    plugin.Deactivated(connection);
+    
+    connection->Release();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_177_HandleAppEventNotifier_Subscribe)
+{
+    // Initialize the plugin first to set up mDelegate
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string response = plugin.Initialize(&service);
+    EXPECT_TRUE(response.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Test subscribing to an event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "localization.onlanguagechanged", true, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    // Give time for the async job to execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_178_HandleAppEventNotifier_Unsubscribe)
+{
+    // Initialize the plugin first to set up mDelegate
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string response = plugin.Initialize(&service);
+    EXPECT_TRUE(response.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Test unsubscribing from an event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "localization.onlanguagechanged", false, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    // Give time for the async job to execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_180_HandleAppEventNotifier_MultipleEvents)
+{
+    // Initialize the plugin first to set up mDelegate
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string response = plugin.Initialize(&service);
+    EXPECT_TRUE(response.empty());
+    
+    MockEmitter* emitter1 = new MockEmitter();
+    MockEmitter* emitter2 = new MockEmitter();
+    bool status1 = false;
+    bool status2 = false;
+    
+    // Subscribe to multiple events
+    Core::hresult rc1 = plugin.HandleAppEventNotifier(emitter1, "localization.onlanguagechanged", true, status1);
+    Core::hresult rc2 = plugin.HandleAppEventNotifier(emitter2, "accessibility.onvoiceguidancesettingschanged", true, status2);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc1);
+    EXPECT_EQ(Core::ERROR_NONE, rc2);
+    EXPECT_TRUE(status1);
+    EXPECT_TRUE(status2);
+    
+    // Give time for the async jobs to execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    emitter1->Release();
+    emitter2->Release();
+    plugin.Deinitialize(&service);
+}
+
+// Test TTS OnNetworkError notification
+TEST_F(AppGatewayCommonTest, AGC_L1_373_TTS_NotificationHandler_OnNetworkError)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    testing::Mock::AllowLeak(mockTTS);
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockTTS, Unregister(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "texttospeech.onnetworkerror", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Trigger notification
+    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
+    if (ttsDelegate) {
+        ttsDelegate->mNotificationHandler.OnNetworkError(12345);
+    }
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+// Test AppDelegate::HandleAppGatewayRequest - Unsupported method
+TEST_F(AppGatewayCommonTest, AGC_L1_492_AppDelegate_HandleAppGatewayRequest_UnsupportedMethod)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto appDelegate = plugin.mDelegate->getAppDelegate();
+    ASSERT_NE(appDelegate, nullptr);
+    
+    Exchange::GatewayContext ctx;
+    ctx.appId = "test.app";
+    ctx.connectionId = 100;
+    ctx.requestId = 200;
+    
+    string result;
+    Core::hresult rc = appDelegate->HandleAppGatewayRequest(ctx, "unsupported.method", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    
+    plugin.Deinitialize(&service);
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_Extra_AddAdditionalInfo_RouteSuccess)
@@ -374,31 +773,45 @@ TEST_F(AppGatewayCommonTest, AGC_L1_CaseInsensitiveRouting_UnknownAndKnown)
 }
 
 // ============================================================================
-// POSITIVE TEST CASES - Valid payloads with null delegate
+// SECTION 2: USER SETTINGS DELEGATE TESTS
+// Tests for VoiceGuidance, AudioDescription, ClosedCaptions, Locale, Language settings
 // ============================================================================
 
-TEST_F(AppGatewayCommonTest, AGC_L1_047_SetCountryCode_ValidPayload_NoDelegate)
+TEST_F(AppGatewayCommonTest, AGC_L1_028_032_GetSpeed_NullDelegate_ReturnsUnavailable)
 {
     plugin.mDelegate.reset();
 
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.setcountrycode", "{\"value\":\"US\"}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    double speed = 0.0;
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetSpeed(speed));
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_048_SetTimeZone_ValidPayload_NoDelegate)
+TEST_F(AppGatewayCommonTest, AGC_L1_033_037_SetSpeed_NullDelegate_ReturnsUnavailable)
 {
     plugin.mDelegate.reset();
 
-    const auto ctx = MakeContext();
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(2.0));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.67));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.33));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.0));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(0.8));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_038_039_VoiceGuidanceSettings_NullDelegate_ReturnsUnavailable)
+{
+    plugin.mDelegate.reset();
+
     string result;
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetVoiceGuidanceSettings(true, result));
+    EXPECT_EQ("{\"error\":\"couldn't get voice guidance settings\"}", result);
+}
 
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.settimezone", "{\"value\":\"America/New_York\"}", result);
+TEST_F(AppGatewayCommonTest, AGC_L1_040_041_ClosedCaptionsSettings_NullDelegate_ReturnsUnavailable)
+{
+    plugin.mDelegate.reset();
 
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    string result;
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetClosedCaptionsSettings(result));
+    EXPECT_EQ("{\"error\":\"couldn't get closed captions settings\"}", result);
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_049_SetVoiceGuidanceEnabled_ValidPayload_NoDelegate)
@@ -497,10 +910,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_056_SetVoiceGuidanceNavigationHints_ValidPay
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
 }
 
-// ============================================================================
-// VOICEGUIDANCE SPEED/RATE ROUTES
-// ============================================================================
-
 TEST_F(AppGatewayCommonTest, AGC_L1_057_VoiceGuidanceSpeed_Route_NoDelegate)
 {
     plugin.mDelegate.reset();
@@ -550,54 +959,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_060_SetVoiceGuidanceRate_InvalidPayload)
 
 // ============================================================================
 // METRICS PREFIX ROUTING
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_061_Metrics_Prefix_ReturnsNull)
-{
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "metrics.action", "{\"type\":\"app_loaded\"}", result);
-
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_EQ("null", result);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_062_Metrics_AnySubMethod_ReturnsNull)
-{
-    const auto ctx = MakeContext();
-    string result;
-
-    // Test various metrics sub-methods
-    EXPECT_EQ(Core::ERROR_NONE, plugin.HandleAppGatewayRequest(ctx, "metrics.startContent", "{}", result));
-    EXPECT_EQ("null", result);
-
-    result.clear();
-    EXPECT_EQ(Core::ERROR_NONE, plugin.HandleAppGatewayRequest(ctx, "metrics.stopContent", "{}", result));
-    EXPECT_EQ("null", result);
-
-    result.clear();
-    EXPECT_EQ(Core::ERROR_NONE, plugin.HandleAppGatewayRequest(ctx, "Metrics.Ready", "{}", result));
-    EXPECT_EQ("null", result);
-}
-
-// ============================================================================
-// DISCOVERY.WATCHED ROUTING
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_063_DiscoveryWatched_ReturnsNull)
-{
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "discovery.watched", "{\"entityId\":\"123\"}", result);
-
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_EQ("null", result);
-}
-
-// ============================================================================
-// ACCESSIBILITY ROUTES
 // ============================================================================
 
 TEST_F(AppGatewayCommonTest, AGC_L1_064_AccessibilityVoiceGuidanceSettings_NoDelegate)
@@ -691,140 +1052,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_070_AccessibilityClosedCaptionsSettings_NoDe
     EXPECT_EQ("{\"error\":\"couldn't get closed captions settings\"}", result);
 }
 
-// ============================================================================
-// HANDLE APP DELEGATE REQUEST (advertising/device.uid)
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_071_AdvertisingId_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "advertising.advertisingid", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_072_DeviceUid_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.uid", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-}
-
-// ============================================================================
-// NETWORK.CONNECTED ROUTE
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_073_NetworkConnected_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_EQ("{\"error\":\"couldn't get network connected status\"}", result);
-}
-
-// ============================================================================
-// DEVICE VERSION/FIRMWARE
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_074_DeviceVersion_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.version", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-}
-
-// ============================================================================
-// DEVICE SCREEN/VIDEO RESOLUTION, HDCP, HDR, AUDIO
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_075_DeviceScreenResolution_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.screenresolution", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_EQ("[1920,1080]", result);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_076_DeviceVideoResolution_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.videoresolution", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_EQ("[1920,1080]", result);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_077_DeviceHdcp_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.hdcp", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_EQ("{\"hdcp1.4\":false,\"hdcp2.2\":false}", result);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_078_DeviceHdr_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.hdr", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_EQ("{\"hdr10\":false,\"dolbyVision\":false,\"hlg\":false,\"hdr10Plus\":false}", result);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_079_DeviceAudio_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.audio", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_EQ("{\"stereo\":true,\"dolbyDigital5.1\":false,\"dolbyDigital5.1+\":false,\"dolbyAtmos\":false}", result);
-}
-
-// ============================================================================
-// VOICEGUIDANCE NAVIGATION HINTS
-// ============================================================================
-
 TEST_F(AppGatewayCommonTest, AGC_L1_080_VoiceGuidanceNavigationHints_NoDelegate)
 {
     plugin.mDelegate.reset();
@@ -837,126 +1064,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_080_VoiceGuidanceNavigationHints_NoDelegate)
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
     EXPECT_EQ("{\"error\":\"couldnt get navigationHints\"}", result);
 }
-
-// ============================================================================
-// SECONDSCREEN FRIENDLY NAME
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_081_SecondScreenFriendlyName_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "secondscreen.friendlyname", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-}
-
-// ============================================================================
-// LIFECYCLE METHODS VIA HANDLER MAP
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_082_LifecycleReady_ViaHandlerMap_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.ready", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_083_LifecycleClose_ViaHandlerMap_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.close", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_084_LifecycleState_ViaHandlerMap_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_085_Lifecycle2State_ViaHandlerMap_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_086_Lifecycle2Close_ViaHandlerMap_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_087_LifecycleFinished_ViaHandlerMap_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.finished", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_088_CommonInternalDispatchIntent_ViaHandlerMap_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.dispatchintent", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_089_CommonInternalGetLastIntent_ViaHandlerMap_NoDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-}
-
-// ============================================================================
-// BOUNDARY TEST CASES - Speed transformation
-// ============================================================================
 
 TEST_F(AppGatewayCommonTest, AGC_L1_090_SetSpeed_BoundaryValues_NoDelegate)
 {
@@ -983,10 +1090,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_090_SetSpeed_BoundaryValues_NoDelegate)
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(0.0));
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(-1.0));
 }
-
-// ============================================================================
-// DIRECT METHOD CALLS - Null Delegate Coverage
-// ============================================================================
 
 TEST_F(AppGatewayCommonTest, AGC_L1_091_GetVoiceGuidance_NullDelegate_ReturnsError)
 {
@@ -1130,1147 +1233,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_107_SetVoiceGuidanceHints_NullDelegate_Retur
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetVoiceGuidanceHints(true));
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetVoiceGuidanceHints(false));
 }
-
-TEST_F(AppGatewayCommonTest, AGC_L1_108_GetInternetConnectionStatus_NullDelegate_ReturnsError)
-{
-    plugin.mDelegate.reset();
-
-    string result;
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetInternetConnectionStatus(result));
-    EXPECT_EQ("{\"error\":\"couldn't get internet connection status\"}", result);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_109_GetNetworkConnected_NullDelegate_ReturnsError)
-{
-    plugin.mDelegate.reset();
-
-    string result;
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetNetworkConnected(result));
-    EXPECT_EQ("{\"error\":\"couldn't get network connected status\"}", result);
-}
-
-// ============================================================================
-// SYSTEM DELEGATE METHODS - Null Delegate Coverage
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_110_GetDeviceMake_NullDelegate)
-{
-    plugin.mDelegate.reset();
-
-    string result;
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetDeviceMake(result));
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_111_GetDeviceName_NullDelegate)
-{
-    plugin.mDelegate.reset();
-
-    string result;
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetDeviceName(result));
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_112_SetDeviceName_NullDelegate)
-{
-    plugin.mDelegate.reset();
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetDeviceName("TestDevice"));
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_113_GetDeviceSku_NullDelegate)
-{
-    plugin.mDelegate.reset();
-
-    string result;
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetDeviceSku(result));
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_114_GetCountryCode_NullDelegate)
-{
-    plugin.mDelegate.reset();
-
-    string result;
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetCountryCode(result));
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_115_SetCountryCode_NullDelegate)
-{
-    plugin.mDelegate.reset();
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetCountryCode("US"));
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_116_GetTimeZone_NullDelegate)
-{
-    plugin.mDelegate.reset();
-
-    string result;
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetTimeZone(result));
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_117_SetTimeZone_NullDelegate)
-{
-    plugin.mDelegate.reset();
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetTimeZone("America/New_York"));
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_118_GetSecondScreenFriendlyName_NullDelegate)
-{
-    plugin.mDelegate.reset();
-
-    string result;
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetSecondScreenFriendlyName(result));
-}
-
-// ============================================================================
-// SetName AND AddAdditionalInfo STATIC METHODS
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_119_SetName_ReturnsNull)
-{
-    string result;
-    const auto rc = plugin.SetName("TestValue", result);
-
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_EQ("null", result);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_120_AddAdditionalInfo_ReturnsNull)
-{
-    string result;
-    const auto rc = plugin.AddAdditionalInfo("{\"key\":\"value\"}", result);
-
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_EQ("null", result);
-}
-
-// ============================================================================
-// HANDLE APP DELEGATE REQUEST - Error Scenarios
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_121_HandleAppDelegateRequest_NullSettingsDelegate)
-{
-    plugin.mDelegate.reset();
-
-    const auto ctx = MakeContext();
-    string result;
-
-    const auto rc = plugin.HandleAppDelegateRequest(ctx, "advertising.advertisingid", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-}
-
-// ============================================================================
-// USERSETTINGSDELEGATE STATIC HELPER FUNCTIONS
-// ============================================================================
-
-TEST(UserSettingsHelperTest, AGC_L1_122_FontFamilyToString_AllValues)
-{
-    // Test all FontFamily enum values
-    EXPECT_STREQ("null", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CONTENT_DEFAULT));
-    EXPECT_STREQ("monospaced_serif", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::MONOSPACED_SERIF));
-    EXPECT_STREQ("proportional_serif", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::PROPORTIONAL_SERIF));
-    EXPECT_STREQ("monospaced_sanserif", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::MONOSPACE_SANS_SERIF));
-    EXPECT_STREQ("proportional_sanserif", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::PROPORTIONAL_SANS_SERIF));
-    EXPECT_STREQ("casual", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CASUAL));
-    EXPECT_STREQ("cursive", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CURSIVE));
-    EXPECT_STREQ("smallcaps", FontFamilyToString(Exchange::ITextTrackClosedCaptionsStyle::FontFamily::SMALL_CAPITAL));
-    
-    // Test invalid/unknown value falls through to default
-    EXPECT_STREQ("null", FontFamilyToString(static_cast<Exchange::ITextTrackClosedCaptionsStyle::FontFamily>(999)));
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_123_FontSizeToNumber_AllValues)
-{
-    // Test all FontSize enum values
-    EXPECT_EQ(-1, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT));
-    EXPECT_EQ(0, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::SMALL));
-    EXPECT_EQ(1, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::REGULAR));
-    EXPECT_EQ(2, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::LARGE));
-    EXPECT_EQ(3, FontSizeToNumber(Exchange::ITextTrackClosedCaptionsStyle::FontSize::EXTRA_LARGE));
-    
-    // Test invalid/unknown value falls through to default
-    EXPECT_EQ(-1, FontSizeToNumber(static_cast<Exchange::ITextTrackClosedCaptionsStyle::FontSize>(999)));
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_124_FontEdgeToString_AllValues)
-{
-    // Test all FontEdge enum values
-    EXPECT_STREQ("null", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::CONTENT_DEFAULT));
-    EXPECT_STREQ("none", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::NONE));
-    EXPECT_STREQ("raised", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RAISED));
-    EXPECT_STREQ("depressed", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::DEPRESSED));
-    EXPECT_STREQ("uniform", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::UNIFORM));
-    EXPECT_STREQ("drop_shadow_left", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::LEFT_DROP_SHADOW));
-    EXPECT_STREQ("drop_shadow_right", FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RIGHT_DROP_SHADOW));
-    
-    // Test invalid/unknown value falls through to default
-    EXPECT_STREQ("null", FontEdgeToString(static_cast<Exchange::ITextTrackClosedCaptionsStyle::FontEdge>(999)));
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_125_ParseCommaSeparatedLanguages_ValidInput)
-{
-    JsonArray result;
-    ParseCommaSeparatedLanguages("eng,fra,spa", result);
-    
-    EXPECT_EQ(3u, result.Length());
-    
-    JsonArray::Iterator it = result.Elements();
-    ASSERT_TRUE(it.Next());
-    EXPECT_EQ("eng", it.Current().String());
-    ASSERT_TRUE(it.Next());
-    EXPECT_EQ("fra", it.Current().String());
-    ASSERT_TRUE(it.Next());
-    EXPECT_EQ("spa", it.Current().String());
-    EXPECT_FALSE(it.Next());
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_126_ParseCommaSeparatedLanguages_WithWhitespace)
-{
-    JsonArray result;
-    ParseCommaSeparatedLanguages("eng , fra , spa", result);
-    
-    EXPECT_EQ(3u, result.Length());
-    
-    JsonArray::Iterator it = result.Elements();
-    ASSERT_TRUE(it.Next());
-    EXPECT_EQ("eng", it.Current().String());
-    ASSERT_TRUE(it.Next());
-    EXPECT_EQ("fra", it.Current().String());
-    ASSERT_TRUE(it.Next());
-    EXPECT_EQ("spa", it.Current().String());
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_127_ParseCommaSeparatedLanguages_EmptyInput)
-{
-    JsonArray result;
-    ParseCommaSeparatedLanguages("", result);
-    
-    EXPECT_EQ(0u, result.Length());
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_128_ParseCommaSeparatedLanguages_SingleLanguage)
-{
-    JsonArray result;
-    ParseCommaSeparatedLanguages("eng", result);
-    
-    EXPECT_EQ(1u, result.Length());
-    
-    JsonArray::Iterator it = result.Elements();
-    ASSERT_TRUE(it.Next());
-    EXPECT_EQ("eng", it.Current().String());
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_129_ParseCommaSeparatedLanguages_WhitespaceOnly)
-{
-    JsonArray result;
-    ParseCommaSeparatedLanguages("   ,   ,   ", result);
-    
-    // All whitespace tokens should be skipped
-    EXPECT_EQ(0u, result.Length());
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_130_ConvertToCommaSeparatedLanguages_JsonArray)
-{
-    string result = ConvertToCommaSeparatedLanguages("[\"eng\",\"fra\",\"spa\"]");
-    
-    EXPECT_EQ("eng,fra,spa", result);
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_131_ConvertToCommaSeparatedLanguages_EmptyArray)
-{
-    string result = ConvertToCommaSeparatedLanguages("[]");
-    
-    EXPECT_EQ("", result);
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_132_ConvertToCommaSeparatedLanguages_QuotedString)
-{
-    string result = ConvertToCommaSeparatedLanguages("\"eng\"");
-    
-    EXPECT_EQ("eng", result);
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_133_ConvertToCommaSeparatedLanguages_UnquotedString)
-{
-    string result = ConvertToCommaSeparatedLanguages("eng");
-    
-    EXPECT_EQ("eng", result);
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_134_ConvertToCommaSeparatedLanguages_SingleElementArray)
-{
-    string result = ConvertToCommaSeparatedLanguages("[\"eng\"]");
-    
-    EXPECT_EQ("eng", result);
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_135_BuildClosedCaptionsStyleJson_AllFieldsSet)
-{
-    Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle style;
-    style.fontFamily = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CASUAL;
-    style.fontSize = Exchange::ITextTrackClosedCaptionsStyle::FontSize::LARGE;
-    style.fontColor = "#FFFFFF";
-    style.fontOpacity = 100;
-    style.fontEdge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RAISED;
-    style.fontEdgeColor = "#000000";
-    style.backgroundColor = "#000000";
-    style.backgroundOpacity = 80;
-    style.windowColor = "#FF0000";
-    style.windowOpacity = 50;
-    
-    JsonObject styles;
-    BuildClosedCaptionsStyleJson(style, styles);
-    
-    EXPECT_EQ("casual", styles["fontFamily"].String());
-    EXPECT_EQ(2, styles["fontSize"].Number());
-    EXPECT_EQ("#FFFFFF", styles["fontColor"].String());
-    EXPECT_EQ(100, styles["fontOpacity"].Number());
-    EXPECT_EQ("raised", styles["fontEdge"].String());
-    EXPECT_EQ("#000000", styles["fontEdgeColor"].String());
-    EXPECT_EQ("#000000", styles["backgroundColor"].String());
-    EXPECT_EQ(80, styles["backgroundOpacity"].Number());
-    EXPECT_EQ("#FF0000", styles["windowColor"].String());
-    EXPECT_EQ(50, styles["windowOpacity"].Number());
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_136_BuildClosedCaptionsStyleJson_DefaultValues)
-{
-    Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle style;
-    style.fontFamily = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CONTENT_DEFAULT;
-    style.fontSize = Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT;
-    style.fontColor = "";
-    style.fontOpacity = -1;
-    style.fontEdge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::CONTENT_DEFAULT;
-    style.fontEdgeColor = "";
-    style.backgroundColor = "";
-    style.backgroundOpacity = -1;
-    style.windowColor = "";
-    style.windowOpacity = -1;
-    
-    JsonObject styles;
-    BuildClosedCaptionsStyleJson(style, styles);
-    
-    // With default values, these fields should NOT be present in the JSON
-    EXPECT_FALSE(styles.HasLabel("fontFamily"));
-    EXPECT_FALSE(styles.HasLabel("fontSize"));
-    EXPECT_FALSE(styles.HasLabel("fontColor"));
-    EXPECT_FALSE(styles.HasLabel("fontOpacity"));
-    EXPECT_FALSE(styles.HasLabel("fontEdge"));
-    EXPECT_FALSE(styles.HasLabel("fontEdgeColor"));
-    EXPECT_FALSE(styles.HasLabel("backgroundColor"));
-    EXPECT_FALSE(styles.HasLabel("backgroundOpacity"));
-    EXPECT_FALSE(styles.HasLabel("windowColor"));
-    EXPECT_FALSE(styles.HasLabel("windowOpacity"));
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_137_BuildClosedCaptionsStyleJson_PartialValues)
-{
-    Exchange::ITextTrackClosedCaptionsStyle::ClosedCaptionsStyle style;
-    style.fontFamily = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CURSIVE;
-    style.fontSize = Exchange::ITextTrackClosedCaptionsStyle::FontSize::CONTENT_DEFAULT;
-    style.fontColor = "#FF0000";
-    style.fontOpacity = -1;
-    style.fontEdge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::CONTENT_DEFAULT;
-    style.fontEdgeColor = "";
-    style.backgroundColor = "#0000FF";
-    style.backgroundOpacity = 75;
-    style.windowColor = "";
-    style.windowOpacity = -1;
-    
-    JsonObject styles;
-    BuildClosedCaptionsStyleJson(style, styles);
-    
-    // Present fields
-    EXPECT_EQ("cursive", styles["fontFamily"].String());
-    EXPECT_EQ("#FF0000", styles["fontColor"].String());
-    EXPECT_EQ("#0000FF", styles["backgroundColor"].String());
-    EXPECT_EQ(75, styles["backgroundOpacity"].Number());
-    
-    // Absent fields
-    EXPECT_FALSE(styles.HasLabel("fontSize"));
-    EXPECT_FALSE(styles.HasLabel("fontOpacity"));
-    EXPECT_FALSE(styles.HasLabel("fontEdge"));
-    EXPECT_FALSE(styles.HasLabel("fontEdgeColor"));
-    EXPECT_FALSE(styles.HasLabel("windowColor"));
-    EXPECT_FALSE(styles.HasLabel("windowOpacity"));
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_138_BuildClosedCaptionsSettingsResponse_WithLanguages)
-{
-    JsonObject styles;
-    styles["fontFamily"] = "casual";
-    styles["fontSize"] = 2;
-    
-    string result = BuildClosedCaptionsSettingsResponse(true, "eng,fra", styles);
-    
-    JsonObject parsed;
-    ASSERT_TRUE(parsed.FromString(result));
-    
-    EXPECT_EQ(true, parsed["enabled"].Boolean());
-    EXPECT_TRUE(parsed.HasLabel("styles"));
-    EXPECT_TRUE(parsed.HasLabel("preferredLanguages"));
-    
-    JsonArray languages = parsed["preferredLanguages"].Array();
-    EXPECT_EQ(2u, languages.Length());
-}
-
-TEST(UserSettingsHelperTest, AGC_L1_139_BuildClosedCaptionsSettingsResponse_EmptyLanguages)
-{
-    JsonObject styles;
-    
-    string result = BuildClosedCaptionsSettingsResponse(false, "", styles);
-    
-    JsonObject parsed;
-    ASSERT_TRUE(parsed.FromString(result));
-    
-    EXPECT_EQ(false, parsed["enabled"].Boolean());
-    
-    // Empty languages should default to ["eng"]
-    JsonArray languages = parsed["preferredLanguages"].Array();
-    EXPECT_EQ(1u, languages.Length());
-    
-    JsonArray::Iterator it = languages.Elements();
-    ASSERT_TRUE(it.Next());
-    EXPECT_EQ("eng", it.Current().String());
-}
-
-// ============================================================================
-// LIFECYCLEDELEGATE STATIC HELPER FUNCTIONS
-// ============================================================================
-
-TEST(LifecycleDelegateTest, AGC_L1_140_LifecycleStateToString_AllValues)
-{
-    // Test all LifecycleState enum values
-    EXPECT_EQ("unloaded", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::UNLOADED));
-    EXPECT_EQ("loading", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::LOADING));
-    EXPECT_EQ("initializing", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::INITIALIZING));
-    EXPECT_EQ("paused", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::PAUSED));
-    EXPECT_EQ("active", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::ACTIVE));
-    EXPECT_EQ("suspended", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::SUSPENDED));
-    EXPECT_EQ("hibernated", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::HIBERNATED));
-    EXPECT_EQ("terminating", LifecycleDelegate::LifecycleStateToString(Exchange::ILifecycleManager::TERMINATING));
-    
-    // Test invalid/unknown value falls through to default
-    EXPECT_EQ("", LifecycleDelegate::LifecycleStateToString(static_cast<Exchange::ILifecycleManager::LifecycleState>(999)));
-}
-
-TEST(LifecycleDelegateTest, AGC_L1_141_Lifecycle2StateToLifecycle1String_AllValues)
-{
-    // Test mapping from Lifecycle2 states to Lifecycle1 strings
-    // UNLOADED and TERMINATING both map to "unloading"
-    EXPECT_EQ("unloading", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::UNLOADED));
-    EXPECT_EQ("unloading", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::TERMINATING));
-    
-    // LOADING and INITIALIZING both map to "initializing"
-    EXPECT_EQ("initializing", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::LOADING));
-    EXPECT_EQ("initializing", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::INITIALIZING));
-    
-    // PAUSED maps to "inactive"
-    EXPECT_EQ("inactive", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::PAUSED));
-    
-    // ACTIVE maps to "foreground"
-    EXPECT_EQ("foreground", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::ACTIVE));
-    
-    // SUSPENDED and HIBERNATED both map to "suspended"
-    EXPECT_EQ("suspended", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::SUSPENDED));
-    EXPECT_EQ("suspended", LifecycleDelegate::Lifecycle2StateToLifecycle1String(Exchange::ILifecycleManager::HIBERNATED));
-    
-    // Test invalid/unknown value falls through to default
-    EXPECT_EQ("", LifecycleDelegate::Lifecycle2StateToLifecycle1String(static_cast<Exchange::ILifecycleManager::LifecycleState>(999)));
-}
-
-// ============================================================================
-// LIFECYCLEDELEGATE INNER CLASSES - AppIdInstanceIdMap
-// ============================================================================
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_142_AppIdInstanceIdMap_AddAndGet)
-{
-    LifecycleDelegate::AppIdInstanceIdMap map;
-    
-    map.AddAppInstanceId("app1", "instance1");
-    map.AddAppInstanceId("app2", "instance2");
-    
-    EXPECT_EQ("instance1", map.GetAppInstanceId("app1"));
-    EXPECT_EQ("instance2", map.GetAppInstanceId("app2"));
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_143_AppIdInstanceIdMap_GetAppId_ReverseLookup)
-{
-    LifecycleDelegate::AppIdInstanceIdMap map;
-    
-    map.AddAppInstanceId("app1", "instance1");
-    map.AddAppInstanceId("app2", "instance2");
-    
-    EXPECT_EQ("app1", map.GetAppId("instance1"));
-    EXPECT_EQ("app2", map.GetAppId("instance2"));
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_144_AppIdInstanceIdMap_GetNonExistent)
-{
-    LifecycleDelegate::AppIdInstanceIdMap map;
-    
-    // Non-existent app should return empty string
-    EXPECT_EQ("", map.GetAppInstanceId("nonexistent"));
-    EXPECT_EQ("", map.GetAppId("nonexistent"));
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_145_AppIdInstanceIdMap_Remove)
-{
-    LifecycleDelegate::AppIdInstanceIdMap map;
-    
-    map.AddAppInstanceId("app1", "instance1");
-    EXPECT_EQ("instance1", map.GetAppInstanceId("app1"));
-    
-    map.RemoveAppInstanceId("app1");
-    EXPECT_EQ("", map.GetAppInstanceId("app1"));
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_146_AppIdInstanceIdMap_OverwriteExisting)
-{
-    LifecycleDelegate::AppIdInstanceIdMap map;
-    
-    map.AddAppInstanceId("app1", "instance1");
-    EXPECT_EQ("instance1", map.GetAppInstanceId("app1"));
-    
-    // Overwrite with new instance
-    map.AddAppInstanceId("app1", "instance2");
-    EXPECT_EQ("instance2", map.GetAppInstanceId("app1"));
-}
-
-// ============================================================================
-// LIFECYCLEDELEGATE INNER CLASSES - NavigationIntentRegistry
-// ============================================================================
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_147_NavigationIntentRegistry_AddAndGet)
-{
-    LifecycleDelegate::NavigationIntentRegistry registry;
-    
-    registry.AddNavigationIntent("instance1", "navigate-to-home");
-    registry.AddNavigationIntent("instance2", "navigate-to-settings");
-    
-    EXPECT_EQ("navigate-to-home", registry.GetNavigationIntent("instance1"));
-    EXPECT_EQ("navigate-to-settings", registry.GetNavigationIntent("instance2"));
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_148_NavigationIntentRegistry_GetNonExistent)
-{
-    LifecycleDelegate::NavigationIntentRegistry registry;
-    
-    EXPECT_EQ("", registry.GetNavigationIntent("nonexistent"));
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_149_NavigationIntentRegistry_Remove)
-{
-    LifecycleDelegate::NavigationIntentRegistry registry;
-    
-    registry.AddNavigationIntent("instance1", "navigate-to-home");
-    EXPECT_EQ("navigate-to-home", registry.GetNavigationIntent("instance1"));
-    
-    registry.RemoveNavigationIntent("instance1");
-    EXPECT_EQ("", registry.GetNavigationIntent("instance1"));
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_150_NavigationIntentRegistry_OverwriteExisting)
-{
-    LifecycleDelegate::NavigationIntentRegistry registry;
-    
-    registry.AddNavigationIntent("instance1", "navigate-to-home");
-    EXPECT_EQ("navigate-to-home", registry.GetNavigationIntent("instance1"));
-    
-    // Overwrite with new intent
-    registry.AddNavigationIntent("instance1", "navigate-to-settings");
-    EXPECT_EQ("navigate-to-settings", registry.GetNavigationIntent("instance1"));
-}
-
-// ============================================================================
-// LIFECYCLEDELEGATE INNER CLASSES - FocusedAppRegistry
-// ============================================================================
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_151_FocusedAppRegistry_SetAndGet)
-{
-    LifecycleDelegate::FocusedAppRegistry registry;
-    
-    registry.SetFocusedAppInstanceId("instance1");
-    
-    EXPECT_EQ("instance1", registry.GetFocusedAppInstanceId());
-    EXPECT_TRUE(registry.IsAppInstanceIdFocused("instance1"));
-    EXPECT_FALSE(registry.IsAppInstanceIdFocused("instance2"));
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_152_FocusedAppRegistry_Clear)
-{
-    LifecycleDelegate::FocusedAppRegistry registry;
-    
-    registry.SetFocusedAppInstanceId("instance1");
-    EXPECT_TRUE(registry.IsAppInstanceIdFocused("instance1"));
-    
-    registry.ClearFocusedAppInstanceId();
-    EXPECT_FALSE(registry.IsAppInstanceIdFocused("instance1"));
-    EXPECT_EQ("", registry.GetFocusedAppInstanceId());
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_153_FocusedAppRegistry_GetFocusedEventData_Focused)
-{
-    LifecycleDelegate::FocusedAppRegistry registry;
-    
-    registry.SetFocusedAppInstanceId("instance1");
-    
-    string eventData = registry.GetFocusedEventData("instance1");
-    
-    JsonObject parsed;
-    ASSERT_TRUE(parsed.FromString(eventData));
-    EXPECT_TRUE(parsed["value"].Boolean());
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_154_FocusedAppRegistry_GetFocusedEventData_NotFocused)
-{
-    LifecycleDelegate::FocusedAppRegistry registry;
-    
-    registry.SetFocusedAppInstanceId("instance1");
-    
-    // Get event data for a different instance (not focused)
-    string eventData = registry.GetFocusedEventData("instance2");
-    
-    JsonObject parsed;
-    ASSERT_TRUE(parsed.FromString(eventData));
-    EXPECT_FALSE(parsed["value"].Boolean());
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_155_FocusedAppRegistry_ChangeFocus)
-{
-    LifecycleDelegate::FocusedAppRegistry registry;
-    
-    registry.SetFocusedAppInstanceId("instance1");
-    EXPECT_TRUE(registry.IsAppInstanceIdFocused("instance1"));
-    
-    // Change focus to another instance
-    registry.SetFocusedAppInstanceId("instance2");
-    EXPECT_FALSE(registry.IsAppInstanceIdFocused("instance1"));
-    EXPECT_TRUE(registry.IsAppInstanceIdFocused("instance2"));
-}
-
-// ============================================================================
-// LIFECYCLEDELEGATE INNER CLASSES - LifecycleStateRegistry
-// ============================================================================
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_156_LifecycleStateRegistry_AddAndGetState)
-{
-    LifecycleDelegate::LifecycleStateRegistry registry;
-    
-    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::UNLOADED, Exchange::ILifecycleManager::INITIALIZING);
-    
-    LifecycleDelegate::LifecycleStateInfo info = registry.GetLifecycleStateInfo("instance1");
-    
-    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.previousState);
-    EXPECT_EQ(Exchange::ILifecycleManager::INITIALIZING, info.currentState);
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_157_LifecycleStateRegistry_UpdateState)
-{
-    LifecycleDelegate::LifecycleStateRegistry registry;
-    
-    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::UNLOADED, Exchange::ILifecycleManager::INITIALIZING);
-    
-    // Update to new state
-    registry.UpdateLifecycleState("instance1", Exchange::ILifecycleManager::ACTIVE);
-    
-    LifecycleDelegate::LifecycleStateInfo info = registry.GetLifecycleStateInfo("instance1");
-    
-    // Previous state should now be INITIALIZING, current should be ACTIVE
-    EXPECT_EQ(Exchange::ILifecycleManager::INITIALIZING, info.previousState);
-    EXPECT_EQ(Exchange::ILifecycleManager::ACTIVE, info.currentState);
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_158_LifecycleStateRegistry_IsAppLifecycleActive)
-{
-    LifecycleDelegate::LifecycleStateRegistry registry;
-    
-    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::INITIALIZING, Exchange::ILifecycleManager::ACTIVE);
-    registry.AddLifecycleState("instance2", Exchange::ILifecycleManager::ACTIVE, Exchange::ILifecycleManager::PAUSED);
-    
-    EXPECT_TRUE(registry.IsAppLifecycleActive("instance1"));
-    EXPECT_FALSE(registry.IsAppLifecycleActive("instance2"));
-    EXPECT_FALSE(registry.IsAppLifecycleActive("nonexistent"));
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_159_LifecycleStateRegistry_GetNonExistent)
-{
-    LifecycleDelegate::LifecycleStateRegistry registry;
-    
-    // Non-existent app should return default state (UNLOADED, UNLOADED)
-    LifecycleDelegate::LifecycleStateInfo info = registry.GetLifecycleStateInfo("nonexistent");
-    
-    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.previousState);
-    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.currentState);
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_160_LifecycleStateRegistry_Remove)
-{
-    LifecycleDelegate::LifecycleStateRegistry registry;
-    
-    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::UNLOADED, Exchange::ILifecycleManager::ACTIVE);
-    EXPECT_TRUE(registry.IsAppLifecycleActive("instance1"));
-    
-    registry.RemoveLifecycleStateInfo("instance1");
-    
-    // After removal, should return default (UNLOADED, UNLOADED)
-    LifecycleDelegate::LifecycleStateInfo info = registry.GetLifecycleStateInfo("instance1");
-    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.previousState);
-    EXPECT_EQ(Exchange::ILifecycleManager::UNLOADED, info.currentState);
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_161_LifecycleStateRegistry_GetLifecycle1StateJson)
-{
-    LifecycleDelegate::LifecycleStateRegistry registry;
-    
-    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::INITIALIZING, Exchange::ILifecycleManager::ACTIVE);
-    
-    string jsonState = registry.GetLifecycle1StateJson("instance1");
-    
-    JsonObject parsed;
-    ASSERT_TRUE(parsed.FromString(jsonState));
-    
-    // INITIALIZING maps to "initializing", ACTIVE maps to "foreground"
-    EXPECT_EQ("initializing", parsed["previous"].String());
-    EXPECT_EQ("foreground", parsed["state"].String());
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_162_LifecycleStateRegistry_GetLifecycle2StateJson)
-{
-    LifecycleDelegate::LifecycleStateRegistry registry;
-    
-    registry.AddLifecycleState("instance1", Exchange::ILifecycleManager::INITIALIZING, Exchange::ILifecycleManager::ACTIVE);
-    
-    string jsonState = registry.GetLifecycle2StateJson("instance1");
-    
-    JsonObject parsed;
-    ASSERT_TRUE(parsed.FromString(jsonState));
-    
-    EXPECT_EQ("initializing", parsed["oldState"].String());
-    EXPECT_EQ("active", parsed["newState"].String());
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_163_LifecycleStateRegistry_GetLifecycle1StateJson_NonExistent)
-{
-    LifecycleDelegate::LifecycleStateRegistry registry;
-    
-    string jsonState = registry.GetLifecycle1StateJson("nonexistent");
-    
-    EXPECT_EQ("{}", jsonState);
-}
-
-TEST(LifecycleDelegateInnerClassTest, AGC_L1_164_LifecycleStateRegistry_GetLifecycle2StateJson_NonExistent)
-{
-    LifecycleDelegate::LifecycleStateRegistry registry;
-    
-    string jsonState = registry.GetLifecycle2StateJson("nonexistent");
-    
-    EXPECT_EQ("{}", jsonState);
-}
-
-// ============================================================================
-// APPGATEWAYCOMMON.H - Information() method
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_165_Information_ReturnsEmptyString)
-{
-    // Information() method should return an empty string
-    string info = plugin.Information();
-    EXPECT_EQ("", info);
-}
-
-// ============================================================================
-// APPGATEWAYCOMMON.H - EventRegistrationJob inner class
-// ============================================================================
-
-// Mock emitter for testing EventRegistrationJob
-class MockEmitter : public Exchange::IAppNotificationHandler::IEmitter {
-public:
-    MockEmitter() : mRefCount(1) {}
-    
-    void Emit(const string& event, const string& payload, const string& appId) override {
-        mLastEvent = event;
-        mLastPayload = payload;
-        mLastAppId = appId;
-    }
-    
-    void AddRef() const override {
-        ++mRefCount;
-    }
-    
-    uint32_t Release() const override {
-        if (--mRefCount == 0) {
-            delete this;
-            return Core::ERROR_DESTRUCTION_SUCCEEDED;
-        }
-        return Core::ERROR_NONE;
-    }
-    
-    BEGIN_INTERFACE_MAP(MockEmitter)
-    INTERFACE_ENTRY(Exchange::IAppNotificationHandler::IEmitter)
-    END_INTERFACE_MAP
-    
-    string mLastEvent;
-    string mLastPayload;
-    string mLastAppId;
-    mutable uint32_t mRefCount;
-};
-
-TEST_F(AppGatewayCommonTest, AGC_L1_166_EventRegistrationJob_Create)
-{
-    MockEmitter* emitter = new MockEmitter();
-    
-    // Create an EventRegistrationJob
-    Core::ProxyType<Core::IDispatch> job = AppGatewayCommon::EventRegistrationJob::Create(
-        &plugin, emitter, "test.event", true);
-    
-    EXPECT_TRUE(job.IsValid());
-    
-    // The emitter should have been AddRef'd by the job
-    EXPECT_EQ(2u, emitter->mRefCount);
-    
-    // Release the job - this should release the emitter reference
-    job.Release();
-    
-    // Clean up the emitter
-    emitter->Release();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_167_EventRegistrationJob_CreateWithNullCallback)
-{
-    // Create an EventRegistrationJob with null callback
-    Core::ProxyType<Core::IDispatch> job = AppGatewayCommon::EventRegistrationJob::Create(
-        &plugin, nullptr, "test.event", false);
-    
-    EXPECT_TRUE(job.IsValid());
-    
-    // Release the job
-    job.Release();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_168_EventRegistrationJob_Dispatch_WithDelegate)
-{
-    // Initialize the plugin first so mDelegate is set
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .Times(AnyNumber())
-        .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(1);
-    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
-
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    MockEmitter* emitter = new MockEmitter();
-    
-    Core::ProxyType<Core::IDispatch> job = AppGatewayCommon::EventRegistrationJob::Create(
-        &plugin, emitter, "localization.onlanguagechanged", true);
-    
-    EXPECT_TRUE(job.IsValid());
-    
-    // Dispatch should call HandleAppEventNotifier on the delegate
-    // This will exercise the Dispatch method
-    job->Dispatch();
-    
-    // Wait for async job to complete before cleanup
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    job.Release();
-    emitter->Release();
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_169_EventRegistrationJob_Dispatch_UnsubscribeListen)
-{
-    // Initialize the plugin first so mDelegate is set
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .Times(AnyNumber())
-        .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(1);
-    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
-
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    MockEmitter* emitter = new MockEmitter();
-    
-    // Test with listen=false (unsubscribe)
-    Core::ProxyType<Core::IDispatch> job = AppGatewayCommon::EventRegistrationJob::Create(
-        &plugin, emitter, "localization.onlanguagechanged", false);
-    
-    EXPECT_TRUE(job.IsValid());
-    
-    job->Dispatch();
-    
-    job.Release();
-    emitter->Release();
-    
-    plugin.Deinitialize(&service);
-}
-
-// ============================================================================
-// APPGATEWAYCOMMON.H - QueryInterface (via INTERFACE_MAP macros)
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_170_QueryInterface_IPlugin)
-{
-    void* result = plugin.QueryInterface(PluginHost::IPlugin::ID);
-    EXPECT_NE(nullptr, result);
-    if (result) {
-        static_cast<PluginHost::IPlugin*>(result)->Release();
-    }
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_171_QueryInterface_IAppGatewayRequestHandler)
-{
-    void* result = plugin.QueryInterface(Exchange::IAppGatewayRequestHandler::ID);
-    EXPECT_NE(nullptr, result);
-    if (result) {
-        static_cast<Exchange::IAppGatewayRequestHandler*>(result)->Release();
-    }
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_172_QueryInterface_IAppNotificationHandler)
-{
-    void* result = plugin.QueryInterface(Exchange::IAppNotificationHandler::ID);
-    EXPECT_NE(nullptr, result);
-    if (result) {
-        static_cast<Exchange::IAppNotificationHandler*>(result)->Release();
-    }
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_173_QueryInterface_IAppGatewayAuthenticator)
-{
-    void* result = plugin.QueryInterface(Exchange::IAppGatewayAuthenticator::ID);
-    EXPECT_NE(nullptr, result);
-    if (result) {
-        static_cast<Exchange::IAppGatewayAuthenticator*>(result)->Release();
-    }
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_174_QueryInterface_UnknownInterface)
-{
-    // Query for an unknown interface ID should return nullptr
-    void* result = plugin.QueryInterface(0xDEADBEEF);
-    EXPECT_EQ(nullptr, result);
-}
-
-// ============================================================================
-// APPGATEWAYCOMMON.CPP - Deactivated() method
-// ============================================================================
-
-// Mock IRemoteConnection for testing Deactivated
-class MockRemoteConnection : public RPC::IRemoteConnection {
-public:
-    MockRemoteConnection(uint32_t id) : mId(id), mRefCount(1) {}
-    
-    uint32_t Id() const override { return mId; }
-    uint32_t RemoteId() const override { return 0; }
-    void* Acquire(const uint32_t waitTime, const string& className, const uint32_t interfaceId, const uint32_t version) override {
-        (void)waitTime; (void)className; (void)interfaceId; (void)version;
-        return nullptr;
-    }
-    void Terminate() override {}
-    uint32_t Launch() override { return Core::ERROR_NONE; }
-    void PostMortem() override {}
-    
-    void AddRef() const override { ++mRefCount; }
-    uint32_t Release() const override {
-        if (--mRefCount == 0) {
-            delete this;
-            return Core::ERROR_DESTRUCTION_SUCCEEDED;
-        }
-        return Core::ERROR_NONE;
-    }
-    
-    BEGIN_INTERFACE_MAP(MockRemoteConnection)
-    INTERFACE_ENTRY(RPC::IRemoteConnection)
-    END_INTERFACE_MAP
-    
-private:
-    uint32_t mId;
-    mutable uint32_t mRefCount;
-};
-
-TEST_F(AppGatewayCommonTest, AGC_L1_175_Deactivated_MatchingConnectionId)
-{
-    // Initialize the plugin first to set up mShell (required by Deactivated's ASSERT)
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .Times(AnyNumber())
-        .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string response = plugin.Initialize(&service);
-    EXPECT_TRUE(response.empty());
-    
-    // Set the plugin's mConnectionId to a known value
-    plugin.mConnectionId = 12345;
-    
-    // Create a mock connection with the same ID
-    MockRemoteConnection* connection = new MockRemoteConnection(12345);
-    
-    // Call Deactivated - this should trigger the deactivation logic
-    // which submits a job to the worker pool
-    plugin.Deactivated(connection);
-    
-    // Give time for the async job to potentially execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    
-    connection->Release();
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_176_Deactivated_DifferentConnectionId)
-{
-    // Set the plugin's mConnectionId to a known value
-    plugin.mConnectionId = 12345;
-    
-    // Create a mock connection with a different ID
-    MockRemoteConnection* connection = new MockRemoteConnection(99999);
-    
-    // Call Deactivated with non-matching ID - should not trigger deactivation
-    plugin.Deactivated(connection);
-    
-    connection->Release();
-}
-
-// ============================================================================
-// APPGATEWAYCOMMON.CPP - HandleAppEventNotifier() method
-// ============================================================================
-
-// Note: These tests verify that HandleAppEventNotifier submits an EventRegistrationJob
-// to the worker pool. The job's Dispatch() method accesses mDelegate, which is set up
-// during Initialize(). Tests that don't initialize the plugin will cause segfaults
-// when the async job runs. We initialize the plugin to avoid this.
-
-TEST_F(AppGatewayCommonTest, AGC_L1_177_HandleAppEventNotifier_Subscribe)
-{
-    // Initialize the plugin first to set up mDelegate
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .Times(AnyNumber())
-        .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string response = plugin.Initialize(&service);
-    EXPECT_TRUE(response.empty());
-    
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    
-    // Test subscribing to an event
-    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "localization.onlanguagechanged", true, status);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(status);
-    
-    // Give time for the async job to execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    emitter->Release();
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_178_HandleAppEventNotifier_Unsubscribe)
-{
-    // Initialize the plugin first to set up mDelegate
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .Times(AnyNumber())
-        .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string response = plugin.Initialize(&service);
-    EXPECT_TRUE(response.empty());
-    
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    
-    // Test unsubscribing from an event
-    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "localization.onlanguagechanged", false, status);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(status);
-    
-    // Give time for the async job to execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    emitter->Release();
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_179_HandleAppEventNotifier_NullEmitter)
-{
-    // Initialize the plugin first to set up mDelegate
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .Times(AnyNumber())
-        .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string response = plugin.Initialize(&service);
-    EXPECT_TRUE(response.empty());
-    
-    bool status = false;
-    
-    // Test with null emitter
-    Core::hresult rc = plugin.HandleAppEventNotifier(nullptr, "test.event", true, status);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(status);
-    
-    // Give time for the async job to execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_180_HandleAppEventNotifier_MultipleEvents)
-{
-    // Initialize the plugin first to set up mDelegate
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .Times(AnyNumber())
-        .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string response = plugin.Initialize(&service);
-    EXPECT_TRUE(response.empty());
-    
-    MockEmitter* emitter1 = new MockEmitter();
-    MockEmitter* emitter2 = new MockEmitter();
-    bool status1 = false;
-    bool status2 = false;
-    
-    // Subscribe to multiple events
-    Core::hresult rc1 = plugin.HandleAppEventNotifier(emitter1, "localization.onlanguagechanged", true, status1);
-    Core::hresult rc2 = plugin.HandleAppEventNotifier(emitter2, "accessibility.onvoiceguidancesettingschanged", true, status2);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc1);
-    EXPECT_EQ(Core::ERROR_NONE, rc2);
-    EXPECT_TRUE(status1);
-    EXPECT_TRUE(status2);
-    
-    // Give time for the async jobs to execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    emitter1->Release();
-    emitter2->Release();
-    plugin.Deinitialize(&service);
-}
-
-// ============================================================================
-// USERSETTINGSDELEGATE - Tests with mocked IUserSettings COM interface
-// ============================================================================
 
 TEST_F(AppGatewayCommonTest, AGC_L1_181_UserSettings_GetVoiceGuidance_Success)
 {
@@ -2872,489 +1834,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_197_UserSettings_GetVoiceGuidanceHints_Succe
     delete mockUserSettings;
 }
 
-// ============================================================================
-// NETWORKDELEGATE - Tests with mocked INetworkManager COM interface
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_198_Network_GetNetworkConnected_HasInterface)
-{
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    
-    EXPECT_CALL(*mockNetworkManager, GetPrimaryInterface(_))
-        .WillOnce([](string& iface) {
-            iface = "eth0";
-            return Core::ERROR_NONE;
-        });
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_EQ("true", result);
-    
-    plugin.Deinitialize(&service);
-    delete mockNetworkManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_199_Network_GetNetworkConnected_NoInterface)
-{
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    
-    EXPECT_CALL(*mockNetworkManager, GetPrimaryInterface(_))
-        .WillOnce([](string& iface) {
-            iface = "";  // Empty means not connected
-            return Core::ERROR_NONE;
-        });
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_EQ("false", result);
-    
-    plugin.Deinitialize(&service);
-    delete mockNetworkManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_200_Network_GetInternetConnectionStatus_Ethernet)
-{
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    NiceMock<Exchange::MockInterfaceDetailsIterator>* mockIterator = new NiceMock<Exchange::MockInterfaceDetailsIterator>();
-    
-    // Set up iterator to return one connected ethernet interface
-    EXPECT_CALL(*mockIterator, Next(_))
-        .WillOnce([](Exchange::INetworkManager::InterfaceDetails& iface) {
-            iface.type = Exchange::INetworkManager::INTERFACE_TYPE_ETHERNET;
-            iface.name = "eth0";
-            iface.connected = true;
-            return true;
-        })
-        .WillRepeatedly(Return(false));
-    
-    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
-        .WillOnce([mockIterator](Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces) {
-            mockIterator->AddRef();
-            interfaces = mockIterator;
-            return Core::ERROR_NONE;
-        });
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(result.find("\"type\":\"ethernet\"") != string::npos);
-    EXPECT_TRUE(result.find("\"state\":\"connected\"") != string::npos);
-    
-    plugin.Deinitialize(&service);
-    delete mockIterator;
-    delete mockNetworkManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_201_Network_GetInternetConnectionStatus_WiFi)
-{
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    NiceMock<Exchange::MockInterfaceDetailsIterator>* mockIterator = new NiceMock<Exchange::MockInterfaceDetailsIterator>();
-    
-    EXPECT_CALL(*mockIterator, Next(_))
-        .WillOnce([](Exchange::INetworkManager::InterfaceDetails& iface) {
-            iface.type = Exchange::INetworkManager::INTERFACE_TYPE_WIFI;
-            iface.name = "wlan0";
-            iface.connected = true;
-            return true;
-        })
-        .WillRepeatedly(Return(false));
-    
-    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
-        .WillOnce([mockIterator](Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces) {
-            mockIterator->AddRef();
-            interfaces = mockIterator;
-            return Core::ERROR_NONE;
-        });
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(result.find("\"type\":\"wifi\"") != string::npos);
-    EXPECT_TRUE(result.find("\"state\":\"connected\"") != string::npos);
-    
-    plugin.Deinitialize(&service);
-    delete mockIterator;
-    delete mockNetworkManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_202_Network_GetInternetConnectionStatus_NoConnectedInterface)
-{
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    NiceMock<Exchange::MockInterfaceDetailsIterator>* mockIterator = new NiceMock<Exchange::MockInterfaceDetailsIterator>();
-    
-    // No connected interfaces
-    EXPECT_CALL(*mockIterator, Next(_))
-        .WillOnce([](Exchange::INetworkManager::InterfaceDetails& iface) {
-            iface.type = Exchange::INetworkManager::INTERFACE_TYPE_ETHERNET;
-            iface.name = "eth0";
-            iface.connected = false;  // Not connected
-            return true;
-        })
-        .WillRepeatedly(Return(false));
-    
-    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
-        .WillOnce([mockIterator](Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces) {
-            mockIterator->AddRef();
-            interfaces = mockIterator;
-            return Core::ERROR_NONE;
-        });
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_EQ("{}", result);  // Empty object when no connected interface
-    
-    plugin.Deinitialize(&service);
-    delete mockIterator;
-    delete mockNetworkManager;
-}
-
-// ============================================================================
-// APPDELEGATE - Tests with mocked ISharedStorage COM interface
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_203_App_GetDeviceUID_ExistingValue)
-{
-    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
-    
-    // GetValue returns success with existing UID
-    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
-        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string& key, string& value, uint32_t& ttl, bool& success) {
-            if (key == "fireboltDeviceUid") {
-                value = "existing-uid-12345";
-                ttl = 0;
-                success = true;
-                return Core::ERROR_NONE;
-            }
-            return Core::ERROR_GENERAL;
-        });
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.SharedStorage") {
-                mockSharedStorage->AddRef();
-                return static_cast<void*>(mockSharedStorage);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.uid", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_EQ("existing-uid-12345", result);
-    
-    plugin.Deinitialize(&service);
-    delete mockSharedStorage;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_204_App_GetDeviceUID_NewValue)
-{
-    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
-    
-    // GetValue returns error (no existing value), then SetValue is called
-    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
-        .WillOnce(Return(Core::ERROR_GENERAL));  // No existing value
-    
-    EXPECT_CALL(*mockSharedStorage, SetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
-        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string&, const string&, uint32_t, Exchange::ISharedStorage::Success& success) {
-            success.success = true;
-            return Core::ERROR_NONE;
-        });
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.SharedStorage") {
-                mockSharedStorage->AddRef();
-                return static_cast<void*>(mockSharedStorage);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.uid", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    // Result should be a UUID (36 chars with hyphens)
-    EXPECT_EQ(36u, result.length());
-    
-    plugin.Deinitialize(&service);
-    delete mockSharedStorage;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_205_App_GetAdvertisingId_ExistingValue)
-{
-    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
-    
-    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
-        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string& key, string& value, uint32_t& ttl, bool& success) {
-            if (key == "fireboltAdvertisingId") {
-                value = "ad-id-12345";
-                ttl = 0;
-                success = true;
-                return Core::ERROR_NONE;
-            }
-            return Core::ERROR_GENERAL;
-        });
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.SharedStorage") {
-                mockSharedStorage->AddRef();
-                return static_cast<void*>(mockSharedStorage);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "advertising.advertisingid", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(result.find("\"ifa\":\"ad-id-12345\"") != string::npos);
-    EXPECT_TRUE(result.find("\"ifa_type\":\"sessionid\"") != string::npos);
-    
-    plugin.Deinitialize(&service);
-    delete mockSharedStorage;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_206_App_GetAdvertisingId_NewValue)
-{
-    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
-    
-    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
-        .WillOnce(Return(Core::ERROR_GENERAL));  // No existing value
-    
-    EXPECT_CALL(*mockSharedStorage, SetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
-        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string&, const string&, uint32_t, Exchange::ISharedStorage::Success& success) {
-            success.success = true;
-            return Core::ERROR_NONE;
-        });
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.SharedStorage") {
-                mockSharedStorage->AddRef();
-                return static_cast<void*>(mockSharedStorage);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "advertising.advertisingid", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(result.find("\"ifa\":") != string::npos);
-    EXPECT_TRUE(result.find("\"ifa_type\":\"sessionid\"") != string::npos);
-    
-    plugin.Deinitialize(&service);
-    delete mockSharedStorage;
-}
-
-// ============================================================================
-// TTSDELEGATE - Tests with mocked ITextToSpeech COM interface
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_207_TTS_HandleSubscription_Subscribe)
-{
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    
-    EXPECT_CALL(*mockTTS, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    
-    // Subscribe to a TTS event
-    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onVoiceChanged", true, status);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(status);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    emitter->Release();
-    plugin.Deinitialize(&service);
-    delete mockTTS;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_208_TTS_HandleSubscription_Unsubscribe)
-{
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    
-    // Unsubscribe from a TTS event
-    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechComplete", false, status);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(status);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    emitter->Release();
-    plugin.Deinitialize(&service);
-    delete mockTTS;
-}
-
-// ============================================================================
-// USERSETTINGSDELEGATE - Additional error path tests
-// ============================================================================
-
 TEST_F(AppGatewayCommonTest, AGC_L1_209_UserSettings_GetVoiceGuidance_COMError)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -3421,90 +1900,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_210_UserSettings_SetVoiceGuidance_COMError)
     plugin.Deinitialize(&service);
     delete mockUserSettings;
 }
-
-// ============================================================================
-// NETWORKDELEGATE - Event subscription tests
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_211_Network_HandleSubscription_Subscribe)
-{
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    
-    EXPECT_CALL(*mockNetworkManager, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    
-    // Subscribe to a network event
-    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", true, status);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(status);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    emitter->Release();
-    plugin.Deinitialize(&service);
-    delete mockNetworkManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_212_Network_HandleSubscription_NetworkConnectedChanged)
-{
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    
-    EXPECT_CALL(*mockNetworkManager, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    
-    // Subscribe to network.onconnectedchanged event
-    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "network.onconnectedchanged", true, status);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(status);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    emitter->Release();
-    plugin.Deinitialize(&service);
-    delete mockNetworkManager;
-}
-
-// ============================================================================
-// USERSETTINGSDELEGATE - Event subscription tests
-// ============================================================================
 
 TEST_F(AppGatewayCommonTest, AGC_L1_213_UserSettings_HandleSubscription_LocalizationEvents)
 {
@@ -3620,585 +2015,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_215_UserSettings_HandleSubscription_ClosedCa
     delete mockUserSettings;
 }
 
-// ============================================================================
-// APPDELEGATE - Error handling tests
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_216_App_GetDeviceUID_SetValueFails)
-{
-    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
-    
-    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
-        .WillOnce(Return(Core::ERROR_GENERAL));  // No existing value
-    
-    EXPECT_CALL(*mockSharedStorage, SetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
-        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string&, const string&, uint32_t, Exchange::ISharedStorage::Success& success) {
-            success.success = false;  // SetValue fails
-            return Core::ERROR_NONE;
-        });
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.SharedStorage") {
-                mockSharedStorage->AddRef();
-                return static_cast<void*>(mockSharedStorage);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.uid", "{}", result);
-    
-    // When SetValue fails, the code returns ERROR_GENERAL and populates result with error message
-    EXPECT_EQ(Core::ERROR_GENERAL, rc);
-    // The error message is a JSON-RPC formatted error with "code" and "Text" fields
-    EXPECT_TRUE(result.find("Failed to set") != string::npos || result.find("code") != string::npos);
-    
-    plugin.Deinitialize(&service);
-    delete mockSharedStorage;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_217_App_GetAdvertisingId_SetValueFails)
-{
-    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
-    
-    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
-        .WillOnce(Return(Core::ERROR_GENERAL));  // No existing value
-    
-    EXPECT_CALL(*mockSharedStorage, SetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
-        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string&, const string&, uint32_t, Exchange::ISharedStorage::Success& success) {
-            success.success = false;  // SetValue fails
-            return Core::ERROR_NONE;
-        });
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.SharedStorage") {
-                mockSharedStorage->AddRef();
-                return static_cast<void*>(mockSharedStorage);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "advertising.advertisingid", "{}", result);
-    
-    // When SetValue fails, the code returns ERROR_GENERAL and populates result with error message
-    EXPECT_EQ(Core::ERROR_GENERAL, rc);
-    // The error message is a JSON-RPC formatted error with "code" and "Text" fields
-    EXPECT_TRUE(result.find("Failed to set") != string::npos || result.find("code") != string::npos);
-    
-    plugin.Deinitialize(&service);
-    delete mockSharedStorage;
-}
-
-// ============================================================================
-// NETWORKDELEGATE - GetPrimaryInterface error handling
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_218_Network_GetNetworkConnected_COMError)
-{
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    
-    EXPECT_CALL(*mockNetworkManager, GetPrimaryInterface(_))
-        .WillOnce(Return(Core::ERROR_GENERAL));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_GENERAL, rc);
-    // ErrorUtils::CustomInternal returns a JSONRPC error message containing the custom text
-    EXPECT_TRUE(result.find("Failed to get NetworkInfo") != string::npos);
-    
-    plugin.Deinitialize(&service);
-    delete mockNetworkManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_219_Network_GetAvailableInterfaces_COMError)
-{
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    
-    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
-        .WillOnce(Return(Core::ERROR_GENERAL));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_GENERAL, rc);
-    EXPECT_TRUE(result.find("error") != string::npos);
-    
-    plugin.Deinitialize(&service);
-    delete mockNetworkManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_312_Network_GetInternetConnectionStatus_NullIterator)
-{
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    
-    // Return success but with null iterator
-    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
-        .WillOnce([](Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces) {
-            interfaces = nullptr;
-            return Core::ERROR_NONE;
-        });
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_EQ("{}", result);  // Empty object when iterator is null
-    
-    plugin.Deinitialize(&service);
-    delete mockNetworkManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_313_Network_GetInternetConnectionStatus_UnknownInterfaceType)
-{
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    NiceMock<Exchange::MockInterfaceDetailsIterator>* mockIterator = new NiceMock<Exchange::MockInterfaceDetailsIterator>();
-    
-    // Return an interface with unknown type
-    EXPECT_CALL(*mockIterator, Next(_))
-        .WillOnce([](Exchange::INetworkManager::InterfaceDetails& iface) {
-            iface.type = static_cast<Exchange::INetworkManager::InterfaceType>(99);  // Unknown type
-            iface.name = "unknown0";
-            iface.connected = true;
-            return true;
-        })
-        .WillRepeatedly(Return(false));
-    
-    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
-        .WillOnce([mockIterator](Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces) {
-            mockIterator->AddRef();
-            interfaces = mockIterator;
-            return Core::ERROR_NONE;
-        });
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(result.find("\"type\":\"unknown\"") != string::npos);
-    EXPECT_TRUE(result.find("\"state\":\"connected\"") != string::npos);
-    
-    plugin.Deinitialize(&service);
-    delete mockIterator;
-    delete mockNetworkManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_314_Network_HandleEvent_UnrecognizedEvent)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    
-    // Try to subscribe to an unrecognized network event
-    // Note: HandleAppEventNotifier submits an async job and always sets status=true synchronously
-    // The actual event validation happens asynchronously in the worker pool
-    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "network.unrecognizedevent", true, status);
-    
-    // The synchronous call always returns success and sets status=true
-    // Event validation happens asynchronously
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(status);
-    
-    // Wait for the async job to complete before cleanup to avoid segfault
-    // Use longer delay for CI environments which may be slower
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    emitter->Release();
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_315_Network_HandleSubscription_Unsubscribe)
-{
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    
-    EXPECT_CALL(*mockNetworkManager, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    
-    // Subscribe to a network event
-    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", true, status);
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(status);
-    
-    // Now unsubscribe
-    rc = plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", false, status);
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(status);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    emitter->Release();
-    plugin.Deinitialize(&service);
-    delete mockNetworkManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_316_Network_HandleSubscription_AlreadyRegistered)
-{
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    
-    EXPECT_CALL(*mockNetworkManager, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));  // Only called once
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    MockEmitter* emitter1 = new MockEmitter();
-    MockEmitter* emitter2 = new MockEmitter();
-    bool status = false;
-    
-    // First subscription - should register
-    Core::hresult rc = plugin.HandleAppEventNotifier(emitter1, "device.onnetworkchanged", true, status);
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(status);
-    
-    // Second subscription - should NOT register again (already registered)
-    rc = plugin.HandleAppEventNotifier(emitter2, "network.onconnectedchanged", true, status);
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(status);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    emitter1->Release();
-    emitter2->Release();
-    plugin.Deinitialize(&service);
-    delete mockNetworkManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_317_Network_GetNetworkConnected_NullNetworkManager)
-{
-    // Don't inject NetworkManager - should return error
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_TRUE(result.find("error") != string::npos);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_318_Network_GetInternetConnectionStatus_NullNetworkManager)
-{
-    // Don't inject NetworkManager - should return error
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_TRUE(result.find("error") != string::npos);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_319_Network_HandleSubscription_NoNetworkManager)
-{
-    // Test the error path in HandleSubscription when NetworkManager is not available
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    // Access the NetworkDelegate and call HandleSubscription directly
-    // This tests line 75-76 when networkManager is nullptr
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    
-    // Try to subscribe to a valid network event - should fail because NetworkManager is null
-    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", true, status);
-    
-    // The async job will fail, but the synchronous call returns success
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    
-    // Wait for async job to complete before cleanup
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    emitter->Release();
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_320_Network_NotificationHandler_OnInterfaceStateChange)
-{
-    // Test the notification callback methods in NetworkNotificationHandler
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    // Allow leak since mock lifecycle is managed by COM reference counting, not gtest
-    testing::Mock::AllowLeak(mockNetworkManager);
-    
-    EXPECT_CALL(*mockNetworkManager, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockNetworkManager, Unregister(_))
-        .WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    // Subscribe to a network event to trigger registration
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", true, status);
-    
-    // Give the async job time to complete
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    // Access mDelegate through plugin, then get NetworkDelegate
-    auto networkDelegate = plugin.mDelegate->getNetworkDelegate();
-    if (networkDelegate) {
-        // Access the notification handler through the NetworkDelegate
-        auto& handler = networkDelegate->mNotificationHandler;
-        
-        // Test onInterfaceStateChange
-        handler.onInterfaceStateChange(Exchange::INetworkManager::INTERFACE_LINK_UP, "eth0");
-        
-        // Test onActiveInterfaceChange  
-        handler.onActiveInterfaceChange("", "eth0");
-        
-        // Test onIPAddressChange
-        handler.onIPAddressChange("eth0", "ipv4", "192.168.1.100", Exchange::INetworkManager::IP_ACQUIRED);
-        
-        // Test onAvailableSSIDs
-        handler.onAvailableSSIDs("{\"ssids\":[]}");
-        
-        // Test onWiFiStateChange
-        handler.onWiFiStateChange(Exchange::INetworkManager::WIFI_STATE_CONNECTED);
-        
-        // Test onWiFiSignalQualityChange
-        handler.onWiFiSignalQualityChange("TestSSID", "80", "10", "70", Exchange::INetworkManager::WIFI_SIGNAL_EXCELLENT);
-    }
-    
-    emitter->Release();
-    plugin.Deinitialize(&service);
-    // Note: mockNetworkManager is cleaned up via Release() calls from the delegate
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_321_Network_NotificationHandler_OnInternetStatusChange)
-{
-    // Test onInternetStatusChange notification callback
-    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
-    // Allow leak since mock lifecycle is managed by COM reference counting, not gtest
-    testing::Mock::AllowLeak(mockNetworkManager);
-    
-    EXPECT_CALL(*mockNetworkManager, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockNetworkManager, Unregister(_))
-        .WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.NetworkManager") {
-                mockNetworkManager->AddRef();
-                return static_cast<void*>(mockNetworkManager);
-            }
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    // Subscribe to get the handler registered
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    auto networkDelegate = plugin.mDelegate->getNetworkDelegate();
-    if (networkDelegate) {
-        auto& handler = networkDelegate->mNotificationHandler;
-        
-        // Test all internet status combinations
-        handler.onInternetStatusChange(
-            Exchange::INetworkManager::INTERNET_NOT_AVAILABLE,
-            Exchange::INetworkManager::INTERNET_FULLY_CONNECTED,
-            "eth0");
-        
-        handler.onInternetStatusChange(
-            Exchange::INetworkManager::INTERNET_FULLY_CONNECTED,
-            Exchange::INetworkManager::INTERNET_CAPTIVE_PORTAL,
-            "wlan0");
-        
-        handler.onInternetStatusChange(
-            Exchange::INetworkManager::INTERNET_CAPTIVE_PORTAL,
-            Exchange::INetworkManager::INTERNET_LIMITED,
-            "eth0");
-        
-        handler.onInternetStatusChange(
-            Exchange::INetworkManager::INTERNET_LIMITED,
-            Exchange::INetworkManager::INTERNET_NOT_AVAILABLE,
-            "eth0");
-        
-        // Test with default/unknown status
-        handler.onInternetStatusChange(
-            static_cast<Exchange::INetworkManager::InternetStatus>(99),
-            static_cast<Exchange::INetworkManager::InternetStatus>(100),
-            "eth0");
-    }
-    
-    emitter->Release();
-    plugin.Deinitialize(&service);
-    // Note: mockNetworkManager is cleaned up via Release() calls from the delegate
-}
-
-// ============================================================================
-// USERSETTINGSDELEGATE - Additional method tests
-// ============================================================================
-
 TEST_F(AppGatewayCommonTest, AGC_L1_220_UserSettings_GetAudioDescriptionSettings_Success)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4235,10 +2051,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_220_UserSettings_GetAudioDescriptionSettings
     plugin.Deinitialize(&service);
     delete mockUserSettings;
 }
-
-// ============================================================================
-// Additional UserSettingsDelegate tests for improved coverage
-// ============================================================================
 
 TEST_F(AppGatewayCommonTest, AGC_L1_221_UserSettings_GetPreferredAudioLanguages_Success)
 {
@@ -4349,8 +2161,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_223_UserSettings_GetHighContrast_Success)
     delete mockUserSettings;
 }
 
-// Note: AGC_L1_224 and AGC_L1_226 removed - no set methods for highcontrast and setlanguage in AppGatewayCommon
-
 TEST_F(AppGatewayCommonTest, AGC_L1_225_UserSettings_GetPresentationLanguage_Success)
 {
     NiceMock<Exchange::MockIUserSettings>* mockUserSettings = new NiceMock<Exchange::MockIUserSettings>();
@@ -4387,8 +2197,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_225_UserSettings_GetPresentationLanguage_Suc
     plugin.Deinitialize(&service);
     delete mockUserSettings;
 }
-
-// AGC_L1_226 removed - no localization.setlanguage method in AppGatewayCommon
 
 TEST_F(AppGatewayCommonTest, AGC_L1_227_UserSettings_GetCaptions_Success)
 {
@@ -4528,1584 +2336,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_230_UserSettings_SetVoiceGuidanceRate_Succes
     
     plugin.Deinitialize(&service);
     delete mockUserSettings;
-}
-
-// AGC_L1_231 removed - no voiceguidance.hints method in AppGatewayCommon
-
-// ============================================================================
-// LifecycleDelegate Tests with Mocked ILifecycleManagerState
-// These tests directly manipulate the LifecycleDelegate to inject mocked interfaces
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_232_LifecycleClose_UserExit_Success)
-{
-    // Create mock for ILifecycleManagerState
-    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
-    
-    // Expect CloseApp to be called with USER_EXIT reason
-    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::USER_EXIT))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    // Directly inject the mock into the LifecycleDelegate
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.close", R"({"reason":"userExit"})", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    
-    // Clear the mock pointer before cleanup to avoid double-free
-    lifecycleDelegate->mLifecycleManagerState = nullptr;
-    plugin.Deinitialize(&service);
-    delete mockLifecycleManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_233_LifecycleClose_Error_Success)
-{
-    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
-    
-    // Expect CloseApp to be called with ERROR reason (non-userExit)
-    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::ERROR))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.close", R"({"reason":"error"})", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    
-    lifecycleDelegate->mLifecycleManagerState = nullptr;
-    plugin.Deinitialize(&service);
-    delete mockLifecycleManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_234_LifecycleClose_InvalidPayload_Failure)
-{
-    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    // Invalid JSON payload
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.close", "invalid json", result);
-    
-    EXPECT_EQ(Core::ERROR_GENERAL, rc);
-    
-    lifecycleDelegate->mLifecycleManagerState = nullptr;
-    plugin.Deinitialize(&service);
-    delete mockLifecycleManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_235_Lifecycle2Close_Deactivate_Success)
-{
-    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
-    
-    // deactivate maps to USER_EXIT
-    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::USER_EXIT))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"deactivate"})", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    
-    lifecycleDelegate->mLifecycleManagerState = nullptr;
-    plugin.Deinitialize(&service);
-    delete mockLifecycleManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_236_Lifecycle2Close_KillReload_Success)
-{
-    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
-    
-    // killReload maps to KILL_AND_RUN
-    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::KILL_AND_RUN))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"killReload"})", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    
-    lifecycleDelegate->mLifecycleManagerState = nullptr;
-    plugin.Deinitialize(&service);
-    delete mockLifecycleManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_237_Lifecycle2Close_KillReactivate_Success)
-{
-    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
-    
-    // killReactivate maps to KILL_AND_ACTIVATE
-    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::KILL_AND_ACTIVATE))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"killReactivate"})", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    
-    lifecycleDelegate->mLifecycleManagerState = nullptr;
-    plugin.Deinitialize(&service);
-    delete mockLifecycleManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_238_Lifecycle2Close_UnknownType_MapsToError)
-{
-    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
-    
-    // Unknown type maps to ERROR
-    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::ERROR))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"unknown"})", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    
-    lifecycleDelegate->mLifecycleManagerState = nullptr;
-    plugin.Deinitialize(&service);
-    delete mockLifecycleManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_239_Lifecycle2Close_InvalidPayload_Failure)
-{
-    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    // Invalid JSON payload
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", "not valid json", result);
-    
-    EXPECT_EQ(Core::ERROR_GENERAL, rc);
-    
-    lifecycleDelegate->mLifecycleManagerState = nullptr;
-    plugin.Deinitialize(&service);
-    delete mockLifecycleManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_240_LifecycleReady_Success)
-{
-    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
-    
-    EXPECT_CALL(*mockLifecycleManager, AppReady(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.ready", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_EQ("null", result);
-    
-    lifecycleDelegate->mLifecycleManagerState = nullptr;
-    plugin.Deinitialize(&service);
-    delete mockLifecycleManager;
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_241_LifecycleReady_NoInterface_ReturnsSuccess)
-{
-    // When mLifecycleManagerState is nullptr, LifecycleReady still returns ERROR_NONE
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    // Don't inject mock - leave mLifecycleManagerState as nullptr
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.ready", "{}", result);
-    
-    // LifecycleReady returns ERROR_NONE even when interface is null
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_242_LifecycleState_ReturnsUnloading)
-{
-    // LifecycleState returns the current state from the registry
-    // When no state is registered, it returns "unloading" (default UNLOADED state)
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    // Default state when not registered is UNLOADED which maps to "unloading" in lifecycle1
-    EXPECT_EQ("unloading", result);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_243_Lifecycle2State_ReturnsUnloaded)
-{
-    // Lifecycle2State returns the current state from the registry
-    // When no state is registered, it returns "unloaded"
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    // Default state when not registered is UNLOADED which maps to "unloaded"
-    EXPECT_EQ("unloaded", result);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_244_LifecycleFinished_Success)
-{
-    // LifecycleFinished always returns ERROR_NONE with "null" result
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.finished", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_EQ("null", result);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_245_CommonInternalDispatchIntent_Success)
-{
-    // DispatchLastIntent returns ERROR_NONE with "null" result
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.dispatchintent", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_EQ("null", result);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_246_CommonInternalGetLastIntent_ReturnsEmpty)
-{
-    // GetLastIntent returns empty when no intent is registered
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    // Empty result when no intent is registered for the app
-    EXPECT_TRUE(result.empty());
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_247_LifecycleClose_NoInterface_ReturnsError)
-{
-    // When mLifecycleManagerState is nullptr, LifecycleClose returns ERROR_GENERAL
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    // Ensure mLifecycleManagerState is nullptr
-    lifecycleDelegate->mLifecycleManagerState = nullptr;
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.close", R"({"reason":"userExit"})", result);
-    
-    EXPECT_EQ(Core::ERROR_GENERAL, rc);
-    EXPECT_TRUE(result.find("LifecycleManager") != string::npos);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_248_Lifecycle2Close_NoInterface_ReturnsError)
-{
-    // When mLifecycleManagerState is nullptr, Lifecycle2Close returns ERROR_GENERAL
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    // Ensure mLifecycleManagerState is nullptr
-    lifecycleDelegate->mLifecycleManagerState = nullptr;
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"deactivate"})", result);
-    
-    EXPECT_EQ(Core::ERROR_GENERAL, rc);
-    EXPECT_TRUE(result.find("LifecycleManager") != string::npos);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_249_Authenticate_NoAppInstanceId_ReturnsError)
-{
-    // Authenticate returns ERROR_GENERAL when no appInstanceId is registered
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    string appId;
-    const auto rc = plugin.Authenticate("unknown-session-id", appId);
-    
-    EXPECT_EQ(Core::ERROR_GENERAL, rc);
-    EXPECT_TRUE(appId.empty());
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_250_GetSessionId_NoAppId_ReturnsError)
-{
-    // GetSessionId returns ERROR_GENERAL when no appId is registered
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    string sessionId;
-    const auto rc = plugin.GetSessionId("unknown-app-id", sessionId);
-    
-    EXPECT_EQ(Core::ERROR_GENERAL, rc);
-    EXPECT_TRUE(sessionId.empty());
-    
-    plugin.Deinitialize(&service);
-}
-
-// ============================================================================
-// Additional LifecycleDelegate Tests for Notification Handlers and State Management
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_251_LifecycleDelegate_AuthenticateAndGetSessionId_WithRegisteredApp)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Directly add an app to the registry (simulating what OnAppLifecycleStateChanged does)
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("com.test.app", "instance-123");
-    
-    // Now Authenticate and GetSessionId should work
-    string appId;
-    const auto authRc = plugin.Authenticate("instance-123", appId);
-    EXPECT_EQ(Core::ERROR_NONE, authRc);
-    EXPECT_EQ("com.test.app", appId);
-    
-    string sessionId;
-    const auto sessionRc = plugin.GetSessionId("com.test.app", sessionId);
-    EXPECT_EQ(Core::ERROR_NONE, sessionRc);
-    EXPECT_EQ("instance-123", sessionId);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_252_LifecycleDelegate_LifecycleStateWithRegisteredApp)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Register app and set its lifecycle state
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-456");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-456", 
-        Exchange::ILifecycleManager::UNLOADED, 
-        Exchange::ILifecycleManager::ACTIVE);
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    // ACTIVE maps to "foreground" in lifecycle1
-    EXPECT_EQ("foreground", result);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_253_LifecycleDelegate_Lifecycle2StateWithRegisteredApp)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Register app and set its lifecycle state
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-789");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-789", 
-        Exchange::ILifecycleManager::LOADING, 
-        Exchange::ILifecycleManager::SUSPENDED);
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_EQ("suspended", result);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_254_LifecycleDelegate_NavigationIntentFlow)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Register app and navigation intent
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-nav");
-    lifecycleDelegate->mNavigationIntentRegistry.AddNavigationIntent("instance-nav", 
-        R"({"action":"navigate","data":{"uri":"https://example.com"}})");
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    // GetLastIntent should return the registered intent
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(result.find("navigate") != string::npos);
-    EXPECT_TRUE(result.find("example.com") != string::npos);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_255_LifecycleDelegate_StateConversions_Paused)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-paused");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-paused", 
-        Exchange::ILifecycleManager::ACTIVE, 
-        Exchange::ILifecycleManager::PAUSED);
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    // PAUSED maps to "inactive" in lifecycle1
-    EXPECT_EQ("inactive", result);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_256_LifecycleDelegate_StateConversions_Suspended)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-susp");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-susp", 
-        Exchange::ILifecycleManager::ACTIVE, 
-        Exchange::ILifecycleManager::SUSPENDED);
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    // SUSPENDED maps to "suspended" in lifecycle1
-    EXPECT_EQ("suspended", result);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_257_LifecycleDelegate_StateConversions_Hibernated)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-hib");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-hib", 
-        Exchange::ILifecycleManager::SUSPENDED, 
-        Exchange::ILifecycleManager::HIBERNATED);
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    // HIBERNATED maps to "suspended" in lifecycle1
-    EXPECT_EQ("suspended", result);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_258_LifecycleDelegate_StateConversions_Terminating)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-term");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-term", 
-        Exchange::ILifecycleManager::ACTIVE, 
-        Exchange::ILifecycleManager::TERMINATING);
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    // TERMINATING maps to "unloading" in lifecycle1
-    EXPECT_EQ("unloading", result);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_259_LifecycleDelegate_StateConversions_Loading)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-load");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-load", 
-        Exchange::ILifecycleManager::UNLOADED, 
-        Exchange::ILifecycleManager::LOADING);
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    // LOADING maps to "initializing" in lifecycle1
-    EXPECT_EQ("initializing", result);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_260_LifecycleDelegate_StateConversions_Initializing)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-init");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-init", 
-        Exchange::ILifecycleManager::LOADING, 
-        Exchange::ILifecycleManager::INITIALIZING);
-    
-    const auto ctx = MakeContext();
-    string result;
-    
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
-    
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    // INITIALIZING maps to "initializing" in lifecycle1
-    EXPECT_EQ("initializing", result);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_261_LifecycleDelegate_Lifecycle2StateConversions_AllStates)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Test lifecycle2.state with different states
-    struct TestCase {
-        Exchange::ILifecycleManager::LifecycleState state;
-        string expected;
-    };
-    
-    std::vector<TestCase> testCases = {
-        {Exchange::ILifecycleManager::LOADING, "loading"},
-        {Exchange::ILifecycleManager::INITIALIZING, "initializing"},
-        {Exchange::ILifecycleManager::PAUSED, "paused"},
-        {Exchange::ILifecycleManager::ACTIVE, "active"},
-        {Exchange::ILifecycleManager::SUSPENDED, "suspended"},
-        {Exchange::ILifecycleManager::HIBERNATED, "hibernated"},
-        {Exchange::ILifecycleManager::TERMINATING, "terminating"},
-    };
-    
-    for (size_t i = 0; i < testCases.size(); ++i) {
-        const auto& tc = testCases[i];
-        string instanceId = "instance-" + std::to_string(i);
-        
-        lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", instanceId);
-        lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState(instanceId, 
-            Exchange::ILifecycleManager::UNLOADED, 
-            tc.state);
-        
-        const auto ctx = MakeContext();
-        string result;
-        
-        const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
-        
-        EXPECT_EQ(Core::ERROR_NONE, rc);
-        EXPECT_EQ(tc.expected, result) << "Failed for state: " << static_cast<int>(tc.state);
-        
-        // Clean up for next iteration
-        lifecycleDelegate->mLifecycleStateRegistry.RemoveLifecycleStateInfo(instanceId);
-        lifecycleDelegate->mAppIdInstanceIdMap.RemoveAppInstanceId("test.app");
-    }
-    
-    plugin.Deinitialize(&service);
-}
-
-// ============================================================================
-// LIFECYCLE DELEGATE - HandleSubscription, HandleEvent, HandleLifecycleUpdate
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_262_LifecycleDelegate_HandleSubscription_Subscribe)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Create a mock emitter for subscription testing
-    MockEmitter* emitter = new MockEmitter();
-    
-    // Test HandleSubscription with listen=true
-    bool result = lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onForeground", true);
-    EXPECT_TRUE(result);
-    
-    // Verify notification is registered
-    EXPECT_TRUE(lifecycleDelegate->IsNotificationRegistered("Lifecycle.onForeground"));
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_263_LifecycleDelegate_HandleSubscription_Unsubscribe)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    MockEmitter* emitter = new MockEmitter();
-    
-    // First subscribe
-    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onBackground", true);
-    EXPECT_TRUE(lifecycleDelegate->IsNotificationRegistered("Lifecycle.onBackground"));
-    
-    // Then unsubscribe
-    bool result = lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onBackground", false);
-    EXPECT_TRUE(result);
-    
-    // Notification should be removed
-    EXPECT_FALSE(lifecycleDelegate->IsNotificationRegistered("Lifecycle.onBackground"));
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_264_LifecycleDelegate_HandleEvent_ValidEvent)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    MockEmitter* emitter = new MockEmitter();
-    bool registrationError = false;
-    
-    // Test HandleEvent with valid lifecycle event
-    bool handled = lifecycleDelegate->HandleEvent(emitter, "lifecycle.onforeground", true, registrationError);
-    
-    EXPECT_TRUE(handled);
-    EXPECT_FALSE(registrationError);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_265_LifecycleDelegate_HandleEvent_InvalidEvent)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    MockEmitter* emitter = new MockEmitter();
-    bool registrationError = false;
-    
-    // Test HandleEvent with invalid event (not in VALID_LIFECYCLE_EVENT)
-    bool handled = lifecycleDelegate->HandleEvent(emitter, "invalid.event", true, registrationError);
-    
-    EXPECT_FALSE(handled);
-    EXPECT_TRUE(registrationError);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_266_LifecycleDelegate_HandleLifecycleUpdate_Active)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Setup test data
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-update-1");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-update-1", 
-        Exchange::ILifecycleManager::LOADING, 
-        Exchange::ILifecycleManager::INITIALIZING);
-    
-    // Add a navigation intent to be dispatched
-    lifecycleDelegate->mNavigationIntentRegistry.AddNavigationIntent("instance-update-1", "test://intent");
-    
-    // Register emitter for lifecycle events
-    MockEmitter* emitter = new MockEmitter();
-    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle2.onStateChanged", true);
-    lifecycleDelegate->HandleSubscription(emitter, "Discovery.onNavigateTo", true);
-    
-    // Call HandleLifecycleUpdate with ACTIVE state (triggers DispatchLastKnownIntent)
-    lifecycleDelegate->HandleLifecycleUpdate("instance-update-1", 
-        Exchange::ILifecycleManager::INITIALIZING, 
-        Exchange::ILifecycleManager::ACTIVE);
-    
-    // Give time for dispatch job to execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    // Verify state was updated
-    auto stateInfo = lifecycleDelegate->mLifecycleStateRegistry.GetLifecycleStateInfo("instance-update-1");
-    EXPECT_EQ(Exchange::ILifecycleManager::ACTIVE, stateInfo.currentState);
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_267_LifecycleDelegate_HandleLifecycle1Update_Paused)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Setup test data
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-paused");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-paused", 
-        Exchange::ILifecycleManager::ACTIVE, 
-        Exchange::ILifecycleManager::PAUSED);
-    
-    // Register emitter for lifecycle events
-    MockEmitter* emitter = new MockEmitter();
-    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onInactive", true);
-    
-    // Call HandleLifecycle1Update with PAUSED state (dispatches Lifecycle.onInactive)
-    lifecycleDelegate->HandleLifecycle1Update("instance-l1-paused", 
-        Exchange::ILifecycleManager::ACTIVE, 
-        Exchange::ILifecycleManager::PAUSED);
-    
-    // Give time for dispatch job to execute
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_268_LifecycleDelegate_HandleLifecycle1Update_Suspended)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Setup test data
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-suspended");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-suspended", 
-        Exchange::ILifecycleManager::PAUSED, 
-        Exchange::ILifecycleManager::SUSPENDED);
-    
-    // Register emitter
-    MockEmitter* emitter = new MockEmitter();
-    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onSuspended", true);
-    
-    // Call HandleLifecycle1Update with SUSPENDED state
-    lifecycleDelegate->HandleLifecycle1Update("instance-l1-suspended", 
-        Exchange::ILifecycleManager::PAUSED, 
-        Exchange::ILifecycleManager::SUSPENDED);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_269_LifecycleDelegate_HandleLifecycle1Update_Unloaded)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Setup test data
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-unloaded");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-unloaded", 
-        Exchange::ILifecycleManager::SUSPENDED, 
-        Exchange::ILifecycleManager::UNLOADED);
-    
-    // Register emitter
-    MockEmitter* emitter = new MockEmitter();
-    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onUnloading", true);
-    
-    // Call HandleLifecycle1Update with UNLOADED state
-    lifecycleDelegate->HandleLifecycle1Update("instance-l1-unloaded", 
-        Exchange::ILifecycleManager::SUSPENDED, 
-        Exchange::ILifecycleManager::UNLOADED);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_270_LifecycleDelegate_HandleLifecycle1Update_ActiveFocused)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Setup test data - app is focused
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-active-focused");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-active-focused", 
-        Exchange::ILifecycleManager::INITIALIZING, 
-        Exchange::ILifecycleManager::ACTIVE);
-    lifecycleDelegate->mFocusedAppRegistry.SetFocusedAppInstanceId("instance-l1-active-focused");
-    
-    // Register emitter
-    MockEmitter* emitter = new MockEmitter();
-    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onForeground", true);
-    
-    // Call HandleLifecycle1Update with ACTIVE state when app is focused (triggers onForeground)
-    lifecycleDelegate->HandleLifecycle1Update("instance-l1-active-focused", 
-        Exchange::ILifecycleManager::INITIALIZING, 
-        Exchange::ILifecycleManager::ACTIVE);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_271_LifecycleDelegate_HandleLifecycle1Update_ActiveNotFocused)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Setup test data - app is NOT focused
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-active-notfocused");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-active-notfocused", 
-        Exchange::ILifecycleManager::INITIALIZING, 
-        Exchange::ILifecycleManager::ACTIVE);
-    // Don't set focus - app is in background
-    
-    // Register emitter
-    MockEmitter* emitter = new MockEmitter();
-    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onBackground", true);
-    
-    // Call HandleLifecycle1Update with ACTIVE state when app is NOT focused (triggers onBackground)
-    lifecycleDelegate->HandleLifecycle1Update("instance-l1-active-notfocused", 
-        Exchange::ILifecycleManager::INITIALIZING, 
-        Exchange::ILifecycleManager::ACTIVE);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_272_LifecycleDelegate_HandleAppFocusForLifecycle1)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Setup test data - app is in ACTIVE state (required for focus handling)
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-focus");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-focus", 
-        Exchange::ILifecycleManager::INITIALIZING, 
-        Exchange::ILifecycleManager::ACTIVE);
-    
-    // Register emitter for foreground event
-    MockEmitter* emitter = new MockEmitter();
-    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onForeground", true);
-    
-    // Call HandleAppFocusForLifecycle1
-    lifecycleDelegate->HandleAppFocusForLifecycle1("instance-focus");
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    // Verify app is now focused
-    EXPECT_TRUE(lifecycleDelegate->mFocusedAppRegistry.IsAppInstanceIdFocused("instance-focus"));
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_273_LifecycleDelegate_HandleAppBlurForLifecycle1)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Setup test data - app is in ACTIVE state and focused
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-blur");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-blur", 
-        Exchange::ILifecycleManager::INITIALIZING, 
-        Exchange::ILifecycleManager::ACTIVE);
-    lifecycleDelegate->mFocusedAppRegistry.SetFocusedAppInstanceId("instance-blur");
-    
-    // Register emitter for background event
-    MockEmitter* emitter = new MockEmitter();
-    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onBackground", true);
-    
-    // Call HandleAppBlurForLifecycle1
-    lifecycleDelegate->HandleAppBlurForLifecycle1("instance-blur");
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    // Verify app is no longer focused
-    EXPECT_FALSE(lifecycleDelegate->mFocusedAppRegistry.IsAppInstanceIdFocused("instance-blur"));
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_274_LifecycleDelegate_HandleLifecycle1Update_Hibernated)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Setup test data
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-hibernated");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-hibernated", 
-        Exchange::ILifecycleManager::SUSPENDED, 
-        Exchange::ILifecycleManager::HIBERNATED);
-    
-    // Register emitter - HIBERNATED maps to Lifecycle.onSuspended
-    MockEmitter* emitter = new MockEmitter();
-    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onSuspended", true);
-    
-    // Call HandleLifecycle1Update with HIBERNATED state
-    lifecycleDelegate->HandleLifecycle1Update("instance-l1-hibernated", 
-        Exchange::ILifecycleManager::SUSPENDED, 
-        Exchange::ILifecycleManager::HIBERNATED);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_275_LifecycleDelegate_HandleLifecycle1Update_Terminating)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Setup test data
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-terminating");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-terminating", 
-        Exchange::ILifecycleManager::ACTIVE, 
-        Exchange::ILifecycleManager::TERMINATING);
-    
-    // Register emitter - TERMINATING maps to Lifecycle.onUnloading
-    MockEmitter* emitter = new MockEmitter();
-    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onUnloading", true);
-    
-    // Call HandleLifecycle1Update with TERMINATING state
-    lifecycleDelegate->HandleLifecycle1Update("instance-l1-terminating", 
-        Exchange::ILifecycleManager::ACTIVE, 
-        Exchange::ILifecycleManager::TERMINATING);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_276_LifecycleDelegate_HandleLifecycle1Update_DefaultState)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Setup test data
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-default");
-    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-default", 
-        Exchange::ILifecycleManager::UNLOADED, 
-        Exchange::ILifecycleManager::LOADING);
-    
-    // Call HandleLifecycle1Update with LOADING state (falls into default case)
-    lifecycleDelegate->HandleLifecycle1Update("instance-l1-default", 
-        Exchange::ILifecycleManager::UNLOADED, 
-        Exchange::ILifecycleManager::LOADING);
-    
-    // No dispatch expected for LOADING state - just verify no crash
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_277_LifecycleDelegate_DispatchLastKnownIntent_WithIntent)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Setup test data with navigation intent
-    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-intent");
-    lifecycleDelegate->mNavigationIntentRegistry.AddNavigationIntent("instance-intent", "test://navigate/to/page");
-    
-    // Register emitter for Discovery.onNavigateTo
-    MockEmitter* emitter = new MockEmitter();
-    lifecycleDelegate->HandleSubscription(emitter, "Discovery.onNavigateTo", true);
-    
-    // Call DispatchLastKnownIntent
-    lifecycleDelegate->DispatchLastKnownIntent("test.app");
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
-    plugin.Deinitialize(&service);
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_278_LifecycleDelegate_HandleEvent_AllValidEvents)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string&) -> void* {
-            return nullptr;
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-    
-    // Test all valid lifecycle events
-    std::vector<string> validEvents = {
-        "lifecycle.onbackground",
-        "lifecycle.onforeground",
-        "lifecycle.oninactive",
-        "lifecycle.onsuspended",
-        "lifecycle.onunloading",
-        "lifecycle2.onstatechanged",
-        "discovery.onnavigateto",
-        "presentation.onfocusedchanged"
-    };
-    
-    for (const auto& event : validEvents) {
-        MockEmitter* emitter = new MockEmitter();
-        bool registrationError = false;
-        
-        bool handled = lifecycleDelegate->HandleEvent(emitter, event, true, registrationError);
-        
-        EXPECT_TRUE(handled) << "Event " << event << " should be handled";
-        EXPECT_FALSE(registrationError) << "Event " << event << " should not have registration error";
-    }
-    
-    plugin.Deinitialize(&service);
 }
 
 // Test GetSpeed with rate >= 1.56 (should return speed 2.0)
@@ -6597,259 +2827,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_292_GetClosedCaptionsSettings_Success)
     plugin.Deinitialize(&service);
     delete mockUserSettings;
 }
-
-// Test GetSpeed with null userSettings delegate returns error
-TEST_F(AppGatewayCommonTest, AGC_L1_293_GetSpeed_NullUserSettingsDelegate_ReturnsError)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    double speed = 0.0;
-    const auto rc = plugin.GetSpeed(speed);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    
-    plugin.Deinitialize(&service);
-}
-
-// ============================================================================
-// Tests for null sub-delegate paths (covers error paths in AppGatewayCommon.cpp)
-// These tests create a SettingsDelegate without calling setShell(), so all
-// sub-delegates (userSettings, systemDelegate, etc.) are nullptr.
-// ============================================================================
-
-TEST_F(AppGatewayCommonTest, AGC_L1_294_GetVoiceGuidance_NullUserSettingsDelegate_ReturnsError)
-{
-    // Create a SettingsDelegate without calling setShell() - all sub-delegates are null
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    // Note: Not calling plugin.mDelegate->setShell() so getUserSettings() returns nullptr
-    
-    string result;
-    const auto rc = plugin.GetVoiceGuidance(result);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_TRUE(result.find("error") != string::npos);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_295_GetAudioDescription_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    string result;
-    const auto rc = plugin.GetAudioDescription(result);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_TRUE(result.find("error") != string::npos);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_296_GetAudioDescriptionsEnabled_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    string result;
-    const auto rc = plugin.GetAudioDescriptionsEnabled(result);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_TRUE(result.find("error") != string::npos);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_297_GetHighContrast_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    string result;
-    const auto rc = plugin.GetHighContrast(result);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_TRUE(result.find("error") != string::npos);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_298_GetCaptions_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    string result;
-    const auto rc = plugin.GetCaptions(result);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_TRUE(result.find("error") != string::npos);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_299_GetPresentationLanguage_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    string result;
-    const auto rc = plugin.GetPresentationLanguage(result);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_TRUE(result.find("error") != string::npos);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_300_GetLocale_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    string result;
-    const auto rc = plugin.GetLocale(result);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_TRUE(result.find("error") != string::npos);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_301_GetPreferredAudioLanguages_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    string result;
-    const auto rc = plugin.GetPreferredAudioLanguages(result);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    // Default is "[]" for audio languages
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_302_GetPreferredCaptionsLanguages_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    string result;
-    const auto rc = plugin.GetPreferredCaptionsLanguages(result);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_EQ("[\"eng\"]", result);  // Default is ["eng"] for captions
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_303_SetPreferredAudioLanguages_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    const auto rc = plugin.SetPreferredAudioLanguages("eng,spa");
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_304_SetPreferredCaptionsLanguages_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    const auto rc = plugin.SetPreferredCaptionsLanguages("eng,spa");
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_305_SetVoiceGuidance_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    const auto rc = plugin.SetVoiceGuidance(true);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_306_SetCaptions_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    const auto rc = plugin.SetCaptions(true);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_307_SetAudioDescriptionsEnabled_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    const auto rc = plugin.SetAudioDescriptionsEnabled(true);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_308_GetClosedCaptionsSettings_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    string result;
-    const auto rc = plugin.GetClosedCaptionsSettings(result);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_309_GetVoiceGuidanceHints_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    string result;
-    const auto rc = plugin.GetVoiceGuidanceHints(result);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_TRUE(result.find("error") != string::npos);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_310_SetVoiceGuidanceHints_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    const auto rc = plugin.SetVoiceGuidanceHints(true);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    
-    plugin.mDelegate.reset();
-}
-
-TEST_F(AppGatewayCommonTest, AGC_L1_311_GetVoiceGuidanceSettings_NullUserSettingsDelegate_ReturnsError)
-{
-    plugin.mDelegate = std::make_shared<SettingsDelegate>();
-    
-    string result;
-    const auto rc = plugin.GetVoiceGuidanceSettings(false, result);
-    
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_TRUE(result.find("error") != string::npos);
-    
-    plugin.mDelegate.reset();
-}
-
-// ============================================================================
-// USERSETTINGSDELEGATE - Notification Handler Tests
-// ============================================================================
 
 TEST_F(AppGatewayCommonTest, AGC_L1_322_UserSettings_NotificationHandler_OnAudioDescriptionChanged)
 {
@@ -8559,56 +4536,139 @@ TEST_F(AppGatewayCommonTest, AGC_L1_364_UserSettings_GetVoiceGuidanceRate_Error)
 }
 
 // ============================================================================
-// TTSDELEGATE - Additional tests for improved coverage
+// SECTION 3: LIFECYCLE DELEGATE TESTS
+// Tests for LifecycleReady, LifecycleClose, LifecycleState, Authentication, Intent handling
 // ============================================================================
 
-// Test TTS HandleSubscription when TTS interface is not available
-TEST_F(AppGatewayCommonTest, AGC_L1_365_TTS_HandleSubscription_NoTTSInterface)
+TEST_F(AppGatewayCommonTest, AGC_L1_044_045_LifecycleAndAuth_NullDelegate_ReturnUnavailable)
 {
-    NiceMock<ServiceMock> service;
-    // Return nullptr for TTS callsign to simulate unavailable interface
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([](const uint32_t, const string& callsign) -> void* {
-            return nullptr; // No interfaces available
-        });
-    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-    
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    
-    // Try to subscribe - should fail because TTS interface is not available
-    plugin.HandleAppEventNotifier(emitter, "texttospeech.onvoicechanged", true, status);
-    // status should be true (error) because HandleSubscription returns false
-    EXPECT_TRUE(status);
-    
-    // Allow async EventRegistrationJob to complete before cleanup
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    emitter->Release();
-    plugin.Deinitialize(&service);
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+    string out;
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.Authenticate("session-1", out));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetSessionId("test.app", out));
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.LifecycleReady(ctx, "{}", result));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.LifecycleClose(ctx, "{}", result));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.LifecycleState(ctx, "{}", result));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.Lifecycle2State(ctx, "{}", result));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.Lifecycle2Close(ctx, "{}", result));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.LifecycleFinished(ctx, "{}", result));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.DispatchLastIntent(ctx, "{}", result));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetLastIntent(ctx, "{}", result));
 }
 
-// Test TTS double registration (already registered path)
-TEST_F(AppGatewayCommonTest, AGC_L1_366_TTS_HandleSubscription_AlreadyRegistered)
+TEST_F(AppGatewayCommonTest, AGC_L1_082_LifecycleReady_ViaHandlerMap_NoDelegate)
 {
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    testing::Mock::AllowLeak(mockTTS);
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.ready", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_083_LifecycleClose_ViaHandlerMap_NoDelegate)
+{
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.close", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_084_LifecycleState_ViaHandlerMap_NoDelegate)
+{
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_085_Lifecycle2State_ViaHandlerMap_NoDelegate)
+{
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_086_Lifecycle2Close_ViaHandlerMap_NoDelegate)
+{
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_087_LifecycleFinished_ViaHandlerMap_NoDelegate)
+{
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.finished", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_088_CommonInternalDispatchIntent_ViaHandlerMap_NoDelegate)
+{
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.dispatchintent", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_089_CommonInternalGetLastIntent_ViaHandlerMap_NoDelegate)
+{
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_232_LifecycleClose_UserExit_Success)
+{
+    // Create mock for ILifecycleManagerState
+    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
     
-    EXPECT_CALL(*mockTTS, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockTTS, Unregister(_))
+    // Expect CloseApp to be called with USER_EXIT reason
+    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::USER_EXIT))
         .WillOnce(Return(Core::ERROR_NONE));
     
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
             return nullptr;
         });
     EXPECT_CALL(service, AddRef()).Times(AnyNumber());
@@ -8617,40 +4677,35 @@ TEST_F(AppGatewayCommonTest, AGC_L1_366_TTS_HandleSubscription_AlreadyRegistered
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
     
-    // Register for first TTS event
-    MockEmitter* emitter1 = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter1, "texttospeech.onvoicechanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    // Directly inject the mock into the LifecycleDelegate
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
     
-    // Register for second TTS event - should use already registered path
-    MockEmitter* emitter2 = new MockEmitter();
-    plugin.HandleAppEventNotifier(emitter2, "texttospeech.onspeechcomplete", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    const auto ctx = MakeContext();
+    string result;
     
-    emitter1->Release();
-    emitter2->Release();
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.close", R"({"reason":"userExit"})", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    // Clear the mock pointer before cleanup to avoid double-free
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
     plugin.Deinitialize(&service);
+    delete mockLifecycleManager;
 }
 
-// Test TTS OnVoiceChanged notification
-TEST_F(AppGatewayCommonTest, AGC_L1_367_TTS_NotificationHandler_OnVoiceChanged)
+TEST_F(AppGatewayCommonTest, AGC_L1_233_LifecycleClose_Error_Success)
 {
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    testing::Mock::AllowLeak(mockTTS);
+    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
     
-    EXPECT_CALL(*mockTTS, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockTTS, Unregister(_))
+    // Expect CloseApp to be called with ERROR reason (non-userExit)
+    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::ERROR))
         .WillOnce(Return(Core::ERROR_NONE));
     
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
             return nullptr;
         });
     EXPECT_CALL(service, AddRef()).Times(AnyNumber());
@@ -8659,39 +4714,29 @@ TEST_F(AppGatewayCommonTest, AGC_L1_367_TTS_NotificationHandler_OnVoiceChanged)
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
     
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter, "texttospeech.onvoicechanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
     
-    // Trigger notification
-    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
-    if (ttsDelegate) {
-        ttsDelegate->mNotificationHandler.OnVoiceChanged("en-US-Wavenet-D");
-    }
+    const auto ctx = MakeContext();
+    string result;
     
-    emitter->Release();
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.close", R"({"reason":"error"})", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
     plugin.Deinitialize(&service);
+    delete mockLifecycleManager;
 }
 
-// Test TTS OnSpeechReady notification
-TEST_F(AppGatewayCommonTest, AGC_L1_368_TTS_NotificationHandler_OnSpeechReady)
+TEST_F(AppGatewayCommonTest, AGC_L1_234_LifecycleClose_InvalidPayload_Failure)
 {
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    testing::Mock::AllowLeak(mockTTS);
-    
-    EXPECT_CALL(*mockTTS, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockTTS, Unregister(_))
-        .WillOnce(Return(Core::ERROR_NONE));
+    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
     
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
             return nullptr;
         });
     EXPECT_CALL(service, AddRef()).Times(AnyNumber());
@@ -8700,39 +4745,34 @@ TEST_F(AppGatewayCommonTest, AGC_L1_368_TTS_NotificationHandler_OnSpeechReady)
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
     
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter, "texttospeech.onwillspeak", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
     
-    // Trigger notification
-    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
-    if (ttsDelegate) {
-        ttsDelegate->mNotificationHandler.OnSpeechReady(12345);
-    }
+    const auto ctx = MakeContext();
+    string result;
     
-    emitter->Release();
+    // Invalid JSON payload
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.close", "invalid json", result);
+    
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
     plugin.Deinitialize(&service);
+    delete mockLifecycleManager;
 }
 
-// Test TTS OnSpeechStarted notification
-TEST_F(AppGatewayCommonTest, AGC_L1_369_TTS_NotificationHandler_OnSpeechStarted)
+TEST_F(AppGatewayCommonTest, AGC_L1_235_Lifecycle2Close_Deactivate_Success)
 {
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    testing::Mock::AllowLeak(mockTTS);
+    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
     
-    EXPECT_CALL(*mockTTS, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockTTS, Unregister(_))
+    // deactivate maps to USER_EXIT
+    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::USER_EXIT))
         .WillOnce(Return(Core::ERROR_NONE));
     
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
             return nullptr;
         });
     EXPECT_CALL(service, AddRef()).Times(AnyNumber());
@@ -8741,39 +4781,33 @@ TEST_F(AppGatewayCommonTest, AGC_L1_369_TTS_NotificationHandler_OnSpeechStarted)
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
     
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechstart", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
     
-    // Trigger notification
-    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
-    if (ttsDelegate) {
-        ttsDelegate->mNotificationHandler.OnSpeechStarted(12345);
-    }
+    const auto ctx = MakeContext();
+    string result;
     
-    emitter->Release();
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"deactivate"})", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
     plugin.Deinitialize(&service);
+    delete mockLifecycleManager;
 }
 
-// Test TTS OnSpeechPaused notification
-TEST_F(AppGatewayCommonTest, AGC_L1_370_TTS_NotificationHandler_OnSpeechPaused)
+TEST_F(AppGatewayCommonTest, AGC_L1_236_Lifecycle2Close_KillReload_Success)
 {
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    testing::Mock::AllowLeak(mockTTS);
+    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
     
-    EXPECT_CALL(*mockTTS, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockTTS, Unregister(_))
+    // killReload maps to KILL_AND_RUN
+    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::KILL_AND_RUN))
         .WillOnce(Return(Core::ERROR_NONE));
     
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
             return nullptr;
         });
     EXPECT_CALL(service, AddRef()).Times(AnyNumber());
@@ -8782,39 +4816,33 @@ TEST_F(AppGatewayCommonTest, AGC_L1_370_TTS_NotificationHandler_OnSpeechPaused)
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
     
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechpause", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
     
-    // Trigger notification
-    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
-    if (ttsDelegate) {
-        ttsDelegate->mNotificationHandler.OnSpeechPaused(12345);
-    }
+    const auto ctx = MakeContext();
+    string result;
     
-    emitter->Release();
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"killReload"})", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
     plugin.Deinitialize(&service);
+    delete mockLifecycleManager;
 }
 
-// Test TTS OnSpeechResumed notification
-TEST_F(AppGatewayCommonTest, AGC_L1_371_TTS_NotificationHandler_OnSpeechResumed)
+TEST_F(AppGatewayCommonTest, AGC_L1_237_Lifecycle2Close_KillReactivate_Success)
 {
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    testing::Mock::AllowLeak(mockTTS);
+    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
     
-    EXPECT_CALL(*mockTTS, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockTTS, Unregister(_))
+    // killReactivate maps to KILL_AND_ACTIVATE
+    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::KILL_AND_ACTIVATE))
         .WillOnce(Return(Core::ERROR_NONE));
     
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
             return nullptr;
         });
     EXPECT_CALL(service, AddRef()).Times(AnyNumber());
@@ -8823,39 +4851,33 @@ TEST_F(AppGatewayCommonTest, AGC_L1_371_TTS_NotificationHandler_OnSpeechResumed)
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
     
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechresume", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
     
-    // Trigger notification
-    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
-    if (ttsDelegate) {
-        ttsDelegate->mNotificationHandler.OnSpeechResumed(12345);
-    }
+    const auto ctx = MakeContext();
+    string result;
     
-    emitter->Release();
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"killReactivate"})", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
     plugin.Deinitialize(&service);
+    delete mockLifecycleManager;
 }
 
-// Test TTS OnSpeechInterrupted notification
-TEST_F(AppGatewayCommonTest, AGC_L1_372_TTS_NotificationHandler_OnSpeechInterrupted)
+TEST_F(AppGatewayCommonTest, AGC_L1_238_Lifecycle2Close_UnknownType_MapsToError)
 {
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    testing::Mock::AllowLeak(mockTTS);
+    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
     
-    EXPECT_CALL(*mockTTS, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockTTS, Unregister(_))
+    // Unknown type maps to ERROR
+    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::ERROR))
         .WillOnce(Return(Core::ERROR_NONE));
     
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
             return nullptr;
         });
     EXPECT_CALL(service, AddRef()).Times(AnyNumber());
@@ -8864,39 +4886,29 @@ TEST_F(AppGatewayCommonTest, AGC_L1_372_TTS_NotificationHandler_OnSpeechInterrup
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
     
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechinterrupted", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
     
-    // Trigger notification
-    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
-    if (ttsDelegate) {
-        ttsDelegate->mNotificationHandler.OnSpeechInterrupted(12345);
-    }
+    const auto ctx = MakeContext();
+    string result;
     
-    emitter->Release();
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"unknown"})", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
     plugin.Deinitialize(&service);
+    delete mockLifecycleManager;
 }
 
-// Test TTS OnNetworkError notification
-TEST_F(AppGatewayCommonTest, AGC_L1_373_TTS_NotificationHandler_OnNetworkError)
+TEST_F(AppGatewayCommonTest, AGC_L1_239_Lifecycle2Close_InvalidPayload_Failure)
 {
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    testing::Mock::AllowLeak(mockTTS);
-    
-    EXPECT_CALL(*mockTTS, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockTTS, Unregister(_))
-        .WillOnce(Return(Core::ERROR_NONE));
+    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
     
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
             return nullptr;
         });
     EXPECT_CALL(service, AddRef()).Times(AnyNumber());
@@ -8905,39 +4917,33 @@ TEST_F(AppGatewayCommonTest, AGC_L1_373_TTS_NotificationHandler_OnNetworkError)
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
     
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter, "texttospeech.onnetworkerror", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
     
-    // Trigger notification
-    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
-    if (ttsDelegate) {
-        ttsDelegate->mNotificationHandler.OnNetworkError(12345);
-    }
+    const auto ctx = MakeContext();
+    string result;
     
-    emitter->Release();
+    // Invalid JSON payload
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", "not valid json", result);
+    
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
     plugin.Deinitialize(&service);
+    delete mockLifecycleManager;
 }
 
-// Test TTS OnPlaybackError notification
-TEST_F(AppGatewayCommonTest, AGC_L1_374_TTS_NotificationHandler_OnPlaybackError)
+TEST_F(AppGatewayCommonTest, AGC_L1_240_LifecycleReady_Success)
 {
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    testing::Mock::AllowLeak(mockTTS);
+    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
     
-    EXPECT_CALL(*mockTTS, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockTTS, Unregister(_))
+    EXPECT_CALL(*mockLifecycleManager, AppReady(_))
         .WillOnce(Return(Core::ERROR_NONE));
     
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
             return nullptr;
         });
     EXPECT_CALL(service, AddRef()).Times(AnyNumber());
@@ -8946,39 +4952,29 @@ TEST_F(AppGatewayCommonTest, AGC_L1_374_TTS_NotificationHandler_OnPlaybackError)
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
     
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter, "texttospeech.onplaybackerror", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
     
-    // Trigger notification
-    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
-    if (ttsDelegate) {
-        ttsDelegate->mNotificationHandler.OnPlaybackError(12345);
-    }
+    const auto ctx = MakeContext();
+    string result;
     
-    emitter->Release();
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.ready", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+    
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
     plugin.Deinitialize(&service);
+    delete mockLifecycleManager;
 }
 
-// Test TTS OnSpeechComplete notification
-TEST_F(AppGatewayCommonTest, AGC_L1_375_TTS_NotificationHandler_OnSpeechComplete)
+TEST_F(AppGatewayCommonTest, AGC_L1_241_LifecycleReady_NoInterface_ReturnsSuccess)
 {
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    testing::Mock::AllowLeak(mockTTS);
-    
-    EXPECT_CALL(*mockTTS, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockTTS, Unregister(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
+    // When mLifecycleManagerState is nullptr, LifecycleReady still returns ERROR_NONE
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
             return nullptr;
         });
     EXPECT_CALL(service, AddRef()).Times(AnyNumber());
@@ -8987,39 +4983,28 @@ TEST_F(AppGatewayCommonTest, AGC_L1_375_TTS_NotificationHandler_OnSpeechComplete
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
     
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechcomplete", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    // Don't inject mock - leave mLifecycleManagerState as nullptr
     
-    // Trigger notification
-    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
-    if (ttsDelegate) {
-        ttsDelegate->mNotificationHandler.OnSpeechComplete(12345);
-    }
+    const auto ctx = MakeContext();
+    string result;
     
-    emitter->Release();
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.ready", "{}", result);
+    
+    // LifecycleReady returns ERROR_NONE even when interface is null
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
     plugin.Deinitialize(&service);
 }
 
-// Test TTS OnTTSStateChanged notification
-TEST_F(AppGatewayCommonTest, AGC_L1_376_TTS_NotificationHandler_OnTTSStateChanged)
+TEST_F(AppGatewayCommonTest, AGC_L1_242_LifecycleState_ReturnsUnloading)
 {
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    testing::Mock::AllowLeak(mockTTS);
-    
-    EXPECT_CALL(*mockTTS, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockTTS, Unregister(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
+    // LifecycleState returns the current state from the registry
+    // When no state is registered, it returns "unloading" (default UNLOADED state)
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
             return nullptr;
         });
     EXPECT_CALL(service, AddRef()).Times(AnyNumber());
@@ -9028,39 +5013,25 @@ TEST_F(AppGatewayCommonTest, AGC_L1_376_TTS_NotificationHandler_OnTTSStateChange
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
     
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter, "texttospeech.onttsstatechanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    const auto ctx = MakeContext();
+    string result;
     
-    // Trigger notification
-    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
-    if (ttsDelegate) {
-        ttsDelegate->mNotificationHandler.OnTTSStateChanged(true);
-    }
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
     
-    emitter->Release();
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // Default state when not registered is UNLOADED which maps to "unloading" in lifecycle1
+    EXPECT_EQ("unloading", result);
+    
     plugin.Deinitialize(&service);
 }
 
-// Test TTS destructor with registered notification handler
-TEST_F(AppGatewayCommonTest, AGC_L1_377_TTS_Destructor_WithRegisteredNotifications)
+TEST_F(AppGatewayCommonTest, AGC_L1_243_Lifecycle2State_ReturnsUnloaded)
 {
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    testing::Mock::AllowLeak(mockTTS);
-    
-    EXPECT_CALL(*mockTTS, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockTTS, Unregister(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
+    // Lifecycle2State returns the current state from the registry
+    // When no state is registered, it returns "unloaded"
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
             return nullptr;
         });
     EXPECT_CALL(service, AddRef()).Times(AnyNumber());
@@ -9069,36 +5040,24 @@ TEST_F(AppGatewayCommonTest, AGC_L1_377_TTS_Destructor_WithRegisteredNotificatio
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
     
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter, "texttospeech.onvoicechanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    const auto ctx = MakeContext();
+    string result;
     
-    // Don't release emitter before deinitialize - let destructor clean up
-    emitter->Release();
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
     
-    // Deinitialize will trigger TTSDelegate destructor with registered notifications
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // Default state when not registered is UNLOADED which maps to "unloaded"
+    EXPECT_EQ("unloaded", result);
+    
     plugin.Deinitialize(&service);
 }
 
-// Test TTS SetRegistered and GetRegistered methods
-TEST_F(AppGatewayCommonTest, AGC_L1_378_TTS_NotificationHandler_SetGetRegistered)
+TEST_F(AppGatewayCommonTest, AGC_L1_244_LifecycleFinished_Success)
 {
-    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
-    testing::Mock::AllowLeak(mockTTS);
-    
-    EXPECT_CALL(*mockTTS, Register(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    EXPECT_CALL(*mockTTS, Unregister(_))
-        .WillOnce(Return(Core::ERROR_NONE));
-    
+    // LifecycleFinished always returns ERROR_NONE with "null" result
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
-            if (callsign == "org.rdk.TextToSpeech") {
-                mockTTS->AddRef();
-                return static_cast<void*>(mockTTS);
-            }
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
             return nullptr;
         });
     EXPECT_CALL(service, AddRef()).Times(AnyNumber());
@@ -9107,390 +5066,1506 @@ TEST_F(AppGatewayCommonTest, AGC_L1_378_TTS_NotificationHandler_SetGetRegistered
     const string initResponse = plugin.Initialize(&service);
     EXPECT_TRUE(initResponse.empty());
     
-    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
-    ASSERT_NE(ttsDelegate, nullptr);
+    const auto ctx = MakeContext();
+    string result;
     
-    // Initially not registered
-    EXPECT_FALSE(ttsDelegate->mNotificationHandler.GetRegistered());
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.finished", "{}", result);
     
-    // Subscribe to trigger registration
-    MockEmitter* emitter = new MockEmitter();
-    bool status = false;
-    plugin.HandleAppEventNotifier(emitter, "texttospeech.onvoicechanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
     
-    // Now should be registered
-    EXPECT_TRUE(ttsDelegate->mNotificationHandler.GetRegistered());
-    
-    emitter->Release();
     plugin.Deinitialize(&service);
 }
 
-// ============================================================================
-// SYSTEMDELEGATE.H - Tests for SystemDelegate
-// ============================================================================
+TEST_F(AppGatewayCommonTest, AGC_L1_245_CommonInternalDispatchIntent_Success)
+{
+    // DispatchLastIntent returns ERROR_NONE with "null" result
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.dispatchintent", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+    
+    plugin.Deinitialize(&service);
+}
 
-// Mock for ILocalDispatcher to test JSONRPC-based methods
-class MockLocalDispatcher : public PluginHost::ILocalDispatcher {
-public:
-    MockLocalDispatcher() : mRefCount(1), mPlugin(nullptr) {}
+TEST_F(AppGatewayCommonTest, AGC_L1_246_CommonInternalGetLastIntent_ReturnsEmpty)
+{
+    // GetLastIntent returns empty when no intent is registered
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     
-    void AddRef() const override { ++mRefCount; }
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
     
-    uint32_t Release() const override {
-        if (--mRefCount == 0) {
-            delete this;
-            return Core::ERROR_DESTRUCTION_SUCCEEDED;
-        }
-        return Core::ERROR_NONE;
-    }
+    const auto ctx = MakeContext();
+    string result;
     
-    // IDispatcher interface - required methods
-    Core::hresult Validate(const string& token, const string& method, const string& parameters) const override {
-        (void)token;
-        (void)method;
-        (void)parameters;
-        return Core::ERROR_NONE;
-    }
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
     
-    Core::hresult Invoke(ICallback* callback, const uint32_t channelId, const uint32_t id, const string& token,
-                         const string& method, const string& parameters, string& response) override {
-        (void)callback;
-        return Invoke(channelId, id, token, method, parameters, response);
-    }
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // Empty result when no intent is registered for the app
+    EXPECT_TRUE(result.empty());
     
-    Core::hresult Revoke(ICallback* callback) override {
-        (void)callback;
-        return Core::ERROR_NONE;
-    }
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_247_LifecycleClose_NoInterface_ReturnsError)
+{
+    // When mLifecycleManagerState is nullptr, LifecycleClose returns ERROR_GENERAL
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     
-    // ILocalDispatcher interface
-    Core::hresult Invoke(const uint32_t channelId, const uint32_t id, const string& token,
-                         const string& method, const string& parameters, string& response) override {
-        (void)channelId;
-        (void)id;
-        (void)token;
-        
-        // Extract method name from designator (format: "callsign.1.method")
-        auto lastDot = method.rfind('.');
-        string methodName = (lastDot != string::npos) ? method.substr(lastDot + 1) : method;
-        
-        // Return configured response based on method
-        auto it = mResponses.find(methodName);
-        if (it != mResponses.end()) {
-            response = it->second.response;
-            return it->second.result;
-        }
-        
-        // Default response
-        response = "{}";
-        return Core::ERROR_NONE;
-    }
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
     
-    ILocalDispatcher* Local() override {
-        // Return this to indicate dispatcher is valid
-        return this;
-    }
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    // Ensure mLifecycleManagerState is nullptr
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
     
-    void Activate(PluginHost::IShell* service) override {
-        (void)service;
-    }
+    const auto ctx = MakeContext();
+    string result;
     
-    void Deactivate() override {
-    }
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.close", R"({"reason":"userExit"})", result);
     
-    void Dropped(const uint32_t channelId) override {
-        (void)channelId;
-    }
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_TRUE(result.find("LifecycleManager") != string::npos);
     
-    BEGIN_INTERFACE_MAP(MockLocalDispatcher)
-    INTERFACE_ENTRY(PluginHost::ILocalDispatcher)
-    END_INTERFACE_MAP
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_248_Lifecycle2Close_NoInterface_ReturnsError)
+{
+    // When mLifecycleManagerState is nullptr, Lifecycle2Close returns ERROR_GENERAL
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     
-    // Configure responses for methods
-    struct MethodResponse {
-        string response;
-        Core::hresult result;
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    // Ensure mLifecycleManagerState is nullptr
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"deactivate"})", result);
+    
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_TRUE(result.find("LifecycleManager") != string::npos);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_249_Authenticate_NoAppInstanceId_ReturnsError)
+{
+    // Authenticate returns ERROR_GENERAL when no appInstanceId is registered
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    string appId;
+    const auto rc = plugin.Authenticate("unknown-session-id", appId);
+    
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_TRUE(appId.empty());
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_250_GetSessionId_NoAppId_ReturnsError)
+{
+    // GetSessionId returns ERROR_GENERAL when no appId is registered
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    string sessionId;
+    const auto rc = plugin.GetSessionId("unknown-app-id", sessionId);
+    
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_TRUE(sessionId.empty());
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_251_LifecycleDelegate_AuthenticateAndGetSessionId_WithRegisteredApp)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Directly add an app to the registry (simulating what OnAppLifecycleStateChanged does)
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("com.test.app", "instance-123");
+    
+    // Now Authenticate and GetSessionId should work
+    string appId;
+    const auto authRc = plugin.Authenticate("instance-123", appId);
+    EXPECT_EQ(Core::ERROR_NONE, authRc);
+    EXPECT_EQ("com.test.app", appId);
+    
+    string sessionId;
+    const auto sessionRc = plugin.GetSessionId("com.test.app", sessionId);
+    EXPECT_EQ(Core::ERROR_NONE, sessionRc);
+    EXPECT_EQ("instance-123", sessionId);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_252_LifecycleDelegate_LifecycleStateWithRegisteredApp)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Register app and set its lifecycle state
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-456");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-456", 
+        Exchange::ILifecycleManager::UNLOADED, 
+        Exchange::ILifecycleManager::ACTIVE);
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // ACTIVE maps to "foreground" in lifecycle1
+    EXPECT_EQ("foreground", result);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_253_LifecycleDelegate_Lifecycle2StateWithRegisteredApp)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Register app and set its lifecycle state
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-789");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-789", 
+        Exchange::ILifecycleManager::LOADING, 
+        Exchange::ILifecycleManager::SUSPENDED);
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("suspended", result);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_254_LifecycleDelegate_NavigationIntentFlow)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Register app and navigation intent
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-nav");
+    lifecycleDelegate->mNavigationIntentRegistry.AddNavigationIntent("instance-nav", 
+        R"({"action":"navigate","data":{"uri":"https://example.com"}})");
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    // GetLastIntent should return the registered intent
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(result.find("navigate") != string::npos);
+    EXPECT_TRUE(result.find("example.com") != string::npos);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_255_LifecycleDelegate_StateConversions_Paused)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-paused");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-paused", 
+        Exchange::ILifecycleManager::ACTIVE, 
+        Exchange::ILifecycleManager::PAUSED);
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // PAUSED maps to "inactive" in lifecycle1
+    EXPECT_EQ("inactive", result);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_256_LifecycleDelegate_StateConversions_Suspended)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-susp");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-susp", 
+        Exchange::ILifecycleManager::ACTIVE, 
+        Exchange::ILifecycleManager::SUSPENDED);
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // SUSPENDED maps to "suspended" in lifecycle1
+    EXPECT_EQ("suspended", result);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_257_LifecycleDelegate_StateConversions_Hibernated)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-hib");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-hib", 
+        Exchange::ILifecycleManager::SUSPENDED, 
+        Exchange::ILifecycleManager::HIBERNATED);
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // HIBERNATED maps to "suspended" in lifecycle1
+    EXPECT_EQ("suspended", result);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_258_LifecycleDelegate_StateConversions_Terminating)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-term");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-term", 
+        Exchange::ILifecycleManager::ACTIVE, 
+        Exchange::ILifecycleManager::TERMINATING);
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // TERMINATING maps to "unloading" in lifecycle1
+    EXPECT_EQ("unloading", result);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_259_LifecycleDelegate_StateConversions_Loading)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-load");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-load", 
+        Exchange::ILifecycleManager::UNLOADED, 
+        Exchange::ILifecycleManager::LOADING);
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // LOADING maps to "initializing" in lifecycle1
+    EXPECT_EQ("initializing", result);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_260_LifecycleDelegate_StateConversions_Initializing)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-init");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-init", 
+        Exchange::ILifecycleManager::LOADING, 
+        Exchange::ILifecycleManager::INITIALIZING);
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // INITIALIZING maps to "initializing" in lifecycle1
+    EXPECT_EQ("initializing", result);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_261_LifecycleDelegate_Lifecycle2StateConversions_AllStates)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Test lifecycle2.state with different states
+    struct TestCase {
+        Exchange::ILifecycleManager::LifecycleState state;
+        string expected;
     };
     
-    void SetResponse(const string& method, const string& response, Core::hresult result = Core::ERROR_NONE) {
-        mResponses[method] = {response, result};
+    std::vector<TestCase> testCases = {
+        {Exchange::ILifecycleManager::LOADING, "loading"},
+        {Exchange::ILifecycleManager::INITIALIZING, "initializing"},
+        {Exchange::ILifecycleManager::PAUSED, "paused"},
+        {Exchange::ILifecycleManager::ACTIVE, "active"},
+        {Exchange::ILifecycleManager::SUSPENDED, "suspended"},
+        {Exchange::ILifecycleManager::HIBERNATED, "hibernated"},
+        {Exchange::ILifecycleManager::TERMINATING, "terminating"},
+    };
+    
+    for (size_t i = 0; i < testCases.size(); ++i) {
+        const auto& tc = testCases[i];
+        string instanceId = "instance-" + std::to_string(i);
+        
+        lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", instanceId);
+        lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState(instanceId, 
+            Exchange::ILifecycleManager::UNLOADED, 
+            tc.state);
+        
+        const auto ctx = MakeContext();
+        string result;
+        
+        const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
+        
+        EXPECT_EQ(Core::ERROR_NONE, rc);
+        EXPECT_EQ(tc.expected, result) << "Failed for state: " << static_cast<int>(tc.state);
+        
+        // Clean up for next iteration
+        lifecycleDelegate->mLifecycleStateRegistry.RemoveLifecycleStateInfo(instanceId);
+        lifecycleDelegate->mAppIdInstanceIdMap.RemoveAppInstanceId("test.app");
     }
     
-    void ClearResponses() {
-        mResponses.clear();
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_262_LifecycleDelegate_HandleSubscription_Subscribe)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Create a mock emitter for subscription testing
+    MockEmitter* emitter = new MockEmitter();
+    
+    // Test HandleSubscription with listen=true
+    bool result = lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onForeground", true);
+    EXPECT_TRUE(result);
+    
+    // Verify notification is registered
+    EXPECT_TRUE(lifecycleDelegate->IsNotificationRegistered("Lifecycle.onForeground"));
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_263_LifecycleDelegate_HandleSubscription_Unsubscribe)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    MockEmitter* emitter = new MockEmitter();
+    
+    // First subscribe
+    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onBackground", true);
+    EXPECT_TRUE(lifecycleDelegate->IsNotificationRegistered("Lifecycle.onBackground"));
+    
+    // Then unsubscribe
+    bool result = lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onBackground", false);
+    EXPECT_TRUE(result);
+    
+    // Notification should be removed
+    EXPECT_FALSE(lifecycleDelegate->IsNotificationRegistered("Lifecycle.onBackground"));
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_264_LifecycleDelegate_HandleEvent_ValidEvent)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool registrationError = false;
+    
+    // Test HandleEvent with valid lifecycle event
+    bool handled = lifecycleDelegate->HandleEvent(emitter, "lifecycle.onforeground", true, registrationError);
+    
+    EXPECT_TRUE(handled);
+    EXPECT_FALSE(registrationError);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_265_LifecycleDelegate_HandleEvent_InvalidEvent)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool registrationError = false;
+    
+    // Test HandleEvent with invalid event (not in VALID_LIFECYCLE_EVENT)
+    bool handled = lifecycleDelegate->HandleEvent(emitter, "invalid.event", true, registrationError);
+    
+    EXPECT_FALSE(handled);
+    EXPECT_TRUE(registrationError);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_266_LifecycleDelegate_HandleLifecycleUpdate_Active)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Setup test data
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-update-1");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-update-1", 
+        Exchange::ILifecycleManager::LOADING, 
+        Exchange::ILifecycleManager::INITIALIZING);
+    
+    // Add a navigation intent to be dispatched
+    lifecycleDelegate->mNavigationIntentRegistry.AddNavigationIntent("instance-update-1", "test://intent");
+    
+    // Register emitter for lifecycle events
+    MockEmitter* emitter = new MockEmitter();
+    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle2.onStateChanged", true);
+    lifecycleDelegate->HandleSubscription(emitter, "Discovery.onNavigateTo", true);
+    
+    // Call HandleLifecycleUpdate with ACTIVE state (triggers DispatchLastKnownIntent)
+    lifecycleDelegate->HandleLifecycleUpdate("instance-update-1", 
+        Exchange::ILifecycleManager::INITIALIZING, 
+        Exchange::ILifecycleManager::ACTIVE);
+    
+    // Give time for dispatch job to execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Verify state was updated
+    auto stateInfo = lifecycleDelegate->mLifecycleStateRegistry.GetLifecycleStateInfo("instance-update-1");
+    EXPECT_EQ(Exchange::ILifecycleManager::ACTIVE, stateInfo.currentState);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_267_LifecycleDelegate_HandleLifecycle1Update_Paused)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Setup test data
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-paused");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-paused", 
+        Exchange::ILifecycleManager::ACTIVE, 
+        Exchange::ILifecycleManager::PAUSED);
+    
+    // Register emitter for lifecycle events
+    MockEmitter* emitter = new MockEmitter();
+    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onInactive", true);
+    
+    // Call HandleLifecycle1Update with PAUSED state (dispatches Lifecycle.onInactive)
+    lifecycleDelegate->HandleLifecycle1Update("instance-l1-paused", 
+        Exchange::ILifecycleManager::ACTIVE, 
+        Exchange::ILifecycleManager::PAUSED);
+    
+    // Give time for dispatch job to execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_268_LifecycleDelegate_HandleLifecycle1Update_Suspended)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Setup test data
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-suspended");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-suspended", 
+        Exchange::ILifecycleManager::PAUSED, 
+        Exchange::ILifecycleManager::SUSPENDED);
+    
+    // Register emitter
+    MockEmitter* emitter = new MockEmitter();
+    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onSuspended", true);
+    
+    // Call HandleLifecycle1Update with SUSPENDED state
+    lifecycleDelegate->HandleLifecycle1Update("instance-l1-suspended", 
+        Exchange::ILifecycleManager::PAUSED, 
+        Exchange::ILifecycleManager::SUSPENDED);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_269_LifecycleDelegate_HandleLifecycle1Update_Unloaded)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Setup test data
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-unloaded");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-unloaded", 
+        Exchange::ILifecycleManager::SUSPENDED, 
+        Exchange::ILifecycleManager::UNLOADED);
+    
+    // Register emitter
+    MockEmitter* emitter = new MockEmitter();
+    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onUnloading", true);
+    
+    // Call HandleLifecycle1Update with UNLOADED state
+    lifecycleDelegate->HandleLifecycle1Update("instance-l1-unloaded", 
+        Exchange::ILifecycleManager::SUSPENDED, 
+        Exchange::ILifecycleManager::UNLOADED);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_270_LifecycleDelegate_HandleLifecycle1Update_ActiveFocused)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Setup test data - app is focused
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-active-focused");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-active-focused", 
+        Exchange::ILifecycleManager::INITIALIZING, 
+        Exchange::ILifecycleManager::ACTIVE);
+    lifecycleDelegate->mFocusedAppRegistry.SetFocusedAppInstanceId("instance-l1-active-focused");
+    
+    // Register emitter
+    MockEmitter* emitter = new MockEmitter();
+    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onForeground", true);
+    
+    // Call HandleLifecycle1Update with ACTIVE state when app is focused (triggers onForeground)
+    lifecycleDelegate->HandleLifecycle1Update("instance-l1-active-focused", 
+        Exchange::ILifecycleManager::INITIALIZING, 
+        Exchange::ILifecycleManager::ACTIVE);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_271_LifecycleDelegate_HandleLifecycle1Update_ActiveNotFocused)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Setup test data - app is NOT focused
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-active-notfocused");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-active-notfocused", 
+        Exchange::ILifecycleManager::INITIALIZING, 
+        Exchange::ILifecycleManager::ACTIVE);
+    // Don't set focus - app is in background
+    
+    // Register emitter
+    MockEmitter* emitter = new MockEmitter();
+    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onBackground", true);
+    
+    // Call HandleLifecycle1Update with ACTIVE state when app is NOT focused (triggers onBackground)
+    lifecycleDelegate->HandleLifecycle1Update("instance-l1-active-notfocused", 
+        Exchange::ILifecycleManager::INITIALIZING, 
+        Exchange::ILifecycleManager::ACTIVE);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_272_LifecycleDelegate_HandleAppFocusForLifecycle1)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Setup test data - app is in ACTIVE state (required for focus handling)
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-focus");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-focus", 
+        Exchange::ILifecycleManager::INITIALIZING, 
+        Exchange::ILifecycleManager::ACTIVE);
+    
+    // Register emitter for foreground event
+    MockEmitter* emitter = new MockEmitter();
+    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onForeground", true);
+    
+    // Call HandleAppFocusForLifecycle1
+    lifecycleDelegate->HandleAppFocusForLifecycle1("instance-focus");
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Verify app is now focused
+    EXPECT_TRUE(lifecycleDelegate->mFocusedAppRegistry.IsAppInstanceIdFocused("instance-focus"));
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_273_LifecycleDelegate_HandleAppBlurForLifecycle1)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Setup test data - app is in ACTIVE state and focused
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-blur");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-blur", 
+        Exchange::ILifecycleManager::INITIALIZING, 
+        Exchange::ILifecycleManager::ACTIVE);
+    lifecycleDelegate->mFocusedAppRegistry.SetFocusedAppInstanceId("instance-blur");
+    
+    // Register emitter for background event
+    MockEmitter* emitter = new MockEmitter();
+    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onBackground", true);
+    
+    // Call HandleAppBlurForLifecycle1
+    lifecycleDelegate->HandleAppBlurForLifecycle1("instance-blur");
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Verify app is no longer focused
+    EXPECT_FALSE(lifecycleDelegate->mFocusedAppRegistry.IsAppInstanceIdFocused("instance-blur"));
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_274_LifecycleDelegate_HandleLifecycle1Update_Hibernated)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Setup test data
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-hibernated");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-hibernated", 
+        Exchange::ILifecycleManager::SUSPENDED, 
+        Exchange::ILifecycleManager::HIBERNATED);
+    
+    // Register emitter - HIBERNATED maps to Lifecycle.onSuspended
+    MockEmitter* emitter = new MockEmitter();
+    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onSuspended", true);
+    
+    // Call HandleLifecycle1Update with HIBERNATED state
+    lifecycleDelegate->HandleLifecycle1Update("instance-l1-hibernated", 
+        Exchange::ILifecycleManager::SUSPENDED, 
+        Exchange::ILifecycleManager::HIBERNATED);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_275_LifecycleDelegate_HandleLifecycle1Update_Terminating)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Setup test data
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-terminating");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-terminating", 
+        Exchange::ILifecycleManager::ACTIVE, 
+        Exchange::ILifecycleManager::TERMINATING);
+    
+    // Register emitter - TERMINATING maps to Lifecycle.onUnloading
+    MockEmitter* emitter = new MockEmitter();
+    lifecycleDelegate->HandleSubscription(emitter, "Lifecycle.onUnloading", true);
+    
+    // Call HandleLifecycle1Update with TERMINATING state
+    lifecycleDelegate->HandleLifecycle1Update("instance-l1-terminating", 
+        Exchange::ILifecycleManager::ACTIVE, 
+        Exchange::ILifecycleManager::TERMINATING);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_276_LifecycleDelegate_HandleLifecycle1Update_DefaultState)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Setup test data
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-l1-default");
+    lifecycleDelegate->mLifecycleStateRegistry.AddLifecycleState("instance-l1-default", 
+        Exchange::ILifecycleManager::UNLOADED, 
+        Exchange::ILifecycleManager::LOADING);
+    
+    // Call HandleLifecycle1Update with LOADING state (falls into default case)
+    lifecycleDelegate->HandleLifecycle1Update("instance-l1-default", 
+        Exchange::ILifecycleManager::UNLOADED, 
+        Exchange::ILifecycleManager::LOADING);
+    
+    // No dispatch expected for LOADING state - just verify no crash
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_277_LifecycleDelegate_DispatchLastKnownIntent_WithIntent)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Setup test data with navigation intent
+    lifecycleDelegate->mAppIdInstanceIdMap.AddAppInstanceId("test.app", "instance-intent");
+    lifecycleDelegate->mNavigationIntentRegistry.AddNavigationIntent("instance-intent", "test://navigate/to/page");
+    
+    // Register emitter for Discovery.onNavigateTo
+    MockEmitter* emitter = new MockEmitter();
+    lifecycleDelegate->HandleSubscription(emitter, "Discovery.onNavigateTo", true);
+    
+    // Call DispatchLastKnownIntent
+    lifecycleDelegate->DispatchLastKnownIntent("test.app");
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_278_LifecycleDelegate_HandleEvent_AllValidEvents)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string&) -> void* {
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    
+    // Test all valid lifecycle events
+    std::vector<string> validEvents = {
+        "lifecycle.onbackground",
+        "lifecycle.onforeground",
+        "lifecycle.oninactive",
+        "lifecycle.onsuspended",
+        "lifecycle.onunloading",
+        "lifecycle2.onstatechanged",
+        "discovery.onnavigateto",
+        "presentation.onfocusedchanged"
+    };
+    
+    for (const auto& event : validEvents) {
+        MockEmitter* emitter = new MockEmitter();
+        bool registrationError = false;
+        
+        bool handled = lifecycleDelegate->HandleEvent(emitter, event, true, registrationError);
+        
+        EXPECT_TRUE(handled) << "Event " << event << " should be handled";
+        EXPECT_FALSE(registrationError) << "Event " << event << " should not have registration error";
     }
     
-    std::map<string, MethodResponse> mResponses;
-    mutable uint32_t mRefCount;
-    PluginHost::IPlugin* mPlugin;
-};
-
-// Test SystemDelegate::SetFlagsFromSupported - Empty array
-TEST(SystemDelegateTest, AGC_L1_379_SetFlagsFromSupported_EmptyArray)
-{
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
-    
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":[]}");
-    auto supported = container.Get("supportedAudioFormat");
-    
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
-    
-    EXPECT_FALSE(result);  // No recognized tokens
-    EXPECT_FALSE(stereo);
-    EXPECT_FALSE(dd51);
-    EXPECT_FALSE(dd51p);
-    EXPECT_FALSE(atmos);
+    plugin.Deinitialize(&service);
 }
 
-// Test SystemDelegate::SetFlagsFromSupported - PCM/Stereo detection
-TEST(SystemDelegateTest, AGC_L1_380_SetFlagsFromSupported_PCM)
+// Test LifecycleDelegate::Lifecycle2Close - Deactivate reason
+TEST_F(AppGatewayCommonTest, AGC_L1_493_LifecycleDelegate_Lifecycle2Close_Deactivate)
 {
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
     
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":[\"PCM\"]}");
-    auto supported = container.Get("supportedAudioFormat");
+    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::USER_EXIT))
+        .WillOnce(Return(Core::ERROR_NONE));
     
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     
-    EXPECT_TRUE(result);
-    EXPECT_TRUE(stereo);
-    EXPECT_FALSE(dd51);
-    EXPECT_FALSE(dd51p);
-    EXPECT_FALSE(atmos);
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"deactivate"})", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
+    plugin.Deinitialize(&service);
+    delete mockLifecycleManager;
 }
 
-// Test SystemDelegate::SetFlagsFromSupported - STEREO detection
-TEST(SystemDelegateTest, AGC_L1_381_SetFlagsFromSupported_STEREO)
+// Test LifecycleDelegate::Lifecycle2Close - KillReload reason
+TEST_F(AppGatewayCommonTest, AGC_L1_494_LifecycleDelegate_Lifecycle2Close_KillReload)
 {
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
     
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":[\"STEREO\"]}");
-    auto supported = container.Get("supportedAudioFormat");
+    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::KILL_AND_RUN))
+        .WillOnce(Return(Core::ERROR_NONE));
     
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     
-    EXPECT_TRUE(result);
-    EXPECT_TRUE(stereo);
-    EXPECT_FALSE(dd51);
-    EXPECT_FALSE(dd51p);
-    EXPECT_FALSE(atmos);
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"killReload"})", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
+    plugin.Deinitialize(&service);
+    delete mockLifecycleManager;
 }
 
-// Test SystemDelegate::SetFlagsFromSupported - AC3 (Dolby Digital 5.1)
-TEST(SystemDelegateTest, AGC_L1_382_SetFlagsFromSupported_AC3)
+// Test LifecycleDelegate::Lifecycle2Close - KillReactivate reason
+TEST_F(AppGatewayCommonTest, AGC_L1_495_LifecycleDelegate_Lifecycle2Close_KillReactivate)
 {
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
     
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":[\"AC3\"]}");
-    auto supported = container.Get("supportedAudioFormat");
+    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::KILL_AND_ACTIVATE))
+        .WillOnce(Return(Core::ERROR_NONE));
     
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     
-    EXPECT_TRUE(result);
-    EXPECT_FALSE(stereo);
-    EXPECT_TRUE(dd51);
-    EXPECT_FALSE(dd51p);
-    EXPECT_FALSE(atmos);
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"killReactivate"})", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
+    plugin.Deinitialize(&service);
+    delete mockLifecycleManager;
 }
 
-// Test SystemDelegate::SetFlagsFromSupported - DOLBY AC3
-TEST(SystemDelegateTest, AGC_L1_383_SetFlagsFromSupported_DolbyAC3)
+// Test LifecycleDelegate::Lifecycle2Close - Unknown reason defaults to ERROR
+TEST_F(AppGatewayCommonTest, AGC_L1_496_LifecycleDelegate_Lifecycle2Close_UnknownReason)
 {
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
     
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":[\"DOLBY AC3\"]}");
-    auto supported = container.Get("supportedAudioFormat");
+    EXPECT_CALL(*mockLifecycleManager, CloseApp(_, Exchange::ILifecycleManagerState::ERROR))
+        .WillOnce(Return(Core::ERROR_NONE));
     
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     
-    EXPECT_TRUE(result);
-    EXPECT_FALSE(stereo);
-    EXPECT_TRUE(dd51);
-    EXPECT_FALSE(dd51p);
-    EXPECT_FALSE(atmos);
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"unknownType"})", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
+    plugin.Deinitialize(&service);
+    delete mockLifecycleManager;
 }
 
-// Test SystemDelegate::SetFlagsFromSupported - DOLBY DIGITAL
-TEST(SystemDelegateTest, AGC_L1_384_SetFlagsFromSupported_DolbyDigital)
+// Test LifecycleDelegate::LifecycleReady - Success with mock
+TEST_F(AppGatewayCommonTest, AGC_L1_497_LifecycleDelegate_LifecycleReady_Success)
 {
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    NiceMock<Exchange::MockILifecycleManagerState>* mockLifecycleManager = new NiceMock<Exchange::MockILifecycleManagerState>();
     
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":[\"DOLBY DIGITAL\"]}");
-    auto supported = container.Get("supportedAudioFormat");
+    EXPECT_CALL(*mockLifecycleManager, AppReady(_))
+        .WillOnce(Return(Core::ERROR_NONE));
     
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     
-    EXPECT_TRUE(result);
-    EXPECT_FALSE(stereo);
-    EXPECT_TRUE(dd51);
-    EXPECT_FALSE(dd51p);
-    EXPECT_FALSE(atmos);
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    lifecycleDelegate->mLifecycleManagerState = mockLifecycleManager;
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.ready", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+    
+    lifecycleDelegate->mLifecycleManagerState = nullptr;
+    plugin.Deinitialize(&service);
+    delete mockLifecycleManager;
 }
 
-// Test SystemDelegate::SetFlagsFromSupported - EAC3 (Dolby Digital Plus)
-TEST(SystemDelegateTest, AGC_L1_385_SetFlagsFromSupported_EAC3)
+// ============================================================================
+// SECTION 4: SYSTEM DELEGATE TESTS
+// Tests for DeviceMake, DeviceSku, FirmwareVersion, CountryCode, TimeZone, Resolution, HDCP, HDR, Audio
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_043_FirmwareVersion_NullDelegate_ReturnsUnavailable)
 {
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
-    
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":[\"EAC3\"]}");
-    auto supported = container.Get("supportedAudioFormat");
-    
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
-    
-    EXPECT_TRUE(result);
-    EXPECT_FALSE(stereo);
-    EXPECT_FALSE(dd51);  // EAC3 should NOT trigger dd51
-    EXPECT_TRUE(dd51p);
-    EXPECT_FALSE(atmos);
+    plugin.mDelegate.reset();
+
+    string result;
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetFirmwareVersion(result));
 }
 
-// Test SystemDelegate::SetFlagsFromSupported - DD+
-TEST(SystemDelegateTest, AGC_L1_386_SetFlagsFromSupported_DDPlus)
+TEST_F(AppGatewayCommonTest, AGC_L1_047_SetCountryCode_ValidPayload_NoDelegate)
 {
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
-    
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":[\"DD+\"]}");
-    auto supported = container.Get("supportedAudioFormat");
-    
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
-    
-    EXPECT_TRUE(result);
-    EXPECT_FALSE(stereo);
-    EXPECT_FALSE(dd51);
-    EXPECT_TRUE(dd51p);
-    EXPECT_FALSE(atmos);
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.setcountrycode", "{\"value\":\"US\"}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
 }
 
-// Test SystemDelegate::SetFlagsFromSupported - DOLBY DIGITAL PLUS
-TEST(SystemDelegateTest, AGC_L1_387_SetFlagsFromSupported_DolbyDigitalPlus)
+TEST_F(AppGatewayCommonTest, AGC_L1_048_SetTimeZone_ValidPayload_NoDelegate)
 {
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
-    
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":[\"DOLBY DIGITAL PLUS\"]}");
-    auto supported = container.Get("supportedAudioFormat");
-    
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
-    
-    EXPECT_TRUE(result);
-    EXPECT_FALSE(stereo);
-    EXPECT_TRUE(dd51);  // Contains "DOLBY DIGITAL"
-    EXPECT_TRUE(dd51p);
-    EXPECT_FALSE(atmos);
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.settimezone", "{\"value\":\"America/New_York\"}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
 }
 
-// Test SystemDelegate::SetFlagsFromSupported - AC4
-TEST(SystemDelegateTest, AGC_L1_388_SetFlagsFromSupported_AC4)
+TEST_F(AppGatewayCommonTest, AGC_L1_075_DeviceScreenResolution_NoDelegate)
 {
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
-    
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":[\"AC4\"]}");
-    auto supported = container.Get("supportedAudioFormat");
-    
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
-    
-    EXPECT_TRUE(result);
-    EXPECT_FALSE(stereo);
-    EXPECT_FALSE(dd51);
-    EXPECT_TRUE(dd51p);
-    EXPECT_FALSE(atmos);
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.screenresolution", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_EQ("[1920,1080]", result);
 }
 
-// Test SystemDelegate::SetFlagsFromSupported - ATMOS
-TEST(SystemDelegateTest, AGC_L1_389_SetFlagsFromSupported_ATMOS)
+TEST_F(AppGatewayCommonTest, AGC_L1_076_DeviceVideoResolution_NoDelegate)
 {
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
-    
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":[\"ATMOS\"]}");
-    auto supported = container.Get("supportedAudioFormat");
-    
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
-    
-    EXPECT_TRUE(result);
-    EXPECT_FALSE(stereo);
-    EXPECT_FALSE(dd51);
-    EXPECT_FALSE(dd51p);
-    EXPECT_TRUE(atmos);
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.videoresolution", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_EQ("[1920,1080]", result);
 }
 
-// Test SystemDelegate::SetFlagsFromSupported - Multiple formats
-TEST(SystemDelegateTest, AGC_L1_390_SetFlagsFromSupported_MultipleFormats)
+TEST_F(AppGatewayCommonTest, AGC_L1_077_DeviceHdcp_NoDelegate)
 {
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
-    
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":[\"PCM\",\"AC3\",\"EAC3\",\"ATMOS\"]}");
-    auto supported = container.Get("supportedAudioFormat");
-    
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
-    
-    EXPECT_TRUE(result);
-    EXPECT_TRUE(stereo);
-    EXPECT_TRUE(dd51);
-    EXPECT_TRUE(dd51p);
-    EXPECT_TRUE(atmos);
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.hdcp", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_EQ("{\"hdcp1.4\":false,\"hdcp2.2\":false}", result);
 }
 
-// Test SystemDelegate::SetFlagsFromSupported - Not an array
-TEST(SystemDelegateTest, AGC_L1_391_SetFlagsFromSupported_NotArray)
+TEST_F(AppGatewayCommonTest, AGC_L1_078_DeviceHdr_NoDelegate)
 {
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
-    
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":\"PCM\"}");
-    auto supported = container.Get("supportedAudioFormat");
-    
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
-    
-    EXPECT_FALSE(result);  // Not an array
-    EXPECT_FALSE(stereo);
-    EXPECT_FALSE(dd51);
-    EXPECT_FALSE(dd51p);
-    EXPECT_FALSE(atmos);
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.hdr", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_EQ("{\"hdr10\":false,\"dolbyVision\":false,\"hlg\":false,\"hdr10Plus\":false}", result);
 }
 
-// Test SystemDelegate::SetFlagsFromSupported - Empty string token
-TEST(SystemDelegateTest, AGC_L1_392_SetFlagsFromSupported_EmptyToken)
+TEST_F(AppGatewayCommonTest, AGC_L1_081_SecondScreenFriendlyName_NoDelegate)
 {
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
-    
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":[\"\",\"PCM\"]}");
-    auto supported = container.Get("supportedAudioFormat");
-    
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
-    
-    EXPECT_TRUE(result);
-    EXPECT_TRUE(stereo);  // PCM should still be recognized
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "secondscreen.friendlyname", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
 }
 
-// Test SystemDelegate::SetFlagsFromSupported - Case insensitive
-TEST(SystemDelegateTest, AGC_L1_393_SetFlagsFromSupported_CaseInsensitive)
+TEST_F(AppGatewayCommonTest, AGC_L1_110_GetDeviceMake_NullDelegate)
 {
-    bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+    plugin.mDelegate.reset();
+
+    string result;
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetDeviceMake(result));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_113_GetDeviceSku_NullDelegate)
+{
+    plugin.mDelegate.reset();
+
+    string result;
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetDeviceSku(result));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_114_GetCountryCode_NullDelegate)
+{
+    plugin.mDelegate.reset();
+
+    string result;
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetCountryCode(result));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_115_SetCountryCode_NullDelegate)
+{
+    plugin.mDelegate.reset();
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetCountryCode("US"));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_116_GetTimeZone_NullDelegate)
+{
+    plugin.mDelegate.reset();
+
+    string result;
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetTimeZone(result));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_117_SetTimeZone_NullDelegate)
+{
+    plugin.mDelegate.reset();
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetTimeZone("America/New_York"));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_118_GetSecondScreenFriendlyName_NullDelegate)
+{
+    plugin.mDelegate.reset();
+
+    string result;
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetSecondScreenFriendlyName(result));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_179_HandleAppEventNotifier_NullEmitter)
+{
+    // Initialize the plugin first to set up mDelegate
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     
-    WPEFramework::Core::JSON::VariantContainer container;
-    container.FromString("{\"supportedAudioFormat\":[\"pcm\",\"ac3\",\"eac3\",\"atmos\"]}");
-    auto supported = container.Get("supportedAudioFormat");
+    const string response = plugin.Initialize(&service);
+    EXPECT_TRUE(response.empty());
     
-    bool result = SystemDelegate::SetFlagsFromSupported(supported, stereo, dd51, dd51p, atmos);
+    bool status = false;
     
-    EXPECT_TRUE(result);
-    EXPECT_TRUE(stereo);
-    EXPECT_TRUE(dd51);
-    EXPECT_TRUE(dd51p);
-    EXPECT_TRUE(atmos);
+    // Test with null emitter
+    Core::hresult rc = plugin.HandleAppEventNotifier(nullptr, "test.event", true, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    // Give time for the async job to execute
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    plugin.Deinitialize(&service);
 }
 
 // Test SystemDelegate::HandleEvent - Register for video resolution event
@@ -12233,6 +9308,2430 @@ TEST_F(AppGatewayCommonTest, AGC_L1_480_SystemDelegate_GetTimeZone_InvokeFails)
     Core::hresult result = systemDelegate->GetTimeZone(tz);
     
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, result);
+    
+    plugin.Deinitialize(&service);
+}
+
+// Test SystemDelegate::EmitOnVideoResolutionChanged - Success
+TEST_F(AppGatewayCommonTest, AGC_L1_481_SystemDelegate_EmitOnVideoResolutionChanged_Success)
+{
+    MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
+    testing::Mock::AllowLeak(mockDispatcher);
+    mockDispatcher->SetResponse("getCurrentResolution", "{\"w\":3840,\"h\":2160,\"success\":true}");
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockDispatcher](const uint32_t id, const string& callsign) -> void* {
+            if (id == PluginHost::ILocalDispatcher::ID && callsign == "org.rdk.DisplaySettings") {
+                mockDispatcher->AddRef();
+                return static_cast<void*>(mockDispatcher);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    
+    bool result = systemDelegate->EmitOnVideoResolutionChanged();
+    
+    EXPECT_TRUE(result);
+    
+    plugin.Deinitialize(&service);
+}
+
+// Test SystemDelegate::EmitOnScreenResolutionChanged - Success
+TEST_F(AppGatewayCommonTest, AGC_L1_482_SystemDelegate_EmitOnScreenResolutionChanged_Success)
+{
+    MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
+    testing::Mock::AllowLeak(mockDispatcher);
+    mockDispatcher->SetResponse("getCurrentResolution", "{\"w\":1920,\"h\":1080,\"success\":true}");
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockDispatcher](const uint32_t id, const string& callsign) -> void* {
+            if (id == PluginHost::ILocalDispatcher::ID && callsign == "org.rdk.DisplaySettings") {
+                mockDispatcher->AddRef();
+                return static_cast<void*>(mockDispatcher);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    
+    bool result = systemDelegate->EmitOnScreenResolutionChanged();
+    
+    EXPECT_TRUE(result);
+    
+    plugin.Deinitialize(&service);
+}
+
+// Test SystemDelegate::EmitOnHdcpChanged - Success
+TEST_F(AppGatewayCommonTest, AGC_L1_483_SystemDelegate_EmitOnHdcpChanged_Success)
+{
+    MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
+    testing::Mock::AllowLeak(mockDispatcher);
+    mockDispatcher->SetResponse("getHDCPStatus", "{\"HDCPStatus\":{\"hdcpReason\":2,\"currentHDCPVersion\":\"2.2\"},\"success\":true}");
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockDispatcher](const uint32_t id, const string& callsign) -> void* {
+            if (id == PluginHost::ILocalDispatcher::ID && callsign == "org.rdk.HdcpProfile") {
+                mockDispatcher->AddRef();
+                return static_cast<void*>(mockDispatcher);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    
+    bool result = systemDelegate->EmitOnHdcpChanged();
+    
+    EXPECT_TRUE(result);
+    
+    plugin.Deinitialize(&service);
+}
+
+// Test SystemDelegate::EmitOnHdrChanged - Success
+TEST_F(AppGatewayCommonTest, AGC_L1_484_SystemDelegate_EmitOnHdrChanged_Success)
+{
+    MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
+    testing::Mock::AllowLeak(mockDispatcher);
+    mockDispatcher->SetResponse("getTVHDRCapabilities", "{\"capabilities\":5,\"success\":true}");
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockDispatcher](const uint32_t id, const string& callsign) -> void* {
+            if (id == PluginHost::ILocalDispatcher::ID && callsign == "org.rdk.DisplaySettings") {
+                mockDispatcher->AddRef();
+                return static_cast<void*>(mockDispatcher);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    
+    bool result = systemDelegate->EmitOnHdrChanged();
+    
+    EXPECT_TRUE(result);
+    
+    plugin.Deinitialize(&service);
+}
+
+// Test SystemDelegate::EmitOnNameChanged - Success
+TEST_F(AppGatewayCommonTest, AGC_L1_485_SystemDelegate_EmitOnNameChanged_Success)
+{
+    MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
+    testing::Mock::AllowLeak(mockDispatcher);
+    mockDispatcher->SetResponse("getFriendlyName", "{\"friendlyName\":\"Test Device\",\"success\":true}");
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockDispatcher](const uint32_t id, const string& callsign) -> void* {
+            if (id == PluginHost::ILocalDispatcher::ID && callsign == "org.rdk.System") {
+                mockDispatcher->AddRef();
+                return static_cast<void*>(mockDispatcher);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    
+    bool result = systemDelegate->EmitOnNameChanged();
+    
+    EXPECT_TRUE(result);
+    
+    plugin.Deinitialize(&service);
+}
+
+// Test SystemDelegate::EmitOnAudioChanged - Success
+TEST_F(AppGatewayCommonTest, AGC_L1_486_SystemDelegate_EmitOnAudioChanged_Success)
+{
+    MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
+    testing::Mock::AllowLeak(mockDispatcher);
+    mockDispatcher->SetResponse("getAudioFormat", "{\"supportedAudioFormat\":[\"PCM\",\"AC3\"],\"success\":true}");
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockDispatcher](const uint32_t id, const string& callsign) -> void* {
+            if (id == PluginHost::ILocalDispatcher::ID && callsign == "org.rdk.DisplaySettings") {
+                mockDispatcher->AddRef();
+                return static_cast<void*>(mockDispatcher);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    
+    bool result = systemDelegate->EmitOnAudioChanged();
+    
+    EXPECT_TRUE(result);
+    
+    plugin.Deinitialize(&service);
+}
+
+// Test SystemDelegate::EmitOnVideoResolutionChanged - Failure (no link)
+TEST_F(AppGatewayCommonTest, AGC_L1_487_SystemDelegate_EmitOnVideoResolutionChanged_Failure)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    
+    bool result = systemDelegate->EmitOnVideoResolutionChanged();
+    
+    EXPECT_TRUE(result);
+    
+    plugin.Deinitialize(&service);
+}
+
+// Test SystemDelegate::GetVideoResolution - Parse error handling
+TEST_F(AppGatewayCommonTest, AGC_L1_499_SystemDelegate_GetVideoResolution_ParseError)
+{
+    MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
+    testing::Mock::AllowLeak(mockDispatcher);
+    mockDispatcher->SetResponse("getCurrentResolution", "{\"invalid\":true}");
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockDispatcher](const uint32_t id, const string& callsign) -> void* {
+            if (id == PluginHost::ILocalDispatcher::ID && callsign == "org.rdk.DisplaySettings") {
+                mockDispatcher->AddRef();
+                return static_cast<void*>(mockDispatcher);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    
+    string videoRes;
+    Core::hresult result = systemDelegate->GetVideoResolution(videoRes);
+    
+    EXPECT_EQ(Core::ERROR_NONE, result);
+    EXPECT_EQ("[1920,1080]", videoRes);
+    
+    plugin.Deinitialize(&service);
+}
+
+// Test SystemDelegate::GetFirmwareVersion - Cached value
+TEST_F(AppGatewayCommonTest, AGC_L1_500_SystemDelegate_GetFirmwareVersion_Cached)
+{
+    MockLocalDispatcher* mockDispatcher = new MockLocalDispatcher();
+    testing::Mock::AllowLeak(mockDispatcher);
+    mockDispatcher->SetResponse("getSystemVersions", "{\"receiverVersion\":\"1.2.3.456\",\"stbVersion\":\"TestFirmware_123\",\"success\":true}");
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockDispatcher](const uint32_t id, const string& callsign) -> void* {
+            if (id == PluginHost::ILocalDispatcher::ID && callsign == "org.rdk.System") {
+                mockDispatcher->AddRef();
+                return static_cast<void*>(mockDispatcher);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    
+    string version1, version2;
+    Core::hresult result1 = systemDelegate->GetFirmwareVersion(version1);
+    Core::hresult result2 = systemDelegate->GetFirmwareVersion(version2);
+    
+    EXPECT_EQ(Core::ERROR_NONE, result1);
+    EXPECT_EQ(Core::ERROR_NONE, result2);
+    EXPECT_EQ(version1, version2);
+    EXPECT_FALSE(version1.empty());
+    
+    plugin.Deinitialize(&service);
+}
+
+// ============================================================================
+// SECTION 5: NETWORK DELEGATE TESTS
+// Tests for NetworkConnected, InternetConnectionStatus, interface state changes
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_073_NetworkConnected_NoDelegate)
+{
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_EQ("{\"error\":\"couldn't get network connected status\"}", result);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_108_GetInternetConnectionStatus_NullDelegate_ReturnsError)
+{
+    plugin.mDelegate.reset();
+
+    string result;
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetInternetConnectionStatus(result));
+    EXPECT_EQ("{\"error\":\"couldn't get internet connection status\"}", result);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_109_GetNetworkConnected_NullDelegate_ReturnsError)
+{
+    plugin.mDelegate.reset();
+
+    string result;
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetNetworkConnected(result));
+    EXPECT_EQ("{\"error\":\"couldn't get network connected status\"}", result);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_198_Network_GetNetworkConnected_HasInterface)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    EXPECT_CALL(*mockNetworkManager, GetPrimaryInterface(_))
+        .WillOnce([](string& iface) {
+            iface = "eth0";
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("true", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_199_Network_GetNetworkConnected_NoInterface)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    EXPECT_CALL(*mockNetworkManager, GetPrimaryInterface(_))
+        .WillOnce([](string& iface) {
+            iface = "";  // Empty means not connected
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("false", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_200_Network_GetInternetConnectionStatus_Ethernet)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    NiceMock<Exchange::MockInterfaceDetailsIterator>* mockIterator = new NiceMock<Exchange::MockInterfaceDetailsIterator>();
+    
+    // Set up iterator to return one connected ethernet interface
+    EXPECT_CALL(*mockIterator, Next(_))
+        .WillOnce([](Exchange::INetworkManager::InterfaceDetails& iface) {
+            iface.type = Exchange::INetworkManager::INTERFACE_TYPE_ETHERNET;
+            iface.name = "eth0";
+            iface.connected = true;
+            return true;
+        })
+        .WillRepeatedly(Return(false));
+    
+    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
+        .WillOnce([mockIterator](Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces) {
+            mockIterator->AddRef();
+            interfaces = mockIterator;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(result.find("\"type\":\"ethernet\"") != string::npos);
+    EXPECT_TRUE(result.find("\"state\":\"connected\"") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockIterator;
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_201_Network_GetInternetConnectionStatus_WiFi)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    NiceMock<Exchange::MockInterfaceDetailsIterator>* mockIterator = new NiceMock<Exchange::MockInterfaceDetailsIterator>();
+    
+    EXPECT_CALL(*mockIterator, Next(_))
+        .WillOnce([](Exchange::INetworkManager::InterfaceDetails& iface) {
+            iface.type = Exchange::INetworkManager::INTERFACE_TYPE_WIFI;
+            iface.name = "wlan0";
+            iface.connected = true;
+            return true;
+        })
+        .WillRepeatedly(Return(false));
+    
+    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
+        .WillOnce([mockIterator](Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces) {
+            mockIterator->AddRef();
+            interfaces = mockIterator;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(result.find("\"type\":\"wifi\"") != string::npos);
+    EXPECT_TRUE(result.find("\"state\":\"connected\"") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockIterator;
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_202_Network_GetInternetConnectionStatus_NoConnectedInterface)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    NiceMock<Exchange::MockInterfaceDetailsIterator>* mockIterator = new NiceMock<Exchange::MockInterfaceDetailsIterator>();
+    
+    // No connected interfaces
+    EXPECT_CALL(*mockIterator, Next(_))
+        .WillOnce([](Exchange::INetworkManager::InterfaceDetails& iface) {
+            iface.type = Exchange::INetworkManager::INTERFACE_TYPE_ETHERNET;
+            iface.name = "eth0";
+            iface.connected = false;  // Not connected
+            return true;
+        })
+        .WillRepeatedly(Return(false));
+    
+    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
+        .WillOnce([mockIterator](Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces) {
+            mockIterator->AddRef();
+            interfaces = mockIterator;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("{}", result);  // Empty object when no connected interface
+    
+    plugin.Deinitialize(&service);
+    delete mockIterator;
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_211_Network_HandleSubscription_Subscribe)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    EXPECT_CALL(*mockNetworkManager, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Subscribe to a network event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", true, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_212_Network_HandleSubscription_NetworkConnectedChanged)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    EXPECT_CALL(*mockNetworkManager, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Subscribe to network.onconnectedchanged event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "network.onconnectedchanged", true, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_218_Network_GetNetworkConnected_COMError)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    EXPECT_CALL(*mockNetworkManager, GetPrimaryInterface(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    // ErrorUtils::CustomInternal returns a JSONRPC error message containing the custom text
+    EXPECT_TRUE(result.find("Failed to get NetworkInfo") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_219_Network_GetAvailableInterfaces_COMError)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_312_Network_GetInternetConnectionStatus_NullIterator)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    // Return success but with null iterator
+    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
+        .WillOnce([](Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces) {
+            interfaces = nullptr;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("{}", result);  // Empty object when iterator is null
+    
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_313_Network_GetInternetConnectionStatus_UnknownInterfaceType)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    NiceMock<Exchange::MockInterfaceDetailsIterator>* mockIterator = new NiceMock<Exchange::MockInterfaceDetailsIterator>();
+    
+    // Return an interface with unknown type
+    EXPECT_CALL(*mockIterator, Next(_))
+        .WillOnce([](Exchange::INetworkManager::InterfaceDetails& iface) {
+            iface.type = static_cast<Exchange::INetworkManager::InterfaceType>(99);  // Unknown type
+            iface.name = "unknown0";
+            iface.connected = true;
+            return true;
+        })
+        .WillRepeatedly(Return(false));
+    
+    EXPECT_CALL(*mockNetworkManager, GetAvailableInterfaces(_))
+        .WillOnce([mockIterator](Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces) {
+            mockIterator->AddRef();
+            interfaces = mockIterator;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(result.find("\"type\":\"unknown\"") != string::npos);
+    EXPECT_TRUE(result.find("\"state\":\"connected\"") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockIterator;
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_314_Network_HandleEvent_UnrecognizedEvent)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Try to subscribe to an unrecognized network event
+    // Note: HandleAppEventNotifier submits an async job and always sets status=true synchronously
+    // The actual event validation happens asynchronously in the worker pool
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "network.unrecognizedevent", true, status);
+    
+    // The synchronous call always returns success and sets status=true
+    // Event validation happens asynchronously
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    // Wait for the async job to complete before cleanup to avoid segfault
+    // Use longer delay for CI environments which may be slower
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_315_Network_HandleSubscription_Unsubscribe)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    EXPECT_CALL(*mockNetworkManager, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Subscribe to a network event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", true, status);
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    // Now unsubscribe
+    rc = plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", false, status);
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_316_Network_HandleSubscription_AlreadyRegistered)
+{
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    
+    EXPECT_CALL(*mockNetworkManager, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));  // Only called once
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter1 = new MockEmitter();
+    MockEmitter* emitter2 = new MockEmitter();
+    bool status = false;
+    
+    // First subscription - should register
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter1, "device.onnetworkchanged", true, status);
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    // Second subscription - should NOT register again (already registered)
+    rc = plugin.HandleAppEventNotifier(emitter2, "network.onconnectedchanged", true, status);
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    emitter1->Release();
+    emitter2->Release();
+    plugin.Deinitialize(&service);
+    delete mockNetworkManager;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_317_Network_GetNetworkConnected_NullNetworkManager)
+{
+    // Don't inject NetworkManager - should return error
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_318_Network_GetInternetConnectionStatus_NullNetworkManager)
+{
+    // Don't inject NetworkManager - should return error
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_319_Network_HandleSubscription_NoNetworkManager)
+{
+    // Test the error path in HandleSubscription when NetworkManager is not available
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    // Access the NetworkDelegate and call HandleSubscription directly
+    // This tests line 75-76 when networkManager is nullptr
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Try to subscribe to a valid network event - should fail because NetworkManager is null
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", true, status);
+    
+    // The async job will fail, but the synchronous call returns success
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    
+    // Wait for async job to complete before cleanup
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_320_Network_NotificationHandler_OnInterfaceStateChange)
+{
+    // Test the notification callback methods in NetworkNotificationHandler
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    // Allow leak since mock lifecycle is managed by COM reference counting, not gtest
+    testing::Mock::AllowLeak(mockNetworkManager);
+    
+    EXPECT_CALL(*mockNetworkManager, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockNetworkManager, Unregister(_))
+        .WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    // Subscribe to a network event to trigger registration
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", true, status);
+    
+    // Give the async job time to complete
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Access mDelegate through plugin, then get NetworkDelegate
+    auto networkDelegate = plugin.mDelegate->getNetworkDelegate();
+    if (networkDelegate) {
+        // Access the notification handler through the NetworkDelegate
+        auto& handler = networkDelegate->mNotificationHandler;
+        
+        // Test onInterfaceStateChange
+        handler.onInterfaceStateChange(Exchange::INetworkManager::INTERFACE_LINK_UP, "eth0");
+        
+        // Test onActiveInterfaceChange  
+        handler.onActiveInterfaceChange("", "eth0");
+        
+        // Test onIPAddressChange
+        handler.onIPAddressChange("eth0", "ipv4", "192.168.1.100", Exchange::INetworkManager::IP_ACQUIRED);
+        
+        // Test onAvailableSSIDs
+        handler.onAvailableSSIDs("{\"ssids\":[]}");
+        
+        // Test onWiFiStateChange
+        handler.onWiFiStateChange(Exchange::INetworkManager::WIFI_STATE_CONNECTED);
+        
+        // Test onWiFiSignalQualityChange
+        handler.onWiFiSignalQualityChange("TestSSID", "80", "10", "70", Exchange::INetworkManager::WIFI_SIGNAL_EXCELLENT);
+    }
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+    // Note: mockNetworkManager is cleaned up via Release() calls from the delegate
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_321_Network_NotificationHandler_OnInternetStatusChange)
+{
+    // Test onInternetStatusChange notification callback
+    NiceMock<Exchange::MockINetworkManager>* mockNetworkManager = new NiceMock<Exchange::MockINetworkManager>();
+    // Allow leak since mock lifecycle is managed by COM reference counting, not gtest
+    testing::Mock::AllowLeak(mockNetworkManager);
+    
+    EXPECT_CALL(*mockNetworkManager, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockNetworkManager, Unregister(_))
+        .WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockNetworkManager](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.NetworkManager") {
+                mockNetworkManager->AddRef();
+                return static_cast<void*>(mockNetworkManager);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    // Subscribe to get the handler registered
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "device.onnetworkchanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    auto networkDelegate = plugin.mDelegate->getNetworkDelegate();
+    if (networkDelegate) {
+        auto& handler = networkDelegate->mNotificationHandler;
+        
+        // Test all internet status combinations
+        handler.onInternetStatusChange(
+            Exchange::INetworkManager::INTERNET_NOT_AVAILABLE,
+            Exchange::INetworkManager::INTERNET_FULLY_CONNECTED,
+            "eth0");
+        
+        handler.onInternetStatusChange(
+            Exchange::INetworkManager::INTERNET_FULLY_CONNECTED,
+            Exchange::INetworkManager::INTERNET_CAPTIVE_PORTAL,
+            "wlan0");
+        
+        handler.onInternetStatusChange(
+            Exchange::INetworkManager::INTERNET_CAPTIVE_PORTAL,
+            Exchange::INetworkManager::INTERNET_LIMITED,
+            "eth0");
+        
+        handler.onInternetStatusChange(
+            Exchange::INetworkManager::INTERNET_LIMITED,
+            Exchange::INetworkManager::INTERNET_NOT_AVAILABLE,
+            "eth0");
+        
+        // Test with default/unknown status
+        handler.onInternetStatusChange(
+            static_cast<Exchange::INetworkManager::InternetStatus>(99),
+            static_cast<Exchange::INetworkManager::InternetStatus>(100),
+            "eth0");
+    }
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+    // Note: mockNetworkManager is cleaned up via Release() calls from the delegate
+}
+
+// ============================================================================
+// SECTION 6: APP DELEGATE TESTS
+// Tests for DeviceUID, AdvertisingId, SharedStorage integration
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_071_AdvertisingId_NoDelegate)
+{
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "advertising.advertisingid", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_203_App_GetDeviceUID_ExistingValue)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    
+    // GetValue returns success with existing UID
+    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string& key, string& value, uint32_t& ttl, bool& success) {
+            if (key == "fireboltDeviceUid") {
+                value = "existing-uid-12345";
+                ttl = 0;
+                success = true;
+                return Core::ERROR_NONE;
+            }
+            return Core::ERROR_GENERAL;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.uid", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("existing-uid-12345", result);
+    
+    plugin.Deinitialize(&service);
+    delete mockSharedStorage;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_204_App_GetDeviceUID_NewValue)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    
+    // GetValue returns error (no existing value), then SetValue is called
+    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce(Return(Core::ERROR_GENERAL));  // No existing value
+    
+    EXPECT_CALL(*mockSharedStorage, SetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string&, const string&, uint32_t, Exchange::ISharedStorage::Success& success) {
+            success.success = true;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.uid", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // Result should be a UUID (36 chars with hyphens)
+    EXPECT_EQ(36u, result.length());
+    
+    plugin.Deinitialize(&service);
+    delete mockSharedStorage;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_205_App_GetAdvertisingId_ExistingValue)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    
+    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string& key, string& value, uint32_t& ttl, bool& success) {
+            if (key == "fireboltAdvertisingId") {
+                value = "ad-id-12345";
+                ttl = 0;
+                success = true;
+                return Core::ERROR_NONE;
+            }
+            return Core::ERROR_GENERAL;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "advertising.advertisingid", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(result.find("\"ifa\":\"ad-id-12345\"") != string::npos);
+    EXPECT_TRUE(result.find("\"ifa_type\":\"sessionid\"") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockSharedStorage;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_206_App_GetAdvertisingId_NewValue)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    
+    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce(Return(Core::ERROR_GENERAL));  // No existing value
+    
+    EXPECT_CALL(*mockSharedStorage, SetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string&, const string&, uint32_t, Exchange::ISharedStorage::Success& success) {
+            success.success = true;
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "advertising.advertisingid", "{}", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(result.find("\"ifa\":") != string::npos);
+    EXPECT_TRUE(result.find("\"ifa_type\":\"sessionid\"") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockSharedStorage;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_216_App_GetDeviceUID_SetValueFails)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    
+    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce(Return(Core::ERROR_GENERAL));  // No existing value
+    
+    EXPECT_CALL(*mockSharedStorage, SetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string&, const string&, uint32_t, Exchange::ISharedStorage::Success& success) {
+            success.success = false;  // SetValue fails
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.uid", "{}", result);
+    
+    // When SetValue fails, the code returns ERROR_GENERAL and populates result with error message
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    // The error message is a JSON-RPC formatted error with "code" and "Text" fields
+    EXPECT_TRUE(result.find("Failed to set") != string::npos || result.find("code") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockSharedStorage;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_217_App_GetAdvertisingId_SetValueFails)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    
+    EXPECT_CALL(*mockSharedStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce(Return(Core::ERROR_GENERAL));  // No existing value
+    
+    EXPECT_CALL(*mockSharedStorage, SetValue(Exchange::ISharedStorage::DEVICE, _, _, _, _, _))
+        .WillOnce([](Exchange::ISharedStorage::ScopeType, const string&, const string&, const string&, uint32_t, Exchange::ISharedStorage::Success& success) {
+            success.success = false;  // SetValue fails
+            return Core::ERROR_NONE;
+        });
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    const auto ctx = MakeContext();
+    string result;
+    
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "advertising.advertisingid", "{}", result);
+    
+    // When SetValue fails, the code returns ERROR_GENERAL and populates result with error message
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    // The error message is a JSON-RPC formatted error with "code" and "Text" fields
+    EXPECT_TRUE(result.find("Failed to set") != string::npos || result.find("code") != string::npos);
+    
+    plugin.Deinitialize(&service);
+    delete mockSharedStorage;
+}
+
+// Test AppDelegate::GetDeviceUID - SharedStorage GetValue fails, SetValue succeeds
+TEST_F(AppGatewayCommonTest, AGC_L1_488_AppDelegate_GetDeviceUID_CreateNew_Success)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    testing::Mock::AllowLeak(mockSharedStorage);
+    
+    EXPECT_CALL(*mockSharedStorage, GetValue(_, _, _, _, _, _))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    
+    Exchange::ISharedStorage::Success successResult;
+    successResult.success = true;
+    EXPECT_CALL(*mockSharedStorage, SetValue(_, _, _, _, _, _))
+        .WillOnce(DoAll(SetArgReferee<5>(successResult), Return(Core::ERROR_NONE)));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t id, const string& callsign) -> void* {
+            if (id == Exchange::ISharedStorage::ID && callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto appDelegate = plugin.mDelegate->getAppDelegate();
+    ASSERT_NE(appDelegate, nullptr);
+    
+    string result;
+    Core::hresult rc = appDelegate->GetDeviceUID("test.app", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_FALSE(result.empty());
+    
+    plugin.Deinitialize(&service);
+}
+
+// Test AppDelegate::GetDeviceUID - SharedStorage SetValue fails
+TEST_F(AppGatewayCommonTest, AGC_L1_489_AppDelegate_GetDeviceUID_SetValueFails)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    testing::Mock::AllowLeak(mockSharedStorage);
+    
+    EXPECT_CALL(*mockSharedStorage, GetValue(_, _, _, _, _, _))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    
+    Exchange::ISharedStorage::Success successResult;
+    successResult.success = false;
+    EXPECT_CALL(*mockSharedStorage, SetValue(_, _, _, _, _, _))
+        .WillOnce(DoAll(SetArgReferee<5>(successResult), Return(Core::ERROR_NONE)));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t id, const string& callsign) -> void* {
+            if (id == Exchange::ISharedStorage::ID && callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto appDelegate = plugin.mDelegate->getAppDelegate();
+    ASSERT_NE(appDelegate, nullptr);
+    
+    string result;
+    Core::hresult rc = appDelegate->GetDeviceUID("test.app", result);
+    
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    
+    plugin.Deinitialize(&service);
+}
+
+// Test AppDelegate::GetAdvertisingId - SharedStorage GetValue fails, SetValue fails
+TEST_F(AppGatewayCommonTest, AGC_L1_490_AppDelegate_GetAdvertisingId_SetValueFails)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    testing::Mock::AllowLeak(mockSharedStorage);
+    
+    EXPECT_CALL(*mockSharedStorage, GetValue(_, _, _, _, _, _))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    
+    Exchange::ISharedStorage::Success successResult;
+    successResult.success = false;
+    EXPECT_CALL(*mockSharedStorage, SetValue(_, _, _, _, _, _))
+        .WillOnce(DoAll(SetArgReferee<5>(successResult), Return(Core::ERROR_NONE)));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t id, const string& callsign) -> void* {
+            if (id == Exchange::ISharedStorage::ID && callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto appDelegate = plugin.mDelegate->getAppDelegate();
+    ASSERT_NE(appDelegate, nullptr);
+    
+    string result;
+    Core::hresult rc = appDelegate->GetAdvertisingId("test.app", result);
+    
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    
+    plugin.Deinitialize(&service);
+}
+
+// Test AppDelegate::GetAdvertisingId - Success with existing value
+TEST_F(AppGatewayCommonTest, AGC_L1_491_AppDelegate_GetAdvertisingId_ExistingValue)
+{
+    NiceMock<Exchange::MockISharedStorage>* mockSharedStorage = new NiceMock<Exchange::MockISharedStorage>();
+    testing::Mock::AllowLeak(mockSharedStorage);
+    
+    EXPECT_CALL(*mockSharedStorage, GetValue(_, _, _, _, _, _))
+        .WillOnce(DoAll(SetArgReferee<3>("existing-uuid-123"), Return(Core::ERROR_NONE)));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockSharedStorage](const uint32_t id, const string& callsign) -> void* {
+            if (id == Exchange::ISharedStorage::ID && callsign == "org.rdk.SharedStorage") {
+                mockSharedStorage->AddRef();
+                return static_cast<void*>(mockSharedStorage);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto appDelegate = plugin.mDelegate->getAppDelegate();
+    ASSERT_NE(appDelegate, nullptr);
+    
+    string result;
+    Core::hresult rc = appDelegate->GetAdvertisingId("test.app", result);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("existing-uuid-123"), string::npos);
+    EXPECT_NE(result.find("ifa"), string::npos);
+    EXPECT_NE(result.find("sessionid"), string::npos);
+    
+    plugin.Deinitialize(&service);
+}
+
+// ============================================================================
+// SECTION 7: TTS (TEXT-TO-SPEECH) DELEGATE TESTS
+// Tests for TTS subscription, speech events, voice changes
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_207_TTS_HandleSubscription_Subscribe)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Subscribe to a TTS event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onVoiceChanged", true, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+    delete mockTTS;
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_208_TTS_HandleSubscription_Unsubscribe)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Unsubscribe from a TTS event
+    Core::hresult rc = plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechComplete", false, status);
+    
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+    delete mockTTS;
+}
+
+// Test TTS HandleSubscription when TTS interface is not available
+TEST_F(AppGatewayCommonTest, AGC_L1_365_TTS_HandleSubscription_NoTTSInterface)
+{
+    NiceMock<ServiceMock> service;
+    // Return nullptr for TTS callsign to simulate unavailable interface
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([](const uint32_t, const string& callsign) -> void* {
+            return nullptr; // No interfaces available
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    
+    // Try to subscribe - should fail because TTS interface is not available
+    plugin.HandleAppEventNotifier(emitter, "texttospeech.onvoicechanged", true, status);
+    // status should be true (error) because HandleSubscription returns false
+    EXPECT_TRUE(status);
+    
+    // Allow async EventRegistrationJob to complete before cleanup
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+// Test TTS double registration (already registered path)
+TEST_F(AppGatewayCommonTest, AGC_L1_366_TTS_HandleSubscription_AlreadyRegistered)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    testing::Mock::AllowLeak(mockTTS);
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockTTS, Unregister(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    // Register for first TTS event
+    MockEmitter* emitter1 = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter1, "texttospeech.onvoicechanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Register for second TTS event - should use already registered path
+    MockEmitter* emitter2 = new MockEmitter();
+    plugin.HandleAppEventNotifier(emitter2, "texttospeech.onspeechcomplete", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    emitter1->Release();
+    emitter2->Release();
+    plugin.Deinitialize(&service);
+}
+
+// Test TTS OnVoiceChanged notification
+TEST_F(AppGatewayCommonTest, AGC_L1_367_TTS_NotificationHandler_OnVoiceChanged)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    testing::Mock::AllowLeak(mockTTS);
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockTTS, Unregister(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "texttospeech.onvoicechanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Trigger notification
+    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
+    if (ttsDelegate) {
+        ttsDelegate->mNotificationHandler.OnVoiceChanged("en-US-Wavenet-D");
+    }
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+// Test TTS OnSpeechReady notification
+TEST_F(AppGatewayCommonTest, AGC_L1_368_TTS_NotificationHandler_OnSpeechReady)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    testing::Mock::AllowLeak(mockTTS);
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockTTS, Unregister(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "texttospeech.onwillspeak", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Trigger notification
+    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
+    if (ttsDelegate) {
+        ttsDelegate->mNotificationHandler.OnSpeechReady(12345);
+    }
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+// Test TTS OnSpeechStarted notification
+TEST_F(AppGatewayCommonTest, AGC_L1_369_TTS_NotificationHandler_OnSpeechStarted)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    testing::Mock::AllowLeak(mockTTS);
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockTTS, Unregister(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechstart", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Trigger notification
+    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
+    if (ttsDelegate) {
+        ttsDelegate->mNotificationHandler.OnSpeechStarted(12345);
+    }
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+// Test TTS OnSpeechPaused notification
+TEST_F(AppGatewayCommonTest, AGC_L1_370_TTS_NotificationHandler_OnSpeechPaused)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    testing::Mock::AllowLeak(mockTTS);
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockTTS, Unregister(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechpause", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Trigger notification
+    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
+    if (ttsDelegate) {
+        ttsDelegate->mNotificationHandler.OnSpeechPaused(12345);
+    }
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+// Test TTS OnSpeechResumed notification
+TEST_F(AppGatewayCommonTest, AGC_L1_371_TTS_NotificationHandler_OnSpeechResumed)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    testing::Mock::AllowLeak(mockTTS);
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockTTS, Unregister(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechresume", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Trigger notification
+    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
+    if (ttsDelegate) {
+        ttsDelegate->mNotificationHandler.OnSpeechResumed(12345);
+    }
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+// Test TTS OnSpeechInterrupted notification
+TEST_F(AppGatewayCommonTest, AGC_L1_372_TTS_NotificationHandler_OnSpeechInterrupted)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    testing::Mock::AllowLeak(mockTTS);
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockTTS, Unregister(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechinterrupted", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Trigger notification
+    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
+    if (ttsDelegate) {
+        ttsDelegate->mNotificationHandler.OnSpeechInterrupted(12345);
+    }
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+// Test TTS OnPlaybackError notification
+TEST_F(AppGatewayCommonTest, AGC_L1_374_TTS_NotificationHandler_OnPlaybackError)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    testing::Mock::AllowLeak(mockTTS);
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockTTS, Unregister(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "texttospeech.onplaybackerror", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Trigger notification
+    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
+    if (ttsDelegate) {
+        ttsDelegate->mNotificationHandler.OnPlaybackError(12345);
+    }
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+// Test TTS OnSpeechComplete notification
+TEST_F(AppGatewayCommonTest, AGC_L1_375_TTS_NotificationHandler_OnSpeechComplete)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    testing::Mock::AllowLeak(mockTTS);
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockTTS, Unregister(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "texttospeech.onspeechcomplete", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Trigger notification
+    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
+    if (ttsDelegate) {
+        ttsDelegate->mNotificationHandler.OnSpeechComplete(12345);
+    }
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+// Test TTS OnTTSStateChanged notification
+TEST_F(AppGatewayCommonTest, AGC_L1_376_TTS_NotificationHandler_OnTTSStateChanged)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    testing::Mock::AllowLeak(mockTTS);
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockTTS, Unregister(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "texttospeech.onttsstatechanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Trigger notification
+    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
+    if (ttsDelegate) {
+        ttsDelegate->mNotificationHandler.OnTTSStateChanged(true);
+    }
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+// Test TTS destructor with registered notification handler
+TEST_F(AppGatewayCommonTest, AGC_L1_377_TTS_Destructor_WithRegisteredNotifications)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    testing::Mock::AllowLeak(mockTTS);
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockTTS, Unregister(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "texttospeech.onvoicechanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Don't release emitter before deinitialize - let destructor clean up
+    emitter->Release();
+    
+    // Deinitialize will trigger TTSDelegate destructor with registered notifications
+    plugin.Deinitialize(&service);
+}
+
+// Test TTS SetRegistered and GetRegistered methods
+TEST_F(AppGatewayCommonTest, AGC_L1_378_TTS_NotificationHandler_SetGetRegistered)
+{
+    NiceMock<Exchange::MockITextToSpeech>* mockTTS = new NiceMock<Exchange::MockITextToSpeech>();
+    testing::Mock::AllowLeak(mockTTS);
+    
+    EXPECT_CALL(*mockTTS, Register(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(*mockTTS, Unregister(_))
+        .WillOnce(Return(Core::ERROR_NONE));
+    
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly([mockTTS](const uint32_t, const string& callsign) -> void* {
+            if (callsign == "org.rdk.TextToSpeech") {
+                mockTTS->AddRef();
+                return static_cast<void*>(mockTTS);
+            }
+            return nullptr;
+        });
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    auto ttsDelegate = plugin.mDelegate->ttsDelegate;
+    ASSERT_NE(ttsDelegate, nullptr);
+    
+    // Initially not registered
+    EXPECT_FALSE(ttsDelegate->mNotificationHandler.GetRegistered());
+    
+    // Subscribe to trigger registration
+    MockEmitter* emitter = new MockEmitter();
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "texttospeech.onvoicechanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Now should be registered
+    EXPECT_TRUE(ttsDelegate->mNotificationHandler.GetRegistered());
+    
+    emitter->Release();
+    plugin.Deinitialize(&service);
+}
+
+// ============================================================================
+// SECTION 8: SETTINGS DELEGATE TESTS
+// Tests for SettingsDelegate orchestration and event routing
+// ============================================================================
+
+TEST_F(AppGatewayCommonTest, AGC_L1_121_HandleAppDelegateRequest_NullSettingsDelegate)
+{
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeContext();
+    string result;
+
+    const auto rc = plugin.HandleAppDelegateRequest(ctx, "advertising.advertisingid", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+// Test GetSpeed with null userSettings delegate returns error
+TEST_F(AppGatewayCommonTest, AGC_L1_293_GetSpeed_NullUserSettingsDelegate_ReturnsError)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    double speed = 0.0;
+    const auto rc = plugin.GetSpeed(speed);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_294_GetVoiceGuidance_NullUserSettingsDelegate_ReturnsError)
+{
+    // Create a SettingsDelegate without calling setShell() - all sub-delegates are null
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    // Note: Not calling plugin.mDelegate->setShell() so getUserSettings() returns nullptr
+    
+    string result;
+    const auto rc = plugin.GetVoiceGuidance(result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_295_GetAudioDescription_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    string result;
+    const auto rc = plugin.GetAudioDescription(result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_296_GetAudioDescriptionsEnabled_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    string result;
+    const auto rc = plugin.GetAudioDescriptionsEnabled(result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_297_GetHighContrast_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    string result;
+    const auto rc = plugin.GetHighContrast(result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_298_GetCaptions_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    string result;
+    const auto rc = plugin.GetCaptions(result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_299_GetPresentationLanguage_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    string result;
+    const auto rc = plugin.GetPresentationLanguage(result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_300_GetLocale_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    string result;
+    const auto rc = plugin.GetLocale(result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_301_GetPreferredAudioLanguages_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    string result;
+    const auto rc = plugin.GetPreferredAudioLanguages(result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    // Default is "[]" for audio languages
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_302_GetPreferredCaptionsLanguages_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    string result;
+    const auto rc = plugin.GetPreferredCaptionsLanguages(result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_EQ("[\"eng\"]", result);  // Default is ["eng"] for captions
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_303_SetPreferredAudioLanguages_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    const auto rc = plugin.SetPreferredAudioLanguages("eng,spa");
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_304_SetPreferredCaptionsLanguages_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    const auto rc = plugin.SetPreferredCaptionsLanguages("eng,spa");
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_305_SetVoiceGuidance_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    const auto rc = plugin.SetVoiceGuidance(true);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_306_SetCaptions_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    const auto rc = plugin.SetCaptions(true);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_307_SetAudioDescriptionsEnabled_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    const auto rc = plugin.SetAudioDescriptionsEnabled(true);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_308_GetClosedCaptionsSettings_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    string result;
+    const auto rc = plugin.GetClosedCaptionsSettings(result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_309_GetVoiceGuidanceHints_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    string result;
+    const auto rc = plugin.GetVoiceGuidanceHints(result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_310_SetVoiceGuidanceHints_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    const auto rc = plugin.SetVoiceGuidanceHints(true);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    
+    plugin.mDelegate.reset();
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_311_GetVoiceGuidanceSettings_NullUserSettingsDelegate_ReturnsError)
+{
+    plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    
+    string result;
+    const auto rc = plugin.GetVoiceGuidanceSettings(false, result);
+    
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_TRUE(result.find("error") != string::npos);
+    
+    plugin.mDelegate.reset();
+}
+
+// Test SettingsDelegate::HandleAppEventNotifier - No matching delegate
+TEST_F(AppGatewayCommonTest, AGC_L1_498_SettingsDelegate_HandleAppEventNotifier_NoMatchingDelegate)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    
+    const string initResponse = plugin.Initialize(&service);
+    EXPECT_TRUE(initResponse.empty());
+    
+    class MockEmitter : public Exchange::IAppNotificationHandler::IEmitter {
+    public:
+        void Emit(const string& event, const string& payload) override {}
+        void AddRef() const override {}
+        uint32_t Release() const override { return 0; }
+        BEGIN_INTERFACE_MAP(MockEmitter)
+        INTERFACE_ENTRY(Exchange::IAppNotificationHandler::IEmitter)
+        END_INTERFACE_MAP
+    };
+    
+    MockEmitter emitter;
+    
+    plugin.mDelegate->HandleAppEventNotifier(&emitter, "unknown.event", true);
     
     plugin.Deinitialize(&service);
 }
