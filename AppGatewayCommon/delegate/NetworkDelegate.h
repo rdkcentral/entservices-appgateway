@@ -31,6 +31,7 @@
 #include <set>
 #include "ObjectUtils.h"
 #include "UtilsFirebolt.h"
+#include <mutex>
 
 using namespace WPEFramework;
 
@@ -52,11 +53,16 @@ public:
 
     ~NetworkDelegate()
     {
+        Core::SafeSyncType<Core::CriticalSection> lock(mNetworkManagerLock);
         if (nullptr != mNetworkManager)
         {
-            if (mNotificationHandler.GetRegistered())
             {
-                mNetworkManager->Unregister(&mNotificationHandler);
+                std::lock_guard<std::mutex> lock(mRegistrationMutex);
+                if (mNotificationHandler.GetRegistered())
+                {
+                    mNetworkManager->Unregister(&mNotificationHandler);
+                    mNotificationHandler.SetRegistered(false);
+                }
             }
             mNetworkManager->Release();
             mNetworkManager = nullptr;
@@ -77,16 +83,18 @@ public:
             }
 
             AddNotification(event, cb);
-
-            if (!mNotificationHandler.GetRegistered())
             {
-                LOGINFO("Registering for NetworkManager notifications");
-                mNetworkManager->Register(&mNotificationHandler);
-                mNotificationHandler.SetRegistered(true);
-            }
-            else
-            {
-                LOGTRACE("Is NetworkManager registered = %s", mNotificationHandler.GetRegistered() ? "true" : "false");
+                std::lock_guard<std::mutex> lock(mRegistrationMutex);
+                if (!mNotificationHandler.GetRegistered())
+                {
+                    LOGINFO("Registering for NetworkManager notifications");
+                    networkManager->Register(&mNotificationHandler);
+                    mNotificationHandler.SetRegistered(true);
+                }
+                else
+                {
+                    LOGTRACE("Is NetworkManager registered = %s", mNotificationHandler.GetRegistered() ? "true" : "false");
+                }
             }
             return true;
         }
@@ -177,7 +185,7 @@ public:
 
         // Get available interfaces
         Exchange::INetworkManager::IInterfaceDetailsIterator *interfaces = nullptr;
-        uint32_t rc = mNetworkManager->GetAvailableInterfaces(interfaces);
+        uint32_t rc = networkManager->GetAvailableInterfaces(interfaces);
 
         if (rc != Core::ERROR_NONE)
         {
@@ -326,6 +334,7 @@ private:
     Exchange::INetworkManager *mNetworkManager;
     PluginHost::IShell *mShell;
     Core::Sink<NetworkNotificationHandler> mNotificationHandler;
+    mutable std::mutex mRegistrationMutex;
 };
 
 #endif // __NETWORKDELEGATE_H__
