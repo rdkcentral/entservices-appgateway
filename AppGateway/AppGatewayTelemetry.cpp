@@ -189,7 +189,7 @@ namespace Plugin {
         if (mRequestStates.end() == mRequestStates.find(key)) {
             RequestState state;
             state.appId = context.appId;
-            mRequestStates[key] = state;
+            mRequestStates[key] = std::move(state);
             mHealthStats.totalCalls.fetch_add(1, std::memory_order_relaxed);
             LOGTRACE("Total call incremented (appId=%s, connId=%u, reqId=%u)",
                      context.appId.c_str(), context.connectionId, context.requestId);
@@ -348,8 +348,10 @@ namespace Plugin {
             // Extract API name from eventData if possible
             // eventData expected format: {"plugin": "<pluginName>", "api": "<apiName>", "error": "<errorDetails>"}
             JsonObject data;
-            data.FromString(eventData);
-            std::string apiName = data.HasLabel("api") ? data["api"].String() : eventName;
+            std::string apiName = eventName;
+            if (data.FromString(eventData) && data.HasLabel("api")) {
+                apiName = data["api"].String();
+            }
 
             // Track error count for aggregated metrics (sent periodically)
             RecordApiError(context, apiName);
@@ -366,8 +368,10 @@ namespace Plugin {
             // Extract service name from eventData if possible
             // eventData expected format: {"plugin": "<pluginName>", "service": "<serviceName>", "error": "<errorDetails>"}
             JsonObject data;
-            data.FromString(eventData);
-            std::string serviceName = data.HasLabel("service") ? data["service"].String() : eventName;
+            std::string serviceName = eventName;
+            if (data.FromString(eventData) && data.HasLabel("service")) {
+                serviceName = data["service"].String();
+            }
 
             // Track error count for aggregated metrics (sent periodically)
             RecordExternalServiceErrorInternal(context, serviceName);
@@ -1030,9 +1034,7 @@ namespace Plugin {
         // Lock released - new telemetry can now be recorded while snapshot is being sent
 
         // Send telemetry synchronously (no WorkerPool dispatch)
-        if (nullptr != snapshot) {
-            snapshot->SendAll();
-        }
+        snapshot->SendAll();
     }
 
     void AppGatewayTelemetry::SendHealthStats()
