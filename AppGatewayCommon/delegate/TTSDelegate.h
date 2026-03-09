@@ -57,8 +57,9 @@ public:
     {
         if (listen)
         {
-            Register();
             AddNotification(event, cb);
+
+            return Register();
         }
         else
         {
@@ -97,7 +98,7 @@ private:
     class TTSNotificationHandler : public Exchange::ITextToSpeech::INotification
     {
     public:
-        TTSNotificationHandler(TTSDelegate &parent) : mParent(parent), registered(false) {}
+        TTSNotificationHandler(TTSDelegate &parent) : mParent(parent) {}
         ~TTSNotificationHandler() {}
             
         void OnVoiceChanged(const string voice)
@@ -152,7 +153,7 @@ private:
     PluginHost::IShell *mShell;
     Core::Sink<TTSNotificationHandler> mNotificationHandler;
     mutable std::mutex mTTSMutex;
-    bool registered;
+    bool registered = false;
     mutable std::mutex registerMutex;
 
     // New Method for Set registered
@@ -169,21 +170,22 @@ private:
         return registered;
     }
 
-    void Register()
+    bool Register()
     {
+        auto tts = GetTTS();    
+        if (nullptr == tts)
+        {
+            LOGERR("TextToSpeech interface not available");
+            return false;
+        }
         std::lock_guard<std::mutex> lock(registerMutex);
         if (!registered)
         {
-            auto tts = GetTTS();
-            
-            if (nullptr == tts)
-            {
-                LOGERR("TextToSpeech interface not available");
-                return;
-            }
             LOGINFO("Registering for TextToSpeech notifications");
             tts->Register(&mNotificationHandler);
             registered = true;
         }
+
+        return true;
     }
 };
