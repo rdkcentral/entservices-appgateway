@@ -57,9 +57,12 @@ public:
     {
         if (listen)
         {
-            AddNotification(event, cb);
-
-            return Register();
+            if (Register())
+            {
+                AddNotification(event, cb);
+                return true;
+            }
+            return false;
         }
         else
         {
@@ -181,11 +184,15 @@ private:
         std::lock_guard<std::mutex> lock(registerMutex);
         if (!registered)
         {
-            LOGINFO("Registering for TextToSpeech notifications");
-            tts->Register(&mNotificationHandler);
-            registered = true;
+            if (nullptr != tts) {
+                LOGINFO("Registering for TextToSpeech notifications");
+                tts->Register(&mNotificationHandler);
+                registered = true;
+            } else {
+                LOGERR("Failed to register for TextToSpeech notifications because interface is null");
+                return false;
+            }
         }
-
         return true;
     }
 };
