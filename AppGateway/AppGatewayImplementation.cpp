@@ -564,17 +564,24 @@ namespace WPEFramework
 
         void AppGatewayImplementation::SendToLaunchDelegate(const Context& context, const string& payload)
         {
-            Core::SafeSyncType<Core::CriticalSection> lock(mInternalGatewayResponderLock);
-            if (nullptr == mInternalGatewayResponder) {
-                mInternalGatewayResponder = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
+            Exchange::IAppGatewayResponder* responder = nullptr;
+            
+            {
+                Core::SafeSyncType<Core::CriticalSection> lock(mInternalGatewayResponderLock);
                 if (nullptr == mInternalGatewayResponder) {
-                    LOGERR("Failed to get Internal Responder interface");
-                    return;
-                } else {
-                    LOGINFO("Internal Responder interface acquired");
+                    mInternalGatewayResponder = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
+                    if (nullptr == mInternalGatewayResponder) {
+                        LOGERR("Failed to get Internal Responder interface");
+                        return;
+                    } else {
+                        LOGINFO("Internal Responder interface acquired");
+                    }
                 }
+                responder = mInternalGatewayResponder;  // Just copy the pointer, no AddRef
             }
-            mInternalGatewayResponder->Respond(context, payload);
+            // Lock released - safe to make COM-RPC call
+            
+            responder->Respond(context, payload);  // Uses the cached interface
         }
 
         Exchange::IAppGatewayAuthenticator* AppGatewayImplementation::GetAppGatewayAuthenticatorInterface() {
