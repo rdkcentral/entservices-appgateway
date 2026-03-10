@@ -33,7 +33,7 @@
 using namespace WPEFramework;
 
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
-#define WINDOW_MANAGER_CALLSIGN "org.rdk.WindowManager"
+#define WINDOW_MANAGER_CALLSIGN "org.rdk.RDKWindowManager"
 
 // Valid lifecycle events that can be subscribed to
 static const std::set<string> VALID_LIFECYCLE_EVENT = {
