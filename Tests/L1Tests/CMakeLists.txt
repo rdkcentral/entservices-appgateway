@@ -132,13 +132,13 @@ endif()
 if(PLUGIN_APPGATEWAY)
     # AppGateway/CMakeLists.txt defines the implementation library target
     # which AppGatewayL1Test must link against to resolve symbols.
-    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGateway ${CMAKE_BINARY_DIR}/AppGateway)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGateway ${CMAKE_BINARY_DIR}/L1Tests/AppGateway)
 endif()
 
 if(PLUGIN_APPGATEWAYCOMMON)
     # Also allow building/staging AppGatewayCommon plugin shared library from
     # the same L1Tests-only build when requested.
-    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGatewayCommon ${CMAKE_BINARY_DIR}/AppGatewayCommon)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGatewayCommon ${CMAKE_BINARY_DIR}/L1Tests/AppGatewayCommon)
 endif()
 
 # -----------------------------------------------------------------------------
