@@ -170,6 +170,11 @@ namespace WPEFramework {
             Core::hresult Lifecycle2Close(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult DispatchLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult GetLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            
+            // EventRegistrationJob helper method (AppGatewayCommon-specific)
+            bool SafeSubmitEventRegistrationJob(Exchange::IAppNotificationHandler::IEmitter* cb, 
+                                               const std::string& event, bool listen);
+
             Core::hresult HandleAppDelegateRequest(const Exchange::GatewayContext& context ,
                                           const string& method ,
                                           const string& payload /*@opaque */,
