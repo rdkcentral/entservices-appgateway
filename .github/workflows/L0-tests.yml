@@ -2,7 +2,7 @@ name: L0-tests
 
 on:
   push:
-    branches: [ main, develop, feature/AI_L0 ]
+    branches: [ main, develop, feature/AI_L0, feature/RDKEMW-15173 ]
   pull_request:
     branches: [ main, develop, feature/AI_L0 ]
   workflow_call:
