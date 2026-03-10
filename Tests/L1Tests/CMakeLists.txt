@@ -86,12 +86,15 @@ if(NOT COMMAND write_config)
     #     In normal CI: -DCMAKE_PREFIX_PATH=<repo>/install/usr
     find_package(ConfigGenerator QUIET)
 
-    # (2) Fallback: include FindConfigGenerator.cmake from in-repo ThunderTools.
-    #     This helps when ./install is not readable under act.
+    # (2) Fallback: include FindConfigGenerator.cmake from installed location or
+    #     build directory. The .in file is a template and cannot be included directly.
     if(NOT COMMAND write_config)
         set(_repo_find_config_generator_candidates
+            # Installed location from ThunderTools build
+            "${CMAKE_CURRENT_LIST_DIR}/../../install/tools/cmake/FindConfigGenerator.cmake"
+            "${CMAKE_CURRENT_LIST_DIR}/../../install/usr/include/WPEFramework/Modules/FindConfigGenerator.cmake"
+            # Build output directory (if ThunderTools was built in-tree)
             "${CMAKE_CURRENT_LIST_DIR}/../../build/ThunderTools/FindConfigGenerator.cmake"
-            "${CMAKE_CURRENT_LIST_DIR}/../../ThunderTools/cmake/FindConfigGenerator.cmake.in"
         )
 
         foreach(_cand IN LISTS _repo_find_config_generator_candidates)
@@ -138,7 +141,14 @@ endif()
 if(PLUGIN_APPGATEWAYCOMMON)
     # Also allow building/staging AppGatewayCommon plugin shared library from
     # the same L1Tests-only build when requested.
+    # Add UNIT_TEST definition to skip slow JSONRPC subscriptions during tests
+    add_compile_definitions(UNIT_TEST)
     add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGatewayCommon ${CMAKE_BINARY_DIR}/AppGatewayCommon)
+    
+    # IMPORTANT: Add mocks directory BEFORE helpers to override UtilsController.h
+    # This prevents subscription errors during unit tests by providing a mock
+    # getThunderControllerClient() that returns nullptr.
+    target_include_directories(AppGatewayCommon BEFORE PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../mocks)
 endif()
 
 # -----------------------------------------------------------------------------
@@ -236,7 +246,9 @@ if(PLUGIN_APPGATEWAYCOMMON)
 
     list(APPEND APPGATEWAYCOMMON_L1TEST_SRC tests/test_AppGatewayCommon.cpp)
 
+    # Note: ../mocks must be FIRST so mock headers (like UtilsController.h) override real ones
     list(APPEND APPGATEWAYCOMMON_L1TEST_INC
+        ../mocks
         ../../helpers
         ../../AppGatewayCommon
     )
@@ -458,6 +470,7 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON)
             GTest::gtest
             GTest::gtest_main
             Threads::Threads
+            uuid
         )
 
         target_compile_definitions(AppGatewayCommonL1Test PRIVATE
