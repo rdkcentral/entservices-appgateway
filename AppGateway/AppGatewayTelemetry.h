@@ -551,17 +551,17 @@ namespace Plugin {
                                std::string& methodName,
                                bool& isError);
 
-        // Helper to parse API latency metric: "AppGw_PluginName_<Plugin>_ApiName_<Api>_ApiLatency_split"
+        // Helper to parse API latency metric: "ENTS_INFO_AppGw_PluginName_<Plugin>_ApiName_<Api>_ApiLatency_split"
         bool ParseApiLatencyMetricName(const std::string& metricName,
                                       std::string& pluginName,
                                       std::string& apiName);
 
-        // Helper to parse service latency metric: "AppGw_PluginName_<Plugin>_ServiceName_<Service>_ServiceLatency_split"
+        // Helper to parse service latency metric: "ENTS_INFO_AppGw_PluginName_<Plugin>_ServiceName_<Service>_ServiceLatency_split"
         bool ParseServiceLatencyMetricName(const std::string& metricName,
                                           std::string& pluginName,
                                           std::string& serviceName);
 
-        // Helper to parse service method metric: "AppGw_PluginName_<Plugin>_ServiceName_<Service>_<Success|Error>_split"
+        // Helper to parse service method metric: "ENTS_INFO_AppGw_PluginName_<Plugin>_ServiceName_<Service>_<Success|Error>_split"
         bool ParseServiceMetricName(const std::string& metricName,
                                    std::string& pluginName,
                                    std::string& serviceName,

@@ -55,7 +55,7 @@ App Gateway provides a centralized telemetry collection mechanism that:
 │                             ▼                                               │
 │          ┌─────────────────────────────────────────┐                        │
 │          │   T2 Service                            │                        │
-│          │  • AppGwTotalCalls_split                │                        │
+│          │  • ENTS_INFO_AppGwTotalCalls                │                        │
 │          │  • AppGwApiErrorCount_<Api>_split       │                        │
 │          │  • AppGw<Plugin>_<Api>_Latency_split    │                        │
 │          └─────────────────────────────────────────┘                        │
@@ -651,9 +651,9 @@ The system tracks three types of statistics:
 
 | Telemetry Type | Source | T2 Marker | Purpose | Tracks |
 |----------------|--------|-----------|---------|---------|
-| **API Method Stats** | `AGW_TRACK_API_CALL` | `AppGwApiMethod_split` | Per-API method tracking | Success/error counts, success/error latency (min/max/avg) |
-| **API Latency Stats** | `AGW_REPORT_API_LATENCY` | `AppGwApiLatency_split` | Generic API latency | Latency only (min/max/avg) |
-| **Service Latency Stats** | `AGW_REPORT_SERVICE_LATENCY` | `AppGwServiceLatency_split` | External service latency | Latency only (min/max/avg) |
+| **API Method Stats** | `AGW_TRACK_API_CALL` | `ENTS_INFO_AppGwApiMethod` | Per-API method tracking | Success/error counts, success/error latency (min/max/avg) |
+| **API Latency Stats** | `AGW_REPORT_API_LATENCY` | `ENTS_INFO_AppGwApiLatency` | Generic API latency | Latency only (min/max/avg) |
+| **Service Latency Stats** | `AGW_REPORT_SERVICE_LATENCY` | `ENTS_INFO_AppGwServiceLatency` | External service latency | Latency only (min/max/avg) |
 
 #### Rules for Latency Tracking
 

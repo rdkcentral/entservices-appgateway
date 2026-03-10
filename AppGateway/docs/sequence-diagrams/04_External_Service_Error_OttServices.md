@@ -38,7 +38,7 @@ sequenceDiagram
     
     Note over TelemetryClient: Build JSON payload:<br/>{"plugin": "Plugin_Name_2",<br/> "service": "ExternalService2",<br/> "error": "CLIENT_NOT_INITIALIZED"}
     
-    TelemetryClient->>Telemetry: RecordTelemetryEvent(<br/>context,<br/>"AppGwPluginExtServiceError_split",<br/>eventData) [COM-RPC]
+    TelemetryClient->>Telemetry: RecordTelemetryEvent(<br/>context,<br/>"ENTS_ERROR_AppGwPlugExtnSrvErr",<br/>eventData) [COM-RPC]
     activate Telemetry
     
     Note over Telemetry: Store in cache:<br/>service_errors["ExternalService2"]++
@@ -110,7 +110,7 @@ sequenceDiagram
 ## Generic Marker System
 
 ### Event Marker (Immediate - per plugin)
-**Marker:** `AppGwPluginExtServiceError_split`
+**Marker:** `ENTS_ERROR_AppGwPlugExtnSrvErr`
 **Payload (Plugin_Name_2):**
 ```json
 {
@@ -167,7 +167,7 @@ AppGwExtServiceErrorCount_ExternalService3_split: 8,1,count,3600
 #define AGW_PLUGIN_YOUR_PLUGIN                "YourPlugin"
 #define AGW_SERVICE_EXTERNAL_SERVICE_2        "ExternalService2"
 #define AGW_SERVICE_EXTERNAL_SERVICE_3        "ExternalService3"
-#define AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR   "AppGwPluginExtServiceError_split"
+#define AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR   "ENTS_ERROR_AppGwPlugExtnSrvErr"
 ```
 
 ## Multi-Plugin Aggregation
@@ -196,7 +196,7 @@ Each metric has its own T2 marker for independent trending and alerting.
 - **Service-level tracking**: Errors tracked by service name with individual metrics
 - **Cross-plugin visibility**: Metrics aggregate errors from all plugins reporting to same service
 - **Immediate vs Aggregated**: Individual events (optional) for forensics, metrics (required) for monitoring
-- **Generic markers**: Single event marker `AppGwPluginExtServiceError_split` used by all plugins
+- **Generic markers**: Single event marker `ENTS_ERROR_AppGwPlugExtnSrvErr` used by all plugins
 - **Unique metrics**: Each service gets unique metric name for trending: `AppGwExtServiceErrorCount_<ServiceName>_split`
 - **Payload differentiation**: Event payload includes plugin name for filtering
 - **gRPC services**: Common pattern for plugins to report gRPC client errors
