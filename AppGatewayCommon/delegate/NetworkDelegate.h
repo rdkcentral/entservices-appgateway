@@ -254,6 +254,12 @@ private:
         NetworkNotificationHandler(NetworkDelegate &parent) : mParent(parent), registered(false) {}
         ~NetworkNotificationHandler() {}
 
+        void onActiveInterfaceChange(const string prevActiveInterface, const string currentActiveInterface)
+        {
+            LOGDBG("onActiveInterfaceChange: prev=%s, current=%s", prevActiveInterface.c_str(), currentActiveInterface.c_str());
+            mParent.Dispatch("Network.onConnectedChanged", ObjectUtils::CreateBooleanJsonString("value", currentActiveInterface.empty() ? false : true) );
+        }
+
         void onInternetStatusChange(const Exchange::INetworkManager::InternetStatus prevState, const Exchange::INetworkManager::InternetStatus currState, const string interface)
         {
             LOGINFO("onInternetStatusChange: prevState=%d, currState=%d, interface=%s", prevState, currState, interface.c_str());
