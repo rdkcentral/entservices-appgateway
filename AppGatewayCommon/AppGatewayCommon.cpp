@@ -21,6 +21,7 @@
 #include <interfaces/IConfiguration.h>
 #include "StringUtils.h"
 #include "UtilsFirebolt.h"
+#include "UtilsJsonValidation.h"
 #include "ContextUtils.h"
 
 
@@ -100,10 +101,15 @@ namespace Plugin {
     Core::hresult AppGatewayCommon::HandleAppEventNotifier(Exchange::IAppNotificationHandler::IEmitter *cb, const string& event /* @in */,
                                     bool listen /* @in */,
                                     bool &status /* @out */) {
-            LOGTRACE("HandleFireboltNotifier [event=%s listen=%s]",
+            LOGTRACE("HandleAppEventNotifier [event=%s listen=%s]",
                     event.c_str(), listen ? "true" : "false");
-            status = true;
-            Core::IWorkerPool::Instance().Submit(EventRegistrationJob::Create(this, cb, event, listen));
+            
+            status = this->SafeSubmitEventRegistrationJob(cb, event, listen);
+            if (false == status) {
+                LOGERR("HandleAppEventNotifier: Failed to submit event registration job for event %s", event.c_str());
+                return Core::ERROR_GENERAL;
+            }
+            
             return Core::ERROR_NONE;
     }
 
@@ -302,6 +308,14 @@ namespace Plugin {
         {
             LOGTRACE("HandleAppGatewayRequest: method=%s, payload=%s, appId=%s",
                     method.c_str(), payload.c_str(), context.appId.c_str());
+            
+            // Check if delegate is properly initialized
+            if (nullptr == mDelegate) {
+                LOGERR("HandleAppGatewayRequest: mDelegate is null, plugin not properly initialized");
+                result = "{\"error\":\"Service unavailable\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            
             std::string lowerMethod = StringUtils::toLower(method);
 
             auto it = handlers.find(lowerMethod);
@@ -310,47 +324,38 @@ namespace Plugin {
             }
             else if (lowerMethod == "device.setname")
             {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    string name = params.Get("value").String();
+                std::string name;
+                if (JsonValidation::ValidateAndExtractString(payload, name)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetDeviceName(name), result);
                 }
-                result = "{\"error\":\"Invalid payload\"}";
+                result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             else if (lowerMethod == "localization.setcountrycode")
             {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    string countryCode = params.Get("value").String();
-                    return ResponseUtils::SetNullResponseForSuccess(SetCountryCode(countryCode),result);
+                std::string countryCode;
+                if (JsonValidation::ValidateAndExtractString(payload, countryCode)) {
+                    return ResponseUtils::SetNullResponseForSuccess(SetCountryCode(countryCode), result);
                 }
-                result = "{\"error\":\"Invalid payload\"}";
+                result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             else if (lowerMethod == "localization.settimezone")
             {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    string timeZone = params.Get("value").String();
-                    return ResponseUtils::SetNullResponseForSuccess(SetTimeZone(timeZone),result);
+                std::string timeZone;
+                if (JsonValidation::ValidateAndExtractString(payload, timeZone)) {
+                    return ResponseUtils::SetNullResponseForSuccess(SetTimeZone(timeZone), result);
                 }
-                result = "{\"error\":\"Invalid payload\"}";
+                result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             else if (lowerMethod == "voiceguidance.setenabled")
             {
-                // Parse payload for boolean value
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    bool enabled = params.Get("value").Boolean();
+                bool enabled;
+                if (JsonValidation::ValidateAndExtractBool(payload, enabled)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetVoiceGuidance(enabled), result);
                 }
-                result = "{\"error\":\"Invalid payload\"}";
+                result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             else if (lowerMethod == "voiceguidance.speed" || lowerMethod == "voiceguidance.rate")
@@ -367,81 +372,68 @@ namespace Plugin {
             }
             else if (lowerMethod == "voiceguidance.setspeed" || lowerMethod == "voiceguidance.setrate")
             {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    double speed = params.Get("value").Number();
+                double speed;
+                // Voice guidance speed should be between 0.5 and 2.0
+                if (JsonValidation::ValidateAndExtractDouble(payload, speed, "value", 0.5, 2.0, true, true)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetSpeed(speed), result);
                 }
-                result = "{\"error\":\"Invalid payload\"}";
+                result = "{\"error\":\"Invalid payload: missing, invalid, or out-of-range 'value' field (expected 0.5-2.0)\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             else if (lowerMethod == "voiceguidance.setnavigationhints")
             {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    bool enabled = params.Get("value").Boolean();
+                bool enabled;
+                if (JsonValidation::ValidateAndExtractBool(payload, enabled)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetVoiceGuidanceHints(enabled), result);
                 }
-                result = "{\"error\":\"Invalid payload\"}";
+                result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             else if (lowerMethod == "audiodescriptions.setenabled")
             {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    bool enabled = params.Get("value").Boolean();
+                bool enabled;
+                if (JsonValidation::ValidateAndExtractBool(payload, enabled)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetAudioDescriptionsEnabled(enabled), result);
                 }
-                result = "{\"error\":\"Invalid payload\"}";
+                result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             else if (lowerMethod == "closedcaptions.setenabled")
             {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    bool enabled = params.Get("value").Boolean();
+                bool enabled;
+                if (JsonValidation::ValidateAndExtractBool(payload, enabled)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetCaptions(enabled), result);
                 }
-                result = "{\"error\":\"Invalid payload\"}";
+                result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             
             else if (lowerMethod == "closedcaptions.setpreferredlanguages")
             {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    string languages = params.Get("value").String();
+                std::string languages;
+                if (JsonValidation::ValidateAndExtractStringOrArray(payload, languages)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetPreferredCaptionsLanguages(languages), result);
                 }
-                result = "{\"error\":\"Invalid payload\"}";
+                result = "{\"error\":\"Invalid payload: 'value' field must be a string or array\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             
             else if (lowerMethod == "localization.setlocale")
             {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    string locale = params.Get("value").String();
+                std::string locale;
+                if (JsonValidation::ValidateAndExtractString(payload, locale)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetLocale(locale), result);
                 }
-                result = "{\"error\":\"Invalid payload\"}";
+                result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             else if (lowerMethod == "localization.setpreferredaudiolanguages")
             {
-                JsonObject params;
-                if (params.FromString(payload))
-                {
-                    string languages = params.Get("value").String();
+                std::string languages;
+                if (JsonValidation::ValidateAndExtractStringOrArray(payload, languages)) {
                     return ResponseUtils::SetNullResponseForSuccess(SetPreferredAudioLanguages(languages), result);
                 }
-                result = "{\"error\":\"Invalid payload\"}";
+                result = "{\"error\":\"Invalid payload: 'value' field must be a string or array\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             // lowermethod starts with metrics. just log the payload for now, as this is only used for RDK8 compliance and there are no specific requirements around handling this event for RDK8 compliance other than not returning an error when it's received.
@@ -469,6 +461,37 @@ namespace Plugin {
             result = "null"; // TBA
             return Core::ERROR_NONE;
         }
+
+        /**
+         * @brief Safely submits EventRegistrationJob with proper error handling
+         * @param cb Callback interface (must be not-null)
+         * @param event Event name
+         * @param listen Whether to listen or unlisten
+         * @return true if job submitted successfully, false otherwise
+         */
+        bool AppGatewayCommon::SafeSubmitEventRegistrationJob(Exchange::IAppNotificationHandler::IEmitter* cb, 
+                                                              const std::string& event, bool listen) {
+
+            if (nullptr == cb) {
+                LOGERR("SafeSubmitEventRegistrationJob: Callback emitter is null");
+                return false;
+            }
+
+            if (nullptr == mDelegate) {
+                LOGERR("SafeSubmitEventRegistrationJob: Delegate is null");
+                return false;
+            }
+
+            auto job = EventRegistrationJob::Create(this, cb, event, listen);
+            if (false == job.IsValid()) {
+                LOGERR("SafeSubmitEventRegistrationJob: Failed to create EventRegistrationJob");
+                return false;
+            }
+
+            Core::IWorkerPool::Instance().Submit(job);
+            return true;
+        }
+
         // Delegated alias methods
 
         Core::hresult AppGatewayCommon::GetDeviceMake(string &make)
