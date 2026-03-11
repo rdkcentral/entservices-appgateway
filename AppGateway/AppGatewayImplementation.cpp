@@ -21,7 +21,6 @@
 #include <plugins/JSONRPC.h>
 #include <plugins/IShell.h>
 #include "AppGatewayImplementation.h"
-#include "AppGatewayTelemetry.h"
 #include "UtilsLogging.h"
 #include "ContextUtils.h"
 #include "ObjectUtils.h"
@@ -164,9 +163,6 @@ namespace WPEFramework
         AppGatewayImplementation::~AppGatewayImplementation()
         {
             LOGINFO("AppGatewayImplementation destructor");
-            // Signal shutdown ASAP so any already-queued worker jobs become no-ops.
-            mShuttingDown.store(true, std::memory_order_release);
-
             if (nullptr != mService)
             {
                 mService->Release();
@@ -382,23 +378,7 @@ namespace WPEFramework
             Core::hresult result = FetchResolvedData(context, method, params, origin, resolution);
             if (!resolution.empty()) {
                 LOGTRACE("Final resolution: %s", resolution.c_str());
-
-                if (!mShuttingDown.load(std::memory_order_acquire)) {
-                    Exchange::IAppGatewayResponder* responder = nullptr;
-                    if (ContextUtils::IsOriginGateway(origin)) {
-                        responder = mService->QueryInterface<Exchange::IAppGatewayResponder>();
-                    } else {
-                        responder = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
-                    }
-
-                    if (nullptr != responder) {
-                        Core::IWorkerPool::Instance().Submit(RespondJob::Create(responder, context, resolution));
-                    } else {
-                        LOGERR("Responder interface not available");
-                    }
-                } else {
-                    LOGWARN("Dropping async RespondJob during shutdown");
-                }
+                Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context, resolution, origin));
             }
             return result;
         }
@@ -437,8 +417,6 @@ namespace WPEFramework
                     bool allowed = false;
                     if (Core::ERROR_NONE != mAuthenticator->CheckPermissionGroup(context.appId, permissionGroup, allowed)) {
                         LOGERR("Failed to check permission group '%s' for appId '%s'", permissionGroup.c_str(), context.appId.c_str());
-                        // Track external service error - Permission service failure
-                        AppGatewayTelemetry::getInstance().RecordExternalServiceErrorInternal(context, AGW_SERVICE_PERMISSION);
                         ErrorUtils::NotPermitted(resolution);
                         return Core::ERROR_GENERAL;
                     }
@@ -513,13 +491,8 @@ namespace WPEFramework
             Exchange::IAppGatewayRequestHandler *requestHandler = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayRequestHandler>(alias);
             if (requestHandler != nullptr) {
                 std::string finalParams = UpdateContext(context, method, params, origin, true);
-
                 if (Core::ERROR_NONE != requestHandler->HandleAppGatewayRequest(context, method, finalParams, resolution)) {
                     LOGERR("HandleAppGatewayRequest failed for callsign: %s", alias.c_str());
-                    
-                    // Record API error for telemetry
-                    AppGatewayTelemetry::getInstance().RecordApiError(context, method);
-                    
                     if (resolution.empty()){
                         ErrorUtils::CustomInternal("HandleAppGatewayRequest failed", resolution);
                     }
@@ -536,9 +509,8 @@ namespace WPEFramework
         }
         
 
-        uint32_t AppGatewayImplementation::PreProcessEvent(const Context& context, const string& alias, const string& method, const string& origin, const string& params,
-            string& resolution)
-        {
+        uint32_t AppGatewayImplementation::PreProcessEvent(const Context &context, const string& alias, const string &method, const string& origin, const string& params,
+        string &resolution) {
             JsonObject params_obj;
             if (params_obj.FromString(params)) {
                     bool resultValue;
@@ -546,7 +518,7 @@ namespace WPEFramework
                     if (ObjectUtils::HasBooleanEntry(params_obj, "listen", resultValue)) {
                         LOGTRACE("Event method '%s' with listen: %s", method.c_str(), resultValue ? "true" : "false");
                         string eventName = method;
-                        if ((mResolverPtr != nullptr) && mResolverPtr->IsVersionedEvent(method)) {
+                        if (mResolverPtr->IsVersionedEvent(method)) {
                             eventName = ContextUtils::GetEventNameFromContextBasedonVersion(context.version, method);
                         }
                         

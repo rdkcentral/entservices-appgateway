@@ -572,17 +572,7 @@ public:
 
     // Close connection for a given connection id
     void Close(const uint32_t connectionId) {
-        if (nullptr == mChannel) {
-            LOGWARN("Close requested for connectionId=%u but WebSocket channel is not initialized", connectionId);
-            return;
-        }
-
         const auto& client = mChannel->Client(connectionId);
-        if (!client.IsValid()) {
-            LOGWARN("Close requested for unknown connectionId=%u", connectionId);
-            return;
-        }
-
         client->Close(0);
     }
 
