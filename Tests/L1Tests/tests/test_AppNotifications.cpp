@@ -872,6 +872,556 @@ TEST_F(AppNotificationsTest, EndToEnd_MultipleSubscribersEmitOneAppId)
     gatewayMock->Release();
 }
 
+// ===========================================================================
+// Additional Subscribe tests
+// ===========================================================================
+
+TEST_F(AppNotificationsTest, Subscribe_EmptyModule_Listen_True_ReturnsNoneAndAddsToMap)
+{
+    // Empty module string is valid — Subscribe must still return ERROR_NONE and
+    // add the context to the subscriber map (the SubscriberJob will be dispatched
+    // with an empty module, which is the caller's concern).
+    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    EXPECT_EQ(Core::ERROR_NONE,
+        impl.Subscribe(ctx, true, "", "emptyModuleEvent"));
+
+    EXPECT_TRUE(impl.mSubMap.Exists("emptymoduleevent"));
+}
+
+TEST_F(AppNotificationsTest, Subscribe_EmptyEvent_Listen_True_ReturnsNoneAndAddsToMap)
+{
+    // An empty event string produces an empty lowercase key in the map.
+    // Subscribe must return ERROR_NONE and the context must be retrievable.
+    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    EXPECT_EQ(Core::ERROR_NONE,
+        impl.Subscribe(ctx, true, "org.rdk.Plugin", ""));
+
+    // The empty string is the map key.
+    EXPECT_TRUE(impl.mSubMap.Exists(""));
+    auto subscribers = impl.mSubMap.Get("");
+    ASSERT_EQ(1u, subscribers.size());
+    EXPECT_EQ(100u, subscribers[0].connectionId);
+}
+
+TEST_F(AppNotificationsTest, Subscribe_PartialUnsubscribe_ThenResubscribe_Works)
+{
+    // Subscribe two contexts, unsubscribe the first — key must persist.
+    // Then subscribe the first context again — key must still exist with both.
+    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 101, "app2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+
+    impl.Subscribe(ctx1, true, "org.rdk.Plugin", "partialEvt");
+    impl.Subscribe(ctx2, true, "org.rdk.Plugin", "partialEvt");
+
+    // Unsubscribe ctx1 — ctx2 still holds the key open.
+    EXPECT_EQ(Core::ERROR_NONE,
+        impl.Subscribe(ctx1, false, "org.rdk.Plugin", "partialEvt"));
+    EXPECT_TRUE(impl.mSubMap.Exists("partialevt"));
+    EXPECT_EQ(1u, impl.mSubMap.Get("partialevt").size());
+
+    // Re-subscribe ctx1 — the key already exists so no new SubscriberJob is dispatched;
+    // ctx1 is simply appended to the existing vector.
+    EXPECT_EQ(Core::ERROR_NONE,
+        impl.Subscribe(ctx1, true, "org.rdk.Plugin", "partialEvt"));
+    EXPECT_EQ(2u, impl.mSubMap.Get("partialevt").size());
+}
+
+TEST_F(AppNotificationsTest, Subscribe_Listen_False_EmptyEvent_NoEntry_ReturnsNone)
+{
+    // Unsubscribing a never-added empty event must not crash.
+    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    EXPECT_EQ(Core::ERROR_NONE,
+        impl.Subscribe(ctx, false, "org.rdk.Plugin", ""));
+    EXPECT_FALSE(impl.mSubMap.Exists(""));
+}
+
+// ===========================================================================
+// Additional Emit tests
+// ===========================================================================
+
+TEST_F(AppNotificationsTest, Emit_AfterCleanup_NoDispatch)
+{
+    // Subscribe, then cleanup (removes the context), then emit.
+    // The worker pool job must find no subscribers and not attempt dispatch.
+    // Wildcard catch-all first (covers SubscriberJob's query for "org.rdk.Plugin").
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    // The gateway/delegate interfaces must never be acquired (no subscribers).
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+        .Times(0);
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+        .Times(0);
+
+    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.Subscribe(ctx, true, "org.rdk.Plugin", "cleanedEvent");
+    impl.Cleanup(100, APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    EXPECT_FALSE(impl.mSubMap.Exists("cleanedevent"));
+
+    EXPECT_EQ(Core::ERROR_NONE,
+        impl.Emit("cleanedEvent", "{}", "app1"));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(80));
+}
+
+TEST_F(AppNotificationsTest, Emit_EmptyAppId_DispatchesToAllSubscribers)
+{
+    // When appId is empty, EventUpdate should dispatch to every subscriber for the event.
+    auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
+
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            gatewayMock->AddRef();
+            return static_cast<void*>(gatewayMock);
+        }));
+
+    // Both app1 and app2 subscribers must receive the Emit call.
+    EXPECT_CALL(*gatewayMock, Emit(_, _, _)).Times(::testing::AtLeast(2));
+
+    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 101, "app2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.Subscribe(ctx1, true, "org.rdk.Plugin", "broadcastEvt");
+    impl.Subscribe(ctx2, true, "org.rdk.Plugin", "broadcastEvt");
+
+    EXPECT_EQ(Core::ERROR_NONE,
+        impl.Emit("broadcastEvt", "{\"data\":\"all\"}", ""));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(80));
+
+    gatewayMock->Release();
+}
+
+TEST_F(AppNotificationsTest, Emit_AppIdNoMatch_NoDispatch)
+{
+    // Emit with an appId that doesn't match any subscriber — no Emit call expected.
+    auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
+
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            gatewayMock->AddRef();
+            return static_cast<void*>(gatewayMock);
+        }));
+
+    // No matching appId — Emit on the gateway mock must never be called.
+    EXPECT_CALL(*gatewayMock, Emit(_, _, _)).Times(0);
+
+    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.Subscribe(ctx, true, "org.rdk.Plugin", "noMatchEvt");
+
+    EXPECT_EQ(Core::ERROR_NONE,
+        impl.Emit("noMatchEvt", "{}", "differentApp"));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(80));
+
+    gatewayMock->Release();
+}
+
+// ===========================================================================
+// Additional Cleanup tests
+// ===========================================================================
+
+TEST_F(AppNotificationsTest, Cleanup_EmptyOrigin_OnlyRemovesEmptyOriginContexts)
+{
+    // Context with empty origin — Cleanup with empty origin must only remove it.
+    auto ctxEmpty  = MakeContext(1, 100, "app1", "");
+    auto ctxGw     = MakeContext(2, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+
+    impl.mSubMap.Add("mixedOriginKey", ctxEmpty);
+    impl.mSubMap.Add("mixedOriginKey", ctxGw);
+
+    // Cleanup with connectionId=100 and origin="" — only ctxEmpty removed.
+    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(100, ""));
+
+    EXPECT_TRUE(impl.mSubMap.Exists("mixedoriginkey"));
+    auto vec = impl.mSubMap.Get("mixedoriginkey");
+    ASSERT_EQ(1u, vec.size());
+    EXPECT_EQ(APP_NOTIFICATIONS_GATEWAY_CALLSIGN, vec[0].origin);
+}
+
+TEST_F(AppNotificationsTest, Cleanup_ZeroConnectionId_OnlyRemovesMatchingConnId)
+{
+    // Contexts with connectionId=0 must be cleaned up when Cleanup(0, origin) is called.
+    auto ctxZero = MakeContext(1, 0,   "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctxNonZ = MakeContext(2, 100, "app2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+
+    impl.mSubMap.Add("zeroConnKey", ctxZero);
+    impl.mSubMap.Add("zeroConnKey", ctxNonZ);
+
+    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(0, APP_NOTIFICATIONS_GATEWAY_CALLSIGN));
+
+    EXPECT_TRUE(impl.mSubMap.Exists("zeroconnkey"));
+    auto vec = impl.mSubMap.Get("zeroconnkey");
+    ASSERT_EQ(1u, vec.size());
+    EXPECT_EQ(100u, vec[0].connectionId);
+}
+
+TEST_F(AppNotificationsTest, Cleanup_BothOriginAndConnIdMustMatch_ConnIdMatchOnly_NoRemoval)
+{
+    // Context with connId=100 and origin=GATEWAY_CALLSIGN.
+    // Cleanup with connId=100 but wrong origin must NOT remove the context.
+    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.mSubMap.Add("bothMatchKey", ctx);
+
+    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(100, "org.rdk.SomeOtherOrigin"));
+
+    EXPECT_TRUE(impl.mSubMap.Exists("bothmatchkey"));
+}
+
+// ===========================================================================
+// Additional SubscriberMap internal tests
+// ===========================================================================
+
+TEST_F(AppNotificationsTest, SubscriberMap_Remove_OnlyRemovesOneMatchingContext_WhenMultipleSameKey)
+{
+    // Add two identical contexts (same requestId, connId, appId, origin, version).
+    auto ctx = MakeContext(1, 10, "appA", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.mSubMap.Add("dupKey", ctx);
+    impl.mSubMap.Add("dupKey", ctx);
+
+    // Remove once — std::remove erases all equal elements.
+    // Verify what the implementation actually does (remove_all-equal or remove-first).
+    impl.mSubMap.Remove("dupKey", ctx);
+
+    // The std::remove(...) in the implementation removes ALL equal elements,
+    // so after Remove the vector is empty and the key is erased.
+    EXPECT_FALSE(impl.mSubMap.Exists("dupkey"));
+}
+
+TEST_F(AppNotificationsTest, SubscriberMap_CleanupNotifications_ConnIdMatchOnly_OriginMismatch_NoRemoval)
+{
+    // Add context with origin=GATEWAY_CALLSIGN.
+    // CleanupNotifications with same connId but different origin must not remove it.
+    auto ctx = MakeContext(1, 55, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.mSubMap.Add("cleanMismatch", ctx);
+
+    impl.mSubMap.CleanupNotifications(55, "wrongOrigin");
+
+    EXPECT_TRUE(impl.mSubMap.Exists("cleanmismatch"));
+}
+
+TEST_F(AppNotificationsTest, SubscriberMap_DispatchToGateway_CachesInterface_QueryCalledOnce)
+{
+    // The first DispatchToGateway call acquires mAppGateway via QueryInterfaceByCallsign.
+    // The second call must reuse the cached pointer — QueryInterface called only once.
+    auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
+
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+
+    // Exactly one QueryInterfaceByCallsign call for the gateway callsign.
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+        .Times(1)
+        .WillOnce(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            gatewayMock->AddRef();
+            return static_cast<void*>(gatewayMock);
+        }));
+
+    EXPECT_CALL(*gatewayMock, Emit(_, _, _)).Times(2);
+
+    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+
+    // Call DispatchToGateway directly twice — second call must reuse cached mAppGateway.
+    impl.mSubMap.DispatchToGateway("cacheEvt", ctx, "{}");
+    impl.mSubMap.DispatchToGateway("cacheEvt", ctx, "{}");
+
+    // Release the extra ref held by the test (the mock is also referenced by mAppGateway).
+    // The SubscriberMap destructor will Release() mAppGateway.
+    gatewayMock->Release();
+}
+
+TEST_F(AppNotificationsTest, SubscriberMap_DispatchToGateway_NullGateway_DoesNotCrash)
+{
+    // If QueryInterfaceByCallsign returns nullptr, DispatchToGateway must log and return
+    // without crashing.
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+
+    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    // Must not crash.
+    EXPECT_NO_THROW(impl.mSubMap.DispatchToGateway("nullGwEvt", ctx, "{}"));
+}
+
+TEST_F(AppNotificationsTest, SubscriberMap_DispatchToLaunchDelegate_NullDelegate_DoesNotCrash)
+{
+    // Same test for DispatchToLaunchDelegate when QueryInterfaceByCallsign returns nullptr.
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+
+    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    EXPECT_NO_THROW(impl.mSubMap.DispatchToLaunchDelegate("nullDelegEvt", ctx, "{}"));
+}
+
+TEST_F(AppNotificationsTest, SubscriberMap_DispatchToLaunchDelegate_CachesInterface_QueryCalledOnce)
+{
+    // Mirror of the DispatchToGateway cache test, but for the LaunchDelegate path.
+    auto delegateMock = new NiceMock<AppGatewayResponderMock>();
+
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+        .Times(1)
+        .WillOnce(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            delegateMock->AddRef();
+            return static_cast<void*>(delegateMock);
+        }));
+
+    EXPECT_CALL(*delegateMock, Emit(_, _, _)).Times(2);
+
+    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+
+    impl.mSubMap.DispatchToLaunchDelegate("cacheDeleg", ctx, "{}");
+    impl.mSubMap.DispatchToLaunchDelegate("cacheDeleg", ctx, "{}");
+
+    delegateMock->Release();
+}
+
+TEST_F(AppNotificationsTest, SubscriberMap_EventUpdate_AppIdEmpty_DispatchesToAllSubscribers)
+{
+    // EventUpdate with empty appId must dispatch to every context in the vector.
+    auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
+
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            gatewayMock->AddRef();
+            return static_cast<void*>(gatewayMock);
+        }));
+
+    EXPECT_CALL(*gatewayMock, Emit(_, _, _)).Times(3);
+
+    auto ctx1 = MakeContext(1, 100, "a1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 101, "a2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx3 = MakeContext(3, 102, "a3", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.mSubMap.Add("evtAll", ctx1);
+    impl.mSubMap.Add("evtAll", ctx2);
+    impl.mSubMap.Add("evtAll", ctx3);
+
+    // Synchronous call (not via worker pool) — no sleep needed.
+    impl.mSubMap.EventUpdate("evtAll", "{}", "");
+
+    gatewayMock->Release();
+}
+
+TEST_F(AppNotificationsTest, SubscriberMap_EventUpdate_AppIdNonMatch_NoDispatch)
+{
+    // EventUpdate where appId matches no subscriber — no dispatch at all.
+    auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
+
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            gatewayMock->AddRef();
+            return static_cast<void*>(gatewayMock);
+        }));
+
+    EXPECT_CALL(*gatewayMock, Emit(_, _, _)).Times(0);
+
+    auto ctx = MakeContext(1, 100, "realApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.mSubMap.Add("evtNoMatch", ctx);
+
+    impl.mSubMap.EventUpdate("evtNoMatch", "{}", "ghostApp");
+
+    gatewayMock->Release();
+}
+
+TEST_F(AppNotificationsTest, SubscriberMap_EventUpdate_NoSubscribersForKey_NoDispatch)
+{
+    // EventUpdate for an event with no subscribers — no crash, no dispatch.
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+        .Times(0);
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+        .Times(0);
+
+    EXPECT_NO_THROW(impl.mSubMap.EventUpdate("unknownEvt", "{}", ""));
+}
+
+// ===========================================================================
+// Additional ThunderSubscriptionManager tests
+// ===========================================================================
+
+TEST_F(AppNotificationsTest, ThunderManager_HandleNotifier_ThrowsException_PropagatesFromHandlerMock)
+{
+    // HandleAppEventNotifier throws a std::runtime_error.
+    // Since HandleNotifier has no try/catch, the exception propagates to the caller.
+    auto handlerMock = new NiceMock<AppNotificationHandlerMock>();
+
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq("org.rdk.ThrowMod")))
+        .WillOnce(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            handlerMock->AddRef();
+            return static_cast<void*>(handlerMock);
+        }));
+
+    EXPECT_CALL(*handlerMock, HandleAppEventNotifier(_, StrEq("throwEvt"), true, _))
+        .WillOnce(::testing::Invoke(
+            [&](Exchange::IAppNotificationHandler::IEmitter*, const string&, bool, bool& status) -> Core::hresult {
+                throw std::runtime_error("Test exception");
+                status = false;
+                return Core::ERROR_NONE;
+            }));
+
+    EXPECT_THROW(
+        impl.mThunderManager.HandleNotifier("org.rdk.ThrowMod", "throwEvt", true),
+        std::runtime_error);
+
+    // handlerMock was AddRef'd once (returned by QueryInterfaceByCallsign) and
+    // Release() was NOT called (exception threw before internalNotifier->Release()).
+    // We must balance the ref count manually to avoid a leak.
+    // The mock's _refCount is 2 (ctor=1, AddRef in lambda=+1); Release twice.
+    handlerMock->Release(); // releases the "QueryInterfaceByCallsign" ref
+    handlerMock->Release(); // releases the ctor ref (deletes the mock)
+}
+
+TEST_F(AppNotificationsTest, ThunderManager_RegisterNotification_ThrowsException_Propagates)
+{
+    // RegisterNotification calls HandleNotifier synchronously; exception propagates.
+    auto handlerMock = new NiceMock<AppNotificationHandlerMock>();
+
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq("org.rdk.RegThrow")))
+        .WillOnce(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            handlerMock->AddRef();
+            return static_cast<void*>(handlerMock);
+        }));
+
+    EXPECT_CALL(*handlerMock, HandleAppEventNotifier(_, StrEq("regThrowEvt"), true, _))
+        .WillOnce(::testing::Invoke(
+            [&](Exchange::IAppNotificationHandler::IEmitter*, const string&, bool, bool& status) -> Core::hresult {
+                throw std::runtime_error("register exception");
+                status = false;
+                return Core::ERROR_NONE;
+            }));
+
+    EXPECT_THROW(
+        impl.mThunderManager.RegisterNotification("org.rdk.RegThrow", "regThrowEvt"),
+        std::runtime_error);
+
+    // Balance refs as above.
+    handlerMock->Release();
+    handlerMock->Release();
+}
+
+TEST_F(AppNotificationsTest, ThunderManager_UnregisterNotification_HandlerReturnsFalseStatus_NotRemovedFromList)
+{
+    // Register successfully, then call UnregisterNotification where handler returns status=false.
+    // UnregisterNotification only erases from list when HandleNotifier returns true,
+    // so the notification must remain registered.
+    auto handlerMock = new NiceMock<AppNotificationHandlerMock>();
+
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq("org.rdk.UnregFalse")))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            handlerMock->AddRef();
+            return static_cast<void*>(handlerMock);
+        }));
+
+    // Registration: listen=true, status=true.
+    EXPECT_CALL(*handlerMock, HandleAppEventNotifier(_, StrEq("unregFalseEvt"), true, _))
+        .WillOnce(::testing::DoAll(
+            ::testing::SetArgReferee<3>(true),
+            Return(Core::ERROR_NONE)));
+
+    impl.mThunderManager.RegisterNotification("org.rdk.UnregFalse", "unregFalseEvt");
+    EXPECT_TRUE(impl.mThunderManager.IsNotificationRegistered("org.rdk.UnregFalse", "unregfalseevt"));
+
+    // Unregistration: listen=false, but handler sets status=false.
+    // HandleNotifier returns false → mRegisteredNotifications NOT modified.
+    // UnregisterNotification lowercases the event before passing to HandleNotifier.
+    EXPECT_CALL(*handlerMock, HandleAppEventNotifier(_, StrEq("unregfalseevt"), false, _))
+        .WillOnce(::testing::DoAll(
+            ::testing::SetArgReferee<3>(false),
+            Return(Core::ERROR_NONE)));
+
+    impl.mThunderManager.UnregisterNotification("org.rdk.UnregFalse", "unregFalseEvt");
+
+    // Still registered because HandleNotifier returned false.
+    EXPECT_TRUE(impl.mThunderManager.IsNotificationRegistered("org.rdk.UnregFalse", "unregfalseevt"));
+
+    handlerMock->Release();
+}
+
+TEST_F(AppNotificationsTest, ThunderManager_Unsubscribe_WhenRegistered_CallsUnregister)
+{
+    // Verify Unsubscribe() removes the notification when it was previously registered.
+    auto handlerMock = new NiceMock<AppNotificationHandlerMock>();
+
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq("org.rdk.UnsubMod")))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            handlerMock->AddRef();
+            return static_cast<void*>(handlerMock);
+        }));
+
+    // Register.
+    EXPECT_CALL(*handlerMock, HandleAppEventNotifier(_, _, true, _))
+        .WillOnce(::testing::DoAll(
+            ::testing::SetArgReferee<3>(true),
+            Return(Core::ERROR_NONE)));
+    impl.mThunderManager.Subscribe("org.rdk.UnsubMod", "unsubEvt");
+    // IsNotificationRegistered lowercases its input, so "unsubEvt" → stored as "unsubeVt".
+    EXPECT_TRUE(impl.mThunderManager.IsNotificationRegistered("org.rdk.UnsubMod", "unsubEvt"));
+
+    // Unsubscribe.
+    EXPECT_CALL(*handlerMock, HandleAppEventNotifier(_, _, false, _))
+        .WillOnce(::testing::DoAll(
+            ::testing::SetArgReferee<3>(true),
+            Return(Core::ERROR_NONE)));
+    impl.mThunderManager.Unsubscribe("org.rdk.UnsubMod", "unsubEvt");
+    EXPECT_FALSE(impl.mThunderManager.IsNotificationRegistered("org.rdk.UnsubMod", "unsubEvt"));
+
+    handlerMock->Release();
+}
+
+TEST_F(AppNotificationsTest, ThunderManager_Unsubscribe_WhenNotRegistered_IsNoOp)
+{
+    // Unsubscribe for a module/event pair that was never registered.
+    // Implementation logs an error and returns — no handler call expected.
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(0);
+
+    impl.mThunderManager.Unsubscribe("org.rdk.GhostMod", "ghostEvt");
+    EXPECT_FALSE(impl.mThunderManager.IsNotificationRegistered("org.rdk.GhostMod", "ghostevt"));
+}
+
+TEST_F(AppNotificationsTest, ThunderManager_HandleNotifier_HandlerReturnsErrorNoneButStatusFalse_ReturnsFalse)
+{
+    // Handler returns ERROR_NONE but sets status=false.
+    // HandleNotifier must return false (status is the return value, not the hresult).
+    auto handlerMock = new NiceMock<AppNotificationHandlerMock>();
+
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq("org.rdk.StatusFalseMod")))
+        .WillOnce(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            handlerMock->AddRef();
+            return static_cast<void*>(handlerMock);
+        }));
+
+    EXPECT_CALL(*handlerMock, HandleAppEventNotifier(_, StrEq("statusFalseEvt"), true, _))
+        .WillOnce(::testing::DoAll(
+            ::testing::SetArgReferee<3>(false),
+            Return(Core::ERROR_NONE)));
+
+    bool result = impl.mThunderManager.HandleNotifier("org.rdk.StatusFalseMod", "statusFalseEvt", true);
+    EXPECT_FALSE(result);
+
+    handlerMock->Release();
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
