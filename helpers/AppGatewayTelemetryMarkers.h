@@ -308,7 +308,7 @@
  * @details Reports external service failures from any plugin. Plugin name included in payload.
  * @usage Use AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, service, error) helper macro from UtilsAppGatewayTelemetry.h
  * @payload { "plugin": "<pluginName>", "service": "<serviceName>", "error": "<errorCode>" }
- * @example AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CONNECTION_TIMEOUT)
+ * @example AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_PERMISSION, AGW_ERROR_CONNECTION_TIMEOUT)
  * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
  */
 #define AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR         "ENTS_ERROR_AppGwPlugExtnSrvErr"
