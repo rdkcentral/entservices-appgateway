@@ -1995,4 +1995,434 @@ TEST_F(AppGatewayCommonTest, AGC_L1_134_AccessibilityAudioDescription_Success_Tr
     EXPECT_EQ("true", result);
 }
 
+
+// ---------------------------------------------------------------------------
+// Tests AGC_L1_135 – AGC_L1_141:
+// UserSettings SET methods — COM interface returns ERROR_GENERAL → ERROR_GENERAL propagated
+// ---------------------------------------------------------------------------
+
+TEST_F(AppGatewayCommonTest, AGC_L1_135_SetVoiceGuidance_ComError_ReturnsGeneral)
+{
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, SetVoiceGuidance(true))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "voiceguidance.setenabled", R"({"value":true})", result));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_136_SetAudioDescriptionsEnabled_ComError_ReturnsGeneral)
+{
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, SetAudioDescription(false))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "audiodescriptions.setenabled", R"({"value":false})", result));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_137_SetCaptions_ComError_ReturnsGeneral)
+{
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, SetCaptions(true))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "closedcaptions.setenabled", R"({"value":true})", result));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_138_SetVoiceGuidanceRate_ComError_ReturnsGeneral)
+{
+    NiceMock<UserSettingMock> mockUS;
+    // SetSpeed(1.0) transforms to rate=1.0; the COM call fails
+    EXPECT_CALL(mockUS, SetVoiceGuidanceRate(1.0))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "voiceguidance.setspeed", R"({"value":1.0})", result));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_139_SetVoiceGuidanceHints_ComError_ReturnsGeneral)
+{
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, SetVoiceGuidanceHints(false))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "voiceguidance.setnavigationhints", R"({"value":false})", result));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_140_SetLocale_ComError_ReturnsGeneral)
+{
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, SetPresentationLanguage(string("fr-FR")))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "localization.setlocale", R"({"value":"fr-FR"})", result));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_141_SetPreferredAudioLanguages_ComError_ReturnsGeneral)
+{
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, SetPreferredAudioLanguages(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "localization.setpreferredaudiolanguages",
+                                             R"({"value":["eng","fra"]})", result));
+}
+
+// ---------------------------------------------------------------------------
+// Tests AGC_L1_142 – AGC_L1_146:
+// UserSettings GET methods — COM interface returns ERROR_GENERAL (paths not yet covered)
+// ---------------------------------------------------------------------------
+
+TEST_F(AppGatewayCommonTest, AGC_L1_142_GetHighContrast_ComError_ReturnsGeneral)
+{
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, GetHighContrast(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "accessibility.highcontrastui", "{}", result));
+    EXPECT_THAT(result, HasSubstr("error"));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_143_GetAudioDescription_ComError_AudioDescriptionSettings_ReturnsGeneral)
+{
+    // accessibility.audiodescriptionsettings calls GetAudioDescription for the {enabled:...} form
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, GetAudioDescription(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "accessibility.audiodescriptionsettings", "{}", result));
+    EXPECT_THAT(result, HasSubstr("error"));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_144_GetPreferredAudioLanguages_ComError_ReturnsGeneral)
+{
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, GetPreferredAudioLanguages(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "localization.preferredaudiolanguages", "{}", result));
+    // Delegate returns "[]" on error, and wraps with ERROR_GENERAL
+    EXPECT_EQ("[]", result);
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_145_GetPreferredCaptionsLanguages_ComError_ReturnsError)
+{
+    // closedcaptions.preferredlanguages calls GetPreferredCaptionsLanguages directly
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, GetPreferredCaptionsLanguages(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    // The delegate passes the COM error code through directly
+    EXPECT_NE(Core::ERROR_NONE,
+              plugin.HandleAppGatewayRequest(ctx, "closedcaptions.preferredlanguages", "{}", result));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_146_GetPresentationLanguage_EmptyString_ReturnsGeneral)
+{
+    // When COM returns SUCCESS but an empty string, GetLocale/GetPresentationLanguage both
+    // return ERROR_GENERAL with an error payload
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, GetPresentationLanguage(_))
+        .WillOnce(DoAll(SetArgReferee<0>(string("")), Return(Core::ERROR_NONE)));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "localization.locale", "{}", result));
+    EXPECT_THAT(result, HasSubstr("error"));
+}
+
+// ---------------------------------------------------------------------------
+// Tests AGC_L1_147 – AGC_L1_148:
+// GetPresentationLanguage (language route) — empty string and COM error
+// ---------------------------------------------------------------------------
+
+TEST_F(AppGatewayCommonTest, AGC_L1_147_GetLanguage_EmptyPresentationLanguage_ReturnsGeneral)
+{
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, GetPresentationLanguage(_))
+        .WillOnce(DoAll(SetArgReferee<0>(string("")), Return(Core::ERROR_NONE)));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "localization.language", "{}", result));
+    EXPECT_THAT(result, HasSubstr("error"));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_148_GetLanguage_ComError_ReturnsGeneral)
+{
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, GetPresentationLanguage(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "localization.language", "{}", result));
+    EXPECT_THAT(result, HasSubstr("error"));
+}
+
+// ---------------------------------------------------------------------------
+// Tests AGC_L1_149:
+// NetworkManager GetPrimaryInterface — COM returns ERROR_GENERAL
+// ---------------------------------------------------------------------------
+
+TEST_F(AppGatewayCommonTest, AGC_L1_149_NetworkConnected_GetPrimaryInterfaceComError_ReturnsGeneral)
+{
+    NiceMock<MockINetworkManager> mockNM;
+    EXPECT_CALL(mockNM, GetPrimaryInterface(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockNM, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockNM, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectNetworkManagerMock(plugin, &mockNM);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result));
+    EXPECT_THAT(result, HasSubstr("message"));
+}
+
+// ---------------------------------------------------------------------------
+// Tests AGC_L1_150 – AGC_L1_151:
+// SharedStorage SetValue — successResult.success = false → ERROR_GENERAL
+// ---------------------------------------------------------------------------
+
+TEST_F(AppGatewayCommonTest, AGC_L1_150_AdvertisingId_SetValueFails_ReturnsGeneral)
+{
+    NiceMock<SharedStorageMock> mockSS;
+    // GetValue fails → triggers a new UUID generation and SetValue call
+    EXPECT_CALL(mockSS, GetValue(ISharedStorage::DEVICE, "test.app", "fireboltAdvertisingId", _, _, _))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    // SetValue called but reports failure via successResult.success = false
+    ISharedStorage::Success failResult;
+    failResult.success = false;
+    EXPECT_CALL(mockSS, SetValue(ISharedStorage::DEVICE, "test.app", "fireboltAdvertisingId", _, 0, _))
+        .WillOnce(DoAll(SetArgReferee<5>(failResult), Return(Core::ERROR_NONE)));
+    EXPECT_CALL(mockSS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockSS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectSharedStorageMock(plugin, &mockSS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "advertising.advertisingid", "{}", result));
+    EXPECT_THAT(result, HasSubstr("message"));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_151_DeviceUid_SetValueFails_ReturnsGeneral)
+{
+    NiceMock<SharedStorageMock> mockSS;
+    // GetValue fails → triggers generation and SetValue
+    EXPECT_CALL(mockSS, GetValue(ISharedStorage::DEVICE, "test.app", "fireboltDeviceUid", _, _, _))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    ISharedStorage::Success failResult;
+    failResult.success = false;
+    EXPECT_CALL(mockSS, SetValue(ISharedStorage::DEVICE, "test.app", "fireboltDeviceUid", _, 0, _))
+        .WillOnce(DoAll(SetArgReferee<5>(failResult), Return(Core::ERROR_NONE)));
+    EXPECT_CALL(mockSS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockSS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectSharedStorageMock(plugin, &mockSS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "device.uid", "{}", result));
+    EXPECT_THAT(result, HasSubstr("message"));
+}
+
+// ---------------------------------------------------------------------------
+// Tests AGC_L1_152 – AGC_L1_153:
+// GetVoiceGuidanceSettings — intermediate steps fail
+// ---------------------------------------------------------------------------
+
+TEST_F(AppGatewayCommonTest, AGC_L1_152_GetVoiceGuidanceSettings_GetVoiceGuidanceRateFails_ReturnsGeneral)
+{
+    // GetVoiceGuidance succeeds, but GetVoiceGuidanceRate fails
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, GetVoiceGuidance(_))
+        .WillOnce(DoAll(SetArgReferee<0>(true), Return(Core::ERROR_NONE)));
+    EXPECT_CALL(mockUS, GetVoiceGuidanceRate(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL, plugin.GetVoiceGuidanceSettings(true, result));
+    EXPECT_THAT(result, HasSubstr("message"));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_153_GetVoiceGuidanceSettings_GetVoiceGuidanceHintsFails_ReturnsGeneral)
+{
+    // GetVoiceGuidance and GetVoiceGuidanceRate succeed, but GetVoiceGuidanceHints fails
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, GetVoiceGuidance(_))
+        .WillOnce(DoAll(SetArgReferee<0>(true), Return(Core::ERROR_NONE)));
+    EXPECT_CALL(mockUS, GetVoiceGuidanceRate(_))
+        .WillOnce(DoAll(SetArgReferee<0>(1.0), Return(Core::ERROR_NONE)));
+    EXPECT_CALL(mockUS, GetVoiceGuidanceHints(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL, plugin.GetVoiceGuidanceSettings(false, result));
+    EXPECT_THAT(result, HasSubstr("message"));
+}
+
+// ---------------------------------------------------------------------------
+// Tests AGC_L1_154:
+// GetClosedCaptionsSettings — GetPreferredCaptionsLanguages fails
+// ---------------------------------------------------------------------------
+
+TEST_F(AppGatewayCommonTest, AGC_L1_154_GetClosedCaptionsSettings_GetPreferredCaptionsLanguagesFails_PropagatesError)
+{
+    NiceMock<UserSettingMock> mockUS;
+    // GetCaptions succeeds
+    EXPECT_CALL(mockUS, GetCaptions(_))
+        .WillOnce(DoAll(SetArgReferee<0>(true), Return(Core::ERROR_NONE)));
+    // GetPreferredCaptionsLanguages fails
+    EXPECT_CALL(mockUS, GetPreferredCaptionsLanguages(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    string result;
+    EXPECT_NE(Core::ERROR_NONE, plugin.GetClosedCaptionsSettings(result));
+}
+
+// ---------------------------------------------------------------------------
+// Tests AGC_L1_155 – AGC_L1_156:
+// accessibility.voiceguidancesettings and accessibility.voiceguidance — COM error paths
+// ---------------------------------------------------------------------------
+
+TEST_F(AppGatewayCommonTest, AGC_L1_155_AccessibilityVoiceGuidanceSettings_GetVoiceGuidanceFails_ReturnsGeneral)
+{
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, GetVoiceGuidance(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              plugin.HandleAppGatewayRequest(ctx, "accessibility.voiceguidancesettings", "{}", result));
+    EXPECT_THAT(result, HasSubstr("message"));
+}
+
+TEST_F(AppGatewayCommonTest, AGC_L1_156_AccessibilityClosedCaptions_GetCaptionsFails_ReturnsGeneral)
+{
+    NiceMock<UserSettingMock> mockUS;
+    EXPECT_CALL(mockUS, GetCaptions(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+    EXPECT_CALL(mockUS, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(mockUS, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    InjectUserSettingsMock(plugin, &mockUS);
+
+    const auto ctx = MakeContext();
+    string result;
+    EXPECT_NE(Core::ERROR_NONE,
+              plugin.HandleAppGatewayRequest(ctx, "accessibility.closedcaptions", "{}", result));
+}
+
 } // namespace
