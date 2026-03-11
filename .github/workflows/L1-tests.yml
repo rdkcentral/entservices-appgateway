@@ -2,7 +2,7 @@ name: L1-tests
 
 on:
   push:
-    branches: [ main, develop, feature/AI_L1 ]
+    branches: [ main, develop, feature/AI_L1, test_L1 ]
   pull_request:
     branches: [ main, develop ]
   workflow_call:
@@ -101,128 +101,128 @@ jobs:
         with:
           cmake-version: '3.16.x'
 
-      # - name: Install packages
-      #   run: >
-      #     sudo apt update
-      #     &&
-      #     sudo apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libjsoncpp-dev gdb
+      - name: Install packages
+        run: >
+          sudo apt update
+          &&
+          sudo apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libjsoncpp-dev gdb
 
-      # - name: Build trower-base64
-      #   run: |
-      #       if [ ! -d "trower-base64" ]; then
-      #       git clone https://github.com/xmidt-org/trower-base64.git
-      #       fi
-      #       cd trower-base64
-      #       meson setup --warnlevel 3 --werror build
-      #       ninja -C build
-      #       sudo ninja -C build install
+      - name: Build trower-base64
+        run: |
+            if [ ! -d "trower-base64" ]; then
+            git clone https://github.com/xmidt-org/trower-base64.git
+            fi
+            cd trower-base64
+            meson setup --warnlevel 3 --werror build
+            ninja -C build
+            sudo ninja -C build install
 
-      # - name: Checkout entservices-appgateway
-      #   if: ${{ !env.ACT }}
-      #   uses: actions/checkout@v3
+      - name: Checkout entservices-appgateway
+        if: ${{ !env.ACT }}
+        uses: actions/checkout@v3
 
-      # - name: Checkout Thunder
-      #   if: steps.cache.outputs.cache-hit != 'true'
-      #   uses: actions/checkout@v3
-      #   with:
-      #     repository: rdkcentral/Thunder
-      #     path: Thunder
-      #     ref: ${{env.THUNDER_REF}}
+      - name: Checkout Thunder
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v3
+        with:
+          repository: rdkcentral/Thunder
+          path: Thunder
+          ref: ${{env.THUNDER_REF}}
 
-      # - name: Checkout ThunderTools
-      #   if: steps.cache.outputs.cache-hit != 'true'
-      #   uses: actions/checkout@v3
-      #   with:
-      #     repository: rdkcentral/ThunderTools
-      #     path: ThunderTools
-      #     ref: R4.4.3
+      - name: Checkout ThunderTools
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v3
+        with:
+          repository: rdkcentral/ThunderTools
+          path: ThunderTools
+          ref: R4.4.3
 
-      # - name: Checkout googletest
-      #   if: steps.cache.outputs.cache-hit != 'true'
-      #   uses: actions/checkout@v3
-      #   with:
-      #     repository: google/googletest
-      #     path: googletest
-      #     ref: v1.15.0
+      - name: Checkout googletest
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v3
+        with:
+          repository: google/googletest
+          path: googletest
+          ref: v1.15.0
 
-      # - name: Apply patches ThunderTools
-      #   run: |  
-      #     cd $GITHUB_WORKSPACE/ThunderTools
-      #     patch -p1 < $GITHUB_WORKSPACE/Tests/patches/00010-R4.4-Add-support-for-project-dir.patch
-      #     cd -
+      - name: Apply patches ThunderTools
+        run: |  
+          cd $GITHUB_WORKSPACE/ThunderTools
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/00010-R4.4-Add-support-for-project-dir.patch
+          cd -
 
-      # - name: Build ThunderTools
-      #   if: steps.cache.outputs.cache-hit != 'true'
-      #   run: >
-      #     cmake -G Ninja
-      #     -S "$GITHUB_WORKSPACE/ThunderTools"
-      #     -B build/ThunderTools
-      #     -DEXCEPTIONS_ENABLE=ON
-      #     -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
-      #     -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
-      #     -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
-      #     &&
-      #     cmake --build build/ThunderTools -j8
-      #     &&
-      #     cmake --install build/ThunderTools
+      - name: Build ThunderTools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: >
+          cmake -G Ninja
+          -S "$GITHUB_WORKSPACE/ThunderTools"
+          -B build/ThunderTools
+          -DEXCEPTIONS_ENABLE=ON
+          -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
+          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          &&
+          cmake --build build/ThunderTools -j8
+          &&
+          cmake --install build/ThunderTools
 
-      # - name: Apply patches Thunder
-      #   run: |
-      #     cd $GITHUB_WORKSPACE/Thunder
-      #     patch -p1 < $GITHUB_WORKSPACE/Tests/patches/Use_Legact_Alt_Based_On_ThunderTools_R4.4.3.patch
-      #     patch -p1 < $GITHUB_WORKSPACE/Tests/patches/error_code_R4_4.patch
-      #     patch -p1 < $GITHUB_WORKSPACE/Tests/patches/1004-Add-support-for-project-dir.patch
-      #     patch -p1 < $GITHUB_WORKSPACE/Tests/patches/RDKEMW-733-Add-ENTOS-IDS.patch
-      #     patch -p1 < $GITHUB_WORKSPACE/Tests/patches/Jsonrpc_dynamic_error_handling.patch
-      #     cd -
+      - name: Apply patches Thunder
+        run: |
+          cd $GITHUB_WORKSPACE/Thunder
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/Use_Legact_Alt_Based_On_ThunderTools_R4.4.3.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/error_code_R4_4.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/1004-Add-support-for-project-dir.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/RDKEMW-733-Add-ENTOS-IDS.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/Jsonrpc_dynamic_error_handling.patch
+          cd -
 
-      # - name: Build Thunder
-      #   if: steps.cache.outputs.cache-hit != 'true'
-      #   run: >
-      #     cmake -G Ninja
-      #     -S "$GITHUB_WORKSPACE/Thunder"
-      #     -B build/Thunder
-      #     -DMESSAGING=ON
-      #     -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
-      #     -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
-      #     -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
-      #     -DBUILD_TYPE=Debug
-      #     -DBINDING=127.0.0.1
-      #     -DPORT=55555
-      #     -DEXCEPTIONS_ENABLE=ON
-      #     &&
-      #     cmake --build build/Thunder -j8
-      #     &&
-      #     cmake --install build/Thunder
+      - name: Build Thunder
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: >
+          cmake -G Ninja
+          -S "$GITHUB_WORKSPACE/Thunder"
+          -B build/Thunder
+          -DMESSAGING=ON
+          -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
+          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          -DBUILD_TYPE=Debug
+          -DBINDING=127.0.0.1
+          -DPORT=55555
+          -DEXCEPTIONS_ENABLE=ON
+          &&
+          cmake --build build/Thunder -j8
+          &&
+          cmake --install build/Thunder
 
-      # - name: Checkout entservices-apis
-      #   if: steps.cache.outputs.cache-hit != 'true'
-      #   uses: actions/checkout@v3
-      #   with:
-      #     repository: rdkcentral/entservices-apis
-      #     path: entservices-apis
-      #     ref: ${{env.INTERFACES_REF}}
-      #     #token : ${{ secrets.RDKCM_RDKE }}
-      #     run: rm -rf $GITHUB_WORKSPACE/entservices-apis/jsonrpc/DTV.json
+      - name: Checkout entservices-apis
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v3
+        with:
+          repository: rdkcentral/entservices-apis
+          path: entservices-apis
+          ref: ${{env.INTERFACES_REF}}
+          #token : ${{ secrets.RDKCM_RDKE }}
+          run: rm -rf $GITHUB_WORKSPACE/entservices-apis/jsonrpc/DTV.json
 
-      # - name: Apply patches entservices-apis
-      #   run: |
-      #     cd $GITHUB_WORKSPACE/entservices-apis
-      #     patch -p1 < $GITHUB_WORKSPACE/Tests/patches/RDKEMW-1007.patch
-      #     cd -
+      - name: Apply patches entservices-apis
+        run: |
+          cd $GITHUB_WORKSPACE/entservices-apis
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/RDKEMW-1007.patch
+          cd -
 
-      # - name: Build entservices-apis
-      #   run: >
-      #     cmake -G Ninja
-      #     -S "$GITHUB_WORKSPACE/entservices-apis"
-      #     -B build/entservices-apis
-      #     -DEXCEPTIONS_ENABLE=ON
-      #     -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
-      #     -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
-      #     &&
-      #     cmake --build build/entservices-apis -j8
-      #     &&
-      #     cmake --install build/entservices-apis
+      - name: Build entservices-apis
+        run: >
+          cmake -G Ninja
+          -S "$GITHUB_WORKSPACE/entservices-apis"
+          -B build/entservices-apis
+          -DEXCEPTIONS_ENABLE=ON
+          -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
+          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          &&
+          cmake --build build/entservices-apis -j8
+          &&
+          cmake --install build/entservices-apis
 
       - name: Set clang toolchain
         if: ${{ matrix.compiler == 'clang' }}
