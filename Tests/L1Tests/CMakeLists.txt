@@ -354,6 +354,8 @@ write_config(${PLUGIN_NAME})
 # AppGatewayL1Test executable (required by the workflow/script)
 # -----------------------------------------------------------------------------
 if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON)
+    find_package(Threads REQUIRED)
+
     # Prefer CONFIG mode so imported targets (GTest::gtest, GTest::gmock, etc.) are defined.
     # In some environments CMake's module-mode FindGTest is picked up first and only sets
     # variables like GTEST_LIBRARIES (leading to "Found GTest: <path>/libgtest.a" but

@@ -401,14 +401,17 @@ jobs:
           set -euo pipefail
 
           # Some AppGateway builds expect this interface header to be available under the local prefix.
-          # Fetch from upstream networkmanager repo and stage into:
+          # Keep behavior aligned with native build_dependencies.sh by sourcing from
+          # a local networkmanager checkout, then staging into:
           #   $GITHUB_WORKSPACE/install/usr/include/WPEFramework/interfaces/INetworkManager.h
           dst_dir="$GITHUB_WORKSPACE/install/usr/include/WPEFramework/interfaces"
           mkdir -p "$dst_dir"
 
-          url="https://raw.githubusercontent.com/rdkcentral/networkmanager/develop/interface/INetworkManager.h"
-          echo "Downloading: $url"
-          curl -fsSL "$url" -o "$dst_dir/INetworkManager.h"
+          if [ ! -d "$GITHUB_WORKSPACE/networkmanager" ]; then
+            git clone --depth 1 --branch main https://github.com/rdkcentral/networkmanager.git "$GITHUB_WORKSPACE/networkmanager"
+          fi
+
+          cp -f "$GITHUB_WORKSPACE/networkmanager/interface/INetworkManager.h" "$dst_dir/INetworkManager.h"
 
           echo "Staged header at: $dst_dir/INetworkManager.h"
           test -s "$dst_dir/INetworkManager.h"
