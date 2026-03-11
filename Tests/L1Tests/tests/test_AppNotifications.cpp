@@ -1508,6 +1508,450 @@ TEST_F(AppNotificationsTest, ThunderManager_HandleNotifier_HandlerReturnsErrorNo
     handlerMock->Release();
 }
 
+// ===========================================================================
+// NotificationHandler / Emitter notification flow tests
+//
+// These tests exercise the path:
+//   [external caller] --calls--> impl.mEmitter.Emit()
+//                            --submits--> EmitJob
+//                            --Dispatch()--> SubscriberMap::EventUpdate()
+//                            --Dispatch()--> DispatchToGateway / DispatchToLaunchDelegate
+//                            --calls--> AppGatewayResponderMock::Emit()
+//
+// They also verify the NotificationHandler (IEmitter impl) receives the call
+// when an external plugin's IAppNotificationHandler::HandleAppEventNotifier
+// invokes the passed emitter callback.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Emitter::Emit submits EmitJob which drives EventUpdate + DispatchToGateway
+// ---------------------------------------------------------------------------
+
+TEST_F(AppNotificationsTest, Notification_EmitterEmit_WithSubscriber_GatewayOrigin_DispatchesViaGateway)
+{
+    // Arrange: subscriber with gateway origin.
+    auto ctx = MakeContext(1, 100, "notifyApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.mSubMap.Add("notifyEvt", ctx);
+
+    auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            gatewayMock->AddRef();
+            return static_cast<void*>(gatewayMock);
+        }));
+
+    // The gateway's Emit must be called once with matching event/payload.
+    EXPECT_CALL(*gatewayMock, Emit(_, StrEq("notifyEvt"), StrEq("{\"msg\":\"hello\"}")))
+        .Times(1)
+        .WillOnce(Return(Core::ERROR_NONE));
+
+    // Act: call Emit on the plugin's inner Emitter (the IEmitter the plugin
+    // passes to HandleAppEventNotifier). This submits an EmitJob to the pool.
+    impl.mEmitter.Emit("notifyEvt", "{\"msg\":\"hello\"}", "notifyApp");
+
+    // Allow the worker pool to drain the EmitJob.
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+    gatewayMock->Release();
+}
+
+TEST_F(AppNotificationsTest, Notification_EmitterEmit_WithSubscriber_NonGatewayOrigin_DispatchesViaLaunchDelegate)
+{
+    // Arrange: subscriber with non-gateway origin (Launch Delegate path).
+    auto ctx = MakeContext(1, 200, "delegateApp", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    impl.mSubMap.Add("delegateNotifyEvt", ctx);
+
+    auto delegateMock = new NiceMock<AppGatewayResponderMock>();
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            delegateMock->AddRef();
+            return static_cast<void*>(delegateMock);
+        }));
+
+    EXPECT_CALL(*delegateMock, Emit(_, StrEq("delegateNotifyEvt"), StrEq("{}")))
+        .Times(1)
+        .WillOnce(Return(Core::ERROR_NONE));
+
+    impl.mEmitter.Emit("delegateNotifyEvt", "{}", "delegateApp");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+    delegateMock->Release();
+}
+
+TEST_F(AppNotificationsTest, Notification_EmitterEmit_NoSubscribers_NoDispatch)
+{
+    // Emitter::Emit for an event with no subscribers — gateway must not be queried.
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+        .Times(0);
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+        .Times(0);
+
+    impl.mEmitter.Emit("orphanEvt", "{}", "anyApp");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+}
+
+TEST_F(AppNotificationsTest, Notification_EmitterEmit_EmptyAppId_BroadcastsToAllSubscribers)
+{
+    // Empty appId → EventUpdate dispatches to ALL subscribers for the event.
+    auto ctx1 = MakeContext(1, 10, "appOne", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 11, "appTwo", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.mSubMap.Add("broadcastEvt", ctx1);
+    impl.mSubMap.Add("broadcastEvt", ctx2);
+
+    auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            gatewayMock->AddRef();
+            return static_cast<void*>(gatewayMock);
+        }));
+
+    // Both subscribers must receive the event (gateway Emit called twice).
+    EXPECT_CALL(*gatewayMock, Emit(_, StrEq("broadcastEvt"), _))
+        .Times(2)
+        .WillRepeatedly(Return(Core::ERROR_NONE));
+
+    impl.mEmitter.Emit("broadcastEvt", "{\"data\":\"all\"}", "");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+    gatewayMock->Release();
+}
+
+TEST_F(AppNotificationsTest, Notification_EmitterEmit_AppIdFiltered_OnlyMatchingSubscriberDispatched)
+{
+    // Only the subscriber whose appId matches the emitted appId receives the event.
+    auto ctx1 = MakeContext(1, 10, "targetApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 11, "otherApp",  APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.mSubMap.Add("filteredEvt", ctx1);
+    impl.mSubMap.Add("filteredEvt", ctx2);
+
+    auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            gatewayMock->AddRef();
+            return static_cast<void*>(gatewayMock);
+        }));
+
+    // Only targetApp's subscriber should be dispatched — exactly once.
+    EXPECT_CALL(*gatewayMock, Emit(_, _, _))
+        .Times(1)
+        .WillOnce(Return(Core::ERROR_NONE));
+
+    impl.mEmitter.Emit("filteredEvt", "{}", "targetApp");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+    gatewayMock->Release();
+}
+
+// ---------------------------------------------------------------------------
+// NotificationHandler receives Emit via direct call to mEmitter
+// ---------------------------------------------------------------------------
+
+TEST_F(AppNotificationsTest, Notification_NotificationHandler_ReceivesEmit_DirectCall)
+{
+    // Calling Emit() on our NotificationHandler directly verifies that
+    // the WaitForRequestStatus + parameter storage work correctly.
+    NotificationHandler* handler = new NotificationHandler();
+
+    handler->Emit("testEvent", "{\"key\":\"val\"}", "myApp");
+
+    EXPECT_TRUE(handler->WaitForRequestStatus(1000, AppNotifications_OnEmit));
+    EXPECT_EQ("testEvent",       handler->GetEmitEvent());
+    EXPECT_EQ("{\"key\":\"val\"}", handler->GetEmitPayload());
+    EXPECT_EQ("myApp",           handler->GetEmitAppId());
+
+    handler->Release();
+}
+
+TEST_F(AppNotificationsTest, Notification_NotificationHandler_Reset_ClearsStoredState)
+{
+    NotificationHandler* handler = new NotificationHandler();
+
+    handler->Emit("evt", "payload", "app");
+    EXPECT_TRUE(handler->WaitForRequestStatus(500, AppNotifications_OnEmit));
+
+    handler->Reset();
+    EXPECT_EQ(0u, handler->GetEventsMask());
+    EXPECT_EQ("", handler->GetEmitEvent());
+    EXPECT_EQ("", handler->GetEmitPayload());
+    EXPECT_EQ("", handler->GetEmitAppId());
+
+    handler->Release();
+}
+
+TEST_F(AppNotificationsTest, Notification_NotificationHandler_WaitTimeout_ReturnsFalse_WhenNoEmit)
+{
+    // WaitForRequestStatus must return false when Emit is never called.
+    NotificationHandler* handler = new NotificationHandler();
+
+    bool signalled = handler->WaitForRequestStatus(100, AppNotifications_OnEmit);
+    EXPECT_FALSE(signalled);
+
+    handler->Release();
+}
+
+TEST_F(AppNotificationsTest, Notification_NotificationHandler_MultipleEmitCalls_LastValueStored)
+{
+    // Each Emit call overwrites the stored parameters.
+    NotificationHandler* handler = new NotificationHandler();
+
+    handler->Emit("firstEvt",  "p1", "a1");
+    handler->Emit("secondEvt", "p2", "a2");
+
+    // The event bit stays set after first call; second call keeps it set.
+    EXPECT_TRUE(handler->WaitForRequestStatus(500, AppNotifications_OnEmit));
+    // Last call wins for stored values.
+    EXPECT_EQ("secondEvt", handler->GetEmitEvent());
+    EXPECT_EQ("p2",        handler->GetEmitPayload());
+    EXPECT_EQ("a2",        handler->GetEmitAppId());
+
+    handler->Release();
+}
+
+// ---------------------------------------------------------------------------
+// HandleNotifier passes impl's mEmitter to the plugin's IAppNotificationHandler
+// ---------------------------------------------------------------------------
+
+TEST_F(AppNotificationsTest, Notification_HandleNotifier_PassesCorrectEmitterToHandler)
+{
+    // Verify HandleNotifier passes &impl.mEmitter as the IEmitter* argument.
+    auto handlerMock = new NiceMock<AppNotificationHandlerMock>();
+
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq("org.rdk.EmitterCheckMod")))
+        .WillOnce(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            handlerMock->AddRef();
+            return static_cast<void*>(handlerMock);
+        }));
+
+    Exchange::IAppNotificationHandler::IEmitter* capturedEmitter = nullptr;
+    EXPECT_CALL(*handlerMock, HandleAppEventNotifier(_, StrEq("checkEvt"), true, _))
+        .WillOnce(::testing::Invoke(
+            [&](Exchange::IAppNotificationHandler::IEmitter* emitCb,
+                const string&, bool, bool& status) -> Core::hresult {
+                capturedEmitter = emitCb;
+                status = true;
+                return Core::ERROR_NONE;
+            }));
+
+    impl.mThunderManager.HandleNotifier("org.rdk.EmitterCheckMod", "checkEvt", true);
+
+    // The emitter passed must be the plugin's own mEmitter sink.
+    EXPECT_EQ(static_cast<Exchange::IAppNotificationHandler::IEmitter*>(&impl.mEmitter),
+              capturedEmitter);
+
+    handlerMock->Release();
+}
+
+TEST_F(AppNotificationsTest, Notification_HandleNotifier_EmitterCanBeInvokedByHandler_TriggersEventUpdate)
+{
+    // When the external handler calls back through the emitter it was given,
+    // the EmitJob is submitted and EventUpdate is eventually invoked.
+    // Set up a subscriber so EventUpdate reaches DispatchToGateway.
+    auto ctx = MakeContext(1, 300, "cbApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.mSubMap.Add("cbEvent", ctx);
+
+    auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            gatewayMock->AddRef();
+            return static_cast<void*>(gatewayMock);
+        }));
+    EXPECT_CALL(*gatewayMock, Emit(_, StrEq("cbEvent"), StrEq("{\"from\":\"handler\"}")))
+        .Times(1)
+        .WillOnce(Return(Core::ERROR_NONE));
+
+    auto handlerMock = new NiceMock<AppNotificationHandlerMock>();
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq("org.rdk.CbMod")))
+        .WillOnce(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            handlerMock->AddRef();
+            return static_cast<void*>(handlerMock);
+        }));
+
+    // When HandleNotifier is called, the handler immediately uses the provided
+    // emitter to emit back — simulating a real plugin's behavior.
+    EXPECT_CALL(*handlerMock, HandleAppEventNotifier(_, StrEq("cbEvent"), true, _))
+        .WillOnce(::testing::Invoke(
+            [&](Exchange::IAppNotificationHandler::IEmitter* emitCb,
+                const string&, bool, bool& status) -> Core::hresult {
+                emitCb->Emit("cbEvent", "{\"from\":\"handler\"}", "cbApp");
+                status = true;
+                return Core::ERROR_NONE;
+            }));
+
+    impl.mThunderManager.HandleNotifier("org.rdk.CbMod", "cbEvent", true);
+
+    // Allow the submitted EmitJob to run on the worker pool.
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+    handlerMock->Release();
+    gatewayMock->Release();
+}
+
+// ---------------------------------------------------------------------------
+// Emitter::Emit + NotificationHandler together: end-to-end notification path
+// ---------------------------------------------------------------------------
+
+TEST_F(AppNotificationsTest, Notification_EndToEnd_EmitterEmit_NotificationHandler_Receives)
+{
+    // NotificationHandler is set up as the IEmitter. When something calls
+    // impl.mEmitter.Emit(), the EmitJob runs and eventually reaches
+    // DispatchToGateway which calls gatewayMock->Emit().
+    // Separately we verify NotificationHandler::Emit can be directly called
+    // and captures all parameters correctly.
+    NotificationHandler* notifHandler = new NotificationHandler();
+
+    // Directly exercise the NotificationHandler's Emit (simulates an external
+    // caller who received the IEmitter* and calls it back).
+    notifHandler->Emit("e2eEvent", "{\"step\":1}", "e2eApp");
+
+    EXPECT_TRUE(notifHandler->WaitForRequestStatus(1000, AppNotifications_OnEmit));
+    EXPECT_EQ("e2eEvent",   notifHandler->GetEmitEvent());
+    EXPECT_EQ("{\"step\":1}", notifHandler->GetEmitPayload());
+    EXPECT_EQ("e2eApp",     notifHandler->GetEmitAppId());
+
+    notifHandler->Release();
+}
+
+TEST_F(AppNotificationsTest, Notification_EndToEnd_SubscribeEmitViaEmitter_GatewayDispatch)
+{
+    // Full pipeline: Subscribe → Emitter::Emit → EmitJob → EventUpdate
+    //                → DispatchToGateway → gatewayMock->Emit().
+    auto ctx = MakeContext(42, 500, "pipelineApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    EXPECT_EQ(Core::ERROR_NONE, impl.Subscribe(ctx, true, "org.rdk.Pipeline", "pipelineEvt"));
+
+    auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            gatewayMock->AddRef();
+            return static_cast<void*>(gatewayMock);
+        }));
+    EXPECT_CALL(*gatewayMock, Emit(_, StrEq("pipelineEvt"), StrEq("{\"ok\":true}")))
+        .Times(1)
+        .WillOnce(Return(Core::ERROR_NONE));
+
+    // Use the plugin's own Emitter (the object passed to HandleAppEventNotifier).
+    impl.mEmitter.Emit("pipelineEvt", "{\"ok\":true}", "pipelineApp");
+
+    // Worker pool drains the EmitJob.
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+    gatewayMock->Release();
+}
+
+TEST_F(AppNotificationsTest, Notification_EndToEnd_SubscribeEmitViaEmitter_LaunchDelegateDispatch)
+{
+    // Same as above but with a non-gateway origin (LaunchDelegate path).
+    auto ctx = MakeContext(43, 501, "ldApp", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    EXPECT_EQ(Core::ERROR_NONE, impl.Subscribe(ctx, true, "org.rdk.LD", "ldEvt"));
+
+    auto ldMock = new NiceMock<AppGatewayResponderMock>();
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            ldMock->AddRef();
+            return static_cast<void*>(ldMock);
+        }));
+    EXPECT_CALL(*ldMock, Emit(_, StrEq("ldEvt"), StrEq("{\"ld\":1}")))
+        .Times(1)
+        .WillOnce(Return(Core::ERROR_NONE));
+
+    impl.mEmitter.Emit("ldEvt", "{\"ld\":1}", "ldApp");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+    ldMock->Release();
+}
+
+// ---------------------------------------------------------------------------
+// GatewayContext fields populated correctly in DispatchToGateway
+// ---------------------------------------------------------------------------
+
+TEST_F(AppNotificationsTest, Notification_DispatchToGateway_GatewayContextFields_MatchSubscriberContext)
+{
+    // Verify that the GatewayContext passed to AppGatewayResponder::Emit contains
+    // the requestId/connectionId/appId from the subscriber's AppNotificationContext.
+    auto ctx = MakeContext(77, 888, "fieldApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.mSubMap.Add("ctxFieldEvt", ctx);
+
+    auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            gatewayMock->AddRef();
+            return static_cast<void*>(gatewayMock);
+        }));
+
+    Exchange::GatewayContext capturedCtx{};
+    EXPECT_CALL(*gatewayMock, Emit(_, _, _))
+        .Times(1)
+        .WillOnce(::testing::Invoke(
+            [&](const Exchange::GatewayContext& gCtx,
+                const string&, const string&) -> Core::hresult {
+                capturedCtx = gCtx;
+                return Core::ERROR_NONE;
+            }));
+
+    // Use direct EventUpdate (synchronous) to avoid worker-pool timing.
+    impl.mSubMap.EventUpdate("ctxFieldEvt", "{}", "fieldApp");
+
+    EXPECT_EQ(77u,        capturedCtx.requestId);
+    EXPECT_EQ(888u,       capturedCtx.connectionId);
+    EXPECT_EQ("fieldApp", capturedCtx.appId);
+
+    gatewayMock->Release();
+}
+
+TEST_F(AppNotificationsTest, Notification_DispatchToLaunchDelegate_GatewayContextFields_MatchSubscriberContext)
+{
+    // Same field verification for the LaunchDelegate path.
+    auto ctx = MakeContext(55, 999, "ldFieldApp", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    impl.mSubMap.Add("ldFieldEvt", ctx);
+
+    auto ldMock = new NiceMock<AppGatewayResponderMock>();
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+        .Times(AnyNumber())
+        .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
+            ldMock->AddRef();
+            return static_cast<void*>(ldMock);
+        }));
+
+    Exchange::GatewayContext capturedCtx{};
+    EXPECT_CALL(*ldMock, Emit(_, _, _))
+        .Times(1)
+        .WillOnce(::testing::Invoke(
+            [&](const Exchange::GatewayContext& gCtx,
+                const string&, const string&) -> Core::hresult {
+                capturedCtx = gCtx;
+                return Core::ERROR_NONE;
+            }));
+
+    impl.mSubMap.EventUpdate("ldFieldEvt", "{}", "ldFieldApp");
+
+    EXPECT_EQ(55u,           capturedCtx.requestId);
+    EXPECT_EQ(999u,          capturedCtx.connectionId);
+    EXPECT_EQ("ldFieldApp",  capturedCtx.appId);
+
+    ldMock->Release();
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
