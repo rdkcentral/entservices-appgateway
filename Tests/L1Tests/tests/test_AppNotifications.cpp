@@ -20,7 +20,6 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <atomic>
 #include <chrono>
 #include <string>
 #include <thread>
@@ -60,45 +59,36 @@ using ::testing::StrEq;
 // ---------------------------------------------------------------------------
 // NotificationHandler — concrete implementation of IAppNotificationHandler::IEmitter
 // used by tests to verify that the plugin correctly calls back the emitter.
+// Follows the canonical pattern from test_AppManager.cpp.
 // ---------------------------------------------------------------------------
 typedef enum : uint32_t {
-    AppNotifications_OnEmit = 0x00000001,
+    AppNotifications_StateInvalid = 0x00000000,
+    AppNotifications_OnEmit       = 0x00000001,
 } AppNotificationsEventType_t;
 
 class NotificationHandler : public Exchange::IAppNotificationHandler::IEmitter {
 private:
-    mutable std::mutex              m_mutex;
-    std::condition_variable         m_condition_variable;
-    uint32_t                        m_event_signalled;
-    mutable std::atomic<uint32_t>   m_refCount;
-
-    // Stored parameters from the most-recent Emit() call
-    std::string  m_emit_event;
-    std::string  m_emit_payload;
-    std::string  m_emit_appId;
-
     BEGIN_INTERFACE_MAP(NotificationHandler)
     INTERFACE_ENTRY(Exchange::IAppNotificationHandler::IEmitter)
     END_INTERFACE_MAP
 
 public:
-    NotificationHandler()
-        : m_event_signalled(0)
-        , m_refCount(1)
-    {}
+    /** @brief Mutex */
+    std::mutex m_mutex;
 
-    ~NotificationHandler() override = default;
+    /** @brief Condition variable */
+    std::condition_variable m_condition_variable;
 
-    // IUnknown ref-counting (real, non-mock)
-    void AddRef() const override { ++m_refCount; }
-    uint32_t Release() const override
-    {
-        const uint32_t result = --m_refCount;
-        if (result == 0) {
-            delete this;
-        }
-        return result;
-    }
+    /** @brief Event signalled flag */
+    uint32_t m_event_signalled = AppNotifications_StateInvalid;
+
+    // Stored parameters from the most-recent Emit() call
+    std::string m_emit_event;
+    std::string m_emit_payload;
+    std::string m_emit_appId;
+
+    NotificationHandler() {}
+    ~NotificationHandler() {}
 
     // IEmitter implementation
     void Emit(const string& event,
@@ -114,33 +104,30 @@ public:
     }
 
     // Block until the expected event bit is set, or timeout_ms elapses.
-    // Returns true if the event was signalled before the timeout.
-    bool WaitForRequestStatus(uint32_t timeout_ms, AppNotificationsEventType_t expected_status)
+    // Returns the full event mask captured at wake-up time; resets m_event_signalled for next use.
+    uint32_t WaitForRequestStatus(uint32_t timeout_ms, AppNotificationsEventType_t expected_status)
     {
+        uint32_t signalled = AppNotifications_StateInvalid;
         std::unique_lock<std::mutex> lock(m_mutex);
-        return m_condition_variable.wait_for(
-            lock,
-            std::chrono::milliseconds(timeout_ms),
-            [this, expected_status]() {
-                return (m_event_signalled & expected_status) != 0;
-            });
-    }
-
-    // Reset all stored state so the handler can be reused across sub-tests.
-    void Reset()
-    {
-        std::unique_lock<std::mutex> lock(m_mutex);
-        m_event_signalled = 0;
-        m_emit_event.clear();
-        m_emit_payload.clear();
-        m_emit_appId.clear();
+        auto now     = std::chrono::steady_clock::now();
+        auto timeout = std::chrono::milliseconds(timeout_ms);
+        while (!(expected_status & m_event_signalled))
+        {
+            if (m_condition_variable.wait_until(lock, now + timeout) == std::cv_status::timeout)
+            {
+                TEST_LOG("Timeout waiting for request status event");
+                break;
+            }
+        }
+        signalled      = m_event_signalled;
+        m_event_signalled = AppNotifications_StateInvalid; // reset for next use
+        return signalled;
     }
 
     // Getters — return copies so callers don't need to hold the lock.
     std::string GetEmitEvent()   const { std::unique_lock<std::mutex> l(m_mutex); return m_emit_event; }
     std::string GetEmitPayload() const { std::unique_lock<std::mutex> l(m_mutex); return m_emit_payload; }
     std::string GetEmitAppId()   const { std::unique_lock<std::mutex> l(m_mutex); return m_emit_appId; }
-    uint32_t    GetEventsMask()  const { std::unique_lock<std::mutex> l(m_mutex); return m_event_signalled; }
 };
 
 // ---------------------------------------------------------------------------
@@ -1661,61 +1648,62 @@ TEST_F(AppNotificationsTest, Notification_NotificationHandler_ReceivesEmit_Direc
 {
     // Calling Emit() on our NotificationHandler directly verifies that
     // the WaitForRequestStatus + parameter storage work correctly.
-    NotificationHandler* handler = new NotificationHandler();
+    Core::Sink<NotificationHandler> handler;
+    uint32_t signalled = AppNotifications_StateInvalid;
 
-    handler->Emit("testEvent", "{\"key\":\"val\"}", "myApp");
+    handler.Emit("testEvent", "{\"key\":\"val\"}", "myApp");
 
-    EXPECT_TRUE(handler->WaitForRequestStatus(1000, AppNotifications_OnEmit));
-    EXPECT_EQ("testEvent",       handler->GetEmitEvent());
-    EXPECT_EQ("{\"key\":\"val\"}", handler->GetEmitPayload());
-    EXPECT_EQ("myApp",           handler->GetEmitAppId());
-
-    handler->Release();
+    signalled = handler.WaitForRequestStatus(1000, AppNotifications_OnEmit);
+    EXPECT_EQ(signalled & AppNotifications_OnEmit, AppNotifications_OnEmit);
+    EXPECT_EQ("testEvent",        handler.GetEmitEvent());
+    EXPECT_EQ("{\"key\":\"val\"}", handler.GetEmitPayload());
+    EXPECT_EQ("myApp",            handler.GetEmitAppId());
 }
 
-TEST_F(AppNotificationsTest, Notification_NotificationHandler_Reset_ClearsStoredState)
+TEST_F(AppNotificationsTest, Notification_NotificationHandler_WaitAutoResets_EventMask)
 {
-    NotificationHandler* handler = new NotificationHandler();
+    // After WaitForRequestStatus returns, m_event_signalled is auto-reset.
+    // A subsequent wait without a new Emit must timeout and return StateInvalid.
+    Core::Sink<NotificationHandler> handler;
+    uint32_t signalled = AppNotifications_StateInvalid;
 
-    handler->Emit("evt", "payload", "app");
-    EXPECT_TRUE(handler->WaitForRequestStatus(500, AppNotifications_OnEmit));
+    handler.Emit("evt", "payload", "app");
+    signalled = handler.WaitForRequestStatus(500, AppNotifications_OnEmit);
+    EXPECT_EQ(signalled & AppNotifications_OnEmit, AppNotifications_OnEmit);
 
-    handler->Reset();
-    EXPECT_EQ(0u, handler->GetEventsMask());
-    EXPECT_EQ("", handler->GetEmitEvent());
-    EXPECT_EQ("", handler->GetEmitPayload());
-    EXPECT_EQ("", handler->GetEmitAppId());
-
-    handler->Release();
+    // No new Emit — second wait must timeout and return StateInvalid.
+    signalled = handler.WaitForRequestStatus(100, AppNotifications_OnEmit);
+    EXPECT_EQ(AppNotifications_StateInvalid, signalled);
+    EXPECT_EQ("evt", handler.GetEmitEvent());   // stored values persist (not cleared)
+    EXPECT_EQ("payload", handler.GetEmitPayload());
+    EXPECT_EQ("app",     handler.GetEmitAppId());
 }
 
 TEST_F(AppNotificationsTest, Notification_NotificationHandler_WaitTimeout_ReturnsFalse_WhenNoEmit)
 {
-    // WaitForRequestStatus must return false when Emit is never called.
-    NotificationHandler* handler = new NotificationHandler();
+    // WaitForRequestStatus must return StateInvalid when Emit is never called.
+    Core::Sink<NotificationHandler> handler;
 
-    bool signalled = handler->WaitForRequestStatus(100, AppNotifications_OnEmit);
-    EXPECT_FALSE(signalled);
-
-    handler->Release();
+    uint32_t signalled = handler.WaitForRequestStatus(100, AppNotifications_OnEmit);
+    EXPECT_EQ(AppNotifications_StateInvalid, signalled);
 }
 
 TEST_F(AppNotificationsTest, Notification_NotificationHandler_MultipleEmitCalls_LastValueStored)
 {
     // Each Emit call overwrites the stored parameters.
-    NotificationHandler* handler = new NotificationHandler();
+    Core::Sink<NotificationHandler> handler;
+    uint32_t signalled = AppNotifications_StateInvalid;
 
-    handler->Emit("firstEvt",  "p1", "a1");
-    handler->Emit("secondEvt", "p2", "a2");
+    handler.Emit("firstEvt",  "p1", "a1");
+    handler.Emit("secondEvt", "p2", "a2");
 
     // The event bit stays set after first call; second call keeps it set.
-    EXPECT_TRUE(handler->WaitForRequestStatus(500, AppNotifications_OnEmit));
+    signalled = handler.WaitForRequestStatus(500, AppNotifications_OnEmit);
+    EXPECT_EQ(signalled & AppNotifications_OnEmit, AppNotifications_OnEmit);
     // Last call wins for stored values.
-    EXPECT_EQ("secondEvt", handler->GetEmitEvent());
-    EXPECT_EQ("p2",        handler->GetEmitPayload());
-    EXPECT_EQ("a2",        handler->GetEmitAppId());
-
-    handler->Release();
+    EXPECT_EQ("secondEvt", handler.GetEmitEvent());
+    EXPECT_EQ("p2",        handler.GetEmitPayload());
+    EXPECT_EQ("a2",        handler.GetEmitAppId());
 }
 
 // ---------------------------------------------------------------------------
@@ -1809,18 +1797,18 @@ TEST_F(AppNotificationsTest, Notification_EndToEnd_EmitterEmit_NotificationHandl
     // DispatchToGateway which calls gatewayMock->Emit().
     // Separately we verify NotificationHandler::Emit can be directly called
     // and captures all parameters correctly.
-    NotificationHandler* notifHandler = new NotificationHandler();
+    Core::Sink<NotificationHandler> notifHandler;
+    uint32_t signalled = AppNotifications_StateInvalid;
 
     // Directly exercise the NotificationHandler's Emit (simulates an external
     // caller who received the IEmitter* and calls it back).
-    notifHandler->Emit("e2eEvent", "{\"step\":1}", "e2eApp");
+    notifHandler.Emit("e2eEvent", "{\"step\":1}", "e2eApp");
 
-    EXPECT_TRUE(notifHandler->WaitForRequestStatus(1000, AppNotifications_OnEmit));
-    EXPECT_EQ("e2eEvent",   notifHandler->GetEmitEvent());
-    EXPECT_EQ("{\"step\":1}", notifHandler->GetEmitPayload());
-    EXPECT_EQ("e2eApp",     notifHandler->GetEmitAppId());
-
-    notifHandler->Release();
+    signalled = notifHandler.WaitForRequestStatus(1000, AppNotifications_OnEmit);
+    EXPECT_EQ(signalled & AppNotifications_OnEmit, AppNotifications_OnEmit);
+    EXPECT_EQ("e2eEvent",   notifHandler.GetEmitEvent());
+    EXPECT_EQ("{\"step\":1}", notifHandler.GetEmitPayload());
+    EXPECT_EQ("e2eApp",     notifHandler.GetEmitAppId());
 }
 
 TEST_F(AppNotificationsTest, Notification_EndToEnd_SubscribeEmitViaEmitter_GatewayDispatch)

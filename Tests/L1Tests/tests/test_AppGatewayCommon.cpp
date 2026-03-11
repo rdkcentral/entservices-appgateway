@@ -2425,4 +2425,197 @@ TEST_F(AppGatewayCommonTest, AGC_L1_156_AccessibilityClosedCaptions_GetCaptionsF
               plugin.HandleAppGatewayRequest(ctx, "accessibility.closedcaptions", "{}", result));
 }
 
+// ---------------------------------------------------------------------------
+// L1AppGatewayCommonEmitter — capturing IEmitter for notification tests.
+// Follows the canonical pattern from test_AppManager.cpp /
+// test_AppNotifications.cpp.
+// ---------------------------------------------------------------------------
+typedef enum : uint32_t {
+    AGC_Emitter_StateInvalid = 0x00000000,
+    AGC_Emitter_OnEmit       = 0x00000001,
+} AGCEmitterEventType_t;
+
+class L1AppGatewayCommonEmitter : public Exchange::IAppNotificationHandler::IEmitter {
+private:
+    BEGIN_INTERFACE_MAP(L1AppGatewayCommonEmitter)
+    INTERFACE_ENTRY(Exchange::IAppNotificationHandler::IEmitter)
+    END_INTERFACE_MAP
+
+public:
+    mutable std::mutex      m_mutex;
+    std::condition_variable m_condition_variable;
+    uint32_t                m_event_signalled = AGC_Emitter_StateInvalid;
+
+    std::string m_emit_event;
+    std::string m_emit_payload;
+    std::string m_emit_appId;
+
+    L1AppGatewayCommonEmitter()  = default;
+    ~L1AppGatewayCommonEmitter() = default;
+
+    void Emit(const string& event, const string& payload, const string& appId) override
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_emit_event   = event;
+        m_emit_payload = payload;
+        m_emit_appId   = appId;
+        m_event_signalled |= AGC_Emitter_OnEmit;
+        m_condition_variable.notify_one();
+    }
+
+    uint32_t WaitForRequestStatus(uint32_t timeout_ms, AGCEmitterEventType_t expected_status)
+    {
+        uint32_t signalled = AGC_Emitter_StateInvalid;
+        std::unique_lock<std::mutex> lock(m_mutex);
+        auto now     = std::chrono::steady_clock::now();
+        auto timeout = std::chrono::milliseconds(timeout_ms);
+        while (!(expected_status & m_event_signalled))
+        {
+            if (m_condition_variable.wait_until(lock, now + timeout) == std::cv_status::timeout)
+            {
+                std::cerr << "[AGC emitter] Timeout waiting for event" << std::endl;
+                break;
+            }
+        }
+        signalled         = m_event_signalled;
+        m_event_signalled = AGC_Emitter_StateInvalid;
+        return signalled;
+    }
+
+    std::string GetEmitEvent()   const { std::unique_lock<std::mutex> l(m_mutex); return m_emit_event; }
+    std::string GetEmitPayload() const { std::unique_lock<std::mutex> l(m_mutex); return m_emit_payload; }
+    std::string GetEmitAppId()   const { std::unique_lock<std::mutex> l(m_mutex); return m_emit_appId; }
+};
+
+// ---------------------------------------------------------------------------
+// Helper: inject all five required sub-delegates into plugin.mDelegate so
+// SettingsDelegate::HandleAppEventNotifier passes its null-guard.
+// Each sub-delegate is constructed with nullptr shell (fine for unit tests
+// that use device.onhdrchanged, which does not query any COM interface).
+// ---------------------------------------------------------------------------
+static void InjectAllSubDelegates(Core::Sink<AppGatewayCommon>& plugin)
+{
+    auto delegate = plugin.mDelegate;
+    ASSERT_NE(nullptr, delegate);
+
+    if (!delegate->userSettings)
+        delegate->userSettings = std::make_shared<UserSettingsDelegate>(nullptr);
+    if (!delegate->systemDelegate)
+        delegate->systemDelegate = std::make_shared<SystemDelegate>(nullptr);
+    if (!delegate->networkDelegate)
+        delegate->networkDelegate = std::make_shared<NetworkDelegate>(nullptr);
+    if (!delegate->lifecycleDelegate)
+        delegate->lifecycleDelegate = std::make_shared<LifecycleDelegate>(nullptr);
+    if (!delegate->ttsDelegate)
+        delegate->ttsDelegate = std::make_shared<TTSDelegate>(nullptr);
+}
+
+// ---------------------------------------------------------------------------
+// Notification tests: HandleAppEventNotifier / EventRegistrationJob
+// ---------------------------------------------------------------------------
+
+// AGC_L1_157: null delegate → SafeSubmitEventRegistrationJob returns false
+// → HandleAppEventNotifier returns ERROR_GENERAL and status=false.
+TEST_F(AppGatewayCommonTest, AGC_L1_157_HandleAppEventNotifier_NullDelegate_ReturnsGeneralError)
+{
+    plugin.mDelegate.reset();
+
+    Core::Sink<L1AppGatewayCommonEmitter> emitter;
+    bool status = true; // deliberately pre-set to true
+
+    const auto rc = plugin.HandleAppEventNotifier(&emitter, "device.onhdrchanged", true, status);
+
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_FALSE(status);
+}
+
+// AGC_L1_158: null callback pointer → SafeSubmitEventRegistrationJob returns false
+// → HandleAppEventNotifier returns ERROR_GENERAL and status=false.
+TEST_F(AppGatewayCommonTest, AGC_L1_158_HandleAppEventNotifier_NullCallback_ReturnsGeneralError)
+{
+    bool status = true; // deliberately pre-set to true
+
+    const auto rc = plugin.HandleAppEventNotifier(nullptr, "device.onhdrchanged", true, status);
+
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_FALSE(status);
+}
+
+// AGC_L1_159: all sub-delegates present + valid event → job is submitted to
+// the worker pool, HandleAppEventNotifier returns ERROR_NONE and status=true.
+// NOTE: The emitter is static to ensure it outlives the async EventRegistrationJob
+// which runs on the worker pool after the test body returns (the job calls
+// SystemDelegate::HandleEvent → SetupXxx which may take several seconds to
+// complete, and any stack-local emitter would be dangling by then).
+static Core::Sink<L1AppGatewayCommonEmitter> sAGC159Emitter;
+
+TEST_F(AppGatewayCommonTest, AGC_L1_159_HandleAppEventNotifier_ValidDelegates_JobSubmitted)
+{
+    InjectAllSubDelegates(plugin);
+
+    bool status = false;
+
+    const auto rc = plugin.HandleAppEventNotifier(&sAGC159Emitter, "device.onhdrchanged", true, status);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+
+    // Allow the async EventRegistrationJob to drain.
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+}
+
+// AGC_L1_160: registering an emitter on a standalone SystemDelegate, then
+// calling Dispatch(), causes Emit() to be invoked on that emitter.
+// Uses a standalone SystemDelegate (not plugin.mDelegate) to avoid any
+// interference from async EventRegistrationJobs from earlier tests.
+TEST_F(AppGatewayCommonTest, AGC_L1_160_HandleAppEventNotifier_EmitterReceivesDispatch_EmitCalled)
+{
+    // Use a completely independent SystemDelegate — no shell, no interaction
+    // with plugin's worker pool or any previously submitted jobs.
+    SystemDelegate sd(nullptr);
+
+    Core::Sink<L1AppGatewayCommonEmitter> emitter;
+
+    // Register directly — bypasses HandleEvent/SetupXxx() which crash with null shell.
+    sd.AddNotification("device.onhdrchanged", &emitter);
+
+    // Trigger Dispatch — exercises BaseEventDelegate::Dispatch →
+    // EventDelegateDispatchJob → DispatchToAppNotifications → Emit().
+    const string testPayload = "{\"hdr\":true}";
+    const string testAppId   = "test.app";
+    sd.Dispatch("device.onhdrchanged", testPayload, testAppId);
+
+    // Wait for Emit() to be called asynchronously via EventDelegateDispatchJob.
+    const uint32_t signalled = emitter.WaitForRequestStatus(1000, AGC_Emitter_OnEmit);
+    EXPECT_EQ(static_cast<uint32_t>(AGC_Emitter_OnEmit), signalled & AGC_Emitter_OnEmit);
+    EXPECT_EQ("device.onhdrchanged", emitter.GetEmitEvent());
+    EXPECT_EQ(testPayload, emitter.GetEmitPayload());
+    EXPECT_EQ(testAppId, emitter.GetEmitAppId());
+
+    // Balance the AddRef done by AddNotification.
+    sd.RemoveNotification("device.onhdrchanged", &emitter);
+}
+
+// AGC_L1_161: After registering then unregistering an emitter on a standalone
+// SystemDelegate, a subsequent Dispatch() must NOT call Emit().
+TEST_F(AppGatewayCommonTest, AGC_L1_161_HandleAppEventNotifier_Unregister_EmitNotCalled)
+{
+    // Use a completely independent SystemDelegate — no interference from plugin.
+    SystemDelegate sd(nullptr);
+
+    Core::Sink<L1AppGatewayCommonEmitter> emitter;
+
+    // Register directly — bypasses HandleEvent/SetupXxx() which crash with null shell.
+    sd.AddNotification("device.onhdrchanged", &emitter);
+
+    // Immediately unregister — balances the AddRef from AddNotification.
+    sd.RemoveNotification("device.onhdrchanged", &emitter);
+
+    // Dispatch — emitter should NOT receive anything.
+    sd.Dispatch("device.onhdrchanged", "{}", "test.app");
+    const uint32_t signalled = emitter.WaitForRequestStatus(300, AGC_Emitter_OnEmit);
+    EXPECT_EQ(static_cast<uint32_t>(AGC_Emitter_StateInvalid), signalled & AGC_Emitter_OnEmit)
+        << "Emit() was called after unregistration";
+}
+
 } // namespace
