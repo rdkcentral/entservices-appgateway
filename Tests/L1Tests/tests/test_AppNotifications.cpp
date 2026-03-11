@@ -58,6 +58,92 @@ using ::testing::StrEq;
 #define APP_NOTIFICATIONS_DEFAULT_REQUEST_ID     1
 
 // ---------------------------------------------------------------------------
+// NotificationHandler — concrete implementation of IAppNotificationHandler::IEmitter
+// used by tests to verify that the plugin correctly calls back the emitter.
+// ---------------------------------------------------------------------------
+typedef enum : uint32_t {
+    AppNotifications_OnEmit = 0x00000001,
+} AppNotificationsEventType_t;
+
+class NotificationHandler : public Exchange::IAppNotificationHandler::IEmitter {
+private:
+    mutable std::mutex              m_mutex;
+    std::condition_variable         m_condition_variable;
+    uint32_t                        m_event_signalled;
+    mutable std::atomic<uint32_t>   m_refCount;
+
+    // Stored parameters from the most-recent Emit() call
+    std::string  m_emit_event;
+    std::string  m_emit_payload;
+    std::string  m_emit_appId;
+
+    BEGIN_INTERFACE_MAP(NotificationHandler)
+    INTERFACE_ENTRY(Exchange::IAppNotificationHandler::IEmitter)
+    END_INTERFACE_MAP
+
+public:
+    NotificationHandler()
+        : m_event_signalled(0)
+        , m_refCount(1)
+    {}
+
+    ~NotificationHandler() override = default;
+
+    // IUnknown ref-counting (real, non-mock)
+    void AddRef() const override { ++m_refCount; }
+    uint32_t Release() const override
+    {
+        const uint32_t result = --m_refCount;
+        if (result == 0) {
+            delete this;
+        }
+        return result;
+    }
+
+    // IEmitter implementation
+    void Emit(const string& event,
+              const string& payload,
+              const string& appId) override
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_emit_event   = event;
+        m_emit_payload = payload;
+        m_emit_appId   = appId;
+        m_event_signalled |= AppNotifications_OnEmit;
+        m_condition_variable.notify_one();
+    }
+
+    // Block until the expected event bit is set, or timeout_ms elapses.
+    // Returns true if the event was signalled before the timeout.
+    bool WaitForRequestStatus(uint32_t timeout_ms, AppNotificationsEventType_t expected_status)
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_condition_variable.wait_for(
+            lock,
+            std::chrono::milliseconds(timeout_ms),
+            [this, expected_status]() {
+                return (m_event_signalled & expected_status) != 0;
+            });
+    }
+
+    // Reset all stored state so the handler can be reused across sub-tests.
+    void Reset()
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_event_signalled = 0;
+        m_emit_event.clear();
+        m_emit_payload.clear();
+        m_emit_appId.clear();
+    }
+
+    // Getters — return copies so callers don't need to hold the lock.
+    std::string GetEmitEvent()   const { std::unique_lock<std::mutex> l(m_mutex); return m_emit_event; }
+    std::string GetEmitPayload() const { std::unique_lock<std::mutex> l(m_mutex); return m_emit_payload; }
+    std::string GetEmitAppId()   const { std::unique_lock<std::mutex> l(m_mutex); return m_emit_appId; }
+    uint32_t    GetEventsMask()  const { std::unique_lock<std::mutex> l(m_mutex); return m_event_signalled; }
+};
+
+// ---------------------------------------------------------------------------
 // Fixture
 // ---------------------------------------------------------------------------
 class AppNotificationsTest : public ::testing::Test {
