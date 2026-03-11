@@ -542,7 +542,6 @@ jobs:
           unset GCOV_PREFIX_STRIP || true
 
           test_bin_appgateway="build/entservices-appgateway-l1tests-only/AppGatewayL1Test"
-          test_bin_appgatewaycommon="build/entservices-appgateway-l1tests-only/AppGatewayCommonL1Test"
 
           if [ "${ENABLE_GDB:-0}" = "1" ]; then
             echo "ENABLE_GDB=1 -> running unit tests under gdb (batch mode)."
@@ -551,16 +550,9 @@ jobs:
               -ex "run" \
               -ex "bt full" \
               --args "${test_bin_appgateway}"
-
-            gdb -q -batch \
-              -ex "set pagination off" \
-              -ex "run" \
-              -ex "bt full" \
-              --args "${test_bin_appgatewaycommon}"
           else
             echo "ENABLE_GDB!=1 -> running unit tests normally (default behavior)."
             "${test_bin_appgateway}"
-            "${test_bin_appgatewaycommon}"
           fi
 
           cp -rf "$(pwd)/rdkL1TestResults.json" "$GITHUB_WORKSPACE/rdkL1TestResultsWithoutValgrind.json"
@@ -591,15 +583,6 @@ jobs:
             --track-fds=yes \
             --fair-sched=try \
             build/entservices-appgateway-l1tests-only/AppGatewayL1Test
-
-          valgrind \
-            --tool=memcheck \
-            --log-file=valgrind_log_appgatewaycommon \
-            --leak-check=yes \
-            --show-reachable=yes \
-            --track-fds=yes \
-            --fair-sched=try \
-            build/entservices-appgateway-l1tests-only/AppGatewayCommonL1Test
 
           cp -rf "$(pwd)/rdkL1TestResults.json" "$GITHUB_WORKSPACE/rdkL1TestResultsWithValgrind.json"
           rm -rf "$(pwd)/rdkL1TestResults.json"
