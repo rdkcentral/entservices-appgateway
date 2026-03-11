@@ -41,6 +41,12 @@ set(MODULE_NAME ${NAMESPACE}${PLUGIN_NAME})
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Standalone when configured directly with: cmake -S <repo>/Tests/L1Tests ...
+set(_L1TESTS_STANDALONE_BUILD OFF)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(_L1TESTS_STANDALONE_BUILD ON)
+endif()
+
 # -----------------------------------------------------------------------------
 # L1Tests-only configure support
 #
@@ -129,16 +135,18 @@ if(NOT COMMAND write_config)
     endif()
 endif()
 
-if(PLUGIN_APPGATEWAY)
-    # AppGateway/CMakeLists.txt defines the implementation library target
-    # which AppGatewayL1Test must link against to resolve symbols.
-    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGateway ${CMAKE_BINARY_DIR}/AppGateway)
-endif()
+if(_L1TESTS_STANDALONE_BUILD)
+    if(PLUGIN_APPGATEWAY)
+        # AppGateway/CMakeLists.txt defines the implementation library target
+        # which AppGatewayL1Test must link against to resolve symbols.
+        add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGateway ${CMAKE_BINARY_DIR}/AppGateway)
+    endif()
 
-if(PLUGIN_APPGATEWAYCOMMON)
-    # Also allow building/staging AppGatewayCommon plugin shared library from
-    # the same L1Tests-only build when requested.
-    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGatewayCommon ${CMAKE_BINARY_DIR}/AppGatewayCommon)
+    if(PLUGIN_APPGATEWAYCOMMON)
+        # Also allow building/staging AppGatewayCommon plugin shared library from
+        # the same L1Tests-only build when requested.
+        add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGatewayCommon ${CMAKE_BINARY_DIR}/AppGatewayCommon)
+    endif()
 endif()
 
 # -----------------------------------------------------------------------------
