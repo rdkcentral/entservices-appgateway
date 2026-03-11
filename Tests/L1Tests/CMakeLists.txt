@@ -26,7 +26,7 @@ cmake_minimum_required(VERSION 3.8)
 # WPEFrameworkDefinitions, so we provide local compatibility shims under
 # Tests/L1Tests/cmake and ensure CMake can find them.
 # ---------------------------------------------------------------------------
-list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake;${CMAKE_PREFIX_PATH}")
 
 # -----------------------------------------------------------------------------
 # L1Tests build products
@@ -369,36 +369,33 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON)
         find_package(GTest REQUIRED) # may populate GTEST_LIBRARIES / GTEST_INCLUDE_DIRS
 
         if(GTEST_LIBRARIES)
-            add_library(GTest::gtest UNKNOWN IMPORTED)
+            add_library(GTest::gtest INTERFACE IMPORTED)
             set_target_properties(GTest::gtest PROPERTIES
-                IMPORTED_LOCATION "${GTEST_LIBRARIES}"
+                INTERFACE_LINK_LIBRARIES "${GTEST_LIBRARIES}"
                 INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIRS}"
             )
         endif()
 
         if(GTEST_MAIN_LIBRARIES)
-            add_library(GTest::gtest_main UNKNOWN IMPORTED)
+            add_library(GTest::gtest_main INTERFACE IMPORTED)
             set_target_properties(GTest::gtest_main PROPERTIES
-                IMPORTED_LOCATION "${GTEST_MAIN_LIBRARIES}"
-                INTERFACE_LINK_LIBRARIES "GTest::gtest"
+                INTERFACE_LINK_LIBRARIES "${GTEST_MAIN_LIBRARIES};GTest::gtest"
                 INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIRS}"
             )
         endif()
 
         if(GMOCK_LIBRARIES)
-            add_library(GTest::gmock UNKNOWN IMPORTED)
+            add_library(GTest::gmock INTERFACE IMPORTED)
             set_target_properties(GTest::gmock PROPERTIES
-                IMPORTED_LOCATION "${GMOCK_LIBRARIES}"
-                INTERFACE_LINK_LIBRARIES "GTest::gtest"
+                INTERFACE_LINK_LIBRARIES "${GMOCK_LIBRARIES};GTest::gtest"
                 INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIRS}"
             )
         endif()
 
         if(GMOCK_MAIN_LIBRARIES)
-            add_library(GTest::gmock_main UNKNOWN IMPORTED)
+            add_library(GTest::gmock_main INTERFACE IMPORTED)
             set_target_properties(GTest::gmock_main PROPERTIES
-                IMPORTED_LOCATION "${GMOCK_MAIN_LIBRARIES}"
-                INTERFACE_LINK_LIBRARIES "GTest::gmock"
+                INTERFACE_LINK_LIBRARIES "${GMOCK_MAIN_LIBRARIES};GTest::gmock"
                 INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIRS}"
             )
         endif()
