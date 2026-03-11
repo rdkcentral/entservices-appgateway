@@ -38,6 +38,7 @@ using namespace WPEFramework::Plugin;
 using ::testing::_;
 using ::testing::AnyNumber;
 using ::testing::NiceMock;
+using ::testing::HasSubstr;
 using ::testing::Return;
 
 namespace {
@@ -110,6 +111,14 @@ class AppGatewayCommonTest : public ::testing::Test {
 protected:
     Core::Sink<AppGatewayCommon> plugin;
 
+    void SetUp() override
+    {
+        // Provide a non-null (but empty) delegate so HandleAppGatewayRequest
+        // can proceed past its null-delegate guard.  Tests that need fully
+        // null-delegate behaviour call plugin.mDelegate.reset() themselves.
+        plugin.mDelegate = std::make_shared<SettingsDelegate>();
+    }
+
     void TearDown() override
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(120));
@@ -175,7 +184,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_009_DeviceSetName_InvalidPayload)
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.setname", "{invalid", result);
 
     EXPECT_EQ(Core::ERROR_BAD_REQUEST, rc);
-    EXPECT_EQ("{\"error\":\"Invalid payload\"}", result);
+    EXPECT_EQ("{\"error\":\"Invalid payload: missing or invalid 'value' field\"}", result);
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_011_013_016_018_020_022_026_027_InvalidPayloads)
@@ -199,7 +208,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_011_013_016_018_020_022_026_027_InvalidPaylo
         string result;
         const auto rc = plugin.HandleAppGatewayRequest(ctx, method, "{invalid", result);
         EXPECT_EQ(Core::ERROR_BAD_REQUEST, rc) << "method=" << method;
-        EXPECT_EQ("{\"error\":\"Invalid payload\"}", result) << "method=" << method;
+        EXPECT_THAT(result, HasSubstr("Invalid payload")) << "method=" << method;
     }
 }
 
@@ -353,8 +362,9 @@ TEST_F(AppGatewayCommonTest, AGC_L1_Extra_AddAdditionalInfo_RouteSuccess)
 
 TEST_F(AppGatewayCommonTest, AGC_L1_CaseInsensitiveRouting_UnknownAndKnown)
 {
-    plugin.mDelegate.reset();
-
+    // plugin.mDelegate is the empty SettingsDelegate set up by SetUp().
+    // DEVICE.NETWORK -> GetInternetConnectionStatus -> networkDelegate is null -> ERROR_UNAVAILABLE.
+    // Not.A.Method  -> falls through all handlers -> ERROR_UNKNOWN_KEY.
     const auto ctx = MakeContext();
     string result;
 
