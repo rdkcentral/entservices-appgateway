@@ -58,13 +58,6 @@ jobs:
           echo "Message: External Trigger Received for L0 Tests"
           echo "Trigger Source: ${{ inputs.caller_source }}"
 
-      - name: Install Node.js
-        run: |
-          apt-get update
-          apt-get install -y curl
-          curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-          apt-get install -y nodejs
-
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v1.13
         with:
@@ -89,7 +82,7 @@ jobs:
       - name: Checkout entservices-appgateway
         uses: actions/checkout@v3
         with:
-          ref: feature/AI_L0
+          ref: feature/RDKEMW-15173
 
       - name: Checkout Thunder
         if: steps.cache.outputs.cache-hit != 'true'
