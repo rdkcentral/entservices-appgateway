@@ -128,7 +128,7 @@ sequenceDiagram
 
 ## T2 Markers (Individual Metrics)
 
-**Metric 1:** `ENTS_INFO_AppGwWebSocketConnections_split`
+**Metric 1:** `ENTS_INFO_AppGwWebSocketConnections`
 ```json
 {
   "sum": 12,
