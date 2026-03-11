@@ -19,11 +19,11 @@ All AppGateway telemetry markers follow this pattern:
 **1. Generic Event Markers** (Optional - for immediate forensics)
 - Pattern: `AppGwPlugin<Category>_split`
 - Plugin name included in JSON payload
-- Example: `AppGwPluginApiError_split` with `{"plugin":"Plugin_Name_1","api":"apiMethod1","error":"TIMEOUT"}`
+- Example: `ENTS_ERROR_AppGwPluginApiError` with `{"plugin":"Plugin_Name_1","api":"apiMethod1","error":"TIMEOUT"}`
 
 **2. Internal Metrics** (Aggregated by AppGateway)
 - Pattern: `AppGw<MetricName>_split`
-- Examples: `AppGwBootstrapDuration_split`, `AppGwTotalCalls_split`
+- Examples: `AppGwBootstrapDuration_split`, `ENTS_INFO_AppGwTotalCalls`
 
 **3. Error Count Metrics** (Per-API/Service)
 - Pattern: `AppGw<ErrorType>Count_<Name>_split`
@@ -42,10 +42,10 @@ All AppGateway telemetry markers follow this pattern:
 | Marker Name | Reporting | Unit | Description |
 |-------------|-----------|------|-------------|
 | `AppGwBootstrapDuration_split` | Once (startup) | ms | Total time to bootstrap all plugins |
-| `AppGwWebSocketConnections_split` | Periodic | count | Active WebSocket connections |
-| `AppGwTotalCalls_split` | Periodic | count | Total API calls in reporting period |
-| `AppGwSuccessfulCalls_split` | Periodic | count | Successful API calls |
-| `AppGwFailedCalls_split` | Periodic | count | Failed API calls |
+| `ENTS_INFO_AppGwWebSocketConnections_split` | Periodic | count | Active WebSocket connections |
+| `ENTS_INFO_AppGwTotalCalls` | Periodic | count | Total API calls in reporting period |
+| `ENTS_INFO_AppGwSuccessfulCalls` | Periodic | count | Successful API calls |
+| `ENTS_INFO_AppGwFailedCalls` | Periodic | count | Failed API calls |
 
 ### Error Count Metrics (Per-API/Service)
 
@@ -58,8 +58,8 @@ All AppGateway telemetry markers follow this pattern:
 
 | Marker Name | Payload Fields | Description |
 |-------------|----------------|-------------|
-| `AppGwPluginApiError_split` | `plugin`, `api`, `error` | Individual API error with full context |
-| `AppGwPluginExtServiceError_split` | `plugin`, `service`, `error` | Individual service error with full context |
+| `ENTS_ERROR_AppGwPluginApiError` | `plugin`, `api`, `error` | Individual API error with full context |
+| `ENTS_ERROR_AppGwPlugExtnSrvErr` | `plugin`, `service`, `error` | Individual service error with full context |
 
 ---
 
