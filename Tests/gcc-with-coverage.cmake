@@ -17,4 +17,12 @@
 # limitations under the License.
 ###
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+# Toolchain snippet used by CI to enable gcov instrumentation.
+# We must set both compile and link flags; otherwise .gcno/.gcda may not be emitted
+# (or lcov capture will be empty).
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g --coverage -fprofile-arcs -ftest-coverage")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g --coverage -fprofile-arcs -ftest-coverage")
+
+# Ensure all binaries and shared objects link with gcov runtime.
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")
