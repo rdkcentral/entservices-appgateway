@@ -39,7 +39,7 @@ env:
 jobs:
   L1-tests:
     name: Build and run unit tests
-    runs-on: comcast-ubuntu-latest
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         compiler: [ gcc, clang ]
