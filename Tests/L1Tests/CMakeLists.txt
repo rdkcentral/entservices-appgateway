@@ -26,7 +26,7 @@ cmake_minimum_required(VERSION 3.8)
 # WPEFrameworkDefinitions, so we provide local compatibility shims under
 # Tests/L1Tests/cmake and ensure CMake can find them.
 # ---------------------------------------------------------------------------
-list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake;${CMAKE_PREFIX_PATH}")
 
 # -----------------------------------------------------------------------------
 # L1Tests build products
@@ -40,6 +40,12 @@ set(MODULE_NAME ${NAMESPACE}${PLUGIN_NAME})
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Standalone when configured directly with: cmake -S <repo>/Tests/L1Tests ...
+set(_L1TESTS_STANDALONE_BUILD OFF)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(_L1TESTS_STANDALONE_BUILD ON)
+endif()
 
 # -----------------------------------------------------------------------------
 # L1Tests-only configure support
@@ -129,16 +135,18 @@ if(NOT COMMAND write_config)
     endif()
 endif()
 
-if(PLUGIN_APPGATEWAY)
-    # AppGateway/CMakeLists.txt defines the implementation library target
-    # which AppGatewayL1Test must link against to resolve symbols.
-    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGateway ${CMAKE_BINARY_DIR}/AppGateway)
-endif()
+if(_L1TESTS_STANDALONE_BUILD)
+    if(PLUGIN_APPGATEWAY)
+        # AppGateway/CMakeLists.txt defines the implementation library target
+        # which AppGatewayL1Test must link against to resolve symbols.
+        add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGateway ${CMAKE_BINARY_DIR}/AppGateway)
+    endif()
 
-if(PLUGIN_APPGATEWAYCOMMON)
-    # Also allow building/staging AppGatewayCommon plugin shared library from
-    # the same L1Tests-only build when requested.
-    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGatewayCommon ${CMAKE_BINARY_DIR}/AppGatewayCommon)
+    if(PLUGIN_APPGATEWAYCOMMON)
+        # Also allow building/staging AppGatewayCommon plugin shared library from
+        # the same L1Tests-only build when requested.
+        add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGatewayCommon ${CMAKE_BINARY_DIR}/AppGatewayCommon)
+    endif()
 endif()
 
 if(PLUGIN_APPNOTIFICATIONS)
@@ -372,6 +380,8 @@ write_config(${PLUGIN_NAME})
 # AppGatewayL1Test executable (required by the workflow/script)
 # -----------------------------------------------------------------------------
 if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS)
+    find_package(Threads REQUIRED)
+
     # Prefer CONFIG mode so imported targets (GTest::gtest, GTest::gmock, etc.) are defined.
     # In some environments CMake's module-mode FindGTest is picked up first and only sets
     # variables like GTEST_LIBRARIES (leading to "Found GTest: <path>/libgtest.a" but
@@ -385,36 +395,33 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS)
         find_package(GTest REQUIRED) # may populate GTEST_LIBRARIES / GTEST_INCLUDE_DIRS
 
         if(GTEST_LIBRARIES)
-            add_library(GTest::gtest UNKNOWN IMPORTED)
+            add_library(GTest::gtest INTERFACE IMPORTED)
             set_target_properties(GTest::gtest PROPERTIES
-                IMPORTED_LOCATION "${GTEST_LIBRARIES}"
+                INTERFACE_LINK_LIBRARIES "${GTEST_LIBRARIES}"
                 INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIRS}"
             )
         endif()
 
         if(GTEST_MAIN_LIBRARIES)
-            add_library(GTest::gtest_main UNKNOWN IMPORTED)
+            add_library(GTest::gtest_main INTERFACE IMPORTED)
             set_target_properties(GTest::gtest_main PROPERTIES
-                IMPORTED_LOCATION "${GTEST_MAIN_LIBRARIES}"
-                INTERFACE_LINK_LIBRARIES "GTest::gtest"
+                INTERFACE_LINK_LIBRARIES "${GTEST_MAIN_LIBRARIES};GTest::gtest"
                 INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIRS}"
             )
         endif()
 
         if(GMOCK_LIBRARIES)
-            add_library(GTest::gmock UNKNOWN IMPORTED)
+            add_library(GTest::gmock INTERFACE IMPORTED)
             set_target_properties(GTest::gmock PROPERTIES
-                IMPORTED_LOCATION "${GMOCK_LIBRARIES}"
-                INTERFACE_LINK_LIBRARIES "GTest::gtest"
+                INTERFACE_LINK_LIBRARIES "${GMOCK_LIBRARIES};GTest::gtest"
                 INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIRS}"
             )
         endif()
 
         if(GMOCK_MAIN_LIBRARIES)
-            add_library(GTest::gmock_main UNKNOWN IMPORTED)
+            add_library(GTest::gmock_main INTERFACE IMPORTED)
             set_target_properties(GTest::gmock_main PROPERTIES
-                IMPORTED_LOCATION "${GMOCK_MAIN_LIBRARIES}"
-                INTERFACE_LINK_LIBRARIES "GTest::gmock"
+                INTERFACE_LINK_LIBRARIES "${GMOCK_MAIN_LIBRARIES};GTest::gmock"
                 INTERFACE_INCLUDE_DIRECTORIES "${GTEST_INCLUDE_DIRS}"
             )
         endif()

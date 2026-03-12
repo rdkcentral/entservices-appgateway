@@ -2,7 +2,7 @@ name: L1-tests
 
 on:
   push:
-    branches: [ main, develop, feature/AI_L1, test_L1 ]
+    branches: [ main, develop]
   pull_request:
     branches: [ main, develop ]
   workflow_call:
@@ -35,13 +35,15 @@ env:
   # Opt-in toggles (default behavior unchanged):
   # - ENABLE_GDB=1 enables running unit tests under gdb (batch mode)
   # - ENABLE_DEBUG_MACRO=1 enables compile-time macro APPGATEWAY_L1_DEBUG=1 for L1 test build
-  ENABLE_GDB: ${{ (inputs.enable_gdb && '1') || '0' }}
-  ENABLE_DEBUG_MACRO: ${{ (inputs.enable_debug_macro && '1') || '0' }}
+  # Defaults are set here for push/pull_request. workflow_call overrides are
+  # applied in guarded steps within the job.
+  ENABLE_GDB: '0'
+  ENABLE_DEBUG_MACRO: '0'
 
 jobs:
   L1-tests:
     name: Build and run unit tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         compiler: [ gcc, clang ]
@@ -90,6 +92,17 @@ jobs:
         with:
           python-version: '3.x'
       - run: pip install jsonref
+
+      - name: Initialize optional toggles defaults
+        run: |
+          echo "ENABLE_GDB=0" >> "$GITHUB_ENV"
+          echo "ENABLE_DEBUG_MACRO=0" >> "$GITHUB_ENV"
+
+      - name: Apply workflow_call toggle inputs
+        if: ${{ github.event_name == 'workflow_call' }}
+        run: |
+          echo "ENABLE_GDB=${{ inputs.enable_gdb && '1' || '0' }}" >> "$GITHUB_ENV"
+          echo "ENABLE_DEBUG_MACRO=${{ inputs.enable_debug_macro && '1' || '0' }}" >> "$GITHUB_ENV"
 
       - name: ACK External Trigger
         run: |
@@ -203,7 +216,10 @@ jobs:
           path: entservices-apis
           ref: ${{env.INTERFACES_REF}}
           #token : ${{ secrets.RDKCM_RDKE }}
-          run: rm -rf $GITHUB_WORKSPACE/entservices-apis/jsonrpc/DTV.json
+
+      - name: Remove DTV.json from entservices-apis checkout
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: rm -rf "$GITHUB_WORKSPACE/entservices-apis/jsonrpc/DTV.json"
 
       - name: Apply patches entservices-apis
         run: |
@@ -401,14 +417,17 @@ jobs:
           set -euo pipefail
 
           # Some AppGateway builds expect this interface header to be available under the local prefix.
-          # Fetch from upstream networkmanager repo and stage into:
+          # Keep behavior aligned with native build_dependencies.sh by sourcing from
+          # a local networkmanager checkout, then staging into:
           #   $GITHUB_WORKSPACE/install/usr/include/WPEFramework/interfaces/INetworkManager.h
           dst_dir="$GITHUB_WORKSPACE/install/usr/include/WPEFramework/interfaces"
           mkdir -p "$dst_dir"
 
-          url="https://raw.githubusercontent.com/rdkcentral/networkmanager/develop/interface/INetworkManager.h"
-          echo "Downloading: $url"
-          curl -fsSL "$url" -o "$dst_dir/INetworkManager.h"
+          if [ ! -d "$GITHUB_WORKSPACE/networkmanager" ]; then
+            git clone --depth 1 --branch main https://github.com/rdkcentral/networkmanager.git "$GITHUB_WORKSPACE/networkmanager"
+          fi
+
+          cp -f "$GITHUB_WORKSPACE/networkmanager/interface/INetworkManager.h" "$dst_dir/INetworkManager.h"
 
           echo "Staged header at: $dst_dir/INetworkManager.h"
           test -s "$dst_dir/INetworkManager.h"
@@ -568,7 +587,7 @@ jobs:
               -ex "set pagination off" \
               -ex "run" \
               -ex "bt full" \
-              --args "${test_bin_appnotifications}"
+              --args "${test_bin_appnotifications}"              
           else
             echo "ENABLE_GDB!=1 -> running unit tests normally (default behavior)."
             "${test_bin_appgateway}"

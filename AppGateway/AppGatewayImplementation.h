@@ -28,14 +28,14 @@
 #include <com/com.h>
 #include <core/core.h>
 #include <map>
-#include <atomic>
+
 
 namespace WPEFramework {
 namespace Plugin {
     using Context = Exchange::GatewayContext;
-
     class AppGatewayImplementation : public Exchange::IAppGatewayResolver, public Exchange::IConfiguration
     {
+
     public:
         AppGatewayImplementation();
         ~AppGatewayImplementation() override;
@@ -57,57 +57,48 @@ namespace Plugin {
         uint32_t Configure(PluginHost::IShell* service) override;
 
     private:
-        // Guard that prevents scheduling/processing async work during teardown.
-        std::atomic<bool> mShuttingDown{false};
 
         class EXTERNAL RespondJob : public Core::IDispatch
         {
         protected:
-            RespondJob(Exchange::IAppGatewayResponder* responder,
-                       const Context& context,
-                       const std::string& payload)
-                : mResponder(responder)
-                , mPayload(payload)
-                , mContext(context)
+            RespondJob(AppGatewayImplementation *parent, 
+            const Context& context,
+            const std::string& payload,
+            const std::string& destination
+            )
+                : mParent(*parent), mPayload(payload), mContext(context), mDestination(destination)
             {
             }
 
         public:
             RespondJob() = delete;
-            RespondJob(const RespondJob&) = delete;
-            RespondJob& operator=(const RespondJob&) = delete;
-            ~RespondJob() override
+        RespondJob(const RespondJob &) = delete;
+            RespondJob &operator=(const RespondJob &) = delete;
+            ~RespondJob()
             {
-                if (nullptr != mResponder) {
-                    mResponder->Release();
-                    mResponder = nullptr;
-                }
             }
 
         public:
-            static Core::ProxyType<Core::IDispatch> Create(Exchange::IAppGatewayResponder* responder,
-                                                          const Context& context,
-                                                          const std::string& payload)
+            static Core::ProxyType<Core::IDispatch> Create(AppGatewayImplementation *parent,
+                const Context& context, const std::string& payload, const std::string& origin)
             {
-                return (Core::ProxyType<Core::IDispatch>(
-                    Core::ProxyType<RespondJob>::Create(responder, context, payload)));
+                return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<RespondJob>::Create(parent, context, payload, origin)));
             }
-
-            void Dispatch() override
+            virtual void Dispatch()
             {
-                if (nullptr == mResponder) {
-                    return;
+                if(ContextUtils::IsOriginGateway(mDestination)) {
+                    mParent.ReturnMessageInSocket(mContext, std::move(mPayload));
+                } else {
+                    mParent.SendToLaunchDelegate(mContext, std::move(mPayload));
                 }
-
-                if (Core::ERROR_NONE != mResponder->Respond(mContext, mPayload)) {
-                    LOGERR("Failed to Respond");
-                }
+                
             }
 
         private:
-            Exchange::IAppGatewayResponder* mResponder;
+            AppGatewayImplementation &mParent;
             const std::string mPayload;
             const Context mContext;
+            const std::string mDestination;
         };
 
         Core::hresult HandleEvent(const Context &context, const string &alias, const string &event, const string &origin,  const bool listen);
