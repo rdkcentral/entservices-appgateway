@@ -395,6 +395,139 @@ if(APPGW_L0_ENABLE_APPGATEWAY)
     )
 endif()
 
+# ---------------------------------------------------------------------------
+# AppGatewayCommon L0 test 
+# ---------------------------------------------------------------------------
+
+set(APPGWC_L0_SOURCES
+    ${CMAKE_SOURCE_DIR}/../../AppGatewayCommon/Module.cpp
+    ${CMAKE_SOURCE_DIR}/../../AppGatewayCommon/AppGatewayCommon.cpp
+    AppGatewayCommon/AppGatewayCommon_test.cpp
+    common/L0Bootstrap.cpp
+)
+
+add_executable(appgatewaycommon_l0test ${APPGWC_L0_SOURCES})
+
+target_compile_definitions(appgatewaycommon_l0test PRIVATE
+    MODULE_NAME=AppGatewayCommon_L0Test
+    APPGATEWAYCOMMON_MAJOR_VERSION=1
+    APPGATEWAYCOMMON_MINOR_VERSION=0
+    APPGATEWAYCOMMON_PATCH_VERSION=0
+    LEGACY_FIREBOLT_VERSION="0"
+    RDK8_FIREBOLT_VERSION="8"
+    ENABLE_DEBUG_FOR_CONNECTION="enableDebugForConnection"
+    DISABLE_DEBUG_FOR_CONNECTION="disableDebugForConnection"
+    DISABLE_SECURITY_TOKEN
+    USE_THUNDER_R4
+)
+
+if(APPGW_ENABLE_COVERAGE)
+    target_compile_options(appgatewaycommon_l0test PRIVATE -O0 -g --coverage)
+    target_link_options(appgatewaycommon_l0test PRIVATE --coverage)
+endif()
+
+if(APPGW_TEST_ENABLE_WARNINGS)
+    target_compile_options(appgatewaycommon_l0test PRIVATE -Wall -Wextra -Wno-unused-parameter)
+endif()
+
+target_include_directories(appgatewaycommon_l0test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/AppGatewayCommon
+    ${CMAKE_CURRENT_SOURCE_DIR}/common
+    ${CMAKE_SOURCE_DIR}/../..
+    ${CMAKE_SOURCE_DIR}/../../AppGatewayCommon
+    ${CMAKE_SOURCE_DIR}/../../helpers
+    ${PREFIX}/include
+    ${PREFIX}/include/WPEFramework
+)
+
+if(CMAKE_PREFIX_PATH)
+    foreach(_prefix IN LISTS CMAKE_PREFIX_PATH)
+        if(EXISTS "${_prefix}/include")
+            target_include_directories(appgatewaycommon_l0test PRIVATE "${_prefix}/include")
+        endif()
+        if(EXISTS "${_prefix}/include/WPEFramework")
+            target_include_directories(appgatewaycommon_l0test PRIVATE "${_prefix}/include/WPEFramework")
+        endif()
+    endforeach()
+endif()
+
+if(EXISTS "${PREFIX}/lib")
+    target_link_directories(appgatewaycommon_l0test PRIVATE "${PREFIX}/lib")
+endif()
+if(EXISTS "${PREFIX}/lib/wpeframework/plugins")
+    target_link_directories(appgatewaycommon_l0test PRIVATE "${PREFIX}/lib/wpeframework/plugins")
+endif()
+if(EXISTS "${PREFIX}/lib/plugins")
+    target_link_directories(appgatewaycommon_l0test PRIVATE "${PREFIX}/lib/plugins")
+endif()
+
+if(WPEFRAMEWORK_CORE_LIB)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${WPEFRAMEWORK_CORE_LIB})
+endif()
+if(WPEFRAMEWORK_MESSAGING_LIB)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${WPEFRAMEWORK_MESSAGING_LIB})
+endif()
+if(WPEFRAMEWORK_PLUGINS_LIB)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${WPEFRAMEWORK_PLUGINS_LIB})
+endif()
+if(WPEFRAMEWORK_WEBSOCKET_LIB)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${WPEFRAMEWORK_WEBSOCKET_LIB})
+endif()
+
+find_library(APPGATEWAYCOMMON_PLUGIN_LIB
+    NAMES AppGatewayCommon WPEFrameworkAppGatewayCommon
+    HINTS
+        "${CMAKE_BINARY_DIR}/AppGatewayCommon"
+        "${CMAKE_BINARY_DIR}/../AppGatewayCommon"
+        "${PREFIX}/lib/wpeframework/plugins"
+        "${PREFIX}/lib/plugins"
+        "${PREFIX}/lib"
+)
+
+find_library(UUID_LIB NAMES uuid)
+if(NOT UUID_LIB)
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(UUID QUIET uuid)
+    endif()
+endif()
+
+target_link_libraries(appgatewaycommon_l0test PRIVATE
+    Threads::Threads
+    m
+    dl
+)
+
+if(APPGATEWAYCOMMON_PLUGIN_LIB)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${APPGATEWAYCOMMON_PLUGIN_LIB})
+endif()
+
+if(UUID_LIB)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${UUID_LIB})
+elseif(UUID_FOUND)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${UUID_LINK_LIBRARIES})
+    target_include_directories(appgatewaycommon_l0test PRIVATE ${UUID_INCLUDE_DIRS})
+else()
+    target_link_libraries(appgatewaycommon_l0test PRIVATE uuid)
+endif()
+
+set_target_properties(appgatewaycommon_l0test PROPERTIES
+    BUILD_RPATH "$ORIGIN;${PREFIX}/lib;${PREFIX}/lib/wpeframework;${PREFIX}/lib/wpeframework/plugins;${PREFIX}/lib/plugins"
+    INSTALL_RPATH "${PREFIX}/lib;${PREFIX}/lib/wpeframework;${PREFIX}/lib/wpeframework/plugins;${PREFIX}/lib/plugins"
+)
+
+add_custom_target(run_appgatewaycommon
+    DEPENDS appgatewaycommon_l0test
+    COMMAND $<TARGET_FILE:appgatewaycommon_l0test>
+    COMMENT "Running appgatewaycommon_l0test"
+    VERBATIM
+)
+
+# ---------------------------------------------------------------------------
+# Coverage target (collects data from all L0 test targets)
+# ---------------------------------------------------------------------------
+
 find_program(LCOV_EXECUTABLE lcov)
 find_program(GENHTML_EXECUTABLE genhtml)
 
