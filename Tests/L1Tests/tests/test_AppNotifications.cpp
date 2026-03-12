@@ -1827,10 +1827,19 @@ TEST_F(AppNotificationsTest, Notification_EndToEnd_SubscribeEmitViaEmitter_Gatew
 {
     // Full pipeline: Subscribe → Emitter::Emit → EmitJob → EventUpdate
     //                → DispatchToGateway → gatewayMock->Emit().
-    auto ctx = MakeContext(42, 500, "pipelineApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    EXPECT_EQ(Core::ERROR_NONE, impl.Subscribe(ctx, true, "org.rdk.Pipeline", "pipelineEvt"));
 
+    // Set up all expectations BEFORE Subscribe() so the worker-pool SubscriberJob
+    // that fires QueryInterfaceByCallsign("org.rdk.Pipeline") via HandleNotifier
+    // always has a matching expectation regardless of scheduling order.
     auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
+
+    // Subscribe() triggers HandleNotifier("org.rdk.Pipeline", ...) asynchronously;
+    // allow that call to return nullptr (plugin not yet active).
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq("org.rdk.Pipeline")))
+        .Times(AnyNumber())
+        .WillRepeatedly(Return(nullptr));
+
+    // DispatchToGateway calls QueryInterfaceByCallsign for the AppGateway callsign.
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
@@ -1840,6 +1849,9 @@ TEST_F(AppNotificationsTest, Notification_EndToEnd_SubscribeEmitViaEmitter_Gatew
     EXPECT_CALL(*gatewayMock, Emit(_, StrEq("pipelineEvt"), StrEq("{\"ok\":true}")))
         .Times(1)
         .WillOnce(Return(Core::ERROR_NONE));
+
+    auto ctx = MakeContext(42, 500, "pipelineApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    EXPECT_EQ(Core::ERROR_NONE, impl.Subscribe(ctx, true, "org.rdk.Pipeline", "pipelineEvt"));
 
     // Use the plugin's own Emitter (the object passed to HandleAppEventNotifier).
     impl.mEmitter.Emit("pipelineEvt", "{\"ok\":true}", "pipelineApp");
@@ -1853,13 +1865,19 @@ TEST_F(AppNotificationsTest, Notification_EndToEnd_SubscribeEmitViaEmitter_Gatew
 TEST_F(AppNotificationsTest, Notification_EndToEnd_SubscribeEmitViaEmitter_LaunchDelegateDispatch)
 {
     // Same as above but with a non-gateway origin (LaunchDelegate path).
-    auto ctx = MakeContext(43, 501, "ldApp", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
-    EXPECT_EQ(Core::ERROR_NONE, impl.Subscribe(ctx, true, "org.rdk.LD", "ldEvt"));
 
+    // Set up all expectations BEFORE Subscribe() so the worker-pool SubscriberJob
+    // that fires QueryInterfaceByCallsign("org.rdk.LD") via HandleNotifier
+    // always has a matching expectation regardless of scheduling order.
     auto ldMock = new NiceMock<AppGatewayResponderMock>();
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
+
+    // Subscribe() triggers HandleNotifier("org.rdk.LD", ...) asynchronously;
+    // allow that call to return nullptr (plugin not yet active).
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq("org.rdk.LD")))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
+
+    // DispatchToLaunchDelegate calls QueryInterfaceByCallsign for the delegate callsign.
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
@@ -1869,6 +1887,9 @@ TEST_F(AppNotificationsTest, Notification_EndToEnd_SubscribeEmitViaEmitter_Launc
     EXPECT_CALL(*ldMock, Emit(_, StrEq("ldEvt"), StrEq("{\"ld\":1}")))
         .Times(1)
         .WillOnce(Return(Core::ERROR_NONE));
+
+    auto ctx = MakeContext(43, 501, "ldApp", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    EXPECT_EQ(Core::ERROR_NONE, impl.Subscribe(ctx, true, "org.rdk.LD", "ldEvt"));
 
     impl.mEmitter.Emit("ldEvt", "{\"ld\":1}", "ldApp");
 
