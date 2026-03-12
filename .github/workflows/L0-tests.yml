@@ -25,6 +25,8 @@ env:
   THUNDER_REF: "R4.4.1"
   INTERFACES_REF: "RDKEMW-13978"
   ENABLE_GDB: ${{ (inputs.enable_gdb && '1') || '0' }}
+  # L0 test targets to build and run -- To add a new plugin, append its test binary name here and add its target in Tests/L0Tests/CMakeLists.txt.
+  L0_PLUGIN_TESTS: "appgateway_l0test appgatewaycommon_l0test"
 
 jobs:
   L0-tests:
@@ -67,7 +69,7 @@ jobs:
         run: >
           sudo apt update
           &&
-          sudo apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libjsoncpp-dev gdb ninja-build
+          sudo apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libjsoncpp-dev gdb ninja-build uuid-dev
 
       - name: Build trower-base64
         run: |
@@ -295,7 +297,7 @@ jobs:
           url="https://raw.githubusercontent.com/rdkcentral/networkmanager/develop/interface/INetworkManager.h"
           curl -fsSL "$url" -o "$dst_dir/INetworkManager.h"
 
-      - name: Build AppGateway plugin and stage to install prefix
+      - name: Build plugins and stage to install prefix
         run: |
           set -euo pipefail
 
@@ -314,20 +316,24 @@ jobs:
             -DWPEFrameworkPlugins_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFrameworkPlugins" \
             -DDISABLE_SECURITY_TOKEN=ON \
             -DUSE_THUNDER_R4=ON \
+            -DCMAKE_CXX_FLAGS="-DUSE_THUNDER_R4" \
             -DPLUGIN_APPGATEWAY=ON \
-            -DPLUGIN_APPGATEWAYCOMMON=OFF \
+            -DPLUGIN_APPGATEWAYCOMMON=ON \
             -DCMAKE_VERBOSE_MAKEFILE=ON
 
           cmake --build build/entservices-appgateway-l0 -- -j"$(nproc)"
 
           mkdir -p "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins"
-          find build/entservices-appgateway-l0 -type f \( -name "libAppGateway.so*" -o -name "libWPEFrameworkAppGateway.so*" \) -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
+          find build/entservices-appgateway-l0 -type f \( -name "lib*AppGateway*.so*" -o -name "libWPEFramework*AppGateway*.so*" \) -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
 
           test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppGateway.so" || \
           test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libWPEFrameworkAppGateway.so" || \
           (echo "Missing AppGateway plugin library in staged plugin dir" && find build/entservices-appgateway-l0 -type f -name "lib*AppGateway*.so*" 2>/dev/null || true && exit 1)
 
-      - name: Build AppGateway L0 tests (Tests/L0Tests)
+          echo "Staged plugin libraries:"
+          ls -la "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" || true
+
+      - name: Build L0 tests (Tests/L0Tests)
         run: |
           set -euo pipefail
 
@@ -345,7 +351,11 @@ jobs:
             -DPREFIX="$PREFIX" \
             -DAPPGW_ENABLE_COVERAGE=ON
 
-          cmake --build build/entservices-appgateway-l0tests-only --target appgateway_l0test -- -j"$(nproc)"
+          # Build all L0 test targets defined in L0_PLUGIN_TESTS
+          for target in ${{ env.L0_PLUGIN_TESTS }}; do
+            echo "Building target: $target"
+            cmake --build build/entservices-appgateway-l0tests-only --target "$target" -- -j"$(nproc)"
+          done
 
       - name: Stage AppGateway resolution config for tests
         run: |
@@ -371,21 +381,37 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
           export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH:-}"
 
-          test_bin="build/entservices-appgateway-l0tests-only/appgateway_l0test"
-          test -x "$test_bin"
+          build_dir="build/entservices-appgateway-l0tests-only"
+          overall_rc=0
 
-          set +e
-          "$test_bin" 2>&1 | tee l0-test.log
-          test_rc=$?
-          set -e
+          # Run each L0 test target, collecting individual logs
+          for target in ${{ env.L0_PLUGIN_TESTS }}; do
+            test_bin="${build_dir}/${target}"
+            if [ ! -x "$test_bin" ]; then
+              echo "WARNING: $test_bin not found or not executable — skipping"
+              continue
+            fi
+
+            echo "======================================"
+            echo "Running: $target"
+            echo "======================================"
+            set +e
+            "$test_bin" 2>&1 | tee "l0-test-${target}.log"
+            rc=$?
+            set -e
+            if [ "$rc" -ne 0 ]; then overall_rc=1; fi
+          done
+
+          # Merge individual logs into a combined log
+          cat l0-test-*.log > l0-test.log 2>/dev/null || true
 
           echo "==== Failed test cases (run step) ===="
           grep -E '^\[ +FAILED +\]' l0-test.log || true
           grep -E '^FAIL:' l0-test.log || true
           echo "==== Total failures (run step) ===="
-          grep -E 'AppGateway l0test total failures:? [0-9]+' l0-test.log || true
+          grep -E 'l0test total failures:? [0-9]+' l0-test.log || true
 
-          exit "$test_rc"
+          exit "$overall_rc"
 
       - name: Summarize failed tests
         if: ${{ always() }}
@@ -395,7 +421,7 @@ jobs:
             echo "==== Failed test cases (if any) ===="
             grep -E '^\[ +FAILED +\]' l0-test.log || echo "No explicit [ FAILED ] lines found"
             echo "==== Total failures ===="
-            grep -E 'AppGateway l0test total failures:? [0-9]+' l0-test.log || true
+            grep -E 'l0test total failures:? [0-9]+' l0-test.log || true
           else
             echo "l0-test.log not found"
           fi
@@ -408,10 +434,13 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
           export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH:-}"
 
-          test_bin="build/entservices-appgateway-l0tests-only/appgateway_l0test"
-          test -x "$test_bin"
-
-          gdb -q -batch -ex "set pagination off" -ex "run" -ex "bt full" --args "$test_bin" | tee l0-test-gdb.log
+          build_dir="build/entservices-appgateway-l0tests-only"
+          for target in ${{ env.L0_PLUGIN_TESTS }}; do
+            test_bin="${build_dir}/${target}"
+            if [ ! -x "$test_bin" ]; then continue; fi
+            echo "=== gdb: $target ==="
+            gdb -q -batch -ex "set pagination off" -ex "run" -ex "bt full" --args "$test_bin" | tee "l0-test-gdb-${target}.log"
+          done
 
       - name: Fail workflow if tests failed
         if: ${{ always() }}
@@ -432,9 +461,9 @@ jobs:
             grep -E '^FAIL:' l0-test.log || true
 
             echo "==== Total failures (final gate) ===="
-            grep -E 'AppGateway l0test total failures:? [0-9]+' l0-test.log || true
+            grep -E 'l0test total failures:? [0-9]+' l0-test.log || true
 
-            if grep -Eq 'AppGateway l0test total failures:? [1-9][0-9]*' l0-test.log; then
+            if grep -Eq 'l0test total failures:? [1-9][0-9]*' l0-test.log; then
               echo "L0 tests reported failures"
               failed=1
             fi
