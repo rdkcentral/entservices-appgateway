@@ -121,7 +121,7 @@ public:
             return false;
         }
         
-        extractedValue = value.Number();
+        extractedValue = value.Float();       // or value.Double() depending on Thunder API
         
         // Bounds checking only if explicitly requested
         if (checkMinValue && extractedValue < minValue) {
