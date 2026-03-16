@@ -1,0 +1,144 @@
+#pragma once
+
+#include <iostream>
+#include <string>
+#include <cstdlib>
+#include <thread>
+#include <chrono>
+#include <atomic>
+
+#include <core/core.h>
+#include <plugins/plugins.h>
+
+#include "AppGatewayCommon.h"
+#include "ServiceMock.h"
+#include "L0Bootstrap.hpp"
+
+using WPEFramework::Core::ERROR_NONE;
+using WPEFramework::Core::ERROR_GENERAL;
+using WPEFramework::Core::ERROR_UNAVAILABLE;
+using WPEFramework::Core::ERROR_BAD_REQUEST;
+using WPEFramework::Core::ERROR_UNKNOWN_KEY;
+using WPEFramework::Plugin::AppGatewayCommon;
+using WPEFramework::PluginHost::IPlugin;
+
+namespace AGCTest {
+
+struct TestResult {
+    uint32_t failures { 0 };
+};
+
+inline void ExpectTrue(TestResult& tr, const bool condition, const std::string& what)
+{
+    if (!condition) {
+        tr.failures++;
+        std::cerr << "FAIL: " << what << std::endl;
+    }
+}
+
+inline void ExpectEqU32(TestResult& tr, const uint32_t actual, const uint32_t expected, const std::string& what)
+{
+    if (actual != expected) {
+        tr.failures++;
+        std::cerr << "FAIL: " << what << " expected=" << expected << " actual=" << actual << std::endl;
+    }
+}
+
+inline void ExpectEqStr(TestResult& tr, const std::string& actual, const std::string& expected, const std::string& what)
+{
+    if (actual != expected) {
+        tr.failures++;
+        std::cerr << "FAIL: " << what << " expected='" << expected << "' actual='" << actual << "'" << std::endl;
+    }
+}
+
+struct PluginAndService {
+    L0Test::ServiceMock* service { nullptr };
+    IPlugin* plugin { nullptr };
+
+    explicit PluginAndService(const L0Test::ServiceMock::Config& cfg = L0Test::ServiceMock::Config())
+        : service(new L0Test::ServiceMock(cfg))
+        , plugin(WPEFramework::Core::Service<AppGatewayCommon>::Create<IPlugin>())
+    {
+    }
+
+    ~PluginAndService()
+    {
+        if (nullptr != plugin) {
+            plugin->Release();
+            plugin = nullptr;
+        }
+        if (nullptr != service) {
+            service->Release();
+            service = nullptr;
+        }
+    }
+};
+
+inline Exchange::GatewayContext DefaultContext()
+{
+    Exchange::GatewayContext ctx;
+    ctx.requestId = 1001;
+    ctx.connectionId = 10;
+    ctx.appId = "com.example.test";
+    ctx.version = "1.0.0";
+    return ctx;
+}
+
+// Minimal IEmitter stub for HandleAppEventNotifier tests.
+// Heap-allocated, ref-counted; deletes itself when the last reference is released.
+class StubEmitter : public Exchange::IAppNotificationHandler::IEmitter {
+public:
+    StubEmitter() : _refCount(1) {}
+    ~StubEmitter() override = default;
+
+    void AddRef() const override { _refCount.fetch_add(1, std::memory_order_relaxed); }
+    uint32_t Release() const override {
+        const uint32_t r = _refCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
+        if (0 == r) {
+            delete this;
+            return WPEFramework::Core::ERROR_DESTRUCTION_SUCCEEDED;
+        }
+        return WPEFramework::Core::ERROR_NONE;
+    }
+    void* QueryInterface(const uint32_t id) override {
+        if (Exchange::IAppNotificationHandler::IEmitter::ID == id) {
+            AddRef();
+            return static_cast<Exchange::IAppNotificationHandler::IEmitter*>(this);
+        }
+        return nullptr;
+    }
+    void Emit(const std::string& /*event*/, const std::string& /*payload*/, const std::string& /*appId*/) override {}
+
+private:
+    mutable std::atomic<uint32_t> _refCount;
+};
+
+// Helper: test a delegate-backed getter method.
+// In L0 (no real plugins), the delegate may return ERROR_NONE, ERROR_UNAVAILABLE, or ERROR_GENERAL.
+inline uint32_t DelegateGetterTest(const std::string& method,
+                                   const Exchange::GatewayContext& ctx = DefaultContext())
+{
+    TestResult tr;
+    PluginAndService ps;
+    ps.plugin->Initialize(ps.service);
+    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    std::string result;
+    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, method, "{}", result);
+    const bool ok = (rc == ERROR_NONE || rc == ERROR_UNAVAILABLE || rc == ERROR_GENERAL);
+    ExpectTrue(tr, ok, method + " returns acceptable code in L0");
+    ps.plugin->Deinitialize(ps.service);
+    return tr.failures;
+}
+
+} // namespace AGCTest
+
+// Pull helpers into global scope so test functions compile unchanged.
+using AGCTest::TestResult;
+using AGCTest::ExpectTrue;
+using AGCTest::ExpectEqU32;
+using AGCTest::ExpectEqStr;
+using AGCTest::PluginAndService;
+using AGCTest::DefaultContext;
+using AGCTest::StubEmitter;
+using AGCTest::DelegateGetterTest;
