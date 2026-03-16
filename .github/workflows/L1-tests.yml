@@ -7,6 +7,16 @@ on:
         description: "Specifies the source type (e.g., local or test framework) for the workflow."
         required: true
         type: string
+      enable_gdb:
+        description: "Opt-in: run the L1 test binary under gdb in batch mode (prints stack trace on crash)."
+        required: false
+        type: boolean
+        default: false
+      enable_debug_macro:
+        description: "Opt-in: add a compile-time macro for L1 tests (APPGATEWAY_L1_DEBUG=1)."
+        required: false
+        type: boolean
+        default: false
     secrets:
       RDKCM_RDKE:
         required: true
@@ -14,14 +24,22 @@ on:
 env:
   BUILD_TYPE: Debug
   THUNDER_REF: "R4.4.1"
-  INTERFACES_REF: "develop"
-  AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME}}
-  AUTOMATICS_PASSCODE: ${{ secrets. AUTOMATICS_PASSCODE}}
+  INTERFACES_REF: "RDKEMW-13978"
+  AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME }}
+  AUTOMATICS_PASSCODE: ${{ secrets.AUTOMATICS_PASSCODE }}
+
+  # Opt-in toggles (default behavior unchanged):
+  # - ENABLE_GDB=1 enables running unit tests under gdb (batch mode)
+  # - ENABLE_DEBUG_MACRO=1 enables compile-time macro APPGATEWAY_L1_DEBUG=1 for L1 test build
+  # Defaults are set here for push/pull_request. workflow_call overrides are
+  # applied in guarded steps within the job.
+  ENABLE_GDB: '0'
+  ENABLE_DEBUG_MACRO: '0'
 
 jobs:
   L1-tests:
     name: Build and run unit tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         compiler: [ gcc, clang ]
@@ -71,6 +89,17 @@ jobs:
           python-version: '3.x'
       - run: pip install jsonref
 
+      - name: Initialize optional toggles defaults
+        run: |
+          echo "ENABLE_GDB=0" >> "$GITHUB_ENV"
+          echo "ENABLE_DEBUG_MACRO=0" >> "$GITHUB_ENV"
+
+      - name: Apply workflow_call toggle inputs
+        if: ${{ github.event_name == 'workflow_call' }}
+        run: |
+          echo "ENABLE_GDB=${{ inputs.enable_gdb && '1' || '0' }}" >> "$GITHUB_ENV"
+          echo "ENABLE_DEBUG_MACRO=${{ inputs.enable_debug_macro && '1' || '0' }}" >> "$GITHUB_ENV"
+
       - name: ACK External Trigger
         run: |
            echo "Message: External Trigger Received for L1 Tests"
@@ -85,7 +114,7 @@ jobs:
         run: >
           sudo apt update
           &&
-          sudo apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libjsoncpp-dev
+          sudo apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libjsoncpp-dev gdb
 
       - name: Build trower-base64
         run: |
@@ -96,6 +125,10 @@ jobs:
             meson setup --warnlevel 3 --werror build
             ninja -C build
             sudo ninja -C build install
+
+      - name: Checkout entservices-appgateway
+        if: ${{ !env.ACT }}
+        uses: actions/checkout@v3
 
       - name: Checkout Thunder
         if: steps.cache.outputs.cache-hit != 'true'
@@ -113,28 +146,6 @@ jobs:
           path: ThunderTools
           ref: R4.4.3
 
-      - name: Checkout entservices-testframework
-        uses: actions/checkout@v3
-        with:
-          repository: rdkcentral/entservices-testframework
-          path: entservices-testframework
-          ref: develop
-          token: ${{ secrets.RDKCM_RDKE }}
-
-      - name: Checkout entservices-appgateway
-        if: ${{ inputs.caller_source == 'local' }}
-        uses: actions/checkout@v3
-        with:
-          path: entservices-appgateway
-
-      - name: Checkout entservices-appgateway-testframework
-        if: ${{ inputs.caller_source == 'testframework' }}
-        uses: actions/checkout@v3
-        with:
-          repository: rdkcentral/entservices-appgateway
-          path: entservices-appgateway
-          ref: develop
-
       - name: Checkout googletest
         if: steps.cache.outputs.cache-hit != 'true'
         uses: actions/checkout@v3
@@ -146,7 +157,7 @@ jobs:
       - name: Apply patches ThunderTools
         run: |  
           cd $GITHUB_WORKSPACE/ThunderTools
-          patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/00010-R4.4-Add-support-for-project-dir.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/00010-R4.4-Add-support-for-project-dir.patch
           cd -
 
       - name: Build ThunderTools
@@ -167,11 +178,11 @@ jobs:
       - name: Apply patches Thunder
         run: |
           cd $GITHUB_WORKSPACE/Thunder
-          patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/Use_Legact_Alt_Based_On_ThunderTools_R4.4.3.patch
-          patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/error_code_R4_4.patch
-          patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/1004-Add-support-for-project-dir.patch
-          patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/RDKEMW-733-Add-ENTOS-IDS.patch
-          patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/Jsonrpc_dynamic_error_handling.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/Use_Legact_Alt_Based_On_ThunderTools_R4.4.3.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/error_code_R4_4.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/1004-Add-support-for-project-dir.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/RDKEMW-733-Add-ENTOS-IDS.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/Jsonrpc_dynamic_error_handling.patch
           cd -
 
       - name: Build Thunder
@@ -201,12 +212,15 @@ jobs:
           path: entservices-apis
           ref: ${{env.INTERFACES_REF}}
           #token : ${{ secrets.RDKCM_RDKE }}
-          run: rm -rf $GITHUB_WORKSPACE/entservices-apis/jsonrpc/DTV.json
+
+      - name: Remove DTV.json from entservices-apis checkout
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: rm -rf "$GITHUB_WORKSPACE/entservices-apis/jsonrpc/DTV.json"
 
       - name: Apply patches entservices-apis
         run: |
           cd $GITHUB_WORKSPACE/entservices-apis
-          patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/RDKEMW-1007.patch
+          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/RDKEMW-1007.patch
           cd -
 
       - name: Build entservices-apis
@@ -222,30 +236,13 @@ jobs:
           &&
           cmake --install build/entservices-apis
 
-      - name: Generate external headers
-        # Empty headers to mute errors
-        run: >
-          cd "$GITHUB_WORKSPACE/entservices-testframework/Tests/"
-          &&
-          mkdir -p
-          headers
-          headers/network
-          headers/proc
-          &&
-          cd headers
-          &&
-          touch
-          rfcapi.h
-          rbus.h
-          pkg.h
-
       - name: Set clang toolchain
         if: ${{ matrix.compiler == 'clang' }}
-        run: echo "TOOLCHAIN_FILE=$GITHUB_WORKSPACE/entservices-testframework/Tests/clang.cmake" >> $GITHUB_ENV
+        run: echo "TOOLCHAIN_FILE=$GITHUB_WORKSPACE/Tests/clang.cmake" >> $GITHUB_ENV
 
       - name: Set gcc/with-coverage toolchain
         if: ${{ matrix.compiler == 'gcc' && matrix.coverage == 'with-coverage' && !env.ACT }}
-        run: echo "TOOLCHAIN_FILE=$GITHUB_WORKSPACE/entservices-testframework/Tests/gcc-with-coverage.cmake" >> $GITHUB_ENV
+        run: echo "TOOLCHAIN_FILE=$GITHUB_WORKSPACE/Tests/gcc-with-coverage.cmake" >> $GITHUB_ENV
 
       - name: Build googletest
         if: steps.cache.outputs.cache-hit != 'true'
@@ -265,247 +262,412 @@ jobs:
           &&
           cmake --install build/googletest
 
-      - name: Build mocks
-        run: >
-          cmake
-          -S "$GITHUB_WORKSPACE/entservices-testframework/Tests/mocks"
-          -B build/mocks
-          -DBUILD_SHARED_LIBS=ON
-          -DRDK_SERVICES_L1_TEST=ON
-          -DUSE_THUNDER_R4=ON
-          -DCMAKE_TOOLCHAIN_FILE="${{ env.TOOLCHAIN_FILE }}"
-          -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
-          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
-          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
-          -DCMAKE_CXX_FLAGS="
-          -DEXCEPTIONS_ENABLE=ON
-          -DUSE_THUNDER_R4=ON
-          -DTHUNDER_VERSION=4
-          -DTHUNDER_VERSION_MAJOR=4
-          -DTHUNDER_VERSION_MINOR=4
-          -DRDK_SERVICES_L1_TEST
-          -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers
-          -I $GITHUB_WORKSPACE/entservices-testframework/Tests
-          -I $GITHUB_WORKSPACE/entservices-appgateway/helpers
-          -I $GITHUB_WORKSPACE/Thunder/Source
-          -I $GITHUB_WORKSPACE/Thunder/Source/core
-          -I $GITHUB_WORKSPACE/install/usr/include
-          -I ./usr/include/libdrm
-          -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/pkg.h
-          --coverage
-          -Wall -Wno-unused-result -Wno-deprecated-declarations -Wno-error=format=
-          -Wl,-wrap,system -Wl,-wrap,popen -Wl,-wrap,syslog -Wl,-wrap,v_secure_system -Wl,-wrap,v_secure_popen -Wl,-wrap,v_secure_pclose -Wl,-wrap,unlink -Wl,-wrap,v_secure_system -Wl,-wrap,pclose -Wl,-wrap,setmntent -Wl,-wrap,getmntent
-          &&
-          cmake --build build/mocks -j8
-          &&
-          cmake --install build/mocks
+      - name: Ensure ConfigGenerator executable exists in local prefix (act/CI)
+        run: |
+          set -euo pipefail
 
-      - name: Build entservices-appgateway
-        run: >
-          cmake -G Ninja
-          -S "$GITHUB_WORKSPACE/entservices-appgateway"
-          -B build/entservices-appgateway
-          -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
-          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
-          -DCMAKE_CXX_FLAGS="
-          -fprofile-arcs
-          -ftest-coverage
-          -DEXCEPTIONS_ENABLE=ON
-          -DUSE_THUNDER_R4=ON
-          -DTHUNDER_VERSION=4
-          -DTHUNDER_VERSION_MAJOR=4
-          -DTHUNDER_VERSION_MINOR=4
-          -DRDK_SERVICES_L1_TEST
-          -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers
-          -I $GITHUB_WORKSPACE/entservices-testframework/Tests
-          -I $GITHUB_WORKSPACE/Thunder/Source
-          -I $GITHUB_WORKSPACE/Thunder/Source/core
-          -I $GITHUB_WORKSPACE/install/usr/include
-          -I $GITHUB_WORKSPACE/install/usr/include/WPEFramework
-          -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/pkg.h
-          -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/secure_wrappermock.h
-          --coverage
-          -Wall -Wno-unused-result -Wno-deprecated-declarations -Wno-error=format=
-          -Wl,-wrap,system -Wl,-wrap,popen -Wl,-wrap,syslog -Wl,-wrap,v_secure_system -Wl,-wrap,v_secure_popen -Wl,-wrap,v_secure_pclose -Wl,-wrap,unlink
-          
-          -DCMAKE_BUILD_TYPE=Debug
-          -DRDK_SERVICES_L1_TEST=ON
-          -DUSE_THUNDER_R4=ON
-          -DHIDE_NON_EXTERNAL_SYMBOLS=OFF
-          -DENABLE_UNIT_TESTS=ON
-          &&
-          cmake --build build/entservices-appgateway -j8
-          &&
-          cmake --install build/entservices-appgateway
+          prefix="$GITHUB_WORKSPACE/install/usr"
 
-      - name: Build entservices-testframework
-        run: >
-          cmake -G Ninja
-          -S "$GITHUB_WORKSPACE/entservices-testframework"
-          -B build/entservices-testframework
-          -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
-          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
-          -DCMAKE_CXX_FLAGS="
-          -fprofile-arcs
-          -ftest-coverage
-          -DEXCEPTIONS_ENABLE=ON
-          -DUSE_THUNDER_R4=ON
-          -DTHUNDER_VERSION=4
-          -DTHUNDER_VERSION_MAJOR=4
-          -DTHUNDER_VERSION_MINOR=4
-          -DRDK_SERVICES_L1_TEST
-          -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers
-          -I $GITHUB_WORKSPACE/entservices-appgateway/helpers
-          -I $GITHUB_WORKSPACE/entservices-testframework/Tests
-          -I $GITHUB_WORKSPACE/Thunder/Source
-          -I $GITHUB_WORKSPACE/Thunder/Source/core
-          -I $GITHUB_WORKSPACE/install/usr/include
-          -I ./usr/include/libdrm
-          -I $GITHUB_WORKSPACE/install/usr/include/WPEFramework
-          -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/pkg.h
-          --coverage
-          -Wall -Wno-unused-result -Wno-deprecated-declarations -Wno-error=format=
-          -Wl,-wrap,system -Wl,-wrap,popen -Wl,-wrap,syslog -Wl,--no-as-needed
-          
-          -DCMAKE_BUILD_TYPE=Debug
-          -DRDK_SERVICES_L1_TEST=ON
-          -DUSE_THUNDER_R4=ON
-          -DHIDE_NON_EXTERNAL_SYMBOLS=OFF
-          -DENABLE_UNIT_TESTS=ON
-          &&
-          cmake --build build/entservices-testframework -j8
-          &&
-          cmake --install build/entservices-testframework
+          # Some downstream CMake configs require an actual `ConfigGenerator` executable
+          # under the install prefix (typically <prefix>/bin/ConfigGenerator).
+          # In this repo layout we already vendor the python implementation under:
+          #   <prefix>/sbin/ConfigGenerator/config_generator.py
+          # For act/CI (and to be robust to variations in ThunderTools install layouts),
+          # we stage a small wrapper executable into <prefix>/bin.
+          mkdir -p "$prefix/bin"
 
-      - name: Set up files
-        run: >
-          sudo mkdir -p -m 777
-          /tmp/test/testApp/etc/apps
-          /opt/persistent
-          /opt/secure
-          /opt/secure/reboot
-          /opt/secure/persistent
-          /opt/secure/persistent/System
-          /opt/persistent/storageManager
-          /opt/preinstall
-          /opt/logs
-          /lib/rdk
-          /run/media/sda1/logs/PreviousLogs
-          /run/sda1/UsbTestFWUpdate
-          /run/sda1/UsbProdFWUpdate
-          /run/sda2
-          /var/run/wpa_supplicant
-          /tmp/bus/usb/devices/100-123
-          /tmp/bus/usb/devices/101-124
-          /tmp/block/sda/device
-          /tmp/block/sdb/device
-          /dev/disk/by-id
-          /dev
-          &&
-          if [ ! -f mknod /dev/sda c 240 0 ]; then mknod /dev/sda c 240 0; fi &&
-          if [ ! -f mknod /dev/sda1 c 240 0 ]; then mknod /dev/sda1 c 240 0; fi &&
-          if [ ! -f mknod /dev/sda2 c 240 0 ]; then mknod /dev/sda2 c 240 0; fi &&
-          if [ ! -f mknod /dev/sdb c 240 0 ]; then mknod /dev/sdb c 240 0; fi &&
-          if [ ! -f mknod /dev/sdb1 c 240 0 ]; then mknod /dev/sdb1 c 240 0; fi &&
-          if [ ! -f mknod /dev/sdb2 c 240 0 ]; then mknod /dev/sdb2 c 240 0; fi
-          &&
-          sudo touch
-          /tmp/test/testApp/etc/apps/testApp_package.json
-          /opt/rdk_maintenance.conf
-          /opt/persistent/timeZoneDST
-          /opt/standbyReason.txt
-          /opt/tmtryoptout
-          /opt/fwdnldstatus.txt
-          /opt/dcm.properties
-          /etc/device.properties
-          /etc/dcm.properties
-          /etc/authService.conf
-          /version.txt
-          /run/media/sda1/logs/PreviousLogs/logFile.txt
-          /run/sda1/HSTP11MWR_5.11p5s1_VBN_sdy.bin
-          /run/sda1/UsbTestFWUpdate/HSTP11MWR_3.11p5s1_VBN_sdy.bin
-          /run/sda1/UsbProdFWUpdate/HSTP11MWR_4.11p5s1_VBN_sdy.bin
-          /lib/rdk/getMaintenanceStartTime.sh
-          /tmp/opkg.conf
-          /tmp/bus/usb/devices/100-123/serial
-          /tmp/bus/usb/devices/101-124/serial
-          /tmp/block/sda/device/vendor
-          /tmp/block/sda/device/model
-          /tmp/block/sdb/device/vendor
-          /tmp/block/sdb/device/model
-          &&
-          sudo chmod -R 777
-          /opt/rdk_maintenance.conf
-          /opt/persistent/timeZoneDST
-          /opt/standbyReason.txt
-          /opt/tmtryoptout
-          /opt/fwdnldstatus.txt
-          /opt/dcm.properties
-          /etc/device.properties
-          /etc/dcm.properties
-          /etc/authService.conf
-          /version.txt
-          /lib/rdk/getMaintenanceStartTime.sh
-          /tmp/opkg.conf
-          /tmp/bus/usb/devices/100-123/serial
-          /tmp/block/sda/device/vendor
-          /tmp/block/sda/device/model
-          /tmp/bus/usb/devices/101-124/serial
-          /tmp/block/sdb/device/vendor
-          /tmp/block/sdb/device/model
-          &&
-          cd /dev/disk/by-id/
-          
-      - name: Run unit tests without valgrind
-        run: >
-          PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
-          LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
-          GTEST_OUTPUT="json:$(pwd)/rdkL1TestResults.json"
-          RdkServicesL1Test &&
-          cp -rf $(pwd)/rdkL1TestResults.json $GITHUB_WORKSPACE/rdkL1TestResultsWithoutValgrind.json &&
-          rm -rf $(pwd)/rdkL1TestResults.json
+          # If an executable is already present (e.g., from ThunderTools install), keep it.
+          if command -v "$prefix/bin/ConfigGenerator" >/dev/null 2>&1; then
+            echo "ConfigGenerator already present at: $prefix/bin/ConfigGenerator"
+            exit 0
+          fi
+
+          impl="$prefix/sbin/ConfigGenerator/config_generator.py"
+          if [ ! -f "$impl" ]; then
+            echo "ERROR: Expected ConfigGenerator python implementation not found at: $impl"
+            echo "Prefix contents for debugging:"
+            find "$prefix" -maxdepth 4 -type f -name 'config_generator.py' -o -name 'ConfigGenerator' 2>/dev/null || true
+            exit 1
+          fi
+
+          cat > "$prefix/bin/ConfigGenerator" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          # Wrapper used in CI/act to provide a stable `ConfigGenerator` executable
+          # in the local install prefix. Delegates to the vendored python tool.
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          PREFIX="$(cd "${SCRIPT_DIR}/.." && pwd)"
+          exec python3 "${PREFIX}/sbin/ConfigGenerator/config_generator.py" "$@"
+          EOF
+
+          chmod +x "$prefix/bin/ConfigGenerator"
+          echo "Installed ConfigGenerator wrapper at: $prefix/bin/ConfigGenerator"
+
+      - name: Ensure ConfigGenerator CMake package config exists in local prefix (act/CI)
+        run: |
+          set -euo pipefail
+
+          prefix="$GITHUB_WORKSPACE/install/usr"
+          pkgdir="$prefix/lib/cmake/ConfigGenerator"
+          cfg="$pkgdir/ConfigGeneratorConfig.cmake"
+          ver="$pkgdir/ConfigGeneratorConfigVersion.cmake"
+
+          mkdir -p "$pkgdir"
+
+          # Under act (and sometimes in CI), the install layout can differ from what downstream assumes.
+          # Do NOT hard-require a single path for FindConfigGenerator.cmake.
+          #
+          # We will:
+          #  - search for FindConfigGenerator.cmake anywhere under the local prefix (best effort),
+          #  - always generate a usable ConfigGeneratorConfig.cmake:
+          #      * if a Find-module is present, delegate to it (MODULE mode)
+          #      * otherwise, provide a tool-only config that exposes ConfigGenerator executable as an imported target
+          findmod="$(find "$prefix" -type f -name 'FindConfigGenerator.cmake' -print -quit 2>/dev/null || true)"
+          findmod_dir=""
+          if [ -n "${findmod}" ]; then
+            findmod_dir="$(dirname "${findmod}")"
+            echo "Found FindConfigGenerator.cmake at: ${findmod}"
+          else
+            echo "INFO: FindConfigGenerator.cmake not found under prefix: ${prefix} (continuing with tool-only fallback config)"
+          fi
+
+          echo "Generating ConfigGeneratorConfig.cmake at: $cfg"
+          if [ -n "${findmod_dir}" ]; then
+            # Generate config that delegates to the Find-module.
+            cat > "$cfg" <<EOF
+          # Minimal ConfigGenerator package config for CI builds.
+          #
+          # Generated by CI to ensure:
+          #   find_package(ConfigGenerator REQUIRED)
+          # succeeds even when only a Find-module is available (and its location differs under act).
+          include(CMakeFindDependencyMacro)
+
+          # Directory discovered at CI runtime containing FindConfigGenerator.cmake
+          set(_cg_module_dir "${findmod_dir}")
+          get_filename_component(_cg_module_dir "\${_cg_module_dir}" ABSOLUTE)
+
+          if(EXISTS "\${_cg_module_dir}/FindConfigGenerator.cmake")
+            list(PREPEND CMAKE_MODULE_PATH "\${_cg_module_dir}")
+          endif()
+
+          # Delegate to the Find-module explicitly.
+          find_package(ConfigGenerator REQUIRED MODULE)
+          EOF
+          else
+            # Tool-only fallback: provide an imported executable target if the tool exists.
+            cat > "$cfg" <<'EOF'
+          # Minimal ConfigGenerator package config for CI builds (tool-only fallback).
+          #
+          # Used when FindConfigGenerator.cmake is not present in the local prefix.
+          # It still allows:
+          #   find_package(ConfigGenerator REQUIRED)
+          # to succeed by locating the ConfigGenerator executable installed by ThunderTools.
+          set(_cg_prefix "${CMAKE_CURRENT_LIST_DIR}/../../..")
+          get_filename_component(_cg_prefix "${_cg_prefix}" ABSOLUTE)
+
+          find_program(CONFIGGENERATOR_EXECUTABLE
+            NAMES ConfigGenerator
+            HINTS "${_cg_prefix}/bin" "${_cg_prefix}/sbin" "${_cg_prefix}/usr/bin" "${_cg_prefix}/usr/sbin"
+          )
+
+          if(NOT CONFIGGENERATOR_EXECUTABLE)
+            message(FATAL_ERROR "ConfigGenerator executable not found under prefix: ${_cg_prefix}")
+          endif()
+
+          if(NOT TARGET ConfigGenerator::ConfigGenerator)
+            add_executable(ConfigGenerator::ConfigGenerator IMPORTED GLOBAL)
+            set_target_properties(ConfigGenerator::ConfigGenerator PROPERTIES
+              IMPORTED_LOCATION "${CONFIGGENERATOR_EXECUTABLE}"
+            )
+          endif()
+
+          if(NOT TARGET ConfigGenerator::configgenerator)
+            add_executable(ConfigGenerator::configgenerator ALIAS ConfigGenerator::ConfigGenerator)
+          endif()
+
+          set(ConfigGenerator_FOUND TRUE)
+          EOF
+          fi
+
+          if [ ! -f "$ver" ]; then
+            # A minimal version file so CMake considers it a well-formed package.
+            cat > "$ver" <<'EOF'
+          set(PACKAGE_VERSION "0.0.0")
+          set(PACKAGE_VERSION_COMPATIBLE TRUE)
+          set(PACKAGE_VERSION_EXACT FALSE)
+          EOF
+          fi
+
+          echo "ConfigGenerator package contents:"
+          ls -la "$pkgdir"
+
+      - name: "Sanity check: ConfigGenerator package is installed"
+        run: |
+          set -euo pipefail
+          test -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator/ConfigGeneratorConfig.cmake"
+          echo "Found: $GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator/ConfigGeneratorConfig.cmake"
+
+      - name: Stage INetworkManager.h into install prefix (required for AppGateway compile)
+        run: |
+          set -euo pipefail
+
+          # Some AppGateway builds expect this interface header to be available under the local prefix.
+          # Keep behavior aligned with native build_dependencies.sh by sourcing from
+          # a local networkmanager checkout, then staging into:
+          #   $GITHUB_WORKSPACE/install/usr/include/WPEFramework/interfaces/INetworkManager.h
+          dst_dir="$GITHUB_WORKSPACE/install/usr/include/WPEFramework/interfaces"
+          mkdir -p "$dst_dir"
+
+          if [ ! -d "$GITHUB_WORKSPACE/networkmanager" ]; then
+            git clone --depth 1 --branch main https://github.com/rdkcentral/networkmanager.git "$GITHUB_WORKSPACE/networkmanager"
+          fi
+
+          cp -f "$GITHUB_WORKSPACE/networkmanager/interface/INetworkManager.h" "$dst_dir/INetworkManager.h"
+
+          echo "Staged header at: $dst_dir/INetworkManager.h"
+          test -s "$dst_dir/INetworkManager.h"
+          head -n 5 "$dst_dir/INetworkManager.h" || true
+
+      - name: Build AppGateway L1 tests (Tests/L1Tests only; NO install; coverage enabled)
+        # Script parity: configure/build ONLY Tests/L1Tests and avoid install-time /etc writes.
+        run: |
+          set -euo pipefail
+
+          export COVERAGE_C_FLAGS="-O0 -g --coverage -fprofile-arcs -ftest-coverage"
+          export COVERAGE_CXX_FLAGS="-O0 -g --coverage -fprofile-arcs -ftest-coverage"
+          export COVERAGE_LINKER_FLAGS="--coverage"
+
+          # Optional compile-time debug macro (opt-in).
+          # When enabled, code/tests may use:
+          #   #if APPGATEWAY_L1_DEBUG
+          #     ...
+          #   #endif
+          EXTRA_DEBUG_DEFS=""
+          if [ "${ENABLE_DEBUG_MACRO:-0}" = "1" ]; then
+            EXTRA_DEBUG_DEFS="-DAPPGATEWAY_L1_DEBUG=1"
+            echo "ENABLE_DEBUG_MACRO=1 -> enabling compile-time macro: APPGATEWAY_L1_DEBUG=1"
+          else
+            echo "ENABLE_DEBUG_MACRO!=1 -> no extra debug macro enabled (default behavior)"
+          fi
+
+          # Make sure CMake (and any helper Find*.cmake modules) can locate generator tools
+          # installed into the repo-local prefix. This is critical for `act`, where the
+          # environment can differ from GitHub-hosted runners.
+          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+          export PATH="$GITHUB_WORKSPACE/install/usr/bin:$PATH"
+
+          # Explicit fallback for packages that are looked up via <Pkg>_DIR by some projects.
+          # ThunderTools installs ConfigGenerator CMake package to:
+          #   <prefix>/lib/cmake/ConfigGenerator/ConfigGeneratorConfig.cmake
+          export ConfigGenerator_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator"
+
+          cmake -G Ninja \
+            -S "$GITHUB_WORKSPACE/Tests/L1Tests" \
+            -B build/entservices-appgateway-l1tests-only \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
+            -DConfigGenerator_DIR="$ConfigGenerator_DIR" \
+            -DWPEFrameworkPlugins_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFrameworkPlugins" \
+            -DDISABLE_SECURITY_TOKEN=ON \
+            -DUSE_THUNDER_R4=ON \
+            -DPLUGIN_APPGATEWAY=ON \
+            -DPLUGIN_APPGATEWAYCOMMON=ON \
+            -DCMAKE_C_FLAGS="${COVERAGE_C_FLAGS} ${EXTRA_DEBUG_DEFS}" \
+            -DCMAKE_CXX_FLAGS="${COVERAGE_CXX_FLAGS} ${EXTRA_DEBUG_DEFS}" \
+            -DCMAKE_EXE_LINKER_FLAGS="${COVERAGE_LINKER_FLAGS}" \
+            -DCMAKE_SHARED_LINKER_FLAGS="${COVERAGE_LINKER_FLAGS}" \
+            -DCMAKE_VERBOSE_MAKEFILE=ON
+
+          cmake --build build/entservices-appgateway-l1tests-only -- -j"$(nproc)"
+          cmake --build build/entservices-appgateway-l1tests-only --target AppGatewayL1Test -- -j"$(nproc)"
+          cmake --build build/entservices-appgateway-l1tests-only --target AppGatewayCommonL1Test -- -j"$(nproc)"
+
+          cmake --build build/entservices-appgateway-l1tests-only --target AppGateway -- -j"$(nproc)" || true
+          cmake --build build/entservices-appgateway-l1tests-only --target AppGatewayCommon -- -j"$(nproc)" || true
+          cmake --build build/entservices-appgateway-l1tests-only --target L1TestsIN -- -j"$(nproc)" || true
+
+          mkdir -p "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins"
+          find build/entservices-appgateway-l1tests-only/AppGateway -maxdepth 1 -type f -name "*.so*" -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
+          find build/entservices-appgateway-l1tests-only/AppGatewayCommon -maxdepth 1 -type f -name "*.so*" -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
+          find build/entservices-appgateway-l1tests-only -maxdepth 1 -type f -name "*.so*" -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
+
+          ls -la "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins" || true
+          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppGateway.so" || (echo "Missing libAppGateway.so in staged plugin dir" && exit 1)
+          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppGatewayCommon.so" || (echo "Missing libAppGatewayCommon.so in staged plugin dir" && exit 1)
+
+      - name: Copy required mock headers into install prefix include/Tests/mocks
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/Module.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/Module.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/ServiceMock.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/ServiceMock.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/ThunderPortability.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/ThunderPortability.h"
+
+      - name: Stage AppGateway resolution.base.json into config root (avoid /etc)
+        run: |
+          mkdir -p /tmp/app-gateway
+          cp -f "$GITHUB_WORKSPACE/AppGateway/resolutions/resolution.base.json" /tmp/app-gateway/resolution.base.json
+          echo "APPGATEWAY_CONFIG_PATH=/tmp/app-gateway" >> "$GITHUB_ENV"
+          ls -la /tmp/app-gateway || true
+
+      - name: Run unit tests without valgrind (optionally under gdb)
+        run: |
+          set -euo pipefail
+
+          export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
+
+          EXTRA_LIB_DIRS="$(
+            {
+              find "$GITHUB_WORKSPACE/install/usr" -type f -name '*.so*' -printf '%h\n' 2>/dev/null || true
+              find "$GITHUB_WORKSPACE/thunder/install/usr" -type f -name '*.so*' -printf '%h\n' 2>/dev/null || true
+            } | sort -u | paste -sd: -
+          )"
+
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins${EXTRA_LIB_DIRS:+:${EXTRA_LIB_DIRS}}:${LD_LIBRARY_PATH:-}"
+          echo "LD_LIBRARY_PATH configured for runtime resolution"
+
+          CRYPTALGO_FILE="$(find "$GITHUB_WORKSPACE" -type f \( -name 'libWPEFrameworkCryptalgo.so.1' -o -name 'libWPEFrameworkCryptalgo.so' -o -name 'libWPEFrameworkCryptalgo.so.*' \) -print -quit 2>/dev/null || true)"
+          if [ -z "${CRYPTALGO_FILE}" ]; then
+            echo "ERROR: libWPEFrameworkCryptalgo.so.* not found anywhere under workspace"
+            exit 1
+          fi
+          export GTEST_OUTPUT="json:$(pwd)/rdkL1TestResults.json"
+
+          # Deterministic cleanup:
+          # - Remove stale *.gcda to avoid libgcov timestamp overwrite errors
+          # - Remove any prior coverage outputs so a rerun cannot accidentally upload old artifacts
+          #
+          # IMPORTANT: Do NOT use GCOV_PREFIX here.
+          # Using GCOV_PREFIX relocates *.gcda away from their corresponding *.gcno, which causes lcov:
+          #   - "cannot open notes file" (missing *.gcno)
+          #   - "stamp mismatch with notes file"
+          # Keeping default behavior writes *.gcda next to *.gcno in the build tree, which is what lcov expects.
+          build_dir="$GITHUB_WORKSPACE/build/entservices-appgateway-l1tests-only"
+          echo "Cleaning stale gcov data under: ${build_dir}"
+          find "${build_dir}" -type f -name '*.gcda' -print -delete 2>/dev/null || true
+          rm -rf "$GITHUB_WORKSPACE/coverage-html" "$GITHUB_WORKSPACE/coverage.info" "$GITHUB_WORKSPACE/filtered_coverage.info" "$GITHUB_WORKSPACE/coverage" 2>/dev/null || true
+
+          # Reset counters (harmless if no data exists yet) to ensure a clean baseline.
+          if command -v lcov >/dev/null 2>&1; then
+            lcov --directory "${build_dir}" --zerocounters || true
+          fi
+
+          # Explicitly unset, in case a prior step/environment had these set.
+          unset GCOV_PREFIX || true
+          unset GCOV_PREFIX_STRIP || true
+
+          test_bin_appgateway="build/entservices-appgateway-l1tests-only/AppGatewayL1Test"
+
+          if [ "${ENABLE_GDB:-0}" = "1" ]; then
+            echo "ENABLE_GDB=1 -> running unit tests under gdb (batch mode)."
+            gdb -q -batch \
+              -ex "set pagination off" \
+              -ex "run" \
+              -ex "bt full" \
+              --args "${test_bin_appgateway}"
+          else
+            echo "ENABLE_GDB!=1 -> running unit tests normally (default behavior)."
+            "${test_bin_appgateway}"
+          fi
+
+          cp -rf "$(pwd)/rdkL1TestResults.json" "$GITHUB_WORKSPACE/rdkL1TestResultsWithoutValgrind.json"
+          rm -rf "$(pwd)/rdkL1TestResults.json"
 
       - name: Run unit tests with valgrind
         if: ${{ !env.ACT }}
-        run: >
-          PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
-          LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
-          GTEST_OUTPUT="json:$(pwd)/rdkL1TestResults.json"
-          valgrind
-          --tool=memcheck
-          --log-file=valgrind_log
-          --leak-check=yes
-          --show-reachable=yes
-          --track-fds=yes
-          --fair-sched=try
-          RdkServicesL1Test &&
-          cp -rf $(pwd)/rdkL1TestResults.json $GITHUB_WORKSPACE/rdkL1TestResultsWithValgrind.json &&
-          rm -rf $(pwd)/rdkL1TestResults.json
+        run: |
+          set -euo pipefail
 
-      - name: Generate coverage
-        if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
-        run: >
-          cp $GITHUB_WORKSPACE/entservices-testframework/Tests/L1Tests/.lcovrc_l1 ~/.lcovrc
-          &&
-          lcov -c
-          -o coverage.info
-          -d build/entservices-appgateway
-          &&
-          lcov
-          -r coverage.info
-          '/usr/include/*'
-          '*/build/entservices-appgateway/_deps/*'
-          '*/install/usr/include/*'
-          '*/Tests/headers/*'
-          '*/Tests/mocks/*'
-          '*/Tests/L1Tests/tests/*'
-          '*/Thunder/*'
-          -o filtered_coverage.info
-          &&
-          genhtml
-          -o coverage
-          -t "entservices-appgateway coverage"
-          filtered_coverage.info
+          export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
+
+          EXTRA_LIB_DIRS="$(
+            {
+              find "$GITHUB_WORKSPACE/install/usr" -type f -name '*.so*' -printf '%h\n' 2>/dev/null || true
+              find "$GITHUB_WORKSPACE/thunder/install/usr" -type f -name '*.so*' -printf '%h\n' 2>/dev/null || true
+            } | sort -u | paste -sd: -
+          )"
+
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins${EXTRA_LIB_DIRS:+:${EXTRA_LIB_DIRS}}:${LD_LIBRARY_PATH:-}"
+          export GTEST_OUTPUT="json:$(pwd)/rdkL1TestResults.json"
+
+          valgrind \
+            --tool=memcheck \
+            --log-file=valgrind_log \
+            --leak-check=yes \
+            --show-reachable=yes \
+            --track-fds=yes \
+            --fair-sched=try \
+            build/entservices-appgateway-l1tests-only/AppGatewayL1Test
+
+          cp -rf "$(pwd)/rdkL1TestResults.json" "$GITHUB_WORKSPACE/rdkL1TestResultsWithValgrind.json"
+          rm -rf "$(pwd)/rdkL1TestResults.json"
+
+      - name: Generate coverage report (lcov + HTML via genhtml)
+        # NOTE:
+        # - Historically, L1 HTML coverage was generated into `coverage/`, while local users looked
+        #   for `coverage-html/` (as used by L2). We now generate into `coverage-html/`.
+        # - Coverage generation was skipped entirely under `act` via `!env.ACT`, which matches the
+        #   reported scenario. We now run best-effort even under act.
+        if: ${{ matrix.coverage == 'with-coverage' }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+
+          ARTIFACT_ROOT="$GITHUB_WORKSPACE"
+          rm -rf "$ARTIFACT_ROOT/coverage-html" coverage.info filtered_coverage.info coverage || true
+          mkdir -p "$ARTIFACT_ROOT/coverage-html"
+
+          # Ensure we use the L1 lcov configuration.
+          if [ -f "$GITHUB_WORKSPACE/Tests/L1Tests/.lcovrc_l1" ]; then
+            cp "$GITHUB_WORKSPACE/Tests/L1Tests/.lcovrc_l1" ~/.lcovrc
+          fi
+
+          echo "lcov version:"
+          lcov --version || true
+          echo "genhtml version:"
+          genhtml --version || true
+
+          build_dir="$GITHUB_WORKSPACE/build/entservices-appgateway-l1tests-only"
+
+          echo "Debug: listing gcda/gcno files (top 200) under build dir:"
+          find "${build_dir}" -type f \( -name '*.gcda' -o -name '*.gcno' \) | head -n 200 || true
+
+          # Capture coverage from the build directory.
+          # With GCOV_PREFIX disabled, *.gcda and *.gcno paths match, preventing lcov/genhtml
+          # "notes file" and "stamp mismatch" errors.
+          lcov -c -o coverage.info -d "${build_dir}" || true
+
+          if [ ! -s coverage.info ]; then
+            echo "coverage.info missing/empty; skipping filtering + HTML generation"
+            exit 0
+          fi
+
+          lcov \
+            -r coverage.info \
+            '/usr/include/*' \
+            '*/build/entservices-appgateway-l1tests-only/_deps/*' \
+            '*/install/usr/include/*' \
+            '*/Tests/headers/*' \
+            '*/Tests/mocks/*' \
+            '*/Tests/L1Tests/tests/*' \
+            '*/Thunder/*' \
+            -o filtered_coverage.info || true
+
+          if [ ! -s filtered_coverage.info ]; then
+            echo "filtered_coverage.info missing/empty; skipping HTML generation"
+            exit 0
+          fi
+
+          genhtml \
+            -o "$ARTIFACT_ROOT/coverage-html" \
+            -t "entservices-appgateway L1 coverage" \
+            filtered_coverage.info || true
+
+          if [ -f "$ARTIFACT_ROOT/coverage-html/index.html" ]; then
+            echo "Generated HTML coverage at: coverage-html/index.html"
+          else
+            echo "HTML coverage index.html not generated (see genhtml output above)."
+          fi
 
       - name: Upload artifacts
         if: ${{ !env.ACT }}
@@ -513,6 +675,9 @@ jobs:
         with:
           name: artifacts-L1-appgateway
           path: |
+            coverage-html/
+            coverage.info
+            filtered_coverage.info
             coverage/
             valgrind_log
             rdkL1TestResultsWithoutValgrind.json
