@@ -203,6 +203,12 @@ namespace Plugin {
 
         RequestKey key = {context.connectionId, context.requestId};
         auto it = mRequestStates.find(key);
+        // NOTE: This method intentionally does NOT erase the entry from mRequestStates.
+        // It is designed as a standalone counter increment for callers that track responses
+        // independently from success/failure (i.e., via AGW_MARKER_RESPONSE_CALLS only).
+        // If the caller also invokes IncrementSuccessfulCalls or IncrementFailedCalls
+        // for the same request, do NOT call this method — those methods already increment
+        // totalResponses and erase the entry atomically to avoid double-counting.
 
         if (mRequestStates.end() != it) {
             mHealthStats.totalResponses.fetch_add(1, std::memory_order_relaxed);
@@ -222,6 +228,7 @@ namespace Plugin {
         auto it = mRequestStates.find(key);
 
         if (mRequestStates.end() != it) {
+            mHealthStats.totalResponses.fetch_add(1, std::memory_order_relaxed);
             mHealthStats.successfulCalls.fetch_add(1, std::memory_order_relaxed);
             LOGTRACE("Successful call incremented (appId=%s, connId=%u, reqId=%u)",
                      context.appId.c_str(), context.connectionId, context.requestId);
@@ -240,6 +247,7 @@ namespace Plugin {
         auto it = mRequestStates.find(key);
 
         if (mRequestStates.end() != it) {
+            mHealthStats.totalResponses.fetch_add(1, std::memory_order_relaxed);
             mHealthStats.failedCalls.fetch_add(1, std::memory_order_relaxed);
             LOGTRACE("Failed call incremented (appId=%s, connId=%u, reqId=%u)",
                      context.appId.c_str(), context.connectionId, context.requestId);
