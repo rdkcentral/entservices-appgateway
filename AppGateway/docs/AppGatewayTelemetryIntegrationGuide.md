@@ -55,7 +55,7 @@ App Gateway provides a centralized telemetry collection mechanism that:
 │                             ▼                                               │
 │          ┌─────────────────────────────────────────┐                        │
 │          │   T2 Service                            │                        │
-│          │  • AppGwTotalCalls_split                │                        │
+│          │  • ENTS_INFO_AppGwTotalCalls                │                        │
 │          │  • AppGwApiErrorCount_<Api>_split       │                        │
 │          │  • AppGw<Plugin>_<Api>_Latency_split    │                        │
 │          └─────────────────────────────────────────┘                        │
@@ -214,7 +214,7 @@ Reports an external service error event to App Gateway for optional immediate fo
 
 **Example:**
 ```cpp
-AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION, "CONNECTION_REFUSED");
+AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_PERMISSION, "CONNECTION_REFUSED");
 ```
 
 #### `AGW_RECORD_BOOTSTRAP_TIME()`
@@ -610,7 +610,7 @@ Use the simplified macros with predefined constants:
 AGW_REPORT_API_ERROR(context, "GetData", AGW_ERROR_GENERAL);
 
 // ✓ BEST - uses both service and error constants
-AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CONNECTION_REFUSED);
+AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_PERMISSION, AGW_ERROR_CONNECTION_REFUSED);
 
 // ✗ BAD - hardcoded error string when constant exists
 AGW_REPORT_API_ERROR(context, "GetData", "FAILED");
@@ -651,9 +651,9 @@ The system tracks three types of statistics:
 
 | Telemetry Type | Source | T2 Marker | Purpose | Tracks |
 |----------------|--------|-----------|---------|---------|
-| **API Method Stats** | `AGW_TRACK_API_CALL` | `AppGwApiMethod_split` | Per-API method tracking | Success/error counts, success/error latency (min/max/avg) |
-| **API Latency Stats** | `AGW_REPORT_API_LATENCY` | `AppGwApiLatency_split` | Generic API latency | Latency only (min/max/avg) |
-| **Service Latency Stats** | `AGW_REPORT_SERVICE_LATENCY` | `AppGwServiceLatency_split` | External service latency | Latency only (min/max/avg) |
+| **API Method Stats** | `AGW_TRACK_API_CALL` | `ENTS_INFO_AppGwApiMethod` | Per-API method tracking | Success/error counts, success/error latency (min/max/avg) |
+| **API Latency Stats** | `AGW_REPORT_API_LATENCY` | `ENTS_INFO_AppGwApiLatency` | Generic API latency | Latency only (min/max/avg) |
+| **Service Latency Stats** | `AGW_REPORT_SERVICE_LATENCY` | `ENTS_INFO_AppGwServiceLatency` | External service latency | Latency only (min/max/avg) |
 
 #### Rules for Latency Tracking
 
@@ -708,7 +708,7 @@ Core::hresult MyPlugin::CallExternalService(const Exchange::GatewayContext& cont
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - start).count();
     
-    AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_THOR_PERMISSION, duration);  // ✓ Correct - external service
+    AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_PERMISSION, duration);  // ✓ Correct - external service
     
     return result;
 }
@@ -723,7 +723,7 @@ Core::hresult MyPlugin::GetUserPermissions(const Exchange::GatewayContext& conte
     auto serviceDuration = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - serviceStart).count();
     
-    AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_THOR_PERMISSION, serviceDuration);  // ✓ External service timing
+    AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_PERMISSION, serviceDuration);  // ✓ External service timing
     
     if (result != Core::ERROR_NONE) {
         apiTracker.SetFailed(AGW_ERROR_PERMISSION_DENIED);

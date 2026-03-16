@@ -33,7 +33,7 @@
 using namespace WPEFramework;
 
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
-#define WINDOW_MANAGER_CALLSIGN "org.rdk.WindowManager"
+#define WINDOW_MANAGER_CALLSIGN "org.rdk.RDKWindowManager"
 
 // Valid lifecycle events that can be subscribed to
 static const std::set<string> VALID_LIFECYCLE_EVENT = {
@@ -108,7 +108,6 @@ class LifecycleDelegate : public BaseEventDelegate
 
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError)
     {
-        LOGDBG("Checking for handle event");
         // Check if event is present in VALID_LIFECYCLE_EVENT make check case insensitive
         if (VALID_LIFECYCLE_EVENT.find(StringUtils::toLower(event)) != VALID_LIFECYCLE_EVENT.end())
         {
@@ -412,7 +411,9 @@ class LifecycleDelegate : public BaseEventDelegate
                     object["oldState"] = LifecycleStateToString(stateInfo.previousState);
                     object["newState"] = LifecycleStateToString(stateInfo.currentState);
                     string jsonPayload;
-                    object.ToString(jsonPayload);
+                    JsonArray array;
+                    array.Add(object);
+                    array.ToString(jsonPayload);
                     return jsonPayload;
                 }
                 return "{}";

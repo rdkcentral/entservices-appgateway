@@ -83,19 +83,19 @@ sequenceDiagram
     
     Telemetry->>Telemetry: Send each stat as individual METRIC
     
-    Telemetry->>T2: t2_event_s("AppGwWebSocketConnections_split", payload)
+    Telemetry->>T2: t2_event_s("ENTS_INFO_AppGwWebSocketConnections_split", payload)
     Note over T2: {"sum": 12, "count": 1, "unit": "count",<br/>"reporting_interval_sec": 3600}
     T2-->>Telemetry: Success
     
-    Telemetry->>T2: t2_event_s("AppGwTotalCalls_split", payload)
+    Telemetry->>T2: t2_event_s("ENTS_INFO_AppGwTotalCalls", payload)
     Note over T2: {"sum": 1543, "count": 1, "unit": "count",<br/>"reporting_interval_sec": 3600}
     T2-->>Telemetry: Success
     
-    Telemetry->>T2: t2_event_s("AppGwSuccessfulCalls_split", payload)
+    Telemetry->>T2: t2_event_s("ENTS_INFO_AppGwSuccessfulCalls", payload)
     Note over T2: {"sum": 1520, "count": 1, "unit": "count",<br/>"reporting_interval_sec": 3600}
     T2-->>Telemetry: Success
     
-    Telemetry->>T2: t2_event_s("AppGwFailedCalls_split", payload)
+    Telemetry->>T2: t2_event_s("ENTS_INFO_AppGwFailedCalls", payload)
     Note over T2: {"sum": 23, "count": 1, "unit": "count",<br/>"reporting_interval_sec": 3600}
     T2-->>Telemetry: Success
     
@@ -128,7 +128,7 @@ sequenceDiagram
 
 ## T2 Markers (Individual Metrics)
 
-**Metric 1:** `AppGwWebSocketConnections_split`
+**Metric 1:** `ENTS_INFO_AppGwWebSocketConnections`
 ```json
 {
   "sum": 12,
@@ -138,7 +138,7 @@ sequenceDiagram
 }
 ```
 
-**Metric 2:** `AppGwTotalCalls_split`
+**Metric 2:** `ENTS_INFO_AppGwTotalCalls`
 ```json
 {
   "sum": 1543,
@@ -148,7 +148,7 @@ sequenceDiagram
 }
 ```
 
-**Metric 3:** `AppGwSuccessfulCalls_split`
+**Metric 3:** `ENTS_INFO_AppGwSuccessfulCalls`
 ```json
 {
   "sum": 1520,
@@ -158,7 +158,7 @@ sequenceDiagram
 }
 ```
 
-**Metric 4:** `AppGwFailedCalls_split`
+**Metric 4:** `ENTS_INFO_AppGwFailedCalls`
 ```json
 {
   "sum": 23,
@@ -170,10 +170,10 @@ sequenceDiagram
 
 **Compact Format:**
 ```
-AppGwWebSocketConnections_split: 12,1,count,3600
-AppGwTotalCalls_split: 1543,1,count,3600
-AppGwSuccessfulCalls_split: 1520,1,count,3600
-AppGwFailedCalls_split: 23,1,count,3600
+ENTS_INFO_AppGwWebSocketConnections_split: 12,1,count,3600
+ENTS_INFO_AppGwTotalCalls: 1543,1,count,3600
+ENTS_INFO_AppGwSuccessfulCalls: 1520,1,count,3600
+ENTS_INFO_AppGwFailedCalls: 23,1,count,3600
 ```
 
 ## Configuration

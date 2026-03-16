@@ -334,8 +334,8 @@ namespace Plugin {
 
         // 
         // Supported event name patterns:
-        // - "AppGwPluginApiError_split" - API errors from other plugins (sent immediately)
-        // - "AppGwPluginExtServiceError_split" - External service errors (sent immediately)
+        // - "ENTS_ERROR_AppGwPluginApiError" - API errors from other plugins (sent immediately)
+        // - "ENTS_ERROR_AppGwPlugExtnSrvErr" - External service errors (sent immediately)
         // - Any other event name - Generic telemetry event (cached and flushed periodically)
 
         bool isImmediateEvent = false;
@@ -404,12 +404,12 @@ namespace Plugin {
                                                  bool& isError)
     {
         // SPECIFIC format for API method metrics with explicit tags:
-        // "AppGw_PluginName_<Plugin>_MethodName_<Method>_Success_split"
-        // "AppGw_PluginName_<Plugin>_MethodName_<Method>_Error_split"
+        // "ENTS_INFO_AppGw_PluginName_<Plugin>_MethodName_<Method>_Success_split"
+        // "ENTS_INFO_AppGw_PluginName_<Plugin>_MethodName_<Method>_Error_split"
         //
         // Examples:
-        //   "AppGw_PluginName_LaunchDelegate_MethodName_session_Success_split"
-        //   "AppGw_PluginName_Badger_MethodName_setValue_Error_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourPlugin_MethodName_session_Success_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourPlugin_MethodName_setValue_Error_split"
         //
         // Other metrics like "AppGwBootstrapDuration_split" or "AppGXYS_abc_def_split" 
         // will NOT match because they lack the explicit "PluginName_" and "MethodName_" tags
@@ -469,11 +469,11 @@ namespace Plugin {
                                                         std::string& apiName)
     {
         // SPECIFIC format for API latency metrics with explicit tags:
-        // "AppGw_PluginName_<Plugin>_ApiName_<Api>_ApiLatency_split"
+        // "ENTS_INFO_AppGw_PluginName_<Plugin>_ApiName_<Api>_ApiLatency_split"
         //
         // Examples:
-        //   "AppGw_PluginName_Badger_ApiName_GetSettings_ApiLatency_split"
-        //   "AppGw_PluginName_OttServices_ApiName_GetToken_ApiLatency_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourPlugin_ApiName_GetSettings_ApiLatency_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourServices_ApiName_GetToken_ApiLatency_split"
 
         const std::string suffix = "_ApiLatency_split";
         const std::string prefix = AGW_INTERNAL_PLUGIN_PREFIX;
@@ -520,11 +520,11 @@ namespace Plugin {
                                                             std::string& serviceName)
     {
         // SPECIFIC format for service latency metrics with explicit tags:
-        // "AppGw_PluginName_<Plugin>_ServiceName_<Service>_ServiceLatency_split"
+        // "ENTS_INFO_AppGw_PluginName_<Plugin>_ServiceName_<Service>_ServiceLatency_split"
         //
         // Examples:
-        //   "AppGw_PluginName_OttServices_ServiceName_ThorPermissionService_ServiceLatency_split"
-        //   "AppGw_PluginName_Badger_ServiceName_AuthService_ServiceLatency_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourServices_ServiceName_PermissionService_ServiceLatency_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourPlugin_ServiceName_AuthService_ServiceLatency_split"
 
         const std::string suffix = "_ServiceLatency_split";
         const std::string prefix = AGW_INTERNAL_PLUGIN_PREFIX;
@@ -572,12 +572,12 @@ namespace Plugin {
                                                      bool& isError)
     {
         // SPECIFIC format for service method metrics with explicit tags:
-        // "AppGw_PluginName_<Plugin>_ServiceName_<Service>_Success_split"
-        // "AppGw_PluginName_<Plugin>_ServiceName_<Service>_Error_split"
+        // "ENTS_INFO_AppGw_PluginName_<Plugin>_ServiceName_<Service>_Success_split"
+        // "ENTS_INFO_AppGw_PluginName_<Plugin>_ServiceName_<Service>_Error_split"
         //
         // Examples:
-        //   "AppGw_PluginName_OttServices_ServiceName_ThorPermissionService_Success_split"
-        //   "AppGw_PluginName_Badger_ServiceName_AuthService_Error_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourServices_ServiceName_PermissionService_Success_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourPlugin_ServiceName_AuthService_Error_split"
         //
         // Other metrics like "AppGwBootstrapDuration_split" or service latency metrics
         // will NOT match because they lack the Success/Error suffix or use different patterns

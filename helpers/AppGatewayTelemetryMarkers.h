@@ -80,52 +80,52 @@
 /**
  * @brief Internal plugin prefix for metric name construction
  * @details Used when building metric names for plugin API/service latency tracking
- * @usage Format: "AppGw_PluginName_<PluginName>_ApiName_<ApiName>_ApiLatency_split"
+ * @usage Format: "ENTS_INFO_AppGw_PluginName_<PluginName>_ApiName_<ApiName>_ApiLatency_split"
  * @note INTERNAL: Used by AppGatewayTelemetry parsing logic and TelemetryClient metric recording
  */
-#define AGW_INTERNAL_PLUGIN_PREFIX      "AppGw_PluginName_"
+#define AGW_INTERNAL_PLUGIN_PREFIX      "ENTS_INFO_AppGw_PluginName_"
 
 /**
  * @brief Bootstrap duration metric (sent once on startup)
  * @details Total time taken to start all App Gateway plugins
  * @payload { "sum": <duration_ms>, "count": 1, "unit": "ms", "reporting_interval_sec": 0 }
  */
-#define AGW_MARKER_BOOTSTRAP_DURATION               "AppGwBootstrap_split"
+#define AGW_MARKER_BOOTSTRAP_DURATION               "ENTS_INFO_AppGwBootstrap"
 
 /**
  * @brief WebSocket connections metric (sent periodically)
  * @details Current active WebSocket connections
  * @payload { "sum": <connections>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
  */
-#define AGW_MARKER_WEBSOCKET_CONNECTIONS            "AppGwWebSocketConnections_split"
+#define AGW_MARKER_WEBSOCKET_CONNECTIONS            "ENTS_INFO_AppGwWebSocketConnections"
 
 /**
  * @brief Total API calls metric (sent periodically)
  * @details Total number of API calls in reporting period
  * @payload { "sum": <calls>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
  */
-#define AGW_MARKER_TOTAL_CALLS                      "AppGwTotalCalls_split"
+#define AGW_MARKER_TOTAL_CALLS                      "ENTS_INFO_AppGwTotalCalls"
 
 /**
  * @brief Successful API calls metric (sent periodically)
  * @details Number of successful API calls in reporting period
  * @payload { "sum": <calls>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
  */
-#define AGW_MARKER_SUCCESSFUL_CALLS                 "AppGwSuccessfulCalls_split"
+#define AGW_MARKER_SUCCESSFUL_CALLS                 "ENTS_INFO_AppGwSuccessfulCalls"
 
 /**
  * @brief Failed API calls metric (sent periodically)
  * @details Number of failed API calls in reporting period
  * @payload { "sum": <calls>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
  */
-#define AGW_MARKER_FAILED_CALLS                     "AppGwFailedCalls_split"
+#define AGW_MARKER_FAILED_CALLS                     "ENTS_INFO_AppGwFailedCalls"
 
 /**
  * @brief Total response calls metric (sent periodically)
  * @details Total number of API responses in reporting period
  * @payload { "sum": <responses>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
  */
-#define AGW_MARKER_RESPONSE_CALLS                   "AppGwResponseCalls_split"
+#define AGW_MARKER_RESPONSE_CALLS                   "ENTS_INFO_AppGwResponseCalls"
 
 /**
  * @brief Internal marker for response payload tracking (used by AGW_TRACK_RESPONSE_PAYLOAD macro)
@@ -135,7 +135,7 @@
  * @note Event data format: {"payload": "<json-rpc-2.0-response>"}
  * @note AppGateway parses the payload to determine success/failure and calls RecordResponse
  */
-#define AGW_MARKER_RESPONSE_PAYLOAD_TRACKING        "AppGwResponsePayloadTracking_split"
+#define AGW_MARKER_RESPONSE_PAYLOAD_TRACKING        "ENTS_INFO_AppGwResponsePayloadTracking"
 
 /**
  * @brief Consolidated health statistics marker (sent periodically)
@@ -153,7 +153,7 @@
  *       AGW_MARKER_RESPONSE_CALLS, AGW_MARKER_SUCCESSFUL_CALLS, AGW_MARKER_FAILED_CALLS)
  *       are available for plugin-specific use via RecordTelemetryMetric
  */
-#define AGW_MARKER_HEALTH_STATS                     "AppGwHealth_split"
+#define AGW_MARKER_HEALTH_STATS                     "ENTS_INFO_AppGwHealth"
 
 /**
  * @brief LinchPin connection metric (sent periodically)
@@ -161,7 +161,7 @@
  * @payload { "sum": <connection_count>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
  * @usage AGW_REPORT_METRIC(context, AGW_MARKER_LINCHPIN_CONNECTED, 1.0, AGW_UNIT_COUNT)
  */
-#define AGW_MARKER_LINCHPIN_CONNECTED               "AppGwLinchPinConnected_split"
+#define AGW_MARKER_LINCHPIN_CONNECTED               "ENTS_INFO_AppGwLinchPinConnected"
 
 /**
  * @brief LinchPin disconnection metric (sent periodically)
@@ -169,7 +169,7 @@
  * @payload { "sum": <disconnection_count>, "count": 1, "unit": "count", "reporting_interval_sec": 3600 }
  * @usage AGW_REPORT_METRIC(context, AGW_MARKER_LINCHPIN_DISCONNECTED, 1.0, AGW_UNIT_COUNT)
  */
-#define AGW_MARKER_LINCHPIN_DISCONNECTED            "AppGwLinchPinDisconnected_split"
+#define AGW_MARKER_LINCHPIN_DISCONNECTED            "ENTS_INFO_AppGwLinchPinDisconnected"
 
 /**
  * @brief LinchPin notification count metric (sent periodically)
@@ -177,30 +177,30 @@
  * @payload { "sum": <notification_count>, "count": <occurrences>, "unit": "count", "reporting_interval_sec": 3600 }
  * @usage AGW_REPORT_METRIC(context, AGW_MARKER_LINCHPIN_NOTIFICATION_COUNT, 1.0, AGW_UNIT_COUNT)
  */
-#define AGW_MARKER_LINCHPIN_NOTIFICATION_COUNT      "AppGwLinchPinNotificationCount_split"
+#define AGW_MARKER_LINCHPIN_NOTIFICATION_COUNT      "ENTS_INFO_AppGwLinchPinNotificationCount"
 
 /**
  * @brief API error count metric prefix
  * @details Per-API error count metrics sent periodically
  */
-#define AGW_MARKER_API_ERROR_COUNT           "AppGwApiErrorCount_split"
+#define AGW_MARKER_API_ERROR_COUNT           "ENTS_INFO_AppGwApiErrorCount"
 
 /**
  * @brief DEPRECATED: Old aggregated API error stats marker (no longer used)
  * @details Replaced by per-API metrics using AGW_MARKER_API_ERROR_COUNT + <ApiName>
  */
-#define AGW_MARKER_API_ERROR_STATS                  "AppGwApiErrorStats_split"
+#define AGW_MARKER_API_ERROR_STATS                  "ENTS_INFO_AppGwApiErrorStats"
 
 /**
  * @brief External service error count metric prefix
  * @details Per-service error count metrics sent periodically
  */
-#define AGW_MARKER_EXT_SERVICE_ERROR_COUNT   "AppGwExtServiceErrorCount_split"
+#define AGW_MARKER_EXT_SERVICE_ERROR_COUNT   "ENTS_INFO_AppGwExtServiceErrorCount"
 
 /**
  * @brief Per-API method statistics marker (common marker for all plugin/method combinations)
  * @details Used to report detailed per-API statistics including counters and latency metrics
- * @usage Single marker for all: "AppGwApiMethod_split"
+ * @usage Single marker for all: "ENTS_INFO_AppGwApiMethod"
  * @payload {
  *   "plugin_name": "<PluginName>",
  *   "method_name": "<MethodName>",
@@ -216,15 +216,15 @@
  *   "error_latency_max_ms": <max>
  * }
  * @example For Plugin_Name_1.methodName1():
- *   Marker: "AppGwApiMethod_split"
+ *   Marker: "ENTS_INFO_AppGwApiMethod"
  *   Payload includes: "plugin_name": "Plugin_Name_1", "method_name": "methodName1"
  */
-#define AGW_MARKER_API_METHOD_STAT                       "AppGwApiMethod_split"
+#define AGW_MARKER_API_METHOD_STAT                       "ENTS_INFO_AppGwApiMethod"
 
 /**
  * @brief API latency statistics marker (common marker for all plugin/API combinations)
  * @details Used to report aggregated API latency metrics from plugins
- * @usage Single marker for all: "AppGwApiLatency_split"
+ * @usage Single marker for all: "ENTS_INFO_AppGwApiLatency"
  * @payload {
  *   "plugin_name": "<PluginName>",
  *   "api_name": "<ApiName>",
@@ -237,15 +237,15 @@
  *   "unit": "Milliseconds"
  * }
  * @example For Plugin_Name_1.apiMethod1():
- *   Marker: "AppGwApiLatency_split"
+ *   Marker: "ENTS_INFO_AppGwApiLatency"
  *   Payload includes: "plugin_name": "Plugin_Name_1", "api_name": "apiMethod1"
  */
-#define AGW_MARKER_API_LATENCY                      "AppGwApiLatency_split"
+#define AGW_MARKER_API_LATENCY                      "ENTS_INFO_AppGwApiLatency"
 
 /**
  * @brief Service latency statistics marker (common marker for all plugin/service combinations)
  * @details Used to report aggregated external service latency metrics from plugins
- * @usage Single marker for all: "AppGwServiceLatency_split"
+ * @usage Single marker for all: "ENTS_INFO_AppGwServiceLatency"
  * @payload {
  *   "plugin_name": "<PluginName>",
  *   "service_name": "<ServiceName>",
@@ -258,15 +258,15 @@
  *   "unit": "Milliseconds"
  * }
  * @example For Plugin_Name_1 calling ExternalService1:
- *   Marker: "AppGwServiceLatency_split"
+ *   Marker: "ENTS_INFO_AppGwServiceLatency"
  *   Payload includes: "plugin_name": "Plugin_Name_1", "service_name": "ExternalService1"
  */
-#define AGW_MARKER_SERVICE_LATENCY                  "AppGwServiceLatency_split"
+#define AGW_MARKER_SERVICE_LATENCY                  "ENTS_INFO_AppGwServiceLatency"
 
 /**
  * @brief Per-service method statistics marker (common marker for all plugin/service combinations)
  * @details Used to report detailed per-service statistics including counters and latency metrics
- * @usage Single marker for all: "AppGwServiceMethod_split"
+ * @usage Single marker for all: "ENTS_INFO_AppGwServiceMethod"
  * @payload {
  *   "plugin_name": "<PluginName>",
  *   "service_name": "<ServiceName>",
@@ -282,10 +282,10 @@
  *   "error_latency_max_ms": <max>
  * }
  * @example For Plugin_Name_1 calling ExternalService1:
- *   Marker: "AppGwServiceMethod_split"
+ *   Marker: "ENTS_INFO_AppGwServiceMethod"
  *   Payload includes: "plugin_name": "Plugin_Name_1", "service_name": "ExternalService1"
  */
-#define AGW_MARKER_SERVICE_METHOD_STAT              "AppGwServiceMethod_split"
+#define AGW_MARKER_SERVICE_METHOD_STAT              "ENTS_INFO_AppGwServiceMethod"
 
 //=============================================================================
 // GENERIC PLUGIN EVENT MARKERS (for forensics)
@@ -301,17 +301,17 @@
  * @example AGW_REPORT_API_ERROR(context, "apiMethod1", AGW_ERROR_TIMEOUT)
  * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
  */
-#define AGW_MARKER_PLUGIN_API_ERROR                 "AppGwPluginApiError_split"
+#define AGW_MARKER_PLUGIN_API_ERROR                 "ENTS_ERROR_AppGwPluginApiError"
 
 /**
  * @brief Plugin external service error event marker
  * @details Reports external service failures from any plugin. Plugin name included in payload.
  * @usage Use AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, service, error) helper macro from UtilsAppGatewayTelemetry.h
  * @payload { "plugin": "<pluginName>", "service": "<serviceName>", "error": "<errorCode>" }
- * @example AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CONNECTION_TIMEOUT)
+ * @example AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_PERMISSION, AGW_ERROR_CONNECTION_TIMEOUT)
  * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
  */
-#define AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR         "AppGwPluginExtServiceError_split"
+#define AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR         "ENTS_ERROR_AppGwPlugExtnSrvErr"
 
 /**
  * @brief Plugin API latency metric marker
@@ -321,7 +321,7 @@
  * @example AGW_REPORT_API_LATENCY(context, "apiMethod2", 125.5)
  * @note Plugin name comes from AGW_TELEMETRY_INIT initialization
  */
-#define AGW_MARKER_PLUGIN_API_LATENCY               "AppGwPluginApiLatency_split"
+#define AGW_MARKER_PLUGIN_API_LATENCY               "ENTS_INFO_AppGwPluginApiLat"
 
 
 //=============================================================================

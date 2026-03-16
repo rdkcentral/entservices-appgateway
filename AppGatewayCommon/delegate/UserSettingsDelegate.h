@@ -28,6 +28,7 @@
 #include <set>
 #include <sstream>
 #include "UtilsFirebolt.h"
+#include <mutex>
 using namespace WPEFramework;
 #define USERSETTINGS_CALLSIGN "org.rdk.UserSettings"
 #define TEXTTRACK_CALLSIGN "org.rdk.TextTrack"
@@ -1119,7 +1120,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
         PluginHost::IShell* mShell;
         Core::Sink<UserSettingsNotificationHandler> mNotificationHandler;
         Core::Sink<TextTrackNotificationHandler> mTextTrackNotificationHandler;
-        std::mutex mRegistrationMutex;
+        mutable std::mutex mRegistrationMutex;
 
 };
 #endif
