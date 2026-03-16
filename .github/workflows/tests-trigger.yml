@@ -10,7 +10,6 @@ on:
 
 jobs:
   trigger-L1:
-    if: false  # Disabled
     uses: ./.github/workflows/L1-tests.yml
     with:
       caller_source: local
