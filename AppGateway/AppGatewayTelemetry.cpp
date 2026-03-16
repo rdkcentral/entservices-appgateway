@@ -1007,8 +1007,8 @@ namespace Plugin {
                 }
             }
 
-            // Snapshot request states (move to avoid deep copy)
-            snapshot->requestStates = std::move(mRequestStates);
+            // Snapshot request states (copy; keep live map for in-flight response tracking)
+            snapshot->requestStates = mRequestStates;
             
             // Snapshot aggregated statistics (move semantics for efficiency)
             snapshot->apiMethodStats = std::move(mApiMethodStats);
