@@ -32,19 +32,17 @@
  *    #include "UtilsAppGatewayTelemetry.h"
  * 
  * 2. Define the telemetry client in your plugin's .cpp file (top-level, before namespace):
- *    AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_BADGER)
+ *    AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_YOUR_PLUGIN)
  * 
- * 3. Initialize the telemetry client in your plugin's Initialize/Configure:
- *    AGW_TELEMETRY_INIT(mService)
- * 
- *    Record plugin bootstrap time using RAII:
+ * 3. In your plugin's Initialize(), init telemetry first, then start the bootstrap timer:
+ *    AGW_TELEMETRY_INIT(service);
  *    AGW_RECORD_BOOTSTRAP_TIME();  // Timer starts here
  *    // ... plugin initialization code ...
  *    // Timer automatically records on scope exit
  * 
  * 4. Report high value error as events using the macros (all require context parameter):
  *    - AGW_REPORT_API_ERROR(context, "GetSettings", AGW_ERROR_TIMEOUT)
- *    - AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE)
+ *    - AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_YOUR_SERVICE, AGW_ERROR_INTERFACE_UNAVAILABLE)
  * 
  * 5. Cleanup in Deinitialize:
  *    AGW_TELEMETRY_DEINIT()
@@ -486,7 +484,7 @@ namespace AppGatewayTelemetryHelper {
      * 
      * Usage:
      *   {
-     *       ScopedServiceTimer timer(&GetLocalTelemetryClient(), context, AGW_SERVICE_THOR_PERMISSION);
+     *       ScopedServiceTimer timer(&GetLocalTelemetryClient(), context, AGW_SERVICE_XYZ_PERMISSION);
      *       // ... make external service call ...
      *       if (failed) timer.SetFailed(AGW_ERROR_CONNECTION_TIMEOUT);
      *   } // Timer automatically reports on destruction
@@ -576,7 +574,8 @@ namespace AppGatewayTelemetryHelper {
  * 2. **Bootstrap Time Tracking**: Measure plugin initialization time
  * 3. **Error Reporting (Events)**: Report API and service errors
  * 4. **Latency Tracking (Metrics)**: Report timing measurements
- * 5. **Generic Telemetry**: Low-level event/metric reporting
+ * 5. **Response Tracking**: Track response payloads for success/failure detection
+ * 6. **Generic Telemetry**: Low-level event/metric reporting
  */
 
 //=============================================================================
@@ -585,7 +584,7 @@ namespace AppGatewayTelemetryHelper {
 
 /**
  * @brief Define a telemetry client instance for this plugin
- * @param pluginName Plugin name constant from AppGatewayTelemetryMarkers.h (e.g., AGW_PLUGIN_BADGER)
+ * @param pluginName Plugin name constant from AppGatewayTelemetryMarkers.h (e.g., AGW_PLUGIN_YOUR_PLUGIN)
  * 
  * This macro MUST be called once in each plugin's implementation file (.cpp) to create
  * a plugin-specific telemetry client instance. Each plugin gets its own separate instance
@@ -593,20 +592,10 @@ namespace AppGatewayTelemetryHelper {
  * 
  * **IMPORTANT**: Place this macro at the top of your plugin's .cpp file, outside any class/function.
  * 
- * Example in Badger.cpp:
+ * Example in YourPlugin.cpp:
  *   #include "UtilsAppGatewayTelemetry.h"
  *   
- *   AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_BADGER)
- *   
- *   namespace WPEFramework {
- *   namespace Plugin {
- *       // ... rest of implementation
- *   }}
- * 
- * Example in OttServices.cpp:
- *   #include "UtilsAppGatewayTelemetry.h"
- *   
- *   AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_OTTSERVICES)
+ *   AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_YOUR_PLUGIN)
  *   
  *   namespace WPEFramework {
  *   namespace Plugin {
@@ -677,10 +666,10 @@ namespace AppGatewayTelemetryHelper {
  * 
  * Example:
  *   const string MyPlugin::Initialize(PluginHost::IShell* service) {
+ *       AGW_TELEMETRY_INIT(service);  // Initialize telemetry first
  *       AGW_RECORD_BOOTSTRAP_TIME();  // Timer starts here
  *       
  *       // ... plugin initialization code ...
- *       AGW_TELEMETRY_INIT(service);  // Initialize telemetry
  *       
  *       return EMPTY_STRING;
  *   } // Timer automatically records on scope exit
@@ -725,7 +714,7 @@ namespace AppGatewayTelemetryHelper {
 /**
  * @brief Report an external service error to AppGateway telemetry
  * @param context Gateway context with request/connection/app info
- * @param serviceName Predefined service name from AppGatewayTelemetryMarkers.h (e.g., AGW_SERVICE_OTT_SERVICES)
+ * @param serviceName Predefined service name from AppGatewayTelemetryMarkers.h (e.g., AGW_SERVICE_YOUR_SERVICE)
  * @param errorCode Predefined error code from AppGatewayTelemetryMarkers.h (e.g., AGW_ERROR_INTERFACE_UNAVAILABLE)
  * 
  * **Data Flow**:
@@ -741,8 +730,8 @@ namespace AppGatewayTelemetryHelper {
  * - For aggregated error counting with latency, use AGW_TRACK_SERVICE_CALL instead
  * 
  * Example:
- *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_OTT_SERVICES, AGW_ERROR_INTERFACE_UNAVAILABLE)
- *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_THOR_PERMISSION, AGW_ERROR_CONNECTION_TIMEOUT)
+ *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_YOUR_SERVICE, AGW_ERROR_INTERFACE_UNAVAILABLE)
+ *   AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, AGW_SERVICE_XYZ_SERVICE, AGW_ERROR_CONNECTION_TIMEOUT)
  */
 #define AGW_REPORT_EXTERNAL_SERVICE_ERROR(context, serviceName, errorCode) \
     do { \
@@ -789,9 +778,9 @@ namespace AppGatewayTelemetryHelper {
  * Example:
  *   Core::hresult MyPlugin::CallExternalService(const Exchange::GatewayContext& context)
  *   {
- *       AGW_TRACK_SERVICE_CALL(serviceTracker, context, AGW_SERVICE_THOR_PERMISSION);
+ *       AGW_TRACK_SERVICE_CALL(serviceTracker, context, AGW_SERVICE_XYZ_PERMISSION);
  *       
- *       auto result = thorClient->CheckPermission(...);
+ *       auto result = XYZClient->CheckPermission(...);
  *       if (result != Core::ERROR_NONE) {
  *           serviceTracker.SetFailed(AGW_ERROR_CONNECTION_TIMEOUT);
  *           return result;
@@ -837,10 +826,10 @@ namespace AppGatewayTelemetryHelper {
  * 
  * Example:
  *   auto start = std::chrono::steady_clock::now();
- *   auto result = thorPermissionClient->CheckPermission(...);
+ *   auto result = XYZPermissionClient->CheckPermission(...);
  *   auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
  *       std::chrono::steady_clock::now() - start).count();
- *   AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_THOR_PERMISSION, durationMs);
+ *   AGW_REPORT_SERVICE_LATENCY(context, AGW_SERVICE_XYZ_PERMISSION, durationMs);
  */
 #define AGW_REPORT_SERVICE_LATENCY(context, serviceName, latencyMs) \
     do { \
@@ -868,7 +857,7 @@ namespace AppGatewayTelemetryHelper {
     } while(0)
 
 //=============================================================================
-// 5. GENERIC TELEMETRY REPORTING MACROS (Low-level Interface)
+// 6. GENERIC TELEMETRY REPORTING MACROS (Low-level Interface)
 //=============================================================================
 
 /**
