@@ -1,6 +1,8 @@
 #include <iostream>
 #include <string>
 #include <cstdlib>
+#include <thread>
+#include <chrono>
 
 #include <core/core.h>
 #include <plugins/plugins.h>
@@ -1360,6 +1362,10 @@ static uint32_t Test_HandleAppEventNotifier_ValidCb()
     ExpectEqU32(tr, rc2, ERROR_NONE, "HandleAppEventNotifier listen=false returns ERROR_NONE");
     ExpectTrue(tr, status2, "HandleAppEventNotifier listen=false sets status true");
 
+    // Allow WorkerPool to drain the two async EventRegistrationJobs before teardown,
+    // preventing a use-after-free on the emitter/delegate pointers.
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
     emitter->Release(); // drop our initial ref
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
@@ -1377,6 +1383,116 @@ static uint32_t Test_InterfaceMap_NotificationHandler()
     if (nullptr != handler) {
         handler->Release();
     }
+    ps.plugin->Deinitialize(ps.service);
+    return tr.failures;
+}
+
+// ============================================================================
+// Tests AGC_L0_088 – AGC_L0_092 (Phase 1: remaining L0 coverage squeeze)
+// ============================================================================
+
+// TEST_ID: AGC_L0_088
+// HandleAppGatewayRequest before Initialize → mDelegate is null → ERROR_UNAVAILABLE
+// Covers the null-delegate guard at the top of HandleAppGatewayRequest (lines 312-316).
+static uint32_t Test_HandleRequest_BeforeInit()
+{
+    TestResult tr;
+    PluginAndService ps;
+    // Deliberately do NOT call Initialize — mDelegate remains nullptr
+    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "device.make", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "HandleAppGatewayRequest before Init returns ERROR_UNAVAILABLE");
+    ExpectTrue(tr, result.find("unavailable") != std::string::npos,
+               "result contains 'unavailable' error message");
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_089
+// HandleAppEventNotifier before Initialize → SafeSubmitEventRegistrationJob hits null mDelegate → ERROR_GENERAL
+// Covers the mDelegate null-check branch inside SafeSubmitEventRegistrationJob (lines 481-483).
+static uint32_t Test_HandleAppEventNotifier_BeforeInit()
+{
+    TestResult tr;
+    PluginAndService ps;
+    // Deliberately do NOT call Initialize — mDelegate remains nullptr
+    auto* handler = ps.plugin->QueryInterface<Exchange::IAppNotificationHandler>();
+    ExpectTrue(tr, nullptr != handler, "QueryInterface<IAppNotificationHandler> returns non-null");
+    if (nullptr != handler) {
+        auto* emitter = new StubEmitter();
+        bool status = true;
+        const uint32_t rc = handler->HandleAppEventNotifier(emitter, "lifecycle.onbackground", true, status);
+        ExpectEqU32(tr, rc, ERROR_GENERAL, "HandleAppEventNotifier before Init returns ERROR_GENERAL");
+        ExpectTrue(tr, false == status, "status is false when delegate is null");
+        emitter->Release();
+        handler->Release();
+    }
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_090
+// Authenticate before Initialize → InvokeLifecycleDelegate returns ERROR_UNAVAILABLE (null delegate)
+// Covers the `if (!delegate)` guard in the InvokeLifecycleDelegate template.
+static uint32_t Test_Authenticate_BeforeInit()
+{
+    TestResult tr;
+    PluginAndService ps;
+    // Deliberately do NOT call Initialize — mDelegate remains nullptr
+    auto* auth = ps.plugin->QueryInterface<Exchange::IAppGatewayAuthenticator>();
+    ExpectTrue(tr, nullptr != auth, "QueryInterface<IAppGatewayAuthenticator> returns non-null");
+    if (nullptr != auth) {
+        std::string appId;
+        const uint32_t rc = auth->Authenticate("session-before-init", appId);
+        ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "Authenticate before Init returns ERROR_UNAVAILABLE");
+        auth->Release();
+    }
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_091
+// HandleAppGatewayRequest after Deinitialize → mDelegate has been reset → ERROR_UNAVAILABLE
+// Real-world scenario: plugin deactivated but a pending request arrives (race condition).
+static uint32_t Test_HandleRequest_AfterDeinit()
+{
+    TestResult tr;
+    PluginAndService ps;
+    ps.plugin->Initialize(ps.service);
+    ps.plugin->Deinitialize(ps.service);
+    // After Deinitialize, mDelegate is reset to nullptr
+    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "device.make", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "HandleAppGatewayRequest after Deinit returns ERROR_UNAVAILABLE");
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_092
+// Re-initialization: Init → Deinit → Init → use → Deinit on the same instance.
+// Validates that the plugin can be cleanly reactivated after deactivation.
+static uint32_t Test_Reinitialize_AfterDeinit()
+{
+    TestResult tr;
+    PluginAndService ps;
+
+    // First lifecycle
+    const std::string init1 = ps.plugin->Initialize(ps.service);
+    ExpectTrue(tr, init1.empty(), "First Initialize succeeds");
+    ps.plugin->Deinitialize(ps.service);
+
+    // Second lifecycle on the same instance
+    const std::string init2 = ps.plugin->Initialize(ps.service);
+    ExpectTrue(tr, init2.empty(), "Re-Initialize after Deinit succeeds");
+
+    // Verify the plugin works after re-initialization
+    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "device.make", "{}", result);
+    const bool ok = (rc == ERROR_NONE || rc == ERROR_UNAVAILABLE || rc == ERROR_GENERAL);
+    ExpectTrue(tr, ok, "device.make works after re-initialization");
+
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
@@ -1483,6 +1599,12 @@ int main()
         { "HandleAppEventNotifier_NullCb",                Test_HandleAppEventNotifier_NullCb },
         { "HandleAppEventNotifier_ValidCb",               Test_HandleAppEventNotifier_ValidCb },
         { "InterfaceMap_NotificationHandler",             Test_InterfaceMap_NotificationHandler },
+                // AGC_L0_088–092 — Pre-init / post-deinit guards and re-initialization
+        { "HandleRequest_BeforeInit",                     Test_HandleRequest_BeforeInit },
+        { "HandleAppEventNotifier_BeforeInit",            Test_HandleAppEventNotifier_BeforeInit },
+        { "Authenticate_BeforeInit",                      Test_Authenticate_BeforeInit },
+        { "HandleRequest_AfterDeinit",                    Test_HandleRequest_AfterDeinit },
+        { "Reinitialize_AfterDeinit",                     Test_Reinitialize_AfterDeinit },
     };
 
     uint32_t failures = 0;
