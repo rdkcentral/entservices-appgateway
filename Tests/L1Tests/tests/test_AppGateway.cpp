@@ -27,17 +27,17 @@
 #include <mutex>
 #include <string>
 
+#define private public
 #include "AppGateway.h"
 #include "AppGatewayImplementation.h"
 #include "AppGatewayResponderImplementation.h"
-#include "ServiceMock.h"
-#include "COMLinkMock.h"
-#include "DispatcherMock.h"
-
-#define private public
 #include "AppGatewayTelemetry.h"
 #include "Resolver.h"
 #undef private
+
+#include "ServiceMock.h"
+#include "COMLinkMock.h"
+#include "DispatcherMock.h"
 
 using namespace WPEFramework;
 using namespace WPEFramework::Plugin;
@@ -48,6 +48,24 @@ using ::testing::Return;
 namespace {
 
 class TestAppGateway final : public AppGateway {
+public:
+    void AddRef() const override {}
+    uint32_t Release() const override { return Core::ERROR_NONE; }
+};
+
+class TestAppGatewayTelemetry final : public AppGatewayTelemetry {
+public:
+    void AddRef() const override {}
+    uint32_t Release() const override { return Core::ERROR_NONE; }
+};
+
+class TestAppGatewayImplementation final : public AppGatewayImplementation {
+public:
+    void AddRef() const override {}
+    uint32_t Release() const override { return Core::ERROR_NONE; }
+};
+
+class TestAppGatewayResponderImplementation final : public AppGatewayResponderImplementation {
 public:
     void AddRef() const override {}
     uint32_t Release() const override { return Core::ERROR_NONE; }
@@ -314,7 +332,7 @@ TEST(AppGatewayPluginTest, Resolver_ParseAlias_ExtractsCallsignAndMethod)
 
 TEST(AppGatewayPluginTest, Telemetry_ParseApiMetricName_ValidAndInvalid)
 {
-    AppGatewayTelemetry telemetry;
+    TestAppGatewayTelemetry telemetry;
 
     std::string pluginName;
     std::string methodName;
@@ -334,7 +352,7 @@ TEST(AppGatewayPluginTest, Telemetry_ParseApiMetricName_ValidAndInvalid)
 
 TEST(AppGatewayPluginTest, Telemetry_ParseServiceMetricName_Valid)
 {
-    AppGatewayTelemetry telemetry;
+    TestAppGatewayTelemetry telemetry;
 
     std::string pluginName;
     std::string serviceName;
@@ -352,7 +370,7 @@ TEST(AppGatewayPluginTest, Telemetry_ParseServiceMetricName_Valid)
 
 TEST(AppGatewayPluginTest, Telemetry_FormatTelemetryPayload_JsonAndCompact)
 {
-    AppGatewayTelemetry telemetry;
+    TestAppGatewayTelemetry telemetry;
 
     JsonObject payload;
     payload["plugin_name"] = "Badger";
@@ -371,7 +389,7 @@ TEST(AppGatewayPluginTest, Telemetry_FormatTelemetryPayload_JsonAndCompact)
 
 TEST(AppGatewayPluginTest, Telemetry_RecordApiAndServiceError_UpdatesCounters)
 {
-    AppGatewayTelemetry telemetry;
+    TestAppGatewayTelemetry telemetry;
     const auto ctx = MakeTelemetryContext(7, 11, "test.app");
 
     telemetry.RecordApiError(ctx, "Device.name");
@@ -384,7 +402,7 @@ TEST(AppGatewayPluginTest, Telemetry_RecordApiAndServiceError_UpdatesCounters)
 
 TEST(AppGatewayPluginTest, Telemetry_RecordResponse_OnlyCountsFirstResponse)
 {
-    AppGatewayTelemetry telemetry;
+    TestAppGatewayTelemetry telemetry;
     const auto ctx = MakeTelemetryContext(4, 9, "test.app");
 
     telemetry.IncrementTotalCalls(ctx);
@@ -398,7 +416,7 @@ TEST(AppGatewayPluginTest, Telemetry_RecordResponse_OnlyCountsFirstResponse)
 
 TEST(AppGatewayPluginTest, Telemetry_ParseLatencyMetricNames_ValidAndInvalid)
 {
-    AppGatewayTelemetry telemetry;
+    TestAppGatewayTelemetry telemetry;
 
     std::string pluginName;
     std::string apiName;
@@ -424,7 +442,7 @@ TEST(AppGatewayPluginTest, Telemetry_ParseLatencyMetricNames_ValidAndInvalid)
 
 TEST(AppGatewayPluginTest, Telemetry_ResetMethods_ClearCollectedState)
 {
-    AppGatewayTelemetry telemetry;
+    TestAppGatewayTelemetry telemetry;
     const auto ctx = MakeTelemetryContext(101, 202, "test.app");
 
     telemetry.RecordApiError(ctx, "Device.name");
@@ -461,13 +479,13 @@ TEST(AppGatewayPluginTest, Telemetry_ResetMethods_ClearCollectedState)
 TEST(AppGatewayPluginTest, AppGatewayImplementation_ConstructAndDestroy_NoCrash)
 {
     EXPECT_NO_THROW({
-        AppGatewayImplementation impl;
+        TestAppGatewayImplementation impl;
     });
 }
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_ConfigureWithNullIterator_ReturnsBadRequest)
 {
-    AppGatewayImplementation impl;
+    TestAppGatewayImplementation impl;
     Exchange::IAppGatewayResolver::IStringIterator* paths = nullptr;
 
     EXPECT_EQ(Core::ERROR_BAD_REQUEST, impl.Configure(paths));
@@ -475,7 +493,7 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_ConfigureWithNullIterator_Re
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_ResolveWithoutResolver_ReturnsGeneral)
 {
-    AppGatewayImplementation impl;
+    TestAppGatewayImplementation impl;
     std::string resolution;
 
     EXPECT_EQ(Core::ERROR_GENERAL, impl.Resolve(MakeImplementationContext(), "AppGateway", "device.name", "{}", resolution));
@@ -484,13 +502,13 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_ResolveWithoutResolver_Retur
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_ConstructAndDestroy_NoCrash)
 {
     EXPECT_NO_THROW({
-        AppGatewayResponderImplementation responder;
+        TestAppGatewayResponderImplementation responder;
     });
 }
 
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_RegisterUnregisterNotification_Success)
 {
-    AppGatewayResponderImplementation responder;
+    TestAppGatewayResponderImplementation responder;
     ResponderNotificationStub notification;
 
     EXPECT_EQ(Core::ERROR_NONE, responder.Register(&notification));
@@ -499,7 +517,7 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_RegisterUnregisterN
 
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_RecordGatewayConnectionContext_AlwaysReturnsNone)
 {
-    AppGatewayResponderImplementation responder;
+    TestAppGatewayResponderImplementation responder;
 
     EXPECT_EQ(Core::ERROR_NONE,
               responder.RecordGatewayConnectionContext(99, "DISABLE_DEBUG_FOR_CONNECTION", "1"));
@@ -509,7 +527,7 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_RecordGatewayConnec
 
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_UnregisterUnknown_ReturnsGeneral)
 {
-    AppGatewayResponderImplementation responder;
+    TestAppGatewayResponderImplementation responder;
     ResponderNotificationStub notification;
 
     EXPECT_EQ(Core::ERROR_GENERAL, responder.Unregister(&notification));
@@ -517,7 +535,7 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_UnregisterUnknown_R
 
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DuplicateRegisterSingleUnregister)
 {
-    AppGatewayResponderImplementation responder;
+    TestAppGatewayResponderImplementation responder;
     ResponderNotificationStub notification;
 
     EXPECT_EQ(Core::ERROR_NONE, responder.Register(&notification));
@@ -528,7 +546,7 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DuplicateRegisterSi
 
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_OnConnectionStatusChanged_NotifiesRegisteredClients)
 {
-    AppGatewayResponderImplementation responder;
+    TestAppGatewayResponderImplementation responder;
     CapturingResponderNotification notification;
 
     ASSERT_EQ(Core::ERROR_NONE, responder.Register(&notification));
