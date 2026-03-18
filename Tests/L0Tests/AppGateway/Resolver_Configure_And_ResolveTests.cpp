@@ -1,0 +1,463 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <fstream>
+#include <cstdlib>
+#include <cerrno>
+#include <thread>
+#include <chrono>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include <core/core.h>
+#include <com/IIteratorType.h>
+
+#include <AppGatewayImplementation.h>
+#include <Resolver.h>
+#include <AppGateway.h>
+#include <plugins/IDispatcher.h>
+#include "ServiceMock.h"
+
+using AppGatewayPlugin = WPEFramework::Plugin::AppGateway;
+using WPEFramework::PluginHost::IPlugin;
+using WPEFramework::Core::ERROR_BAD_REQUEST;
+using WPEFramework::Core::ERROR_NONE;
+
+namespace {
+
+struct TestResult {
+    uint32_t failures { 0 };
+};
+
+static void ExpectTrue(TestResult& tr, const bool condition, const std::string& what) {
+    if (!condition) {
+        tr.failures++;
+        std::cerr << "FAIL: " << what << std::endl;
+    }
+}
+static void ExpectEqU32(TestResult& tr, const uint32_t actual, const uint32_t expected, const std::string& what) {
+    if (actual != expected) {
+        tr.failures++;
+        std::cerr << "FAIL: " << what << " expected=" << expected << " actual=" << actual << std::endl;
+    }
+}
+static void ExpectNotEmpty(TestResult& tr, const std::string& s, const std::string& what) {
+    if (s.empty()) {
+        tr.failures++;
+        std::cerr << "FAIL: " << what << " should be non-empty" << std::endl;
+    }
+}
+
+// Lightweight IStringIterator implementation for Configure(paths)
+class SimpleStringIterator : public WPEFramework::Exchange::IAppGatewayResolver::IStringIterator {
+public:
+    explicit SimpleStringIterator(const std::vector<string>& items)
+        : _items(items), _index(0), _refCount(1) {}
+    ~SimpleStringIterator() override = default;
+
+    void AddRef() const override {
+        ++_refCount;
+    }
+    uint32_t Release() const override {
+        const uint32_t n = --_refCount;
+        if (n == 0) {
+            delete this;
+            return WPEFramework::Core::ERROR_DESTRUCTION_SUCCEEDED;
+        }
+        return WPEFramework::Core::ERROR_NONE;
+    }
+    void* QueryInterface(const uint32_t id) override {
+        if (id == WPEFramework::Exchange::IAppGatewayResolver::IStringIterator::ID) {
+            const_cast<SimpleStringIterator*>(this)->AddRef();
+            return static_cast<WPEFramework::Exchange::IAppGatewayResolver::IStringIterator*>(this);
+        }
+        return nullptr;
+    }
+
+    bool Next(string& out) override {
+        if (_index < _items.size()) {
+            out = _items[_index++];
+            return true;
+        }
+        return false;
+    }
+    bool Previous(string& out) override {
+        if (_index == 0) {
+            return false;
+        }
+        --_index;
+        out = _items[_index];
+        return true;
+    }
+    void Reset(const uint32_t position) override {
+        if (position == 0) {
+            _index = 0;
+        } else if (position > _items.size()) {
+            _index = static_cast<uint32_t>(_items.size());
+        } else {
+            _index = position;
+        }
+    }
+    bool IsValid() const override {
+        return (_index > 0) && (_index <= _items.size());
+    }
+    uint32_t Count() const override {
+        return static_cast<uint32_t>(_items.size());
+    }
+    string Current() const override {
+        if (!IsValid()) {
+            return string();
+        }
+        return _items[_index - 1];
+    }
+
+private:
+    std::vector<string> _items;
+    uint32_t _index;
+    mutable std::atomic<uint32_t> _refCount;
+};
+
+static bool EnsureDir(const std::string& path) {
+    struct stat st;
+    if (stat(path.c_str(), &st) == 0) {
+        return S_ISDIR(st.st_mode);
+    }
+    // Try to create
+    if (mkdir(path.c_str(), 0777) == 0) {
+        return true;
+    }
+    // If parent missing, create parent then retry (simple "mkdir -p" behavior for one level)
+    // Find last slash
+    const auto pos = path.find_last_of('/');
+    if (pos != std::string::npos) {
+        const std::string parent = path.substr(0, pos);
+        if (!parent.empty() && EnsureDir(parent)) {
+            return (mkdir(path.c_str(), 0777) == 0) || (errno == EEXIST);
+        }
+    }
+    return (errno == EEXIST);
+}
+
+static bool WriteTextFile(const std::string& path, const std::string& content) {
+    const auto slashPos = path.find_last_of('/');
+    if (slashPos != std::string::npos) {
+        const std::string dir = path.substr(0, slashPos);
+        if (!EnsureDir(dir)) {
+            std::cerr << "ERROR: Unable to create directory for " << path << std::endl;
+            return false;
+        }
+    }
+    std::ofstream ofs(path, std::ios::out | std::ios::trunc);
+    if (!ofs.is_open()) {
+        std::cerr << "ERROR: Unable to open file for write: " << path << std::endl;
+        return false;
+    }
+    ofs << content;
+    return true;
+}
+
+static std::string ComputeBaseResolutionsPathFromThisFile() {
+    // Prefer env var if provided. It may point to either file or directory.
+    const char* env = std::getenv("APPGATEWAY_RESOLUTIONS_PATH");
+    if (env != nullptr && *env != '\0') {
+        struct stat st;
+        if (stat(env, &st) == 0) {
+            if (S_ISREG(st.st_mode)) {
+                return std::string(env);
+            }
+            if (S_ISDIR(st.st_mode)) {
+                return std::string(env) + "/resolution.base.json";
+            }
+        }
+    }
+
+    // This repository’s authoritative base file lives under:
+    //   <repo-root>/AppGateway/resolutions/resolution.base.json
+    //
+    // Compute <repo-root> from this test file path:
+    //   <repo-root>/Tests/L0Tests/AppGateway/Resolver_Configure_And_ResolveTests.cpp
+    const std::string f = __FILE__;
+    const std::string marker = "/Tests/L0Tests/AppGateway/";
+    const auto pos = f.rfind(marker);
+    if (pos != std::string::npos) {
+        const std::string repoRoot = f.substr(0, pos);
+        return repoRoot + "/AppGateway/resolutions/resolution.base.json";
+    }
+
+    // Last resort: relative path (works when executing from repo root).
+    return "AppGateway/resolutions/resolution.base.json";
+}
+
+// Build a minimal context for direct Resolve() calls
+static WPEFramework::Exchange::GatewayContext MakeContext() {
+    WPEFramework::Exchange::GatewayContext ctx;
+    ctx.requestId = 1234;
+    ctx.connectionId = 42;
+    ctx.appId = "com.example.test";
+    return ctx;
+}
+
+struct PluginAndService {
+    L0Test::ServiceMock* service { nullptr };
+    WPEFramework::PluginHost::IPlugin* plugin { nullptr };
+
+    explicit PluginAndService(const L0Test::ServiceMock::Config& cfg = L0Test::ServiceMock::Config())
+        : service(new L0Test::ServiceMock(cfg))
+        , plugin(WPEFramework::Core::Service<AppGatewayPlugin>::Create<IPlugin>()) {
+    }
+    ~PluginAndService() {
+        if (plugin != nullptr) { plugin->Release(); plugin = nullptr; }
+        if (service != nullptr) { service->Release(); service = nullptr; }
+    }
+};
+
+static void DrainAsyncRespondJobs() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+}
+
+} // namespace
+
+// PUBLIC_INTERFACE
+uint32_t Test_Resolver_Configure_WithBaseOnly_LoadsOK() {
+    /** Configure resolver (mock) with base-only path and resolve a known method. Expect success. */
+    TestResult tr;
+
+    PluginAndService ps;
+
+    // Initialize plugin (registers JSON-RPC resolve and instantiates mock resolver)
+    const std::string initResult = ps.plugin->Initialize(ps.service);
+    ExpectTrue(tr, initResult.empty(), "Initialize() returns empty string on success");
+
+    // Obtain the resolver interface directly and call Configure(paths)
+    auto* resolver = static_cast<WPEFramework::Exchange::IAppGatewayResolver*>(
+        ps.plugin->QueryInterface(WPEFramework::Exchange::IAppGatewayResolver::ID));
+
+    ExpectTrue(tr, resolver != nullptr, "IAppGatewayResolver available via QueryInterface(ID)");
+    if (resolver != nullptr) {
+        std::vector<string> paths;
+        paths.emplace_back(ComputeBaseResolutionsPathFromThisFile());
+        SimpleStringIterator* it = new SimpleStringIterator(paths);
+        const uint32_t cfgRc = resolver->Configure(it);
+        it->Release();
+
+        ExpectEqU32(tr, cfgRc, ERROR_NONE, "Configure(base-only) returns ERROR_NONE");
+
+        // Resolve a known method from the base file; mock resolver returns success for general methods
+        std::string result;
+        const auto ctx = MakeContext();
+        const uint32_t rc = resolver->Resolve(ctx, "org.rdk.AppGateway", "device.name", "{}", result);
+        ExpectTrue(tr, (rc == ERROR_NONE) || (rc == WPEFramework::Core::ERROR_GENERAL),
+                   "Resolve known method returns ERROR_NONE/ERROR_GENERAL depending on request-handler availability");
+        resolver->Release();
+    }
+
+    DrainAsyncRespondJobs();
+    ps.plugin->Deinitialize(ps.service);
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
+uint32_t Test_Resolver_Configure_WithOverride_TakesPrecedence() {
+    /** Load base resolutions, then override with a test overlay; the override alias should win (last-wins). */
+    TestResult tr;
+
+    // Use the internal Resolver directly to validate overlay precedence.
+    WPEFramework::Plugin::Resolver resolver(nullptr);
+
+    const std::string basePath = ComputeBaseResolutionsPathFromThisFile();
+    bool ok = resolver.LoadConfig(basePath);
+    ExpectTrue(tr, ok, "LoadConfig(base) succeeds");
+
+    // Create a small override for device.name to point to a different alias
+    const std::string overrideDir = "l0test/config";
+    const std::string overridePath = overrideDir + std::string("/test.resolutions.override.json");
+    const std::string overrideContent = R"JSON(
+{
+  "resolutions": {
+    "device.name": { "alias": "org.rdk.OverridePlugin.getName", "useComRpc": false }
+  }
+}
+)JSON";
+    ExpectTrue(tr, EnsureDir(overrideDir), "Ensure l0test/config path exists");
+    ExpectTrue(tr, WriteTextFile(overridePath, overrideContent), "Write override JSON");
+
+    ok = resolver.LoadConfig(overridePath);
+    ExpectTrue(tr, ok, "LoadConfig(override) succeeds");
+
+    const std::string resolvedAlias = resolver.ResolveAlias("device.name");
+    ExpectTrue(tr, resolvedAlias == "org.rdk.OverridePlugin.getName",
+               "Override precedence: alias for device.name is org.rdk.OverridePlugin.getName");
+
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
+uint32_t Test_Resolver_Resolve_UnknownMethod_ReturnsNotFound() {
+    /** Use real AppGatewayImplementation to configure with base, then resolve an unknown method.
+     * Implementation returns a non-OK error (mapped as NotSupported/General) and payload may be empty or an error object.
+     */
+    TestResult tr;
+
+    // Per-test isolation: new AppGatewayImplementation instance each time.
+    WPEFramework::Exchange::IAppGatewayResolver* impl =
+        WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ExpectTrue(tr, impl != nullptr, "Create AppGatewayImplementation instance");
+    if (impl == nullptr) {
+        return tr.failures;
+    }
+
+    // Heap ServiceMock: AppGatewayImplementation can queue async jobs.
+    auto* service = new L0Test::ServiceMock(L0Test::ServiceMock::Config(), true);
+
+    // Guard: IConfiguration::Configure(&shell) must succeed before continuing.
+    bool preconditionsOk = true;
+    auto configIfc = static_cast<WPEFramework::Exchange::IConfiguration*>(impl->QueryInterface(WPEFramework::Exchange::IConfiguration::ID));
+    if (configIfc != nullptr) {
+        const uint32_t shellRc = configIfc->Configure(service);
+        configIfc->Release();
+        ExpectEqU32(tr, shellRc, ERROR_NONE, "IConfiguration::Configure(&shell) returns ERROR_NONE");
+        preconditionsOk = (shellRc == ERROR_NONE);
+    } else {
+        tr.failures++;
+        std::cerr << "FAIL: IConfiguration interface not available on AppGatewayImplementation" << std::endl;
+        preconditionsOk = false;
+    }
+
+    if (preconditionsOk) {
+        // Guard: Configure(paths) must succeed before Resolve().
+        std::vector<string> paths{ ComputeBaseResolutionsPathFromThisFile() };
+        SimpleStringIterator* it = new SimpleStringIterator(paths);
+        const uint32_t cfgRc = impl->Configure(it);
+        it->Release();
+        ExpectEqU32(tr, cfgRc, ERROR_NONE, "Explicit Configure(base) returns ERROR_NONE");
+        preconditionsOk = (cfgRc == ERROR_NONE);
+    }
+
+    if (preconditionsOk) {
+        // Resolve a method that is not present to trigger NotSupported/General error
+        std::string result;
+        const auto ctx = MakeContext();
+        const uint32_t rc = impl->Resolve(ctx, "org.rdk.AppGateway", "no.such.method", "{}", result);
+
+        // Accept any non-OK (implementation-specific mapping).
+        if (rc == ERROR_NONE) {
+            tr.failures++;
+            std::cerr << "FAIL: Unknown method returned ERROR_NONE unexpectedly" << std::endl;
+        }
+    } else {
+        std::cerr << "NOTE: Skipping Resolve() because preconditions (Configure(&shell) / Configure(paths)) failed." << std::endl;
+    }
+
+    DrainAsyncRespondJobs();
+    impl->Release();
+    service->Release();
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
+uint32_t Test_Resolver_Resolve_MalformedParams_ReturnsBadRequest() {
+    /** Call an event method with malformed params; expect ERROR_BAD_REQUEST from AppGatewayImplementation. */
+    TestResult tr;
+
+    WPEFramework::Exchange::IAppGatewayResolver* impl =
+        WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ExpectTrue(tr, impl != nullptr, "Create AppGatewayImplementation instance");
+    if (impl == nullptr) {
+        return tr.failures;
+    }
+
+    auto* service = new L0Test::ServiceMock(L0Test::ServiceMock::Config(), true);
+
+    bool preconditionsOk = true;
+    auto configIfc = static_cast<WPEFramework::Exchange::IConfiguration*>(impl->QueryInterface(WPEFramework::Exchange::IConfiguration::ID));
+    if (configIfc != nullptr) {
+        const uint32_t shellRc = configIfc->Configure(service);
+        configIfc->Release();
+        ExpectEqU32(tr, shellRc, ERROR_NONE, "IConfiguration::Configure(&shell) returns ERROR_NONE");
+        preconditionsOk = (shellRc == ERROR_NONE);
+    } else {
+        tr.failures++;
+        std::cerr << "FAIL: IConfiguration interface not available on AppGatewayImplementation" << std::endl;
+        preconditionsOk = false;
+    }
+
+    if (preconditionsOk) {
+        // Configure with base so HasEvent() mapping for localization.onLanguageChanged is present
+        std::vector<string> paths{ ComputeBaseResolutionsPathFromThisFile() };
+        SimpleStringIterator* it = new SimpleStringIterator(paths);
+        const uint32_t cfgRc = impl->Configure(it);
+        it->Release();
+        ExpectEqU32(tr, cfgRc, ERROR_NONE, "Explicit Configure(base) returns ERROR_NONE");
+        preconditionsOk = (cfgRc == ERROR_NONE);
+    }
+
+    if (preconditionsOk) {
+        // Use an event method (from base config) and pass malformed params string
+        std::string result;
+        const auto ctx = MakeContext();
+        const uint32_t rc = impl->Resolve(ctx, "org.rdk.AppGateway", "localization.onLanguageChanged", "{ this is not valid json }", result);
+
+        ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "Malformed params => ERROR_BAD_REQUEST");
+    } else {
+        std::cerr << "NOTE: Skipping Resolve() because preconditions (Configure(&shell) / Configure(paths)) failed." << std::endl;
+    }
+
+    DrainAsyncRespondJobs();
+    impl->Release();
+    service->Release();
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
+uint32_t Test_Resolver_Configure_InvalidJson_ReturnsError() {
+    /** Provide an invalid JSON path to Configure(paths) and assert it fails (non-OK). */
+    TestResult tr;
+
+    WPEFramework::Exchange::IAppGatewayResolver* impl =
+        WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ExpectTrue(tr, impl != nullptr, "Create AppGatewayImplementation instance");
+    if (impl == nullptr) {
+        return tr.failures;
+    }
+
+    // Heap shell for lifetime safety.
+    auto* service = new L0Test::ServiceMock(L0Test::ServiceMock::Config(), true);
+
+    bool preconditionsOk = true;
+    auto configIfc = static_cast<WPEFramework::Exchange::IConfiguration*>(impl->QueryInterface(WPEFramework::Exchange::IConfiguration::ID));
+    if (configIfc != nullptr) {
+        const uint32_t shellRc = configIfc->Configure(service);
+        configIfc->Release();
+        ExpectEqU32(tr, shellRc, ERROR_NONE, "IConfiguration::Configure(&shell) returns ERROR_NONE");
+        preconditionsOk = (shellRc == ERROR_NONE);
+    } else {
+        tr.failures++;
+        std::cerr << "FAIL: IConfiguration interface not available on AppGatewayImplementation" << std::endl;
+        preconditionsOk = false;
+    }
+
+    const std::string dir = "l0test/config";
+    const std::string invalidPath = dir + std::string("/invalid.resolutions.json");
+    ExpectTrue(tr, EnsureDir(dir), "Ensure l0test/config path exists");
+    // Write invalid JSON
+    ExpectTrue(tr, WriteTextFile(invalidPath, "{ invalid json"), "Write invalid JSON config");
+
+    if (preconditionsOk) {
+        std::vector<string> paths{ invalidPath };
+        SimpleStringIterator* it = new SimpleStringIterator(paths);
+        const uint32_t cfgRc = impl->Configure(it);
+        it->Release();
+
+        if (cfgRc == ERROR_NONE) {
+            tr.failures++;
+            std::cerr << "FAIL: Configure(invalid json) unexpectedly returned ERROR_NONE" << std::endl;
+        }
+    } else {
+        std::cerr << "NOTE: Skipping Configure(invalid json) because Configure(&shell) failed." << std::endl;
+    }
+
+    DrainAsyncRespondJobs();
+    impl->Release();
+    service->Release();
+    return tr.failures;
+}
