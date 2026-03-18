@@ -26,18 +26,18 @@ This directory contains detailed sequence diagrams for all App Gateway telemetry
 2. **Health Stats Reporting**
    - Continuous tracking of WebSocket connections and API calls
    - Periodic reporting as individual metrics (default: every hour)
-   - Metrics: `AppGwWebSocketConnections_split`, `AppGwTotalCalls_split`, `AppGwSuccessfulCalls_split`, `AppGwFailedCalls_split`
+   - Metrics: `ENTS_INFO_AppGwWebSocketConnections_split`, `ENTS_INFO_AppGwTotalCalls`, `ENTS_INFO_AppGwSuccessfulCalls`, `ENTS_INFO_AppGwFailedCalls`
    - Data Type: METRIC (for statistical aggregation)
 
 3. **API Error Reporting**
    - Plugins report API failures via COM-RPC
-   - Optional immediate events with plugin name in payload: `AppGwPluginApiError_split`
+   - Optional immediate events with plugin name in payload: `ENTS_ERROR_AppGwPluginApiError`
    - Periodic error count metrics per API: `AppGwApiErrorCount_<ApiName>_split`
    - Data Type: EVENT (immediate, optional) + METRIC (periodic, required)
 
 4. **External Service Error Reporting**
    - Plugins report external service (gRPC, COM-RPC) failures
-   - Optional immediate events: `AppGwPluginExtServiceError_split`
+   - Optional immediate events: `ENTS_ERROR_AppGwPlugExtnSrvErr`
    - Periodic error count metrics per service: `AppGwExtServiceErrorCount_<ServiceName>_split`
    - Data Type: EVENT (immediate, optional) + METRIC (periodic, required)
 
@@ -67,7 +67,7 @@ The telemetry system uses a hybrid approach:
 
 **Events (Optional - for forensics):**
 - Generic category-based markers for immediate error reporting
-- Single marker per category (e.g., `AppGwPluginApiError_split`)
+- Single marker per category (e.g., `ENTS_ERROR_AppGwPluginApiError`)
 - Plugin name included in payload data
 - Enables detailed debugging of WHAT went wrong
 

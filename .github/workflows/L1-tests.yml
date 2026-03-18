@@ -678,7 +678,13 @@ jobs:
           # Capture coverage from the build directory.
           # With GCOV_PREFIX disabled, *.gcda and *.gcno paths match, preventing lcov/genhtml
           # "notes file" and "stamp mismatch" errors.
-          lcov -c -o coverage.info -d "${build_dir}" || true
+          # GCC 13/geninfo can emit occasional end-line mismatch metadata for gtest TU symbols.
+          # Keep report generation best-effort by tolerating mismatch while still producing output.
+          lcov -c \
+            --rc geninfo_unexecuted_blocks=1 \
+            --ignore-errors mismatch \
+            -o coverage.info \
+            -d "${build_dir}" || true
 
           if [ ! -s coverage.info ]; then
             echo "coverage.info missing/empty; skipping filtering + HTML generation"
