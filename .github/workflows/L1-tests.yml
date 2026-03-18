@@ -21,6 +21,9 @@ on:
       RDKCM_RDKE:
         required: true
 
+permissions:
+  contents: read
+
 env:
   BUILD_TYPE: Debug
   THUNDER_REF: "R4.4.1"
