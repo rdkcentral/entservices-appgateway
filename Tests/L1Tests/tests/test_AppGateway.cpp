@@ -1152,8 +1152,8 @@ TEST(AppGatewayPluginTest, Telemetry_SendT2Event_StringPayload_HandlesJsonAndRaw
     const auto ctx = MakeTelemetryContext(88, 8899, "test.app");
 
     EXPECT_NO_THROW({
-        telemetry.SendT2Event("ENTS_INFO_AppGwCustom", R"({"key":"value"})", ctx);
-        telemetry.SendT2Event("ENTS_INFO_AppGwCustom", "raw_payload", ctx);
+        telemetry.SendT2Event("ENTS_INFO_AppGwCustom", std::string(R"({"key":"value"})"), ctx);
+        telemetry.SendT2Event("ENTS_INFO_AppGwCustom", std::string("raw_payload"), ctx);
     });
 }
 
