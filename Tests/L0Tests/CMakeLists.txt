@@ -164,3 +164,118 @@ else()
         VERBATIM
     )
 endif()
+
+# ===========================================================================
+# AppNotifications L0 Test Target
+# ===========================================================================
+
+option(APPNOTIF_ENABLE_COVERAGE "Enable coverage flags for appnotifications_l0test" ON)
+
+find_package(CURL QUIET)
+
+set(APPNOTIF_L0_SOURCES
+    ${CMAKE_SOURCE_DIR}/../../AppNotifications/Module.cpp
+    ${CMAKE_SOURCE_DIR}/../../AppNotifications/AppNotifications.cpp
+    ${CMAKE_SOURCE_DIR}/../../AppNotifications/AppNotificationsImplementation.cpp
+    AppNotifications/AppNotificationsTest.cpp
+    AppNotifications/AppNotifications_Init_DeinitTests.cpp
+    AppNotifications/AppNotifications_SubscribeTests.cpp
+    AppNotifications/AppNotifications_EmitTests.cpp
+    AppNotifications/AppNotifications_SubscriberMapTests.cpp
+    AppNotifications/AppNotifications_ThunderManagerTests.cpp
+    AppNotifications/AppNotifications_ContextEqualityTests.cpp
+    AppNotifications/AppNotifications_BoundaryTests.cpp
+    common/L0Bootstrap.cpp
+)
+
+add_executable(appnotifications_l0test ${APPNOTIF_L0_SOURCES})
+
+target_compile_definitions(appnotifications_l0test PRIVATE
+    MODULE_NAME=AppNotifications_L0Test
+    DISABLE_SECURITY_TOKEN
+    APPNOTIFICATIONS_MAJOR_VERSION=1
+    APPNOTIFICATIONS_MINOR_VERSION=0
+    APPNOTIFICATIONS_PATCH_VERSION=0
+)
+
+if(APPNOTIF_ENABLE_COVERAGE)
+    target_compile_options(appnotifications_l0test PRIVATE -O0 -g --coverage)
+    target_link_options(appnotifications_l0test PRIVATE --coverage)
+endif()
+
+if(APPGW_TEST_ENABLE_WARNINGS)
+    target_compile_options(appnotifications_l0test PRIVATE -Wall -Wextra -Wno-unused-parameter)
+endif()
+
+target_include_directories(appnotifications_l0test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/AppNotifications
+    ${CMAKE_CURRENT_SOURCE_DIR}/common
+    ${CMAKE_SOURCE_DIR}/../..
+    ${CMAKE_SOURCE_DIR}/../../AppNotifications
+    ${CMAKE_SOURCE_DIR}/../../helpers
+    ${PREFIX}/include
+    ${PREFIX}/include/WPEFramework
+)
+
+if(CMAKE_PREFIX_PATH)
+    foreach(_prefix IN LISTS CMAKE_PREFIX_PATH)
+        if(EXISTS "${_prefix}/include")
+            target_include_directories(appnotifications_l0test PRIVATE "${_prefix}/include")
+        endif()
+        if(EXISTS "${_prefix}/include/WPEFramework")
+            target_include_directories(appnotifications_l0test PRIVATE "${_prefix}/include/WPEFramework")
+        endif()
+    endforeach()
+endif()
+
+if(EXISTS "${PREFIX}/lib")
+    target_link_directories(appnotifications_l0test PRIVATE "${PREFIX}/lib")
+endif()
+if(EXISTS "${PREFIX}/lib/wpeframework/plugins")
+    target_link_directories(appnotifications_l0test PRIVATE "${PREFIX}/lib/wpeframework/plugins")
+endif()
+if(EXISTS "${PREFIX}/lib/plugins")
+    target_link_directories(appnotifications_l0test PRIVATE "${PREFIX}/lib/plugins")
+endif()
+
+# Link Thunder libraries (reuse the find_library results from above)
+if(WPEFRAMEWORK_CORE_LIB)
+    target_link_libraries(appnotifications_l0test PRIVATE ${WPEFRAMEWORK_CORE_LIB})
+endif()
+if(WPEFRAMEWORK_MESSAGING_LIB)
+    target_link_libraries(appnotifications_l0test PRIVATE ${WPEFRAMEWORK_MESSAGING_LIB})
+endif()
+if(WPEFRAMEWORK_PLUGINS_LIB)
+    target_link_libraries(appnotifications_l0test PRIVATE ${WPEFRAMEWORK_PLUGINS_LIB})
+endif()
+
+# Link curl (required by UtilsController.h included via AppNotificationsImplementation.h)
+if(CURL_FOUND)
+    target_link_libraries(appnotifications_l0test PRIVATE CURL::libcurl)
+else()
+    find_library(CURL_LIBRARY NAMES curl HINTS "${PREFIX}/lib" "/usr/lib" "/usr/local/lib")
+    if(CURL_LIBRARY)
+        target_link_libraries(appnotifications_l0test PRIVATE ${CURL_LIBRARY})
+    else()
+        message(WARNING "libcurl not found; appnotifications_l0test may fail to link")
+    endif()
+endif()
+
+target_link_libraries(appnotifications_l0test PRIVATE
+    Threads::Threads
+    m
+    dl
+)
+
+set_target_properties(appnotifications_l0test PROPERTIES
+    BUILD_RPATH "$ORIGIN;${PREFIX}/lib;${PREFIX}/lib/wpeframework;${PREFIX}/lib/wpeframework/plugins;${PREFIX}/lib/plugins"
+    INSTALL_RPATH "${PREFIX}/lib;${PREFIX}/lib/wpeframework;${PREFIX}/lib/wpeframework/plugins;${PREFIX}/lib/plugins"
+)
+
+add_custom_target(run_appnotifications
+    DEPENDS appnotifications_l0test
+    COMMAND $<TARGET_FILE:appnotifications_l0test>
+    COMMENT "Running appnotifications_l0test"
+    VERBATIM
+)
