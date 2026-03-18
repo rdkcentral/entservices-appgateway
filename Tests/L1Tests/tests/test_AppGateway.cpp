@@ -665,6 +665,48 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_PreProcessEvent_InvalidParam
         EXPECT_NE(std::string::npos, resolution.find("Event methods require parameters"));
 }
 
+TEST(AppGatewayPluginTest, AppGatewayImplementation_PreProcessEvent_ListenTrueWithMissingNotifications_ReturnsGeneral)
+{
+    TestAppGatewayImplementation impl;
+    NiceMock<ServiceMock> service;
+    const auto ctx = MakeImplementationContext();
+    std::string resolution;
+
+    impl.mService = &service;
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              impl.PreProcessEvent(ctx,
+                                   "org.rdk.DeviceInfo.name",
+                                   "device.event",
+                                   "org.rdk.AppGateway",
+                                   R"({"listen":true})",
+                                   resolution));
+    EXPECT_NE(std::string::npos, resolution.find("\"listening\":true"));
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_ProcessComRpcRequest_MissingHandlerReturnsGeneral)
+{
+    TestAppGatewayImplementation impl;
+    NiceMock<ServiceMock> service;
+    const auto ctx = MakeImplementationContext();
+    std::string resolution;
+
+    impl.mService = &service;
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              impl.ProcessComRpcRequest(ctx,
+                                        "org.rdk.DeviceInfo.name",
+                                        "device.name",
+                                        "{}",
+                                        "org.rdk.AppGateway",
+                                        resolution));
+    EXPECT_FALSE(resolution.empty());
+}
+
 TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_HandlesResolverGuardPaths)
 {
         TestAppGatewayImplementation impl;
@@ -773,6 +815,63 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_GetGatewayConnectio
 
     EXPECT_EQ(Core::ERROR_NONE,
               responder.GetGatewayConnectionContext(22, "any", value));
+}
+
+TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_RespondEmitAndRequest_ReturnNone)
+{
+    TestAppGatewayResponderImplementation responder;
+    const auto ctx = MakeTelemetryContext(9, 1001, "test.app");
+
+    EXPECT_EQ(Core::ERROR_NONE, responder.Respond(ctx, R"({"ok":true})"));
+    EXPECT_EQ(Core::ERROR_NONE, responder.Emit(ctx, "device.event", R"({"v":1})"));
+    EXPECT_EQ(Core::ERROR_NONE, responder.Request(1001, 77, "method.name", "{}"));
+}
+
+TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_Emit_CompliantAndNonCompliantBothReturnNone)
+{
+    TestAppGatewayResponderImplementation responder;
+    const auto compliantFlag = AppGatewayResponderImplementation::CompliantJsonRpcRegistry::kCompliantJsonRpcFeatureFlag;
+
+    responder.mCompliantJsonRpcRegistry.CheckAndAddCompliantJsonRpc(55, compliantFlag);
+
+    Exchange::GatewayContext compliantCtx { 1, 55, "test.app", "1.0.0" };
+    Exchange::GatewayContext regularCtx { 2, 56, "test.app", "1.0.0" };
+
+    EXPECT_EQ(Core::ERROR_NONE, responder.Emit(compliantCtx, "event.one", "{}"));
+    EXPECT_EQ(Core::ERROR_NONE, responder.Emit(regularCtx, "event.two", "{}"));
+}
+
+TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DispatchWsMsg_WithoutAppId_IncrementsFailed)
+{
+    TestAppGatewayResponderImplementation responder;
+    AppGatewayTelemetry& telemetry = AppGatewayTelemetry::getInstance();
+    telemetry.ResetHealthStats();
+
+    responder.DispatchWsMsg("method.name", "{}", 901, 5001);
+
+    EXPECT_EQ(1u, telemetry.mHealthStats.totalCalls.load(std::memory_order_relaxed));
+    EXPECT_EQ(1u, telemetry.mHealthStats.failedCalls.load(std::memory_order_relaxed));
+}
+
+TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DispatchWsMsg_WithAppIdAndNoResolver_TracksApiError)
+{
+    TestAppGatewayResponderImplementation responder;
+    NiceMock<ServiceMock> service;
+    AppGatewayTelemetry& telemetry = AppGatewayTelemetry::getInstance();
+    telemetry.ResetHealthStats();
+    telemetry.ResetApiErrorStats();
+
+    responder.mService = &service;
+    responder.mAppIdRegistry.Add(6002, "test.app");
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterface(_)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    responder.DispatchWsMsg("method.fail", "{}", 902, 6002);
+
+    EXPECT_EQ(1u, telemetry.mHealthStats.totalCalls.load(std::memory_order_relaxed));
+    EXPECT_EQ(1u, telemetry.mHealthStats.failedCalls.load(std::memory_order_relaxed));
+    EXPECT_EQ(1u, telemetry.mApiErrorCounts["method.fail"]);
 }
 
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_UnregisterUnknown_ReturnsGeneral)
@@ -989,4 +1088,89 @@ TEST(AppGatewayPluginTest, Telemetry_RecordTelemetryEvent_ReturnsUnavailableWhen
     telemetry.mInitialized = false;
     EXPECT_EQ(Core::ERROR_UNAVAILABLE,
               telemetry.RecordTelemetryEvent(ctx, "AnyEvent", "{}"));
+}
+
+TEST(AppGatewayPluginTest, Telemetry_FlushTelemetryData_ClearsCachesAndResetsCounters)
+{
+    TestAppGatewayTelemetry telemetry;
+    telemetry.mInitialized = true;
+    telemetry.SetTelemetryFormat(TelemetryFormat::JSON);
+    telemetry.SetCacheThreshold(5000);
+
+    const auto ctx = MakeTelemetryContext(51, 701, "test.app");
+    telemetry.IncrementWebSocketConnections(ctx);
+    telemetry.IncrementTotalCalls(ctx);
+    telemetry.RecordResponse(ctx, true);
+    telemetry.RecordApiError(ctx, "Device.name");
+    telemetry.RecordExternalServiceErrorInternal(ctx, "AuthService");
+    telemetry.RecordApiMethodMetric(ctx, "Badger", "getData", 12.0, false);
+    telemetry.RecordServiceMethodMetric(ctx, "OttServices", "ThorService", 13.0, true);
+    telemetry.RecordApiLatencyMetric(ctx, "Badger", "getData", 4.0);
+    telemetry.RecordServiceLatencyMetric(ctx, "OttServices", "ThorService", 5.0);
+    telemetry.RecordGenericMetric(ctx, "CustomMetric", 9.0, AGW_UNIT_COUNT);
+
+    telemetry.FlushTelemetryData();
+
+    EXPECT_TRUE(telemetry.mApiErrorCounts.empty());
+    EXPECT_TRUE(telemetry.mExternalServiceErrorCounts.empty());
+    EXPECT_TRUE(telemetry.mApiMethodStats.empty());
+    EXPECT_TRUE(telemetry.mServiceMethodStats.empty());
+    EXPECT_TRUE(telemetry.mApiLatencyStats.empty());
+    EXPECT_TRUE(telemetry.mServiceLatencyStats.empty());
+    EXPECT_TRUE(telemetry.mMetricsCache.empty());
+    EXPECT_EQ(0u, telemetry.mHealthStats.totalCalls.load(std::memory_order_relaxed));
+    EXPECT_EQ(0u, telemetry.mHealthStats.totalResponses.load(std::memory_order_relaxed));
+    EXPECT_EQ(0u, telemetry.mHealthStats.successfulCalls.load(std::memory_order_relaxed));
+    EXPECT_EQ(0u, telemetry.mHealthStats.failedCalls.load(std::memory_order_relaxed));
+}
+
+TEST(AppGatewayPluginTest, Telemetry_FormatTelemetryPayload_CompactSupportsNestedArrayObjects)
+{
+    TestAppGatewayTelemetry telemetry;
+    telemetry.SetTelemetryFormat(TelemetryFormat::COMPACT);
+
+    JsonArray failures;
+    JsonObject first;
+    first["api"] = "GetData";
+    first["count"] = 5;
+    failures.Add(first);
+
+    JsonObject payload;
+    payload["interval"] = 3600;
+    payload["failures"] = failures;
+
+    const std::string out = telemetry.FormatTelemetryPayload(payload);
+    EXPECT_NE(std::string::npos, out.find("3600"));
+    EXPECT_NE(std::string::npos, out.find("(GetData,5)"));
+}
+
+TEST(AppGatewayPluginTest, Telemetry_SendT2Event_StringPayload_HandlesJsonAndRawData)
+{
+    TestAppGatewayTelemetry telemetry;
+    telemetry.SetTelemetryFormat(TelemetryFormat::JSON);
+
+    const auto ctx = MakeTelemetryContext(88, 8899, "test.app");
+
+    EXPECT_NO_THROW({
+        telemetry.SendT2Event("ENTS_INFO_AppGwCustom", R"({"key":"value"})", ctx);
+        telemetry.SendT2Event("ENTS_INFO_AppGwCustom", "raw_payload", ctx);
+    });
+}
+
+TEST(AppGatewayPluginTest, Telemetry_SendHealthStats_NoDataAndWithData_NoCrash)
+{
+    TestAppGatewayTelemetry telemetry;
+    telemetry.ResetHealthStats();
+
+    EXPECT_NO_THROW({
+        telemetry.SendHealthStats();
+    });
+
+    const auto ctx = MakeTelemetryContext(70, 1700, "test.app");
+    telemetry.IncrementWebSocketConnections(ctx);
+    telemetry.IncrementTotalCalls(ctx);
+
+    EXPECT_NO_THROW({
+        telemetry.SendHealthStats();
+    });
 }
