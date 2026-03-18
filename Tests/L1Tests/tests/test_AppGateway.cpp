@@ -749,14 +749,16 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DebugDisabledRegist
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_CompliantJsonRpcRegistry_CheckAddCleanup)
 {
     AppGatewayResponderImplementation::CompliantJsonRpcRegistry registry;
+    const std::string compliantFlag =
+        AppGatewayResponderImplementation::CompliantJsonRpcRegistry::kCompliantJsonRpcFeatureFlag;
 
-    registry.CheckAndAddCompliantJsonRpc(101, "RPCV2=true");
+    registry.CheckAndAddCompliantJsonRpc(101, compliantFlag);
     EXPECT_TRUE(registry.IsCompliantJsonRpc(101));
 
     registry.CleanupConnectionId(101);
     EXPECT_FALSE(registry.IsCompliantJsonRpc(101));
 
-    registry.CheckAndAddCompliantJsonRpc(102, "RPCV2=trueX");
+    registry.CheckAndAddCompliantJsonRpc(102, compliantFlag + "X");
     EXPECT_FALSE(registry.IsCompliantJsonRpc(102));
 
     registry.CheckAndAddCompliantJsonRpc(103, "session=abc&flag=1");
