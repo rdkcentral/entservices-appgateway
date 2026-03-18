@@ -672,6 +672,19 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_PreProcessEvent_ListenTrueWi
     const auto ctx = MakeImplementationContext();
     std::string resolution;
 
+        impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+        const std::string cfg = R"({
+            "resolutions": {
+                "device.event": {
+                    "alias": "org.rdk.DeviceInfo.name",
+                    "event": "device.event",
+                    "versionedEvent": false
+                }
+            }
+        })";
+        const std::string path = WriteResolverTempConfig("agw_impl_preprocess_event.json", cfg);
+        ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
     impl.mService = &service;
     EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
@@ -684,6 +697,8 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_PreProcessEvent_ListenTrueWi
                                    R"({"listen":true})",
                                    resolution));
     EXPECT_NE(std::string::npos, resolution.find("\"listening\":true"));
+
+    std::remove(path.c_str());
 }
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_ProcessComRpcRequest_MissingHandlerReturnsGeneral)
