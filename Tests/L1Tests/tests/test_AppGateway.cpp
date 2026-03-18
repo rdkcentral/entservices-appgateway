@@ -26,6 +26,7 @@
 #include <fstream>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #define private public
 #include "AppGateway.h"
@@ -532,6 +533,166 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_ResolveWithoutResolver_Retur
     GTEST_SKIP() << "Disabled due to intermittent segfault in Resolve() path under CI runtime; covered by higher-level plugin initialization tests.";
 }
 
+TEST(AppGatewayPluginTest, AppGatewayImplementation_InternalResolutionConfigure_ReturnsGeneralWhenAllPathsInvalid)
+{
+        TestAppGatewayImplementation impl;
+        impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+        std::vector<std::string> configPaths = {
+                "/tmp/agw_missing_config_1.json",
+                "/tmp/agw_missing_config_2.json"
+        };
+
+        EXPECT_EQ(Core::ERROR_GENERAL, impl.InternalResolutionConfigure(std::move(configPaths)));
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_InternalResolutionConfigure_LoadsWhenAnyPathIsValid)
+{
+        TestAppGatewayImplementation impl;
+        impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+        const std::string cfg = R"({
+            "resolutions": {
+                "device.name": {
+                    "alias": "org.rdk.DeviceInfo.name",
+                    "includeContext": true,
+                    "additionalContext": {"source":"agw"}
+                }
+            }
+        })";
+
+        const std::string path = WriteResolverTempConfig("agw_impl_config_valid.json", cfg);
+        std::vector<std::string> configPaths = {
+                "/tmp/agw_missing_config_3.json",
+                path
+        };
+
+        EXPECT_EQ(Core::ERROR_NONE, impl.InternalResolutionConfigure(std::move(configPaths)));
+        EXPECT_TRUE(impl.mResolverPtr->IsConfigured());
+        EXPECT_EQ("org.rdk.DeviceInfo.name", impl.mResolverPtr->ResolveAlias("device.name"));
+
+        std::remove(path.c_str());
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_UpdateContext_HandlesContextAndAdditionalContextModes)
+{
+        TestAppGatewayImplementation impl;
+        impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+        const std::string cfg = R"({
+            "resolutions": {
+                "device.name": {
+                    "alias": "org.rdk.DeviceInfo.name",
+                    "includeContext": true,
+                    "additionalContext": {"source":"agw"}
+                }
+            }
+        })";
+
+        const std::string path = WriteResolverTempConfig("agw_impl_update_context.json", cfg);
+        ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+        auto ctx = MakeImplementationContext();
+        ctx.version = "1.0.0";
+
+        const std::string withContext = impl.UpdateContext(ctx, "device.name", R"({"k":"v"})", "org.rdk.AppGateway", false);
+        EXPECT_NE(std::string::npos, withContext.find("\"context\""));
+        EXPECT_NE(std::string::npos, withContext.find("\"appId\":\"test.app\""));
+        EXPECT_NE(std::string::npos, withContext.find("\"connectionId\":2"));
+
+        const std::string withAdditional = impl.UpdateContext(ctx, "device.name", R"({"k":"v"})", "org.rdk.AppGateway", true);
+        EXPECT_NE(std::string::npos, withAdditional.find("\"_additionalContext\""));
+        EXPECT_NE(std::string::npos, withAdditional.find("\"source\":\"agw\""));
+        EXPECT_NE(std::string::npos, withAdditional.find("\"origin\":\"org.rdk.AppGateway\""));
+
+        std::remove(path.c_str());
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_UpdateContext_InvalidParamsStillIncludesContext)
+{
+        TestAppGatewayImplementation impl;
+        impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+        const std::string cfg = R"({
+            "resolutions": {
+                "device.name": {
+                    "alias": "org.rdk.DeviceInfo.name",
+                    "includeContext": true,
+                    "additionalContext": {"source":"agw"}
+                }
+            }
+        })";
+
+        const std::string path = WriteResolverTempConfig("agw_impl_update_context_bad_params.json", cfg);
+        ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+        const auto ctx = MakeImplementationContext();
+        const std::string updated = impl.UpdateContext(ctx, "device.name", "not_json", "org.rdk.AppGateway", false);
+        EXPECT_NE(std::string::npos, updated.find("\"context\""));
+
+        std::remove(path.c_str());
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_PreProcessEvent_MissingListenReturnsBadRequest)
+{
+        TestAppGatewayImplementation impl;
+        const auto ctx = MakeImplementationContext();
+        std::string resolution;
+
+        EXPECT_EQ(Core::ERROR_BAD_REQUEST,
+                            impl.PreProcessEvent(ctx,
+                                                                     "org.rdk.DeviceInfo.name",
+                                                                     "device.event",
+                                                                     "org.rdk.AppGateway",
+                                                                     "{}",
+                                                                     resolution));
+        EXPECT_NE(std::string::npos, resolution.find("Missing required boolean 'listen' parameter"));
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_PreProcessEvent_InvalidParamsReturnsBadRequest)
+{
+        TestAppGatewayImplementation impl;
+        const auto ctx = MakeImplementationContext();
+        std::string resolution;
+
+        EXPECT_EQ(Core::ERROR_BAD_REQUEST,
+                            impl.PreProcessEvent(ctx,
+                                                                     "org.rdk.DeviceInfo.name",
+                                                                     "device.event",
+                                                                     "org.rdk.AppGateway",
+                                                                     "not_json",
+                                                                     resolution));
+        EXPECT_NE(std::string::npos, resolution.find("Event methods require parameters"));
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_HandlesResolverGuardPaths)
+{
+        TestAppGatewayImplementation impl;
+        const auto ctx = MakeImplementationContext();
+        std::string resolution;
+
+        EXPECT_EQ(Core::ERROR_GENERAL,
+                            impl.FetchResolvedData(ctx, "device.name", "{}", "org.rdk.AppGateway", resolution));
+        EXPECT_NE(std::string::npos, resolution.find("Resolver not initialized"));
+
+        impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+        resolution.clear();
+        EXPECT_EQ(Core::ERROR_GENERAL,
+                            impl.FetchResolvedData(ctx, "device.name", "{}", "org.rdk.AppGateway", resolution));
+        EXPECT_NE(std::string::npos, resolution.find("Resolver not configured"));
+
+        const std::string cfg = R"({"resolutions":{"known.method":{"alias":"org.rdk.DeviceInfo.name"}}})";
+        const std::string path = WriteResolverTempConfig("agw_impl_fetch_resolve.json", cfg);
+        ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+        resolution.clear();
+        EXPECT_EQ(Core::ERROR_GENERAL,
+                            impl.FetchResolvedData(ctx, "unknown.method", "{}", "org.rdk.AppGateway", resolution));
+        EXPECT_NE(std::string::npos, resolution.find("not supported"));
+
+        std::remove(path.c_str());
+}
+
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_ConstructAndDestroy_NoCrash)
 {
     EXPECT_NO_THROW({
@@ -556,6 +717,56 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_RecordGatewayConnec
               responder.RecordGatewayConnectionContext(99, "DISABLE_DEBUG_FOR_CONNECTION", "1"));
     EXPECT_EQ(Core::ERROR_NONE,
               responder.RecordGatewayConnectionContext(99, "ENABLE_DEBUG_FOR_CONNECTION", "1"));
+}
+
+TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_AppIdRegistry_AddGetRemove)
+{
+    AppGatewayResponderImplementation::AppIdRegistry registry;
+    std::string appId;
+
+    EXPECT_FALSE(registry.Get(11, appId));
+    registry.Add(11, "test.app");
+    EXPECT_TRUE(registry.Get(11, appId));
+    EXPECT_EQ("test.app", appId);
+
+    registry.Remove(11);
+    appId.clear();
+    EXPECT_FALSE(registry.Get(11, appId));
+}
+
+TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DebugDisabledRegistry_AddRemove)
+{
+    AppGatewayResponderImplementation::DebugDisabledConnectionsRegistry registry;
+
+    EXPECT_FALSE(registry.IsDebugDisabled(77));
+    registry.Add(77);
+    EXPECT_TRUE(registry.IsDebugDisabled(77));
+
+    registry.Remove(77);
+    EXPECT_FALSE(registry.IsDebugDisabled(77));
+}
+
+TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_CompliantJsonRpcRegistry_CheckAddCleanup)
+{
+    AppGatewayResponderImplementation::CompliantJsonRpcRegistry registry;
+
+    registry.CheckAndAddCompliantJsonRpc(101, "session=abc&RPCV2=true&other=x");
+    EXPECT_TRUE(registry.IsCompliantJsonRpc(101));
+
+    registry.CleanupConnectionId(101);
+    EXPECT_FALSE(registry.IsCompliantJsonRpc(101));
+
+    registry.CheckAndAddCompliantJsonRpc(102, "session=abc&RPCV2=trueX&other=x");
+    EXPECT_FALSE(registry.IsCompliantJsonRpc(102));
+}
+
+TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_GetGatewayConnectionContext_ReturnsNone)
+{
+    TestAppGatewayResponderImplementation responder;
+    std::string value;
+
+    EXPECT_EQ(Core::ERROR_NONE,
+              responder.GetGatewayConnectionContext(22, "any", value));
 }
 
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_UnregisterUnknown_ReturnsGeneral)
@@ -594,4 +805,182 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_OnConnectionStatusC
     EXPECT_TRUE(notification.GetLastConnected());
 
     EXPECT_EQ(Core::ERROR_NONE, responder.Unregister(&notification));
+}
+
+TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_OnConnectionStatusChanged_NotifiesAllRegisteredClients)
+{
+    TestAppGatewayResponderImplementation responder;
+    L1AppGatewayResponderNotificationHandler first;
+    L1AppGatewayResponderNotificationHandler second;
+
+    ASSERT_EQ(Core::ERROR_NONE, responder.Register(&first));
+    ASSERT_EQ(Core::ERROR_NONE, responder.Register(&second));
+    first.ResetEvents();
+    second.ResetEvents();
+
+    responder.OnConnectionStatusChanged("test.app.multi", 66, false);
+
+    EXPECT_TRUE(first.WaitForRequestStatus(1000, AppGatewayResponder_OnAppConnectionChanged));
+    EXPECT_TRUE(second.WaitForRequestStatus(1000, AppGatewayResponder_OnAppConnectionChanged));
+    EXPECT_EQ("test.app.multi", first.GetLastAppId());
+    EXPECT_EQ("test.app.multi", second.GetLastAppId());
+    EXPECT_EQ(66u, first.GetLastConnectionId());
+    EXPECT_EQ(66u, second.GetLastConnectionId());
+    EXPECT_FALSE(first.GetLastConnected());
+    EXPECT_FALSE(second.GetLastConnected());
+
+    EXPECT_EQ(Core::ERROR_NONE, responder.Unregister(&first));
+    EXPECT_EQ(Core::ERROR_NONE, responder.Unregister(&second));
+}
+
+// -----------------------------------------------------------------------------
+// Additional telemetry coverage for marker routing and event handling
+// -----------------------------------------------------------------------------
+
+TEST(AppGatewayPluginTest, Telemetry_RecordTelemetryMetric_ReturnsUnavailableWhenUninitialized)
+{
+    TestAppGatewayTelemetry telemetry;
+    const auto ctx = MakeTelemetryContext(1, 100, "test.app");
+
+    telemetry.mInitialized = false;
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE,
+              telemetry.RecordTelemetryMetric(ctx, AGW_MARKER_TOTAL_CALLS, 1.0, AGW_UNIT_COUNT));
+}
+
+TEST(AppGatewayPluginTest, Telemetry_RecordTelemetryMetric_HealthMarkersUpdateState)
+{
+    TestAppGatewayTelemetry telemetry;
+    const auto ctx1 = MakeTelemetryContext(10, 200, "test.app");
+    const auto ctx2 = MakeTelemetryContext(11, 200, "test.app");
+
+    telemetry.mInitialized = true;
+    telemetry.SetCacheThreshold(5000);
+
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx1, AGW_MARKER_WEBSOCKET_CONNECTIONS, -1.0, AGW_UNIT_COUNT));
+    EXPECT_EQ(0u, telemetry.mHealthStats.websocketConnections.load(std::memory_order_relaxed));
+
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx1, AGW_MARKER_WEBSOCKET_CONNECTIONS, 2.0, AGW_UNIT_COUNT));
+    EXPECT_EQ(2u, telemetry.mHealthStats.websocketConnections.load(std::memory_order_relaxed));
+
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx1, AGW_MARKER_TOTAL_CALLS, 1.0, AGW_UNIT_COUNT));
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx1, AGW_MARKER_RESPONSE_CALLS, 1.0, AGW_UNIT_COUNT));
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx1, AGW_MARKER_SUCCESSFUL_CALLS, 1.0, AGW_UNIT_COUNT));
+
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx2, AGW_MARKER_TOTAL_CALLS, 1.0, AGW_UNIT_COUNT));
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx2, AGW_MARKER_FAILED_CALLS, 1.0, AGW_UNIT_COUNT));
+
+    EXPECT_EQ(2u, telemetry.mHealthStats.totalCalls.load(std::memory_order_relaxed));
+    EXPECT_EQ(1u, telemetry.mHealthStats.totalResponses.load(std::memory_order_relaxed));
+    EXPECT_EQ(1u, telemetry.mHealthStats.successfulCalls.load(std::memory_order_relaxed));
+    EXPECT_EQ(1u, telemetry.mHealthStats.failedCalls.load(std::memory_order_relaxed));
+}
+
+TEST(AppGatewayPluginTest, Telemetry_RecordTelemetryMetric_RoutesApiServiceLatencyAndGenericMetrics)
+{
+    TestAppGatewayTelemetry telemetry;
+    const auto ctx = MakeTelemetryContext(20, 300, "test.app");
+    telemetry.mInitialized = true;
+    telemetry.SetCacheThreshold(5000);
+
+    const std::string apiSuccessMetric = std::string(AGW_INTERNAL_PLUGIN_PREFIX) +
+                                         "Badger_MethodName_getData_Success_split";
+    const std::string apiErrorMetric = std::string(AGW_INTERNAL_PLUGIN_PREFIX) +
+                                       "Badger_MethodName_getData_Error_split";
+    const std::string serviceSuccessMetric = std::string(AGW_INTERNAL_PLUGIN_PREFIX) +
+                                             "OttServices_ServiceName_ThorService_Success_split";
+    const std::string serviceErrorMetric = std::string(AGW_INTERNAL_PLUGIN_PREFIX) +
+                                           "OttServices_ServiceName_ThorService_Error_split";
+    const std::string apiLatencyMetric = std::string(AGW_INTERNAL_PLUGIN_PREFIX) +
+                                         "Badger_ApiName_getData_ApiLatency_split";
+    const std::string serviceLatencyMetric = std::string(AGW_INTERNAL_PLUGIN_PREFIX) +
+                                             "OttServices_ServiceName_ThorService_ServiceLatency_split";
+
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx, apiSuccessMetric, 10.0, AGW_UNIT_MILLISECONDS));
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx, apiErrorMetric, 22.0, AGW_UNIT_MILLISECONDS));
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx, serviceSuccessMetric, 31.0, AGW_UNIT_MILLISECONDS));
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx, serviceErrorMetric, 35.0, AGW_UNIT_MILLISECONDS));
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx, apiLatencyMetric, 7.5, AGW_UNIT_MILLISECONDS));
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx, serviceLatencyMetric, 8.25, AGW_UNIT_MILLISECONDS));
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx, "CustomMetric", 99.0, AGW_UNIT_COUNT));
+
+    ASSERT_EQ(1u, telemetry.mApiMethodStats.size());
+    const auto apiIt = telemetry.mApiMethodStats.find("Badger_getData");
+    ASSERT_TRUE(apiIt != telemetry.mApiMethodStats.end());
+    EXPECT_EQ(1u, apiIt->second.successCount);
+    EXPECT_EQ(1u, apiIt->second.errorCount);
+
+    ASSERT_EQ(1u, telemetry.mServiceMethodStats.size());
+    const auto serviceIt = telemetry.mServiceMethodStats.find("OttServices_ThorService");
+    ASSERT_TRUE(serviceIt != telemetry.mServiceMethodStats.end());
+    EXPECT_EQ(1u, serviceIt->second.successCount);
+    EXPECT_EQ(1u, serviceIt->second.errorCount);
+
+    EXPECT_EQ(1u, telemetry.mApiLatencyStats["Badger_getData"].count);
+    EXPECT_EQ(1u, telemetry.mServiceLatencyStats["OttServices_ThorService"].count);
+    EXPECT_EQ(1u, telemetry.mMetricsCache["CustomMetric"].count);
+}
+
+TEST(AppGatewayPluginTest, Telemetry_RecordTelemetryEvent_TracksImmediateErrorsAndResponseStatus)
+{
+    TestAppGatewayTelemetry telemetry;
+    telemetry.mInitialized = true;
+    telemetry.SetCacheThreshold(5000);
+
+    const auto ctxApi = MakeTelemetryContext(30, 401, "test.app");
+    const auto ctxService = MakeTelemetryContext(31, 402, "test.app");
+    const auto ctxFailResponse = MakeTelemetryContext(32, 403, "test.app");
+    const auto ctxSuccessResponse = MakeTelemetryContext(33, 404, "test.app");
+
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryEvent(ctxApi,
+                                            AGW_MARKER_PLUGIN_API_ERROR,
+                                            R"({"plugin":"Badger","api":"Device.name","error":"failed"})"));
+    EXPECT_EQ(1u, telemetry.mApiErrorCounts["Device.name"]);
+
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryEvent(ctxService,
+                                            AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR,
+                                            R"({"plugin":"OttServices","service":"ThorPermissionService","error":"timeout"})"));
+    EXPECT_EQ(1u, telemetry.mExternalServiceErrorCounts["ThorPermissionService"]);
+
+    telemetry.IncrementTotalCalls(ctxFailResponse);
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryEvent(ctxFailResponse,
+                                            AGW_MARKER_RESPONSE_PAYLOAD_TRACKING,
+                                            R"({"code":1,"message":"internal"})"));
+
+    telemetry.IncrementTotalCalls(ctxSuccessResponse);
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryEvent(ctxSuccessResponse,
+                                            AGW_MARKER_RESPONSE_PAYLOAD_TRACKING,
+                                            R"({"result":true})"));
+
+    EXPECT_EQ(2u, telemetry.mHealthStats.totalCalls.load(std::memory_order_relaxed));
+    EXPECT_EQ(2u, telemetry.mHealthStats.totalResponses.load(std::memory_order_relaxed));
+    EXPECT_EQ(1u, telemetry.mHealthStats.successfulCalls.load(std::memory_order_relaxed));
+    EXPECT_EQ(1u, telemetry.mHealthStats.failedCalls.load(std::memory_order_relaxed));
+}
+
+TEST(AppGatewayPluginTest, Telemetry_RecordTelemetryEvent_ReturnsUnavailableWhenUninitialized)
+{
+    TestAppGatewayTelemetry telemetry;
+    const auto ctx = MakeTelemetryContext(40, 500, "test.app");
+
+    telemetry.mInitialized = false;
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE,
+              telemetry.RecordTelemetryEvent(ctx, "AnyEvent", "{}"));
 }
