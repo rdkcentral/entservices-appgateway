@@ -214,6 +214,7 @@ public:
         if (!response.HasLabel(_T("stbVersion")))
         {
             LOGERR("SystemDelegate: getSystemVersions missing stbVersion");
+            skuOut = "\"unknown\"";
             return Core::ERROR_UNAVAILABLE;
         }
 
@@ -674,7 +675,7 @@ public:
          auto link = AcquireLink(DISPLAYSETTINGS_CALLSIGN);
          if (!link) {
              LOGERR("[AppGatewayCommon|GetAudio] DisplaySettings link unavailable, returning default audio flags");
-             jsonObject = "{\"stereo\":false,\"dolbyDigital5.1\":false,\"dolbyDigital5.1+\":false,\"dolbyAtmos\":false}";
+             jsonObject = "{\"stereo\":true,\"dolbyDigital5.1\":false,\"dolbyDigital5.1+\":false,\"dolbyAtmos\":false}";
              return Core::ERROR_UNAVAILABLE;
          }
 
@@ -682,7 +683,7 @@ public:
          std::string response;
          const Core::hresult rc = link->Invoke<std::string, std::string>("getAudioFormat", paramsStr, response);
          if (rc != Core::ERROR_NONE) {
-             jsonObject = "{\"stereo\":false,\"dolbyDigital5.1\":false,\"dolbyDigital5.1+\":false,\"dolbyAtmos\":false}";
+             jsonObject = "{\"stereo\":true,\"dolbyDigital5.1\":false,\"dolbyDigital5.1+\":false,\"dolbyAtmos\":false}";
              return Core::ERROR_GENERAL;
          }
 

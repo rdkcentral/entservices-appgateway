@@ -240,9 +240,7 @@ uint32_t Test_HandleRequest_VoiceGuidanceRate()
 }
 
 // TEST_ID: AGC_L0_068
-// voiceguidance.setspeed with boundary value 0.5 (min) → ERROR_BAD_REQUEST
-// NOTE: Variant::Number() truncates 0.5 to 0, which fails the min-bound check (0 < 0.5).
-// This is a known issue in ValidateAndExtractDouble (uses integer Number() instead of Float()).
+// voiceguidance.setspeed with boundary value 0.5 (min) → passes validation, delegate unavailable
 uint32_t Test_HandleRequest_SetSpeed_MinBoundary()
 {
     TestResult tr;
@@ -252,7 +250,8 @@ uint32_t Test_HandleRequest_SetSpeed_MinBoundary()
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "voiceguidance.setspeed", R"({"value":0.5})", result);
-    ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "voiceguidance.setspeed with 0.5 returns ERROR_BAD_REQUEST (Number() truncates to 0)");
+    const bool ok = (rc == ERROR_GENERAL || rc == ERROR_UNAVAILABLE);
+    ExpectTrue(tr, ok, "voiceguidance.setspeed with 0.5 passes validation, delegate unavailable in L0");
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
@@ -291,9 +290,7 @@ uint32_t Test_HandleRequest_SetSpeed_BelowMin()
 }
 
 // TEST_ID: AGC_L0_071
-// voiceguidance.setspeed with 2.01 (above max) → passes validation, delegate unavailable
-// NOTE: Variant::Number() truncates 2.01 to 2, which passes the max-bound check (2 > 2.0 is false).
-// This is a known issue in ValidateAndExtractDouble (uses integer Number() instead of Float()).
+// voiceguidance.setspeed with 2.01 (above max) → ERROR_BAD_REQUEST
 uint32_t Test_HandleRequest_SetSpeed_AboveMax()
 {
     TestResult tr;
@@ -303,8 +300,7 @@ uint32_t Test_HandleRequest_SetSpeed_AboveMax()
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "voiceguidance.setspeed", R"({"value":2.01})", result);
-    const bool ok = (rc == ERROR_GENERAL || rc == ERROR_UNAVAILABLE);
-    ExpectTrue(tr, ok, "voiceguidance.setspeed with 2.01 passes validation (Number() truncates to 2), delegate unavailable");
+    ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "voiceguidance.setspeed with 2.01 returns ERROR_BAD_REQUEST (above max)");
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }

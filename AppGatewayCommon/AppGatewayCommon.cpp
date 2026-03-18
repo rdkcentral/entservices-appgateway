@@ -79,12 +79,15 @@ namespace Plugin {
         ASSERT(service == mShell);
         mConnectionId = 0;
 
-        mDelegate->Cleanup();
-        // Clean up the delegate
-        mDelegate.reset();
+        if (mDelegate) {
+            mDelegate->Cleanup();
+            mDelegate.reset();
+        }
 
-        mShell->Release();
-        mShell = nullptr;
+        if (nullptr != mShell) {
+            mShell->Release();
+            mShell = nullptr;
+        }
         SYSLOG(Logging::Shutdown, (string(_T("AppGatewayCommon de-initialised"))));
     }
 
@@ -212,7 +215,7 @@ namespace Plugin {
         { "accessibility.audiodescription", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
             (void)payload;
-            return self->GetAudioDescriptionsEnabled(result);
+            return self->GetAudioDescription(result);
         }},
         { "audiodescriptions.enabled", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;

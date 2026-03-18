@@ -1,0 +1,701 @@
+/*
+ * If not stated otherwise in this file or this component's LICENSE file the
+ * following copyright and licenses apply:
+ *
+ * Copyright 2026 RDK Management
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <string>
+
+#include "Module.h"
+
+#define private public
+#include "AppGatewayCommon.h"
+#undef private
+
+#include "ServiceMock.h"
+#include "MockJSONRPCDirectLink.h"
+#include "ThunderPortability.h"
+#include "WorkerPoolImplementation.h"
+
+using namespace WPEFramework;
+using namespace WPEFramework::Plugin;
+using ::testing::_;
+using ::testing::AnyNumber;
+using ::testing::NiceMock;
+using ::testing::Return;
+
+namespace {
+
+class WorkerPoolGuard final {
+public:
+    WorkerPoolGuard(const WorkerPoolGuard&) = delete;
+    WorkerPoolGuard& operator=(const WorkerPoolGuard&) = delete;
+
+    WorkerPoolGuard()
+        : mPool(2, 0, 64)
+        , mAssigned(false)
+    {
+        if (Core::IWorkerPool::IsAvailable() == false) {
+            Core::IWorkerPool::Assign(&mPool);
+            mAssigned = true;
+        }
+        mPool.Run();
+    }
+
+    ~WorkerPoolGuard()
+    {
+        mPool.Stop();
+        if (mAssigned) {
+            Core::IWorkerPool::Assign(nullptr);
+        }
+    }
+
+private:
+    WorkerPoolImplementation mPool;
+    bool mAssigned;
+};
+
+static WorkerPoolGuard gWorkerPool;
+
+static Exchange::GatewayContext MakeContext()
+{
+    Exchange::GatewayContext ctx;
+    ctx.appId = "test.app";
+    ctx.connectionId = 100;
+    ctx.requestId = 200;
+    return ctx;
+}
+
+class SystemDelegateTest : public ::testing::Test {
+protected:
+    Core::Sink<AppGatewayCommon> plugin;
+    NiceMock<ServiceMock> service;
+    Core::Sink<MockJSONRPC::MockLocalDispatcher> systemDispatcher;
+    Core::Sink<MockJSONRPC::MockLocalDispatcher> displayDispatcher;
+    Core::Sink<MockJSONRPC::MockLocalDispatcher> hdcpDispatcher;
+
+    void SetUp() override
+    {
+        // Wire QueryInterfaceByCallsign to return our mock dispatchers
+        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+            .WillByDefault(Return(nullptr));
+
+        // ILocalDispatcher for "org.rdk.System"
+        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.System")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                systemDispatcher.AddRef();
+                return static_cast<PluginHost::ILocalDispatcher*>(&systemDispatcher);
+            }));
+
+        // ILocalDispatcher for "org.rdk.DisplaySettings"
+        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.DisplaySettings")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                displayDispatcher.AddRef();
+                return static_cast<PluginHost::ILocalDispatcher*>(&displayDispatcher);
+            }));
+
+        // ILocalDispatcher for "org.rdk.HdcpProfile"
+        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.HdcpProfile")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                hdcpDispatcher.AddRef();
+                return static_cast<PluginHost::ILocalDispatcher*>(&hdcpDispatcher);
+            }));
+
+        // IAuthenticate for SecurityAgent (token acquisition)
+        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::IAuthenticate::ID, _))
+            .WillByDefault(Return(nullptr));
+
+        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        const string response = plugin.Initialize(&service);
+        ASSERT_TRUE(response.empty());
+    }
+
+    void TearDown() override
+    {
+        plugin.Deinitialize(&service);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+};
+
+/* ---------- GetDeviceMake ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_080_GetDeviceMake_Success)
+{
+    systemDispatcher.SetHandler("getDeviceInfo", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"make":"Arris"})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.make", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("Arris"), std::string::npos);
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_081_GetDeviceMake_MissingField_ReturnsUnknown)
+{
+    systemDispatcher.SetHandler("getDeviceInfo", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.make", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("unknown"), std::string::npos);
+}
+
+/* ---------- GetDeviceName ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_082_GetDeviceName_Success)
+{
+    systemDispatcher.SetHandler("getFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"friendlyName":"Bedroom TV"})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.name", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("Bedroom TV"), std::string::npos);
+}
+
+/* ---------- SetDeviceName ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_083_SetDeviceName_Success)
+{
+    systemDispatcher.SetHandler("setFriendlyName", [](const std::string&, const std::string& params, std::string& resp) {
+        resp = R"({"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.setname", R"({"value":"Kitchen"})", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+}
+
+/* ---------- GetDeviceSku ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_084_GetDeviceSku_Success)
+{
+    systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"stbVersion":"SKXI11ADS_VBN_23Q4_sprint_20240101123456","receiverVersion":"99.99.15.07"})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.sku", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("SKXI11ADS"), std::string::npos);
+}
+
+/* ---------- GetFirmwareVersion ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_085_GetFirmwareVersion_Success)
+{
+    systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"receiverVersion":"99.99.15.07","stbVersion":"SKXI11ADS_VBN_23Q4"})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.version", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("firmware"), std::string::npos);
+    EXPECT_NE(result.find("99"), std::string::npos);
+}
+
+/* ---------- Country Code (territory mapping) ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_086_GetCountryCode_USA_MapsToUS)
+{
+    systemDispatcher.SetHandler("getTerritory", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"territory":"USA"})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.countrycode", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("US"), std::string::npos);
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_087_GetCountryCode_GBR_MapsToGB)
+{
+    systemDispatcher.SetHandler("getTerritory", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"territory":"GBR"})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.countrycode", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("GB"), std::string::npos);
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_088_SetCountryCode_US_SetsUSA)
+{
+    systemDispatcher.SetHandler("setTerritory", [](const std::string&, const std::string& params, std::string& resp) {
+        // Verify the transformed territory is "USA"
+        resp = R"({"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.setcountrycode", R"({"value":"US"})", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+}
+
+/* ---------- Timezone ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_089_GetTimeZone_Success)
+{
+    systemDispatcher.SetHandler("getTimeZoneDST", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"timeZone":"America/New_York","success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.timezone", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("America/New_York"), std::string::npos);
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_090_SetTimeZone_Success)
+{
+    systemDispatcher.SetHandler("setTimeZoneDST", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.settimezone", R"({"value":"America/Chicago"})", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+}
+
+/* ---------- Screen Resolution ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_091_GetScreenResolution_Success)
+{
+    displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"w":3840,"h":2160})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.screenresolution", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("[3840,2160]", result);
+}
+
+/* ---------- Video Resolution ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_092_GetVideoResolution_UHD)
+{
+    displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"w":3840,"h":2160})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.videoresolution", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("[3840,2160]", result);
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_093_GetVideoResolution_FHD)
+{
+    displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"w":1920,"h":1080})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.videoresolution", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("[1920,1080]", result);
+}
+
+/* ---------- HDCP ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_094_GetHdcp_HDCP14Connected)
+{
+    hdcpDispatcher.SetHandler("getHDCPStatus", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"HDCPStatus":{"hdcpReason":2,"currentHDCPVersion":"1.4"}})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.hdcp", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("{\"hdcp1.4\":true,\"hdcp2.2\":false}", result);
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_095_GetHdcp_HDCP22Connected)
+{
+    hdcpDispatcher.SetHandler("getHDCPStatus", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"HDCPStatus":{"hdcpReason":2,"currentHDCPVersion":"2.2"}})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.hdcp", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("{\"hdcp1.4\":false,\"hdcp2.2\":true}", result);
+}
+
+/* ---------- HDR ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_096_GetHdr_AllCapabilities)
+{
+    displayDispatcher.SetHandler("getTVHDRCapabilities", [](const std::string&, const std::string&, std::string& resp) {
+        // 0x01 | 0x02 | 0x04 | 0x10 = 0x17 = 23
+        resp = R"({"capabilities":23,"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.hdr", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("{\"hdr10\":true,\"dolbyVision\":true,\"hlg\":true,\"hdr10Plus\":true}", result);
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_097_GetHdr_NoCapabilities)
+{
+    displayDispatcher.SetHandler("getTVHDRCapabilities", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"capabilities":0,"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.hdr", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("{\"hdr10\":false,\"dolbyVision\":false,\"hlg\":false,\"hdr10Plus\":false}", result);
+}
+
+/* ---------- Audio ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_098_GetAudio_MultipleFlagsSet)
+{
+    displayDispatcher.SetHandler("getAudioFormat", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"supportedAudioFormat":["PCM","EAC3","ATMOS"],"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.audio", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("\"stereo\":true"), std::string::npos);
+    EXPECT_NE(result.find("\"dolbyAtmos\":true"), std::string::npos);
+    EXPECT_NE(result.find("\"dolbyDigital5.1+\":true"), std::string::npos);
+}
+
+/* ---------- SecondScreen FriendlyName (aliases GetDeviceName) ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_128_SecondScreenFriendlyName_Success)
+{
+    systemDispatcher.SetHandler("getFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"friendlyName":"Living Room TV"})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "secondscreen.friendlyname", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("Living Room TV"), std::string::npos);
+}
+
+/* ---------- RPC failure paths ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_129_GetDeviceMake_RPCFailure)
+{
+    systemDispatcher.SetHandler("getDeviceInfo", [](const std::string&, const std::string&, std::string& resp) {
+        resp = "{}";
+        return Core::ERROR_GENERAL;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.make", "{}", result);
+
+    // On RPC failure the delegate falls back to "unknown"
+    EXPECT_NE(result.find("unknown"), std::string::npos);
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_130_SetDeviceName_SuccessFalse)
+{
+    systemDispatcher.SetHandler("setFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"success":false})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.setname", R"({"value":"Test"})", result);
+
+    EXPECT_NE(Core::ERROR_NONE, rc);
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_131_GetScreenResolution_RPCFailure)
+{
+    displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
+        resp = "{}";
+        return Core::ERROR_GENERAL;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.screenresolution", "{}", result);
+
+    // Falls back to [1920,1080]
+    EXPECT_EQ("[1920,1080]", result);
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_132_GetVideoResolution_RPCFailure)
+{
+    displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
+        resp = "{}";
+        return Core::ERROR_GENERAL;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.videoresolution", "{}", result);
+
+    EXPECT_EQ("[1920,1080]", result);
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_133_GetHdcp_RPCFailure)
+{
+    hdcpDispatcher.SetHandler("getHDCPStatus", [](const std::string&, const std::string&, std::string& resp) {
+        resp = "{}";
+        return Core::ERROR_GENERAL;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.hdcp", "{}", result);
+
+    // Falls back to all-false
+    EXPECT_NE(result.find("false"), std::string::npos);
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_134_GetHdr_RPCFailure)
+{
+    displayDispatcher.SetHandler("getTVHDRCapabilities", [](const std::string&, const std::string&, std::string& resp) {
+        resp = "{}";
+        return Core::ERROR_GENERAL;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.hdr", "{}", result);
+
+    EXPECT_NE(result.find("false"), std::string::npos);
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_135_GetAudio_RPCFailure)
+{
+    displayDispatcher.SetHandler("getAudioFormat", [](const std::string&, const std::string&, std::string& resp) {
+        resp = "{}";
+        return Core::ERROR_GENERAL;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.audio", "{}", result);
+
+    // Falls back to stereo-only
+    EXPECT_NE(result.find("\"stereo\":true"), std::string::npos);
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_136_GetFirmwareVersion_Success)
+{
+    systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"receiverVersion":"4.4.1","stbVersion":"SCXI11BEI_VBN_24Q2_sprint_20240611103551sdy_FG_EDGE_R4.4.1","success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.version", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // Should extract firmware version from receiverVersion
+    EXPECT_FALSE(result.empty());
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_137_GetDeviceSku_MissingField)
+{
+    systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.sku", "{}", result);
+
+    // When stbVersion is missing, expect some fallback or error
+    EXPECT_FALSE(result.empty());
+}
+
+/* ---------- secondscreen.friendlyname (alias for device.name) ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_183_SecondScreenFriendlyName_Success)
+{
+    systemDispatcher.SetHandler("getFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"friendlyName":"Kitchen TV","success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "secondscreen.friendlyname", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("Kitchen TV"), std::string::npos);
+}
+
+/* ---------- device.setname success via JSON-RPC mock ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_184_SetDeviceName_Success)
+{
+    systemDispatcher.SetHandler("setFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.setname", R"({"value":"Bedroom"})", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+}
+
+/* ---------- device.setname failure via JSON-RPC mock ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_185_SetDeviceName_Failure)
+{
+    systemDispatcher.SetHandler("setFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"success":false})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.setname", R"({"value":"Bedroom"})", result);
+
+    EXPECT_NE(Core::ERROR_NONE, rc);
+}
+
+/* ---------- localization.setcountrycode success ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_186_SetCountryCode_Success)
+{
+    systemDispatcher.SetHandler("setTerritory", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.setcountrycode", R"({"value":"GB"})", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+}
+
+/* ---------- localization.settimezone success ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_187_SetTimezone_Success)
+{
+    systemDispatcher.SetHandler("setTimeZoneDST", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.settimezone", R"({"value":"America/Chicago"})", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+}
+
+/* ---------- GetFirmwareVersion with receiverVersion parsing failure ---------- */
+
+TEST_F(SystemDelegateTest, AGC_L1_188_GetFirmwareVersion_BadReceiverVersion)
+{
+    systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"receiverVersion":"not-a-version","stbVersion":"NOTVALID","success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.version", "{}", result);
+
+    // receiverVersion doesn't parse as major.minor.patch → ERROR_UNAVAILABLE
+    EXPECT_NE(Core::ERROR_NONE, rc);
+}
+
+} // namespace

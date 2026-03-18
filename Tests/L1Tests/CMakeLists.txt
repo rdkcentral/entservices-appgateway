@@ -252,7 +252,15 @@ endif()
 if(PLUGIN_APPGATEWAYCOMMON)
     message(STATUS "AppGatewayCommon L1 tests: ENABLED (PLUGIN_APPGATEWAYCOMMON=ON)")
 
-    list(APPEND APPGATEWAYCOMMON_L1TEST_SRC tests/test_AppGatewayCommon.cpp)
+    list(APPEND APPGATEWAYCOMMON_L1TEST_SRC
+        AppGatewayCommon/AppGatewayCommon_core_test.cpp
+        AppGatewayCommon/AppGatewayCommon_appdelegate_test.cpp
+        AppGatewayCommon/AppGatewayCommon_usersettings_test.cpp
+        AppGatewayCommon/AppGatewayCommon_system_test.cpp
+        AppGatewayCommon/AppGatewayCommon_network_test.cpp
+        AppGatewayCommon/AppGatewayCommon_lifecycle_test.cpp
+        AppGatewayCommon/AppGatewayCommon_events_test.cpp
+    )
 
     list(APPEND APPGATEWAYCOMMON_L1TEST_INC
         ../../helpers

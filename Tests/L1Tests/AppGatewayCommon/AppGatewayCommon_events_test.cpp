@@ -1,0 +1,320 @@
+/*
+ * If not stated otherwise in this file or this component's LICENSE file the
+ * following copyright and licenses apply:
+ *
+ * Copyright 2026 RDK Management
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <string>
+
+#include "Module.h"
+
+#define private public
+#include "AppGatewayCommon.h"
+#undef private
+
+#include "ServiceMock.h"
+#include "MockEmitter.h"
+#include "MockTextToSpeech.h"
+#include "MockUserSettings.h"
+#include "ThunderPortability.h"
+#include "WorkerPoolImplementation.h"
+
+using namespace WPEFramework;
+using namespace WPEFramework::Plugin;
+using ::testing::_;
+using ::testing::AnyNumber;
+using ::testing::NiceMock;
+using ::testing::Return;
+
+namespace {
+
+class WorkerPoolGuard final {
+public:
+    WorkerPoolGuard(const WorkerPoolGuard&) = delete;
+    WorkerPoolGuard& operator=(const WorkerPoolGuard&) = delete;
+
+    WorkerPoolGuard()
+        : mPool(2, 0, 64)
+        , mAssigned(false)
+    {
+        if (Core::IWorkerPool::IsAvailable() == false) {
+            Core::IWorkerPool::Assign(&mPool);
+            mAssigned = true;
+        }
+        mPool.Run();
+    }
+
+    ~WorkerPoolGuard()
+    {
+        mPool.Stop();
+        if (mAssigned) {
+            Core::IWorkerPool::Assign(nullptr);
+        }
+    }
+
+private:
+    WorkerPoolImplementation mPool;
+    bool mAssigned;
+};
+
+static WorkerPoolGuard gWorkerPool;
+
+static Exchange::GatewayContext MakeContext()
+{
+    Exchange::GatewayContext ctx;
+    ctx.appId = "test.app";
+    ctx.connectionId = 100;
+    ctx.requestId = 200;
+    return ctx;
+}
+
+class EventsTest : public ::testing::Test {
+protected:
+    Core::Sink<AppGatewayCommon> plugin;
+    NiceMock<ServiceMock> service;
+
+    void SetUp() override
+    {
+        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+            .WillByDefault(Return(nullptr));
+
+        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        const string response = plugin.Initialize(&service);
+        ASSERT_TRUE(response.empty());
+    }
+
+    void TearDown() override
+    {
+        plugin.Deinitialize(&service);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+};
+
+/* ---------- HandleAppEventNotifier ---------- */
+
+TEST_F(EventsTest, AGC_L1_122_HandleAppEventNotifier_SubmitsJob)
+{
+    // Heap-allocated emitter: async EventRegistrationJobs hold raw pointers to
+    // the emitter via AddRef/Release.  The subscribe job path involves JSON-RPC
+    // calls that may take 9+ seconds to timeout.  A stack-allocated emitter
+    // would be destroyed on scope exit while the async job still references it,
+    // causing a use-after-free / segfault.  Heap allocation keeps the memory
+    // valid for the entire process lifetime (benign leak — OS reclaims).
+    MockEmitter* emitter = new MockEmitter();
+    emitter->AddRef();  // test's own reference
+
+    bool status = false;
+    const auto rc = plugin.HandleAppEventNotifier(emitter, "Device.onHdrChanged", true, status);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+
+    // Give the worker pool a moment — the actual async job may still be
+    // blocked on RPC timeouts, but that is fine: the heap-allocated emitter
+    // survives until the process exits.
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+}
+
+TEST_F(EventsTest, AGC_L1_123_HandleAppEventNotifier_NullCallback)
+{
+    bool status = false;
+    const auto rc = plugin.HandleAppEventNotifier(nullptr, "Device.onHdrChanged", true, status);
+
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_FALSE(status);
+}
+
+/* ---------- Miscellaneous handler map entries ---------- */
+
+TEST_F(EventsTest, AGC_L1_124_DiscoveryWatched_ReturnsNull)
+{
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "discovery.watched", R"({"entityId":"abc"})", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+}
+
+TEST_F(EventsTest, AGC_L1_125_Metrics_NoOp_ReturnsNull)
+{
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "metrics.someMetric", R"({"data":123})", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+}
+
+TEST_F(EventsTest, AGC_L1_126_SecondScreenFriendlyName_NullDelegate)
+{
+    plugin.mDelegate.reset();
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "secondscreen.friendlyname", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+TEST_F(EventsTest, AGC_L1_127_NullDelegate_HandleAppEventNotifier)
+{
+    plugin.mDelegate.reset();
+
+    Core::Sink<MockEmitter> emitter;
+    bool status = false;
+    const auto rc = plugin.HandleAppEventNotifier(&emitter, "Device.onHdrChanged", true, status);
+
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_FALSE(status);
+}
+
+/* ---------- TTS event subscription via HandleAppEventNotifier ---------- */
+
+class TTSEventsTest : public ::testing::Test {
+protected:
+    Core::Sink<AppGatewayCommon> plugin;
+    NiceMock<ServiceMock> service;
+    NiceMock<MockTextToSpeech> mockTTS;
+    NiceMock<MockUserSettings> mockUserSettings;
+
+    void SetUp() override
+    {
+        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+            .WillByDefault(Return(nullptr));
+
+        ON_CALL(service, QueryInterfaceByCallsign(Exchange::ITextToSpeech::ID, ::testing::StrEq("org.rdk.TextToSpeech")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                mockTTS.AddRef();
+                return static_cast<Exchange::ITextToSpeech*>(&mockTTS);
+            }));
+
+        ON_CALL(service, QueryInterfaceByCallsign(Exchange::IUserSettings::ID, ::testing::StrEq("org.rdk.UserSettings")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                mockUserSettings.AddRef();
+                return static_cast<Exchange::IUserSettings*>(&mockUserSettings);
+            }));
+
+        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(mockTTS, Register(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(mockTTS, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(mockUserSettings, Register(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(mockUserSettings, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        const string response = plugin.Initialize(&service);
+        ASSERT_TRUE(response.empty());
+    }
+
+    void TearDown() override
+    {
+        plugin.Deinitialize(&service);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+};
+
+TEST_F(TTSEventsTest, AGC_L1_169_TTS_EventSubscription_Registers)
+{
+    // Subscribe to a TTS event — this should trigger Register on MockTextToSpeech
+    EXPECT_CALL(mockTTS, Register(_)).Times(::testing::AtLeast(1));
+
+    MockEmitter* emitter = new MockEmitter();
+    emitter->AddRef();
+    bool status = false;
+    const auto rc = plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechComplete", true, status);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+
+    // Give the worker pool time to dispatch
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+}
+
+TEST_F(TTSEventsTest, AGC_L1_170_TTS_EventUnsubscription)
+{
+    MockEmitter* emitter = new MockEmitter();
+    emitter->AddRef();
+
+    // First subscribe
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechStart", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    EXPECT_TRUE(status);
+
+    // Then unsubscribe
+    status = false;
+    const auto rc = plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechStart", false, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+}
+
+TEST_F(TTSEventsTest, AGC_L1_171_UserSettings_EventSubscription_Registers)
+{
+    // Subscribe to a UserSettings event
+    EXPECT_CALL(mockUserSettings, Register(_)).Times(::testing::AtLeast(1));
+
+    MockEmitter* emitter = new MockEmitter();
+    emitter->AddRef();
+    bool status = false;
+    const auto rc = plugin.HandleAppEventNotifier(emitter, "accessibility.onvoiceguidancesettingschanged", true, status);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+}
+
+/* ---------- Deactivated ---------- */
+
+TEST_F(EventsTest, AGC_L1_172_Deactivated_NonMatchingConnectionId)
+{
+    // mConnectionId is 0 by default after Initialize, create a mock connection with non-zero ID
+    // This tests that Deactivated does NOT submit a job when connection IDs don't match
+
+    class MockRemoteConnection : public RPC::IRemoteConnection {
+    public:
+        MockRemoteConnection(uint32_t id) : mId(id), mRefCount(1) {}
+        uint32_t Id() const override { return mId; }
+        uint32_t RemoteId() const override { return 0; }
+        void* Acquire(const uint32_t, const string&, const uint32_t, const uint32_t) override { return nullptr; }
+        uint32_t Launch() override { return 0; }
+        void PostMortem() override {}
+        void Terminate() override {}
+        void AddRef() const override { ++mRefCount; }
+        uint32_t Release() const override {
+            if (--mRefCount == 0) { delete this; return Core::ERROR_DESTRUCTION_SUCCEEDED; }
+            return Core::ERROR_NONE;
+        }
+        BEGIN_INTERFACE_MAP(MockRemoteConnection)
+        INTERFACE_ENTRY(RPC::IRemoteConnection)
+        END_INTERFACE_MAP
+    private:
+        uint32_t mId;
+        mutable uint32_t mRefCount;
+    };
+
+    // Connection ID 999 won't match mConnectionId (0), so no job should be submitted
+    MockRemoteConnection conn(999);
+    // Should NOT crash and NOT submit a deactivation job
+    plugin.Deactivated(&conn);
+}
+
+} // namespace

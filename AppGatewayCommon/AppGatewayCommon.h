@@ -72,7 +72,9 @@ namespace WPEFramework {
                 }
                 virtual void Dispatch()
                 {
-                    mParent.mDelegate->HandleAppEventNotifier(mCallback, mEvent, mListen);
+                    if (mParent.mDelegate) {
+                        mParent.mDelegate->HandleAppEventNotifier(mCallback, mEvent, mListen);
+                    }
                 }
 
             private:

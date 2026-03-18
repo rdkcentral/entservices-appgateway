@@ -18,6 +18,7 @@
 #pragma once
 
 #include <string>
+#include <stdexcept>
 #include <core/JSON.h>
 #include "UtilsLogging.h"
 
@@ -116,12 +117,24 @@ public:
         }
         
         const Core::JSON::Variant& value = params.Get(fieldName.c_str());
-        if (Core::JSON::Variant::type::NUMBER != value.Content()) {
+        const auto contentType = value.Content();
+        if (Core::JSON::Variant::type::NUMBER != contentType &&
+            Core::JSON::Variant::type::FLOAT != contentType) {
             LOGWARN("ValidateAndExtractDouble: Field '%s' is not a number", fieldName.c_str());
             return false;
         }
-        
-        extractedValue = value.Float();       // or value.Double() depending on Thunder API
+
+        // Use Float() for FLOAT content type; for NUMBER type, value.Float()/Number()
+        // may truncate decimals to integers, so use String()+stod to preserve precision.
+        if (Core::JSON::Variant::type::FLOAT == contentType) {
+            extractedValue = static_cast<double>(value.Float());
+        } else {
+            try {
+                extractedValue = std::stod(value.String());
+            } catch (const std::exception&) {
+                extractedValue = static_cast<double>(value.Number());
+            }
+        }
         
         // Bounds checking only if explicitly requested
         if (checkMinValue && extractedValue < minValue) {
