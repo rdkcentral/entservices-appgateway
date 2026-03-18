@@ -71,53 +71,41 @@ public:
     uint32_t Release() const override { return Core::ERROR_NONE; }
 };
 
-class ResponderNotificationStub final : public Exchange::IAppGatewayResponder::INotification {
-public:
-    void AddRef() const override {}
-    uint32_t Release() const override { return Core::ERROR_NONE; }
-    void OnAppConnectionChanged(const string&, const uint32_t, const bool) override {}
+typedef enum : uint32_t {
+    AppGatewayResponder_StateInvalid = 0x00000000,
+    AppGatewayResponder_OnAppConnectionChanged = 0x00000001
+} AppGatewayResponderEventType_t;
 
-    BEGIN_INTERFACE_MAP(ResponderNotificationStub)
-        INTERFACE_ENTRY(Exchange::IAppGatewayResponder::INotification)
-    END_INTERFACE_MAP
-};
-
-class CapturingResponderNotification final : public Exchange::IAppGatewayResponder::INotification {
+class L1AppGatewayResponderNotificationHandler final : public Exchange::IAppGatewayResponder::INotification {
 public:
-    enum EventState : uint32_t {
-        Responder_StateInvalid = 0x00000000,
-        Responder_OnAppConnectionChanged = 0x00000001
-    };
+    L1AppGatewayResponderNotificationHandler()
+        : m_event_signalled(AppGatewayResponder_StateInvalid)
+        , m_call_count(0)
+        , m_last_connection_id(0)
+        , m_last_connected(false)
+    {
+    }
 
     void AddRef() const override {}
     uint32_t Release() const override { return Core::ERROR_NONE; }
 
     void OnAppConnectionChanged(const string& appId, const uint32_t connectionId, const bool connected) override
     {
-        std::unique_lock<std::mutex> lock(mutex);
-        ++callCount;
-        lastAppId = appId;
-        lastConnectionId = connectionId;
-        lastConnected = connected;
-        eventSignalled |= Responder_OnAppConnectionChanged;
-        conditionVariable.notify_one();
+        std::unique_lock<std::mutex> lock(m_mutex);
+        ++m_call_count;
+        m_last_app_id = appId;
+        m_last_connection_id = connectionId;
+        m_last_connected = connected;
+        m_event_signalled |= AppGatewayResponder_OnAppConnectionChanged;
+        m_condition_variable.notify_one();
     }
 
-    BEGIN_INTERFACE_MAP(CapturingResponderNotification)
-        INTERFACE_ENTRY(Exchange::IAppGatewayResponder::INotification)
-    END_INTERFACE_MAP
-
-    uint32_t callCount {0};
-    std::string lastAppId;
-    uint32_t lastConnectionId {0};
-    bool lastConnected {false};
-
-    bool WaitForRequestStatus(uint32_t timeoutMs, EventState expectedState)
+    bool WaitForRequestStatus(uint32_t timeoutMs, AppGatewayResponderEventType_t expectedState)
     {
-        std::unique_lock<std::mutex> lock(mutex);
+        std::unique_lock<std::mutex> lock(m_mutex);
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
-        while ((eventSignalled & expectedState) == 0) {
-            if (conditionVariable.wait_until(lock, deadline) == std::cv_status::timeout) {
+        while ((m_event_signalled & expectedState) == 0) {
+            if (m_condition_variable.wait_until(lock, deadline) == std::cv_status::timeout) {
                 return false;
             }
         }
@@ -126,18 +114,56 @@ public:
 
     void ResetEvents()
     {
-        std::unique_lock<std::mutex> lock(mutex);
-        eventSignalled = Responder_StateInvalid;
-        callCount = 0;
-        lastAppId.clear();
-        lastConnectionId = 0;
-        lastConnected = false;
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_event_signalled = AppGatewayResponder_StateInvalid;
+        m_call_count = 0;
+        m_last_app_id.clear();
+        m_last_connection_id = 0;
+        m_last_connected = false;
     }
 
+    uint32_t GetSignalledEvents() const
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_event_signalled;
+    }
+
+    uint32_t GetCallCount() const
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_call_count;
+    }
+
+    std::string GetLastAppId() const
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_last_app_id;
+    }
+
+    uint32_t GetLastConnectionId() const
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_last_connection_id;
+    }
+
+    bool GetLastConnected() const
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_last_connected;
+    }
+
+    BEGIN_INTERFACE_MAP(L1AppGatewayResponderNotificationHandler)
+        INTERFACE_ENTRY(Exchange::IAppGatewayResponder::INotification)
+    END_INTERFACE_MAP
+
 private:
-    std::mutex mutex;
-    std::condition_variable conditionVariable;
-    uint32_t eventSignalled {Responder_StateInvalid};
+    mutable std::mutex m_mutex;
+    std::condition_variable m_condition_variable;
+    uint32_t m_event_signalled;
+    uint32_t m_call_count;
+    std::string m_last_app_id;
+    uint32_t m_last_connection_id;
+    bool m_last_connected;
 };
 
 static std::string WriteResolverTempConfig(const std::string& fileName, const std::string& content)
@@ -516,7 +542,7 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_ConstructAndDestroy
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_RegisterUnregisterNotification_Success)
 {
     TestAppGatewayResponderImplementation responder;
-    ResponderNotificationStub notification;
+    L1AppGatewayResponderNotificationHandler notification;
 
     EXPECT_EQ(Core::ERROR_NONE, responder.Register(&notification));
     EXPECT_EQ(Core::ERROR_NONE, responder.Unregister(&notification));
@@ -535,7 +561,7 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_RecordGatewayConnec
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_UnregisterUnknown_ReturnsGeneral)
 {
     TestAppGatewayResponderImplementation responder;
-    ResponderNotificationStub notification;
+    L1AppGatewayResponderNotificationHandler notification;
 
     EXPECT_EQ(Core::ERROR_GENERAL, responder.Unregister(&notification));
 }
@@ -543,7 +569,7 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_UnregisterUnknown_R
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DuplicateRegisterSingleUnregister)
 {
     TestAppGatewayResponderImplementation responder;
-    ResponderNotificationStub notification;
+    L1AppGatewayResponderNotificationHandler notification;
 
     EXPECT_EQ(Core::ERROR_NONE, responder.Register(&notification));
     EXPECT_EQ(Core::ERROR_NONE, responder.Register(&notification));
@@ -554,18 +580,18 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DuplicateRegisterSi
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_OnConnectionStatusChanged_NotifiesRegisteredClients)
 {
     TestAppGatewayResponderImplementation responder;
-    CapturingResponderNotification notification;
+    L1AppGatewayResponderNotificationHandler notification;
 
     ASSERT_EQ(Core::ERROR_NONE, responder.Register(&notification));
     notification.ResetEvents();
 
     responder.OnConnectionStatusChanged("test.app", 55, true);
 
-    EXPECT_TRUE(notification.WaitForRequestStatus(1000, CapturingResponderNotification::Responder_OnAppConnectionChanged));
-    EXPECT_EQ(1u, notification.callCount);
-    EXPECT_EQ("test.app", notification.lastAppId);
-    EXPECT_EQ(55u, notification.lastConnectionId);
-    EXPECT_TRUE(notification.lastConnected);
+    EXPECT_TRUE(notification.WaitForRequestStatus(1000, AppGatewayResponder_OnAppConnectionChanged));
+    EXPECT_EQ(1u, notification.GetCallCount());
+    EXPECT_EQ("test.app", notification.GetLastAppId());
+    EXPECT_EQ(55u, notification.GetLastConnectionId());
+    EXPECT_TRUE(notification.GetLastConnected());
 
     EXPECT_EQ(Core::ERROR_NONE, responder.Unregister(&notification));
 }
