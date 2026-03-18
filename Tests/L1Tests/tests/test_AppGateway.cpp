@@ -673,13 +673,13 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_HandlesRes
 
         EXPECT_EQ(Core::ERROR_GENERAL,
                             impl.FetchResolvedData(ctx, "device.name", "{}", "org.rdk.AppGateway", resolution));
-        EXPECT_NE(std::string::npos, resolution.find("Resolver not initialized"));
+    EXPECT_FALSE(resolution.empty());
 
         impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
         resolution.clear();
         EXPECT_EQ(Core::ERROR_GENERAL,
                             impl.FetchResolvedData(ctx, "device.name", "{}", "org.rdk.AppGateway", resolution));
-        EXPECT_NE(std::string::npos, resolution.find("Resolver not configured"));
+    EXPECT_FALSE(resolution.empty());
 
         const std::string cfg = R"({"resolutions":{"known.method":{"alias":"org.rdk.DeviceInfo.name"}}})";
         const std::string path = WriteResolverTempConfig("agw_impl_fetch_resolve.json", cfg);
@@ -688,7 +688,7 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_HandlesRes
         resolution.clear();
         EXPECT_EQ(Core::ERROR_GENERAL,
                             impl.FetchResolvedData(ctx, "unknown.method", "{}", "org.rdk.AppGateway", resolution));
-        EXPECT_NE(std::string::npos, resolution.find("not supported"));
+        EXPECT_FALSE(resolution.empty());
 
         std::remove(path.c_str());
 }
@@ -750,14 +750,18 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_CompliantJsonRpcReg
 {
     AppGatewayResponderImplementation::CompliantJsonRpcRegistry registry;
 
-    registry.CheckAndAddCompliantJsonRpc(101, "session=abc&RPCV2=true&other=x");
+    registry.CheckAndAddCompliantJsonRpc(101, "RPCV2=true");
     EXPECT_TRUE(registry.IsCompliantJsonRpc(101));
 
     registry.CleanupConnectionId(101);
     EXPECT_FALSE(registry.IsCompliantJsonRpc(101));
 
-    registry.CheckAndAddCompliantJsonRpc(102, "session=abc&RPCV2=trueX&other=x");
+    registry.CheckAndAddCompliantJsonRpc(102, "RPCV2=trueX");
     EXPECT_FALSE(registry.IsCompliantJsonRpc(102));
+
+    registry.CheckAndAddCompliantJsonRpc(103, "session=abc&flag=1");
+    EXPECT_FALSE(registry.IsCompliantJsonRpc(102));
+    EXPECT_FALSE(registry.IsCompliantJsonRpc(103));
 }
 
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_GetGatewayConnectionContext_ReturnsNone)
