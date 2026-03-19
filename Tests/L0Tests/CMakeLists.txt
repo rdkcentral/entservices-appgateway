@@ -193,6 +193,7 @@ add_executable(appnotifications_l0test ${APPNOTIF_L0_SOURCES})
 target_compile_definitions(appnotifications_l0test PRIVATE
     MODULE_NAME=AppNotifications_L0Test
     DISABLE_SECURITY_TOKEN
+    USE_THUNDER_R4
     APPNOTIFICATIONS_MAJOR_VERSION=1
     APPNOTIFICATIONS_MINOR_VERSION=0
     APPNOTIFICATIONS_PATCH_VERSION=0
