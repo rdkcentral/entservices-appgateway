@@ -187,7 +187,11 @@ namespace {
 
         uint32_t Id() const override { return _id; }
         uint32_t RemoteId() const override { return _id; }
+#ifndef USE_THUNDER_R4
         void* Aquire(const uint32_t /*waitTime*/, const std::string& /*className*/, const uint32_t /*interfaceId*/, const uint32_t /*version*/) override { return nullptr; }
+#else
+        void* Acquire(const uint32_t /*waitTime*/, const std::string& /*className*/, const uint32_t /*interfaceId*/, const uint32_t /*version*/) override { return nullptr; }
+#endif
         void Terminate() override {}
         uint32_t Launch() override { return ERROR_NONE; }
 
