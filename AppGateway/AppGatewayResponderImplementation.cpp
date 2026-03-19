@@ -342,7 +342,7 @@ namespace WPEFramework
             }
 
             // Create context for telemetry
-            Exchange::GatewayContext context = {(uint32_t)requestId, connectionId, appId};
+            Exchange::GatewayContext context = {(uint32_t)requestId, connectionId, std::move(appId)};
             AppGatewayTelemetry::getInstance().RecordTelemetryEvent(
                 context,
                 AGW_MARKER_RESPONSE_PAYLOAD_TRACKING,
