@@ -30,6 +30,8 @@ namespace Utils
         static void init()
         {
 #ifdef ENABLE_TELEMETRY_LOGGING
+            // Telemetry initialization is handled by PowerManager for all Thunder plugins,
+            // including AppGateway. Avoid calling init() here to prevent multiple initializations.
             t2_init((char *) "appgateway");
 #endif
         };
