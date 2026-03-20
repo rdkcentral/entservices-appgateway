@@ -249,4 +249,53 @@ TEST_F(AppDelegateTest, AGC_L1_053_AppDelegate_UnrecognizedMethod)
     EXPECT_EQ(Core::ERROR_UNKNOWN_KEY, rc);
 }
 
+/* ================================================================
+ * Category B – SharedStorage null (QueryInterfaceByCallsign fails)
+ * ================================================================ */
+
+class AppDelegateNoStorageTest : public ::testing::Test {
+protected:
+    Core::Sink<AppGatewayCommon> plugin;
+    NiceMock<ServiceMock> service;
+
+    void SetUp() override
+    {
+        // All QueryInterfaceByCallsign calls return nullptr – SharedStorage is NOT available
+        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+            .WillByDefault(Return(nullptr));
+
+        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        const string response = plugin.Initialize(&service);
+        ASSERT_TRUE(response.empty());
+    }
+
+    void TearDown() override
+    {
+        plugin.Deinitialize(&service);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+};
+
+TEST_F(AppDelegateNoStorageTest, AGC_L1_217_GetDeviceUID_NoSharedStorage_ReturnsUnavailable)
+{
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.uid", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_NE(result.find("Unable to get SharedStorage interface"), std::string::npos);
+}
+
+TEST_F(AppDelegateNoStorageTest, AGC_L1_218_GetAdvertisingId_NoSharedStorage_ReturnsUnavailable)
+{
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "advertising.advertisingid", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_NE(result.find("Unable to get SharedStorage interface"), std::string::npos);
+}
+
 } // namespace

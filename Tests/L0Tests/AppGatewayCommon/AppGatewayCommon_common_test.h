@@ -13,6 +13,8 @@
 #include "AppGatewayCommon.h"
 #include "ServiceMock.h"
 #include "L0Bootstrap.hpp"
+#include "L0TestTypes.hpp"
+#include "L0Expect.hpp"
 
 using WPEFramework::Core::ERROR_NONE;
 using WPEFramework::Core::ERROR_GENERAL;
@@ -41,33 +43,11 @@ private:
     T* _ptr;
 };
 
-struct TestResult {
-    uint32_t failures { 0 };
-};
-
-inline void ExpectTrue(TestResult& tr, const bool condition, const std::string& what)
-{
-    if (!condition) {
-        tr.failures++;
-        std::cerr << "FAIL: " << what << std::endl;
-    }
-}
-
-inline void ExpectEqU32(TestResult& tr, const uint32_t actual, const uint32_t expected, const std::string& what)
-{
-    if (actual != expected) {
-        tr.failures++;
-        std::cerr << "FAIL: " << what << " expected=" << expected << " actual=" << actual << std::endl;
-    }
-}
-
-inline void ExpectEqStr(TestResult& tr, const std::string& actual, const std::string& expected, const std::string& what)
-{
-    if (actual != expected) {
-        tr.failures++;
-        std::cerr << "FAIL: " << what << " expected='" << expected << "' actual='" << actual << "'" << std::endl;
-    }
-}
+// Use shared L0Test helpers — no local reimplementation.
+using L0Test::TestResult;
+using L0Test::ExpectTrue;
+using L0Test::ExpectEqU32;
+using L0Test::ExpectEqStr;
 
 struct PluginAndService {
     L0Test::ServiceMock* service { nullptr };
@@ -160,3 +140,5 @@ using AGCTest::DefaultContext;
 using AGCTest::QIGuard;
 using AGCTest::StubEmitter;
 using AGCTest::DelegateGetterTest;
+using L0Test::PrintTotals;
+using L0Test::ResultToExitCode;

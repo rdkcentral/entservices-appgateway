@@ -98,9 +98,10 @@ uint32_t Test_HandleAppEventNotifier_ValidCb()
     ExpectEqU32(tr, rc2, ERROR_NONE, "HandleAppEventNotifier listen=false returns ERROR_NONE");
     ExpectTrue(tr, status2, "HandleAppEventNotifier listen=false sets status true");
 
-    // Allow WorkerPool to drain the two async EventRegistrationJobs before teardown,
-    // preventing a use-after-free on the emitter/delegate pointers.
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // Best-effort drain: give the WorkerPool time to dispatch the two async
+    // EventRegistrationJobs before teardown, preventing use-after-free.
+    // The jobs are trivial (single delegate call), so 100ms is generous.
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     emitter->Release(); // drop our initial ref
     ps.plugin->Deinitialize(ps.service);

@@ -29,6 +29,7 @@
 
 #include "ServiceMock.h"
 #include "MockNetworkManager.h"
+#include "MockEmitter.h"
 #include "ThunderPortability.h"
 #include "WorkerPoolImplementation.h"
 
@@ -310,6 +311,170 @@ TEST_F(NetworkDelegateTest, AGC_L1_174_GetInternetConnectionStatus_BothEthernetA
     EXPECT_EQ(Core::ERROR_NONE, rc);
     // Ethernet takes priority (first connected interface wins)
     EXPECT_NE(result.find("ethernet"), std::string::npos);
+}
+
+/* ================================================================
+ * Category B – Null NetworkManager interface
+ *
+ * All QueryInterfaceByCallsign calls return nullptr, so
+ * NetworkDelegate cannot acquire the INetworkManager interface.
+ * ================================================================ */
+
+class NetworkNoInterfaceTest : public ::testing::Test {
+protected:
+    Core::Sink<AppGatewayCommon> plugin;
+    NiceMock<ServiceMock> service;
+
+    void SetUp() override
+    {
+        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+            .WillByDefault(Return(nullptr));
+
+        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        const string response = plugin.Initialize(&service);
+        ASSERT_TRUE(response.empty());
+    }
+
+    void TearDown() override
+    {
+        plugin.Deinitialize(&service);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+};
+
+TEST_F(NetworkNoInterfaceTest, AGC_L1_230_GetNetworkConnected_NoInterface_ReturnsUnavailable)
+{
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "network.connected", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_NE(result.find("NetworkManager not available"), std::string::npos);
+}
+
+TEST_F(NetworkNoInterfaceTest, AGC_L1_231_GetInternetConnectionStatus_NoInterface_ReturnsUnavailable)
+{
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.network", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_NE(result.find("NetworkManager not available"), std::string::npos);
+}
+
+/* ================================================================
+ * Category C – Network notification dispatch
+ *
+ * Capture the INetworkManager::INotification pointer during
+ * subscription and fire notification callbacks to verify dispatch.
+ * ================================================================ */
+
+class NetworkNotificationTest : public ::testing::Test {
+protected:
+    Core::Sink<AppGatewayCommon> plugin;
+    NiceMock<ServiceMock> service;
+    NiceMock<MockNetworkManager> mockNetwork;
+    Exchange::INetworkManager::INotification* capturedNotification = nullptr;
+    std::vector<MockEmitter*> heapEmitters;
+
+    void SetUp() override
+    {
+        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+            .WillByDefault(Return(nullptr));
+
+        ON_CALL(service, QueryInterfaceByCallsign(Exchange::INetworkManager::ID, ::testing::StrEq("org.rdk.NetworkManager")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                mockNetwork.AddRef();
+                return static_cast<Exchange::INetworkManager*>(&mockNetwork);
+            }));
+
+        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        // Capture notification pointer on Register
+        EXPECT_CALL(mockNetwork, Register(_)).Times(AnyNumber())
+            .WillRepeatedly(::testing::Invoke([this](Exchange::INetworkManager::INotification* n) -> uint32_t {
+                capturedNotification = n;
+                return Core::ERROR_NONE;
+            }));
+        EXPECT_CALL(mockNetwork, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        const string response = plugin.Initialize(&service);
+        ASSERT_TRUE(response.empty());
+    }
+
+    void TearDown() override
+    {
+        plugin.Deinitialize(&service);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        for (auto* e : heapEmitters) {
+            testing::Mock::VerifyAndClearExpectations(e);
+            delete e;
+        }
+        heapEmitters.clear();
+    }
+};
+
+TEST_F(NetworkNotificationTest, AGC_L1_232_NetworkSubscription_RegistersAndCapturesNotification)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+    bool status = false;
+    const auto rc = plugin.HandleAppEventNotifier(emitter, "Network.onConnectedChanged", true, status);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+
+    // Wait for the async EventRegistrationJob to complete
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    // The subscription dispatches asynchronously; verify notification was captured
+    EXPECT_NE(capturedNotification, nullptr);
+}
+
+TEST_F(NetworkNotificationTest, AGC_L1_233_NetworkNotification_onActiveInterfaceChange_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    // Subscribe to Network.onConnectedChanged
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "Network.onConnectedChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedNotification, nullptr);
+
+    // Fire onActiveInterfaceChange: empty current → disconnected
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Network.onConnectedChanged"), _, _)).Times(::testing::AtLeast(1));
+    capturedNotification->onActiveInterfaceChange("eth0", "");
+
+    // Give worker pool time to dispatch
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(NetworkNotificationTest, AGC_L1_234_NetworkNotification_onInternetStatusChange_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    // Subscribe to device.onNetworkChanged
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "device.onNetworkChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("device.onNetworkChanged"), _, _)).Times(::testing::AtLeast(1));
+    capturedNotification->onInternetStatusChange(
+        Exchange::INetworkManager::INTERNET_NOT_AVAILABLE,
+        Exchange::INetworkManager::INTERNET_FULLY_CONNECTED,
+        "eth0"
+    );
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
 } // namespace

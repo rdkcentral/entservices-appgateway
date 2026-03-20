@@ -4,6 +4,7 @@
 #include <core/core.h>
 
 #include "L0Bootstrap.hpp"
+#include "AppGatewayCommon_common_test.h"
 
 // ---------------------------------------------------------------------------
 // Forward declarations — test functions defined in the companion .cpp files.
@@ -234,11 +235,6 @@ int main()
 
     WPEFramework::Core::Singleton::Dispose();
 
-    if (0 == failures) {
-        std::cout << "AppGatewayCommon l0test passed." << std::endl;
-        return 0;
-    }
-
-    std::cerr << "AppGatewayCommon l0test total failures: " << failures << std::endl;
-    return static_cast<int>(failures);
+    PrintTotals(std::cerr, "AppGatewayCommon l0test", failures);
+    return ResultToExitCode(failures);
 }

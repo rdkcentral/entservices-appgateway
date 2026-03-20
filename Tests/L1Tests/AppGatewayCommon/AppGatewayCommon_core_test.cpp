@@ -298,7 +298,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_040_041_ClosedCaptionsSettings_NullDelegate_
     EXPECT_EQ("{\"error\":\"couldn't get closed captions settings\"}", result);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_028_032_GetSpeed_NullDelegate_ReturnsUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_028_GetSpeed_NullDelegate_ReturnsUnavailable)
 {
     plugin.mDelegate.reset();
 
@@ -306,15 +306,15 @@ TEST_F(AppGatewayCommonTest, AGC_L1_028_032_GetSpeed_NullDelegate_ReturnsUnavail
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetSpeed(speed));
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_033_037_SetSpeed_NullDelegate_ReturnsUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_033_034_035_036_037_SetSpeed_NullDelegate_ReturnsUnavailable)
 {
     plugin.mDelegate.reset();
 
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(2.0));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.67));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.33));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.0));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(0.8));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(2.0));   // 033
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.67));  // 034
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.33));  // 035
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.0));   // 036
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(0.8));   // 037
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_044_045_LifecycleAndAuth_NullDelegate_ReturnUnavailable)

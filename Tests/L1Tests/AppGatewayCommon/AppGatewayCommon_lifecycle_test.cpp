@@ -30,6 +30,7 @@
 #include "ServiceMock.h"
 #include "MockLifecycleManagerState.h"
 #include "MockRDKWindowManager.h"
+#include "MockEmitter.h"
 #include "ThunderPortability.h"
 #include "WorkerPoolImplementation.h"
 
@@ -92,6 +93,7 @@ protected:
     NiceMock<MockLifecycleManagerState> mockLifecycle;
     NiceMock<MockRDKWindowManager> mockWindowMgr;
     Exchange::ILifecycleManagerState::INotification* capturedNotification = nullptr;
+    std::vector<MockEmitter*> heapEmitters;
 
     void SetUp() override
     {
@@ -136,6 +138,11 @@ protected:
     {
         plugin.Deinitialize(&service);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        for (auto* e : heapEmitters) {
+            testing::Mock::VerifyAndClearExpectations(e);
+            delete e;
+        }
+        heapEmitters.clear();
         std::remove("/opt/ai2managers");
     }
 };
@@ -486,6 +493,264 @@ TEST_F(LifecycleDelegateTest, AGC_L1_182_GetLastIntent_WithIntent)
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
+}
+
+/* ================================================================
+ * Category B – Null LifecycleManagerState interface
+ *
+ * LifecycleDelegate is constructed but /opt/ai2managers does NOT
+ * exist, so ConfigUtils::useAppManagers() returns false and the
+ * constructor skips Register(). The interfaces remain nullptr.
+ * ================================================================ */
+
+class LifecycleNoInterfaceTest : public ::testing::Test {
+protected:
+    Core::Sink<AppGatewayCommon> plugin;
+    NiceMock<ServiceMock> service;
+
+    void SetUp() override
+    {
+        // Ensure /opt/ai2managers does NOT exist
+        std::remove("/opt/ai2managers");
+
+        // All calls return nullptr
+        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+            .WillByDefault(Return(nullptr));
+
+        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        const string response = plugin.Initialize(&service);
+        ASSERT_TRUE(response.empty());
+    }
+
+    void TearDown() override
+    {
+        plugin.Deinitialize(&service);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+};
+
+TEST_F(LifecycleNoInterfaceTest, AGC_L1_219_LifecycleClose_NullInterface_ReturnsError)
+{
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.close", R"({"reason":"userExit"})", result);
+
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_NE(result.find("LifecycleManager not available"), std::string::npos);
+}
+
+TEST_F(LifecycleNoInterfaceTest, AGC_L1_220_Lifecycle2Close_NullInterface_ReturnsError)
+{
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"deactivate"})", result);
+
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_NE(result.find("LifecycleManager not available"), std::string::npos);
+}
+
+TEST_F(LifecycleNoInterfaceTest, AGC_L1_221_LifecycleReady_NullInterface_ReturnsOK)
+{
+    // LifecycleReady with null mLifecycleManagerState returns ERROR_NONE silently
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.ready", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+}
+
+/* ================================================================
+ * Category C – Lifecycle notification dispatch
+ *
+ * Use capturedNotification from the main fixture to fire
+ * OnAppLifecycleStateChanged and verify lifecycle events dispatch.
+ * ================================================================ */
+
+TEST_F(LifecycleDelegateTest, AGC_L1_222_LifecycleNotification_ActiveState_DispatchesForegroundOrBackground)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    // First fire INITIALIZING to populate the map
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-001",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+
+    // Now transition to ACTIVE – should dispatch Lifecycle2.onStateChanged
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-001",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+
+    // Verify state registry was updated
+    const auto ctx = MakeContext("test.app");
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("active"), std::string::npos);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_223_LifecycleNotification_PausedState)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-002",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-002",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::PAUSED,
+        ""
+    );
+
+    const auto ctx = MakeContext("test.app");
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // Lifecycle1 maps PAUSED to "inactive"
+    EXPECT_NE(result.find("inactive"), std::string::npos);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_224_LifecycleNotification_SuspendedState)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-003",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-003",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::SUSPENDED,
+        ""
+    );
+
+    const auto ctx = MakeContext("test.app");
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("suspended"), std::string::npos);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_225_LifecycleNotification_TerminatingState)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-004",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-004",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::TERMINATING,
+        ""
+    );
+
+    const auto ctx = MakeContext("test.app");
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("terminating"), std::string::npos);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_226_LifecycleNotification_ActiveWithIntent_DispatchesLastIntent)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-005",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        "playback://video/456"
+    );
+
+    // Transition to ACTIVE triggers DispatchLastKnownIntent
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-005",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+
+    // Verify the intent is stored
+    const auto ctx = MakeContext("test.app");
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+}
+
+/* ---------- HandleEvent / HandleSubscription ---------- */
+
+TEST_F(LifecycleDelegateTest, AGC_L1_227_HandleEvent_InvalidEvent_NotHandled)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+    bool status = false;
+    const auto rc = plugin.HandleAppEventNotifier(emitter, "invalid.nothingmatch", true, status);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // Event is not recognized by any delegate — status should reflect unsuccessful match
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_228_HandleEvent_ValidLifecycleEvent_Subscription)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+    bool status = false;
+    const auto rc = plugin.HandleAppEventNotifier(emitter, "Lifecycle.onForeground", true, status);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_229_HandleEvent_ValidLifecycleEvent_Unsubscription)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    // Subscribe first
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "Lifecycle.onBackground", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    EXPECT_TRUE(status);
+
+    // Now unsubscribe
+    status = false;
+    const auto rc = plugin.HandleAppEventNotifier(emitter, "Lifecycle.onBackground", false, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
 }
 
 } // namespace

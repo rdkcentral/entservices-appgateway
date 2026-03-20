@@ -317,4 +317,362 @@ TEST_F(EventsTest, AGC_L1_172_Deactivated_NonMatchingConnectionId)
     plugin.Deactivated(&conn);
 }
 
+/* ================================================================
+ * Category C – TTS Notification dispatch
+ *
+ * Capture the ITextToSpeech::INotification pointer during
+ * subscription and fire callbacks to verify TTSDelegate dispatch.
+ * ================================================================ */
+
+class TTSNotificationTest : public ::testing::Test {
+protected:
+    Core::Sink<AppGatewayCommon> plugin;
+    NiceMock<ServiceMock> service;
+    NiceMock<MockTextToSpeech> mockTTS;
+    NiceMock<MockUserSettings> mockUserSettings;
+    Exchange::ITextToSpeech::INotification* capturedTTSNotification = nullptr;
+    std::vector<MockEmitter*> heapEmitters;
+
+    void SetUp() override
+    {
+        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+            .WillByDefault(Return(nullptr));
+
+        ON_CALL(service, QueryInterfaceByCallsign(Exchange::ITextToSpeech::ID, ::testing::StrEq("org.rdk.TextToSpeech")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                mockTTS.AddRef();
+                return static_cast<Exchange::ITextToSpeech*>(&mockTTS);
+            }));
+
+        ON_CALL(service, QueryInterfaceByCallsign(Exchange::IUserSettings::ID, ::testing::StrEq("org.rdk.UserSettings")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                mockUserSettings.AddRef();
+                return static_cast<Exchange::IUserSettings*>(&mockUserSettings);
+            }));
+
+        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        // Capture TTS notification pointer
+        EXPECT_CALL(mockTTS, Register(_)).Times(AnyNumber())
+            .WillRepeatedly(::testing::Invoke([this](Exchange::ITextToSpeech::INotification* n) -> uint32_t {
+                capturedTTSNotification = n;
+                return Core::ERROR_NONE;
+            }));
+        EXPECT_CALL(mockTTS, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(mockUserSettings, Register(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(mockUserSettings, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        const string response = plugin.Initialize(&service);
+        ASSERT_TRUE(response.empty());
+    }
+
+    void TearDown() override
+    {
+        plugin.Deinitialize(&service);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        for (auto* e : heapEmitters) {
+            testing::Mock::VerifyAndClearExpectations(e);
+            delete e;
+        }
+        heapEmitters.clear();
+    }
+};
+
+TEST_F(TTSNotificationTest, AGC_L1_235_TTS_OnSpeechComplete_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    // Subscribe to TextToSpeech.onSpeechComplete
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechComplete", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedTTSNotification, nullptr);
+
+    // Fire the notification
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onSpeechComplete"), _, _)).Times(::testing::AtLeast(1));
+    capturedTTSNotification->OnSpeechComplete(42);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(TTSNotificationTest, AGC_L1_236_TTS_OnPlaybackError_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onPlaybackError", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedTTSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onPlaybackError"), _, _)).Times(::testing::AtLeast(1));
+    capturedTTSNotification->OnPlaybackError(99);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(TTSNotificationTest, AGC_L1_237_TTS_OnTTSStateChanged_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onTtsstatechanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedTTSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onTtsstatechanged"), _, _)).Times(::testing::AtLeast(1));
+    capturedTTSNotification->OnTTSStateChanged(true);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(TTSNotificationTest, AGC_L1_238_TTS_OnVoiceChanged_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onVoiceChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedTTSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onVoiceChanged"), _, _)).Times(::testing::AtLeast(1));
+    capturedTTSNotification->OnVoiceChanged("en-US-Standard-A");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(TTSNotificationTest, AGC_L1_239_TTS_OnSpeechStarted_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechStart", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedTTSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onSpeechStart"), _, _)).Times(::testing::AtLeast(1));
+    capturedTTSNotification->OnSpeechStarted(10);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+/* ================================================================
+ * Category B – TTS null interface path
+ * ================================================================ */
+
+class TTSNoInterfaceTest : public ::testing::Test {
+protected:
+    Core::Sink<AppGatewayCommon> plugin;
+    NiceMock<ServiceMock> service;
+    std::vector<MockEmitter*> heapEmitters;
+
+    void SetUp() override
+    {
+        // All QueryInterfaceByCallsign return nullptr – TTS is unavailable
+        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+            .WillByDefault(Return(nullptr));
+
+        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        const string response = plugin.Initialize(&service);
+        ASSERT_TRUE(response.empty());
+    }
+
+    void TearDown() override
+    {
+        plugin.Deinitialize(&service);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        for (auto* e : heapEmitters) {
+            testing::Mock::VerifyAndClearExpectations(e);
+            delete e;
+        }
+        heapEmitters.clear();
+    }
+};
+
+TEST_F(TTSNoInterfaceTest, AGC_L1_240_TTS_Subscription_NoInterface_StatusFalse)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+    bool status = false;
+
+    // HandleAppEventNotifier dispatches async — the worker job will try to
+    // subscribe via TTSDelegate::HandleSubscription, which calls Register().
+    // Register calls GetTTS(), which returns nullptr → returns false →
+    // registrationError is set.
+    const auto rc = plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechComplete", true, status);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);  // status is set before async dispatch
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+}
+
+/* ================================================================
+ * Category C – UserSettings notification dispatch
+ *
+ * Capture IUserSettings::INotification pointer during subscription
+ * and fire notification callbacks.
+ * ================================================================ */
+
+class UserSettingsNotificationTest : public ::testing::Test {
+protected:
+    Core::Sink<AppGatewayCommon> plugin;
+    NiceMock<ServiceMock> service;
+    NiceMock<MockUserSettings> mockUserSettings;
+    Exchange::IUserSettings::INotification* capturedUSNotification = nullptr;
+    std::vector<MockEmitter*> heapEmitters;
+
+    void SetUp() override
+    {
+        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+            .WillByDefault(Return(nullptr));
+
+        ON_CALL(service, QueryInterfaceByCallsign(Exchange::IUserSettings::ID, ::testing::StrEq("org.rdk.UserSettings")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                mockUserSettings.AddRef();
+                return static_cast<Exchange::IUserSettings*>(&mockUserSettings);
+            }));
+
+        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        // Capture UserSettings notification pointer
+        EXPECT_CALL(mockUserSettings, Register(_)).Times(AnyNumber())
+            .WillRepeatedly(::testing::Invoke([this](Exchange::IUserSettings::INotification* n) -> uint32_t {
+                capturedUSNotification = n;
+                return Core::ERROR_NONE;
+            }));
+        EXPECT_CALL(mockUserSettings, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        const string response = plugin.Initialize(&service);
+        ASSERT_TRUE(response.empty());
+    }
+
+    void TearDown() override
+    {
+        plugin.Deinitialize(&service);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        for (auto* e : heapEmitters) {
+            testing::Mock::VerifyAndClearExpectations(e);
+            delete e;
+        }
+        heapEmitters.clear();
+    }
+};
+
+TEST_F(UserSettingsNotificationTest, AGC_L1_241_UserSettings_OnAudioDescriptionChanged_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "Accessibility.onAudioDescriptionSettingsChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedUSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Accessibility.onAudioDescriptionSettingsChanged"), _, _)).Times(::testing::AtLeast(1));
+    capturedUSNotification->OnAudioDescriptionChanged(true);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(UserSettingsNotificationTest, AGC_L1_242_UserSettings_OnCaptionsChanged_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "ClosedCaptions.onEnabledChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedUSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("ClosedCaptions.onEnabledChanged"), _, _)).Times(::testing::AtLeast(1));
+    capturedUSNotification->OnCaptionsChanged(true);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(UserSettingsNotificationTest, AGC_L1_243_UserSettings_OnHighContrastChanged_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "Accessibility.onHighContrastUIChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedUSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Accessibility.onHighContrastUIChanged"), _, _)).Times(::testing::AtLeast(1));
+    capturedUSNotification->OnHighContrastChanged(true);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(UserSettingsNotificationTest, AGC_L1_244_UserSettings_OnVoiceGuidanceChanged_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "Accessibility.onVoiceGuidanceSettingsChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedUSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Accessibility.onVoiceGuidanceSettingsChanged"), _, _)).Times(::testing::AtLeast(1));
+    capturedUSNotification->OnVoiceGuidanceChanged(true);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(UserSettingsNotificationTest, AGC_L1_245_UserSettings_OnPreferredAudioLanguagesChanged_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "Localization.onPreferredAudioLanguagesChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedUSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Localization.onPreferredAudioLanguagesChanged"), _, _)).Times(::testing::AtLeast(1));
+    capturedUSNotification->OnPreferredAudioLanguagesChanged("eng,fra");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(UserSettingsNotificationTest, AGC_L1_246_UserSettings_OnPresentationLanguageChanged_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "Localization.onPresentationLanguageChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedUSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Localization.onPresentationLanguageChanged"), _, _)).Times(::testing::AtLeast(1));
+    capturedUSNotification->OnPresentationLanguageChanged("en-US");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
 } // namespace

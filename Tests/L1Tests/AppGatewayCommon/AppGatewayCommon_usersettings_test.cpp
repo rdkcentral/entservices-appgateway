@@ -895,4 +895,176 @@ TEST_F(UserSettingsTest, AGC_L1_180_AccessibilityAudioDescription_Success)
     EXPECT_NE(result.find("\"enabled\":false"), std::string::npos);
 }
 
+/* ========================================================================
+ * Category A Coverage: UserSettingsDelegate uncovered branches
+ * ======================================================================== */
+
+/* ---------- GetPresentationLanguage: no-dash locale ---------- */
+
+TEST_F(UserSettingsTest, AGC_L1_207_GetPresentationLanguage_NoDashLocale)
+{
+    EXPECT_CALL(mockUserSettings, GetPresentationLanguage(_))
+        .WillOnce(DoAll(SetArgReferee<0>(string("eng")), Return(Core::ERROR_NONE)));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.language", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // No dash in "eng" → return full string as-is
+    EXPECT_EQ("\"eng\"", result);
+}
+
+/* ---------- GetPresentationLanguage: empty returns error ---------- */
+
+TEST_F(UserSettingsTest, AGC_L1_208_GetPresentationLanguage_EmptyReturnsError)
+{
+    EXPECT_CALL(mockUserSettings, GetPresentationLanguage(_))
+        .WillOnce(DoAll(SetArgReferee<0>(string("")), Return(Core::ERROR_NONE)));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.language", "{}", result);
+
+    // COM call succeeds but empty result → ERROR_GENERAL
+    EXPECT_NE(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("error"), std::string::npos);
+}
+
+/* ---------- GetLocale: empty result → error ---------- */
+
+TEST_F(UserSettingsTest, AGC_L1_209_GetLocale_EmptyReturnsError)
+{
+    EXPECT_CALL(mockUserSettings, GetPresentationLanguage(_))
+        .WillOnce(DoAll(SetArgReferee<0>(string("")), Return(Core::ERROR_NONE)));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.locale", "{}", result);
+
+    EXPECT_NE(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("error"), std::string::npos);
+}
+
+/* ---------- SetPreferredAudioLanguages: JSON array input ---------- */
+
+TEST_F(UserSettingsTest, AGC_L1_210_SetPreferredAudioLanguages_JsonArrayInput)
+{
+    // The delegate should convert JSON array ["eng","fra"] to comma-separated "eng,fra"
+    EXPECT_CALL(mockUserSettings, SetPreferredAudioLanguages(string("eng,fra")))
+        .WillOnce(Return(Core::ERROR_NONE));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.setpreferredaudiolanguages", R"({"value":["eng","fra"]})", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+}
+
+/* ---------- SetPreferredCaptionsLanguages: JSON array input ---------- */
+
+TEST_F(UserSettingsTest, AGC_L1_211_SetPreferredCaptionsLanguages_JsonArrayInput)
+{
+    EXPECT_CALL(mockUserSettings, SetPreferredCaptionsLanguages(string("eng,spa")))
+        .WillOnce(Return(Core::ERROR_NONE));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "closedcaptions.setpreferredlanguages", R"({"value":["eng","spa"]})", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+}
+
+/* ---------- GetClosedCaptionSettings: preferred language failure ---------- */
+
+TEST_F(UserSettingsTest, AGC_L1_212_GetClosedCaptionSettings_PreferredLanguageFailure)
+{
+    EXPECT_CALL(mockUserSettings, GetCaptions(_))
+        .WillOnce(DoAll(SetArgReferee<0>(true), Return(Core::ERROR_NONE)));
+
+    EXPECT_CALL(mockUserSettings, GetPreferredCaptionsLanguages(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "accessibility.closedcaptions", "{}", result);
+
+    EXPECT_NE(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("couldn't get preferred captions languages"), std::string::npos);
+}
+
+/* ---------- GetPreferredAudioLanguages: comma parsing ---------- */
+
+TEST_F(UserSettingsTest, AGC_L1_213_GetPreferredAudioLanguages_CommaSeparatedParsing)
+{
+    EXPECT_CALL(mockUserSettings, GetPreferredAudioLanguages(_))
+        .WillOnce(DoAll(SetArgReferee<0>(string("eng,fra,spa")), Return(Core::ERROR_NONE)));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.preferredaudiolanguages", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // Should be a JSON array with three elements
+    EXPECT_NE(result.find("eng"), std::string::npos);
+    EXPECT_NE(result.find("fra"), std::string::npos);
+    EXPECT_NE(result.find("spa"), std::string::npos);
+}
+
+/* ---------- SetPreferredAudioLanguages: empty array input ---------- */
+
+TEST_F(UserSettingsTest, AGC_L1_214_SetPreferredAudioLanguages_EmptyArrayInput)
+{
+    EXPECT_CALL(mockUserSettings, SetPreferredAudioLanguages(string("")))
+        .WillOnce(Return(Core::ERROR_NONE));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.setpreferredaudiolanguages", R"({"value":"[]"})", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+}
+
+/* ---------- VoiceGuidanceSettings: rate fetch failure ---------- */
+
+TEST_F(UserSettingsTest, AGC_L1_215_VoiceGuidanceSettings_RateFetchFailure)
+{
+    EXPECT_CALL(mockUserSettings, GetVoiceGuidance(_))
+        .WillOnce(DoAll(SetArgReferee<0>(true), Return(Core::ERROR_NONE)));
+
+    EXPECT_CALL(mockUserSettings, GetVoiceGuidanceRate(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "accessibility.voiceguidance", "{}", result);
+
+    EXPECT_NE(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("couldn't get voiceguidance rate"), std::string::npos);
+}
+
+/* ---------- VoiceGuidanceSettings: hints fetch failure ---------- */
+
+TEST_F(UserSettingsTest, AGC_L1_216_VoiceGuidanceSettings_HintsFetchFailure)
+{
+    EXPECT_CALL(mockUserSettings, GetVoiceGuidance(_))
+        .WillOnce(DoAll(SetArgReferee<0>(true), Return(Core::ERROR_NONE)));
+
+    EXPECT_CALL(mockUserSettings, GetVoiceGuidanceRate(_))
+        .WillOnce(DoAll(SetArgReferee<0>(1.0), Return(Core::ERROR_NONE)));
+
+    EXPECT_CALL(mockUserSettings, GetVoiceGuidanceHints(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "accessibility.voiceguidance", "{}", result);
+
+    EXPECT_NE(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("couldn't get voiceguidance hints"), std::string::npos);
+}
+
 } // namespace
