@@ -135,10 +135,10 @@ uint32_t Test_HandleRequest_BeforeInit()
     TestResult tr;
     PluginAndService ps;
     // Deliberately do NOT call Initialize — mDelegate remains nullptr
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "device.make", "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "device.make", "{}", result);
     ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "HandleAppGatewayRequest before Init returns ERROR_UNAVAILABLE");
     ExpectTrue(tr, result.find("unavailable") != std::string::npos,
                "result contains 'unavailable' error message");
@@ -174,10 +174,10 @@ uint32_t Test_HandleRequest_AfterDeinit()
     ps.plugin->Initialize(ps.service);
     ps.plugin->Deinitialize(ps.service);
     // After Deinitialize, mDelegate is reset to nullptr
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "device.make", "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "device.make", "{}", result);
     ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "HandleAppGatewayRequest after Deinit returns ERROR_UNAVAILABLE");
     return tr.failures;
 }
@@ -200,10 +200,10 @@ uint32_t Test_Reinitialize_AfterDeinit()
     ExpectTrue(tr, init2.empty(), "Re-Initialize after Deinit succeeds");
 
     // Verify the plugin works after re-initialization
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "device.make", "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "device.make", "{}", result);
     const bool ok = (rc == ERROR_NONE || rc == ERROR_UNAVAILABLE || rc == ERROR_GENERAL);
     ExpectTrue(tr, ok, "device.make works after re-initialization");
 

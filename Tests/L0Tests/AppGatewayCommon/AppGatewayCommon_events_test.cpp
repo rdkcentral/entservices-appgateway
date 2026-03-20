@@ -9,9 +9,9 @@ uint32_t Test_CheckPermissionGroup_DefaultAllowed()
 
     ps.plugin->Initialize(ps.service);
 
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayAuthenticator> auth(ps.plugin);
     bool allowed = false;
-    const uint32_t rc = agc->CheckPermissionGroup("com.test.app", "someGroup", allowed);
+    const uint32_t rc = auth->CheckPermissionGroup("com.test.app", "someGroup", allowed);
     ExpectEqU32(tr, rc, ERROR_NONE, "CheckPermissionGroup returns ERROR_NONE");
     ExpectTrue(tr, allowed, "CheckPermissionGroup defaults to allowed=true");
 
@@ -31,9 +31,9 @@ uint32_t Test_Authenticate_DelegateUnavailable()
 
     ps.plugin->Initialize(ps.service);
 
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayAuthenticator> auth(ps.plugin);
     std::string appId;
-    const uint32_t rc = agc->Authenticate("test-session-id", appId);
+    const uint32_t rc = auth->Authenticate("test-session-id", appId);
     ExpectEqU32(tr, rc, ERROR_GENERAL, "Authenticate returns ERROR_GENERAL in L0 (session not in map)");
 
     ps.plugin->Deinitialize(ps.service);
@@ -51,9 +51,9 @@ uint32_t Test_GetSessionId_DelegateUnavailable()
 
     ps.plugin->Initialize(ps.service);
 
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayAuthenticator> auth(ps.plugin);
     std::string sessionId;
-    const uint32_t rc = agc->GetSessionId("com.test.app", sessionId);
+    const uint32_t rc = auth->GetSessionId("com.test.app", sessionId);
     ExpectEqU32(tr, rc, ERROR_GENERAL, "GetSessionId returns ERROR_GENERAL in L0 (appId not in map)");
 
     ps.plugin->Deinitialize(ps.service);
@@ -67,9 +67,9 @@ uint32_t Test_HandleAppEventNotifier_NullCb()
     TestResult tr;
     PluginAndService ps;
     ps.plugin->Initialize(ps.service);
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
     bool status = true;
-    const uint32_t rc = agc->HandleAppEventNotifier(nullptr, "lifecycle.onbackground", true, status);
+    const uint32_t rc = notif->HandleAppEventNotifier(nullptr, "lifecycle.onbackground", true, status);
     ExpectEqU32(tr, rc, ERROR_GENERAL, "HandleAppEventNotifier with null cb returns ERROR_GENERAL");
     ExpectTrue(tr, false == status, "HandleAppEventNotifier with null cb sets status false");
     ps.plugin->Deinitialize(ps.service);
@@ -83,18 +83,18 @@ uint32_t Test_HandleAppEventNotifier_ValidCb()
     TestResult tr;
     PluginAndService ps;
     ps.plugin->Initialize(ps.service);
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
     auto* emitter = new StubEmitter(); // refcount=1
 
     // listen=true
     bool status1 = false;
-    const uint32_t rc1 = agc->HandleAppEventNotifier(emitter, "lifecycle.onbackground", true, status1);
+    const uint32_t rc1 = notif->HandleAppEventNotifier(emitter, "lifecycle.onbackground", true, status1);
     ExpectEqU32(tr, rc1, ERROR_NONE, "HandleAppEventNotifier listen=true returns ERROR_NONE");
     ExpectTrue(tr, status1, "HandleAppEventNotifier listen=true sets status true");
 
     // listen=false (unlisten)
     bool status2 = false;
-    const uint32_t rc2 = agc->HandleAppEventNotifier(emitter, "lifecycle.onbackground", false, status2);
+    const uint32_t rc2 = notif->HandleAppEventNotifier(emitter, "lifecycle.onbackground", false, status2);
     ExpectEqU32(tr, rc2, ERROR_NONE, "HandleAppEventNotifier listen=false returns ERROR_NONE");
     ExpectTrue(tr, status2, "HandleAppEventNotifier listen=false sets status true");
 

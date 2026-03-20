@@ -22,7 +22,24 @@ using WPEFramework::Core::ERROR_UNKNOWN_KEY;
 using WPEFramework::Plugin::AppGatewayCommon;
 using WPEFramework::PluginHost::IPlugin;
 
+namespace Exchange = WPEFramework::Exchange;
 namespace AGCTest {
+
+// RAII guard for QueryInterface pointers — ensures Release() is always called.
+template <typename T>
+class QIGuard {
+public:
+    explicit QIGuard(IPlugin* plugin)
+        : _ptr(plugin ? plugin->QueryInterface<T>() : nullptr) {}
+    ~QIGuard() { if (_ptr) _ptr->Release(); }
+    T* operator->() const { return _ptr; }
+    T* get() const { return _ptr; }
+    explicit operator bool() const { return _ptr != nullptr; }
+    QIGuard(const QIGuard&) = delete;
+    QIGuard& operator=(const QIGuard&) = delete;
+private:
+    T* _ptr;
+};
 
 struct TestResult {
     uint32_t failures { 0 };
@@ -122,9 +139,9 @@ inline uint32_t DelegateGetterTest(const std::string& method,
     TestResult tr;
     PluginAndService ps;
     ps.plugin->Initialize(ps.service);
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, method, "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, method, "{}", result);
     const bool ok = (rc == ERROR_NONE || rc == ERROR_UNAVAILABLE || rc == ERROR_GENERAL);
     ExpectTrue(tr, ok, method + " returns acceptable code in L0");
     ps.plugin->Deinitialize(ps.service);
@@ -140,5 +157,6 @@ using AGCTest::ExpectEqU32;
 using AGCTest::ExpectEqStr;
 using AGCTest::PluginAndService;
 using AGCTest::DefaultContext;
+using AGCTest::QIGuard;
 using AGCTest::StubEmitter;
 using AGCTest::DelegateGetterTest;

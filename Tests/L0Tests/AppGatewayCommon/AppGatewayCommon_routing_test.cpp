@@ -9,11 +9,11 @@ uint32_t Test_HandleRequest_UnknownMethod()
 
     ps.plugin->Initialize(ps.service);
 
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
 
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "invalid.method.xyz", "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "invalid.method.xyz", "{}", result);
     ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "invalid.method returns ERROR_UNKNOWN_KEY");
 
     ps.plugin->Deinitialize(ps.service);
@@ -33,11 +33,11 @@ uint32_t Test_HandleRequest_DeviceMake_DelegateUnavailable()
 
     ps.plugin->Initialize(ps.service);
 
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
 
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "device.make", "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "device.make", "{}", result);
 
     // SystemDelegate::GetDeviceMake returns ERROR_NONE with make="\"unknown\""
     // even when the underlying JSON-RPC link is unavailable, because the
@@ -59,11 +59,11 @@ uint32_t Test_HandleRequest_MetricsPassthrough()
 
     ps.plugin->Initialize(ps.service);
 
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
 
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "metrics.someEvent", "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "metrics.someEvent", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "metrics.someEvent returns ERROR_NONE");
     ExpectEqStr(tr, result, "null", "metrics.someEvent result is null");
 
@@ -80,11 +80,11 @@ uint32_t Test_HandleRequest_DiscoveryWatched()
 
     ps.plugin->Initialize(ps.service);
 
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
 
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "discovery.watched", "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "discovery.watched", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "discovery.watched returns ERROR_NONE");
     ExpectEqStr(tr, result, "null", "discovery.watched result is null");
 
@@ -101,12 +101,12 @@ uint32_t Test_HandleRequest_CaseInsensitiveMethod()
 
     ps.plugin->Initialize(ps.service);
 
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
 
     // "DEVICE.MAKE" should be lowered to "device.make" internally.
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "DEVICE.MAKE", "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "DEVICE.MAKE", "{}", result);
     const bool acceptable = (rc == ERROR_NONE || rc == ERROR_UNAVAILABLE);
     ExpectTrue(tr, acceptable, "DEVICE.MAKE (uppercase) routes same as device.make");
 
@@ -126,11 +126,11 @@ uint32_t Test_HandleRequest_LifecycleReady()
 
     ps.plugin->Initialize(ps.service);
 
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
 
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "lifecycle.ready", "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "lifecycle.ready", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "lifecycle.ready returns ERROR_NONE in L0 (mLifecycleManagerState is null)");
 
     ps.plugin->Deinitialize(ps.service);
@@ -350,10 +350,10 @@ uint32_t Test_HandleRequest_LocalizationAddAdditionalInfo()
     TestResult tr;
     PluginAndService ps;
     ps.plugin->Initialize(ps.service);
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "localization.addadditionalinfo", R"({"key":"test","value":"val"})", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "localization.addadditionalinfo", R"({"key":"test","value":"val"})", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "localization.addadditionalinfo returns ERROR_NONE");
     ExpectEqStr(tr, result, "null", "localization.addadditionalinfo result is null");
     ps.plugin->Deinitialize(ps.service);
@@ -367,10 +367,10 @@ uint32_t Test_HandleRequest_LifecycleState()
     TestResult tr;
     PluginAndService ps;
     ps.plugin->Initialize(ps.service);
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "lifecycle.state returns ERROR_NONE in L0");
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
@@ -383,10 +383,10 @@ uint32_t Test_HandleRequest_LifecycleClose()
     TestResult tr;
     PluginAndService ps;
     ps.plugin->Initialize(ps.service);
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "lifecycle.close", R"({"reason":"userExit"})", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "lifecycle.close", R"({"reason":"userExit"})", result);
     ExpectEqU32(tr, rc, ERROR_GENERAL, "lifecycle.close returns ERROR_GENERAL in L0");
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
@@ -400,10 +400,10 @@ uint32_t Test_HandleRequest_LifecycleFinished()
     TestResult tr;
     PluginAndService ps;
     ps.plugin->Initialize(ps.service);
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "lifecycle.finished", "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "lifecycle.finished", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "lifecycle.finished returns ERROR_NONE");
     ExpectEqStr(tr, result, "null", "lifecycle.finished result is null");
     ps.plugin->Deinitialize(ps.service);
@@ -417,10 +417,10 @@ uint32_t Test_HandleRequest_Lifecycle2State()
     TestResult tr;
     PluginAndService ps;
     ps.plugin->Initialize(ps.service);
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "lifecycle2.state returns ERROR_NONE in L0");
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
@@ -433,10 +433,10 @@ uint32_t Test_HandleRequest_Lifecycle2Close()
     TestResult tr;
     PluginAndService ps;
     ps.plugin->Initialize(ps.service);
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"deactivate"})", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"deactivate"})", result);
     ExpectEqU32(tr, rc, ERROR_GENERAL, "lifecycle2.close returns ERROR_GENERAL in L0");
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
@@ -450,10 +450,10 @@ uint32_t Test_HandleRequest_DispatchIntent()
     TestResult tr;
     PluginAndService ps;
     ps.plugin->Initialize(ps.service);
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "commoninternal.dispatchintent", "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "commoninternal.dispatchintent", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "commoninternal.dispatchintent returns ERROR_NONE");
     ExpectEqStr(tr, result, "null", "commoninternal.dispatchintent result is null");
     ps.plugin->Deinitialize(ps.service);
@@ -468,10 +468,10 @@ uint32_t Test_HandleRequest_GetLastIntent()
     TestResult tr;
     PluginAndService ps;
     ps.plugin->Initialize(ps.service);
-    auto* agc = static_cast<AppGatewayCommon*>(ps.plugin);
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
-    const uint32_t rc = agc->HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "commoninternal.getlastintent returns ERROR_NONE");
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
