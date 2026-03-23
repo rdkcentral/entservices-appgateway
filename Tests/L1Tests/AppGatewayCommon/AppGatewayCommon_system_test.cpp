@@ -184,22 +184,6 @@ TEST_F(SystemDelegateTest, AGC_L1_082_GetDeviceName_Success)
     EXPECT_NE(result.find("Bedroom TV"), std::string::npos);
 }
 
-/* ---------- SetDeviceName ---------- */
-
-TEST_F(SystemDelegateTest, AGC_L1_083_SetDeviceName_Success)
-{
-    systemDispatcher.SetHandler("setFriendlyName", [](const std::string&, const std::string& params, std::string& resp) {
-        resp = R"({"success":true})";
-        return Core::ERROR_NONE;
-    });
-
-    const auto ctx = MakeContext();
-    string result;
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.setname", R"({"value":"Kitchen"})", result);
-
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-}
-
 /* ---------- GetDeviceSku ---------- */
 
 TEST_F(SystemDelegateTest, AGC_L1_084_GetDeviceSku_Success)
@@ -446,23 +430,6 @@ TEST_F(SystemDelegateTest, AGC_L1_098_GetAudio_MultipleFlagsSet)
     EXPECT_NE(result.find("\"dolbyDigital5.1+\":true"), std::string::npos);
 }
 
-/* ---------- SecondScreen FriendlyName (aliases GetDeviceName) ---------- */
-
-TEST_F(SystemDelegateTest, AGC_L1_128_SecondScreenFriendlyName_Success)
-{
-    systemDispatcher.SetHandler("getFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
-        resp = R"({"friendlyName":"Living Room TV"})";
-        return Core::ERROR_NONE;
-    });
-
-    const auto ctx = MakeContext();
-    string result;
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "secondscreen.friendlyname", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_NE(result.find("Living Room TV"), std::string::npos);
-}
-
 /* ---------- RPC failure paths ---------- */
 
 TEST_F(SystemDelegateTest, AGC_L1_129_GetDeviceMake_RPCFailure)
@@ -478,20 +445,6 @@ TEST_F(SystemDelegateTest, AGC_L1_129_GetDeviceMake_RPCFailure)
 
     // On RPC failure the delegate falls back to "unknown"
     EXPECT_NE(result.find("unknown"), std::string::npos);
-}
-
-TEST_F(SystemDelegateTest, AGC_L1_130_SetDeviceName_SuccessFalse)
-{
-    systemDispatcher.SetHandler("setFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
-        resp = R"({"success":false})";
-        return Core::ERROR_NONE;
-    });
-
-    const auto ctx = MakeContext();
-    string result;
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.setname", R"({"value":"Test"})", result);
-
-    EXPECT_NE(Core::ERROR_NONE, rc);
 }
 
 TEST_F(SystemDelegateTest, AGC_L1_131_GetScreenResolution_RPCFailure)

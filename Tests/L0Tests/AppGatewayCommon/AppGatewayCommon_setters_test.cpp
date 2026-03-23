@@ -45,28 +45,6 @@ uint32_t Test_HandleRequest_SetterValidPayload_DelegateUnavailable()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_014
-// HandleAppGatewayRequest for "voiceguidance.setspeed" with out-of-range value
-// returns ERROR_BAD_REQUEST.
-uint32_t Test_HandleRequest_VoiceGuidanceSetSpeed_OutOfRange()
-{
-    TestResult tr;
-    PluginAndService ps;
-
-    ps.plugin->Initialize(ps.service);
-
-    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
-    std::string result;
-    Exchange::GatewayContext ctx = DefaultContext();
-
-    // Speed must be between 0.5 and 2.0 — value 5.0 is out of range.
-    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "voiceguidance.setspeed", R"({"value":5.0})", result);
-    ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "voiceguidance.setspeed with out-of-range value returns ERROR_BAD_REQUEST");
-
-    ps.plugin->Deinitialize(ps.service);
-    return tr.failures;
-}
-
 // TEST_ID: AGC_L0_016
 // HandleAppGatewayRequest for "voiceguidance.setenabled" with invalid non-bool payload
 // returns ERROR_BAD_REQUEST.

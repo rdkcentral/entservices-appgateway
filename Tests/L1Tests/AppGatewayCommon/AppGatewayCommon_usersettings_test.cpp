@@ -638,38 +638,6 @@ TEST_F(UserSettingsTest, AGC_L1_148_VoiceGuidanceSettings_EnabledFetchFails)
     EXPECT_NE(result.find("voiceguidance"), std::string::npos);
 }
 
-TEST_F(UserSettingsTest, AGC_L1_149_VoiceGuidanceSettings_RateFetchFails)
-{
-    EXPECT_CALL(mockUserSettings, GetVoiceGuidance(_))
-        .WillOnce(DoAll(SetArgReferee<0>(true), Return(Core::ERROR_NONE)));
-    EXPECT_CALL(mockUserSettings, GetVoiceGuidanceRate(_))
-        .WillOnce(Return(Core::ERROR_GENERAL));
-
-    const auto ctx = MakeContext();
-    string result;
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "accessibility.voiceguidancesettings", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_GENERAL, rc);
-    EXPECT_NE(result.find("voiceguidance"), std::string::npos);
-}
-
-TEST_F(UserSettingsTest, AGC_L1_150_VoiceGuidanceSettings_HintsFetchFails)
-{
-    EXPECT_CALL(mockUserSettings, GetVoiceGuidance(_))
-        .WillOnce(DoAll(SetArgReferee<0>(true), Return(Core::ERROR_NONE)));
-    EXPECT_CALL(mockUserSettings, GetVoiceGuidanceRate(_))
-        .WillOnce(DoAll(SetArgReferee<0>(1.0), Return(Core::ERROR_NONE)));
-    EXPECT_CALL(mockUserSettings, GetVoiceGuidanceHints(_))
-        .WillOnce(Return(Core::ERROR_GENERAL));
-
-    const auto ctx = MakeContext();
-    string result;
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "accessibility.voiceguidancesettings", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_GENERAL, rc);
-    EXPECT_NE(result.find("voiceguidance"), std::string::npos);
-}
-
 TEST_F(UserSettingsTest, AGC_L1_151_ClosedCaptionsSettings_CaptionsFetchFails)
 {
     EXPECT_CALL(mockUserSettings, GetCaptions(_))

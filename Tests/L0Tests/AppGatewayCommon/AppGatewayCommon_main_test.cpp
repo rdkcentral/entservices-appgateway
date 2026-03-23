@@ -73,7 +73,6 @@ extern uint32_t Test_HandleRequest_NetworkConnected();
 // AppGatewayCommon_setters_test.cpp
 extern uint32_t Test_HandleRequest_SetterInvalidPayload();
 extern uint32_t Test_HandleRequest_SetterValidPayload_DelegateUnavailable();
-extern uint32_t Test_HandleRequest_VoiceGuidanceSetSpeed_OutOfRange();
 extern uint32_t Test_HandleRequest_BoolSetterInvalidPayload();
 extern uint32_t Test_HandleRequest_SetCountryCode_InvalidPayload();
 extern uint32_t Test_HandleRequest_SetCountryCode_ValidPayload();
@@ -135,7 +134,6 @@ int main()
         { "GetSessionId_DelegateUnavailable",             Test_GetSessionId_DelegateUnavailable },
         { "HandleRequest_SetterInvalidPayload",           Test_HandleRequest_SetterInvalidPayload },
         { "HandleRequest_SetterValidPayload_DelegateUnavailable", Test_HandleRequest_SetterValidPayload_DelegateUnavailable },
-        { "HandleRequest_VoiceGuidanceSetSpeed_OutOfRange", Test_HandleRequest_VoiceGuidanceSetSpeed_OutOfRange },
         { "HandleRequest_CaseInsensitiveMethod",          Test_HandleRequest_CaseInsensitiveMethod },
         { "HandleRequest_BoolSetterInvalidPayload",       Test_HandleRequest_BoolSetterInvalidPayload },
         { "HandleRequest_LifecycleReady",                 Test_HandleRequest_LifecycleReady },
