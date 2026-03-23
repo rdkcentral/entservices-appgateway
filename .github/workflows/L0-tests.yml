@@ -184,6 +184,7 @@ jobs:
             helper_src="$(find \
               "$GITHUB_WORKSPACE/install" \
               "$GITHUB_WORKSPACE/build" \
+              "$GITHUB_WORKSPACE/Thunder" \
               "$GITHUB_WORKSPACE/ThunderTools" \
               -type f -name 'CmakeHelperFunctions.cmake' -print -quit 2>/dev/null || true)"
 
@@ -195,13 +196,16 @@ jobs:
 
           if [ ! -f "$primary/CmakeHelperFunctions.cmake" ]; then
             echo "Missing CmakeHelperFunctions.cmake in $primary"
-            echo "Searched roots: $GITHUB_WORKSPACE/install, $GITHUB_WORKSPACE/build, $GITHUB_WORKSPACE/ThunderTools"
-            find "$GITHUB_WORKSPACE/install" "$GITHUB_WORKSPACE/build" "$GITHUB_WORKSPACE/ThunderTools" -type f -name 'CmakeHelperFunctions.cmake' 2>/dev/null || true
+            echo "Searched roots: $GITHUB_WORKSPACE/install, $GITHUB_WORKSPACE/build, $GITHUB_WORKSPACE/Thunder, $GITHUB_WORKSPACE/ThunderTools"
+            find "$GITHUB_WORKSPACE/install" "$GITHUB_WORKSPACE/build" "$GITHUB_WORKSPACE/Thunder" "$GITHUB_WORKSPACE/ThunderTools" -type f -name 'CmakeHelperFunctions.cmake' 2>/dev/null || true
 
             echo "Creating fallback helper module for L0 build"
             cat > "$primary/CmakeHelperFunctions.cmake" <<'EOF'
-          # Auto-generated fallback used only when ThunderTools helper module is unavailable.
+          # Auto-generated fallback used only when helper module is unavailable.
+          # This keeps configure progressing in CI for L0-only verification builds.
           function(write_config PLUGIN_NAME)
+          endfunction()
+          function(InstallPackageConfig)
           endfunction()
           EOF
           fi
