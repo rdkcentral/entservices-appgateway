@@ -31,6 +31,10 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      - name: Checkout entservices-appgateway
+        if: ${{ !env.ACT }}
+        uses: actions/checkout@v3
+
       - name: Set up cache
         if: ${{ !env.ACT }}
         id: cache
@@ -112,10 +116,6 @@ jobs:
           meson setup --warnlevel 3 --werror build
           ninja -C build
           sudo ninja -C build install
-
-      - name: Checkout entservices-appgateway
-        if: ${{ !env.ACT }}
-        uses: actions/checkout@v3
 
       - name: Checkout Thunder
         if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
