@@ -451,7 +451,7 @@ namespace L0Test {
             return nullptr;
         }
 
-        WPEFramework::Core::hresult Notify(const string& event, const string& payload) override
+        WPEFramework::Core::hresult Notify(const string& event, const string& payload)
         {
             lastEvent = event;
             lastPayload = payload;

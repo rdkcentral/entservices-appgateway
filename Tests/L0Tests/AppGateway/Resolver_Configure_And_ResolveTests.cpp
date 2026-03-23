@@ -203,7 +203,7 @@ struct PluginAndService {
     WPEFramework::PluginHost::IPlugin* plugin { nullptr };
 
     explicit PluginAndService(const L0Test::ServiceMock::Config& cfg = L0Test::ServiceMock::Config())
-        : service(new L0Test::ServiceMock(cfg))
+        : service(new L0Test::ServiceMock(cfg, true))
         , plugin(WPEFramework::Core::Service<AppGatewayPlugin>::Create<IPlugin>()) {
     }
     ~PluginAndService() {
