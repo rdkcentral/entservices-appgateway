@@ -416,6 +416,11 @@ jobs:
           th_core_cfg="$(find "$prefix_usr" -type f -name 'ThunderConfig.cmake' -print -quit 2>/dev/null || true)"
           th_plugins_cfg="$(find "$prefix_usr" -type f -name 'ThunderPluginsConfig.cmake' -print -quit 2>/dev/null || true)"
 
+          echo "WPE core cfg: ${wpe_core_cfg:-<missing>}"
+          echo "WPE plugins cfg: ${wpe_plugins_cfg:-<missing>}"
+          echo "Thunder core cfg: ${th_core_cfg:-<missing>}"
+          echo "Thunder plugins cfg: ${th_plugins_cfg:-<missing>}"
+
           namespace=""
           if [ -n "${th_core_cfg}" ] && [ -n "${th_plugins_cfg}" ]; then
             namespace="Thunder"
@@ -454,30 +459,46 @@ jobs:
         run: |
           set -euo pipefail
 
-          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr${CMAKE_PREFIX_PATH:+;${CMAKE_PREFIX_PATH}}"
+          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr;$GITHUB_WORKSPACE/install${CMAKE_PREFIX_PATH:+;${CMAKE_PREFIX_PATH}}"
           export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake${CMAKE_MODULE_PATH:+;${CMAKE_MODULE_PATH}}"
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:$PATH"
           APPGW_NAMESPACE="${{ steps.nsdetect.outputs.namespace }}"
           echo "Using APPGW_NAMESPACE=${APPGW_NAMESPACE}"
 
-          cmake -G Ninja \
-            -S "$GITHUB_WORKSPACE" \
-            -B build/entservices-appgateway-l0 \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
-            -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH" \
-            -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake" \
-            -DConfigGenerator_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator" \
-            -DWPEFramework_DIR="${{ steps.nsdetect.outputs.wpe_core_dir }}" \
-            -DWPEFrameworkPlugins_DIR="${{ steps.nsdetect.outputs.wpe_plugins_dir }}" \
-            -DThunder_DIR="${{ steps.nsdetect.outputs.th_core_dir }}" \
-            -DThunderPlugins_DIR="${{ steps.nsdetect.outputs.th_plugins_dir }}" \
-            -DDISABLE_SECURITY_TOKEN=ON \
-            -DUSE_THUNDER_R4=ON \
-            -DNAMESPACE="$APPGW_NAMESPACE" \
-            -DPLUGIN_APPGATEWAY=ON \
-            -DPLUGIN_APPGATEWAYCOMMON=OFF \
+          CMAKE_ARGS=(
+            -G Ninja
+            -S "$GITHUB_WORKSPACE"
+            -B build/entservices-appgateway-l0
+            -DCMAKE_BUILD_TYPE=Debug
+            -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"
+            -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH"
+            -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+            -DConfigGenerator_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator"
+            -DDISABLE_SECURITY_TOKEN=ON
+            -DUSE_THUNDER_R4=ON
+            -DNAMESPACE="$APPGW_NAMESPACE"
+            -DPLUGIN_APPGATEWAY=ON
+            -DPLUGIN_APPGATEWAYCOMMON=OFF
             -DCMAKE_VERBOSE_MAKEFILE=ON
+          )
+
+          if [ "WPEFramework" = "$APPGW_NAMESPACE" ]; then
+            if [ -n "${{ steps.nsdetect.outputs.wpe_core_dir }}" ]; then
+              CMAKE_ARGS+=("-DWPEFramework_DIR=${{ steps.nsdetect.outputs.wpe_core_dir }}")
+            fi
+            if [ -n "${{ steps.nsdetect.outputs.wpe_plugins_dir }}" ]; then
+              CMAKE_ARGS+=("-DWPEFrameworkPlugins_DIR=${{ steps.nsdetect.outputs.wpe_plugins_dir }}")
+            fi
+          else
+            if [ -n "${{ steps.nsdetect.outputs.th_core_dir }}" ]; then
+              CMAKE_ARGS+=("-DThunder_DIR=${{ steps.nsdetect.outputs.th_core_dir }}")
+            fi
+            if [ -n "${{ steps.nsdetect.outputs.th_plugins_dir }}" ]; then
+              CMAKE_ARGS+=("-DThunderPlugins_DIR=${{ steps.nsdetect.outputs.th_plugins_dir }}")
+            fi
+          fi
+
+          cmake "${CMAKE_ARGS[@]}"
 
           cmake --build build/entservices-appgateway-l0 -- -j"$(nproc)"
 
