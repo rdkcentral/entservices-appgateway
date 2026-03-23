@@ -52,7 +52,7 @@ static void ExpectNotEmpty(TestResult& tr, const std::string& s, const std::stri
 // Lightweight IStringIterator implementation for Configure(paths)
 class SimpleStringIterator : public WPEFramework::Exchange::IAppGatewayResolver::IStringIterator {
 public:
-    explicit SimpleStringIterator(const std::vector<string>& items)
+    explicit SimpleStringIterator(const std::vector<std::string>& items)
         : _items(items), _index(0), _refCount(1) {}
     ~SimpleStringIterator() override = default;
 
@@ -75,14 +75,14 @@ public:
         return nullptr;
     }
 
-    bool Next(string& out) override {
+    bool Next(std::string& out) override {
         if (_index < _items.size()) {
             out = _items[_index++];
             return true;
         }
         return false;
     }
-    bool Previous(string& out) override {
+    bool Previous(std::string& out) override {
         if (_index == 0) {
             return false;
         }
@@ -105,15 +105,15 @@ public:
     uint32_t Count() const override {
         return static_cast<uint32_t>(_items.size());
     }
-    string Current() const override {
+    std::string Current() const override {
         if (!IsValid()) {
-            return string();
+            return std::string();
         }
         return _items[_index - 1];
     }
 
 private:
-    std::vector<string> _items;
+    std::vector<std::string> _items;
     uint32_t _index;
     mutable std::atomic<uint32_t> _refCount;
 };
@@ -235,7 +235,7 @@ uint32_t Test_Resolver_Configure_WithBaseOnly_LoadsOK() {
 
     ExpectTrue(tr, resolver != nullptr, "IAppGatewayResolver available via QueryInterface(ID)");
     if (resolver != nullptr) {
-        std::vector<string> paths;
+        std::vector<std::string> paths;
         paths.emplace_back(ComputeBaseResolutionsPathFromThisFile());
         SimpleStringIterator* it = new SimpleStringIterator(paths);
         const uint32_t cfgRc = resolver->Configure(it);
@@ -326,7 +326,7 @@ uint32_t Test_Resolver_Resolve_UnknownMethod_ReturnsNotFound() {
 
     if (preconditionsOk) {
         // Guard: Configure(paths) must succeed before Resolve().
-        std::vector<string> paths{ ComputeBaseResolutionsPathFromThisFile() };
+        std::vector<std::string> paths{ ComputeBaseResolutionsPathFromThisFile() };
         SimpleStringIterator* it = new SimpleStringIterator(paths);
         const uint32_t cfgRc = impl->Configure(it);
         it->Release();
@@ -384,7 +384,7 @@ uint32_t Test_Resolver_Resolve_MalformedParams_ReturnsBadRequest() {
 
     if (preconditionsOk) {
         // Configure with base so HasEvent() mapping for localization.onLanguageChanged is present
-        std::vector<string> paths{ ComputeBaseResolutionsPathFromThisFile() };
+        std::vector<std::string> paths{ ComputeBaseResolutionsPathFromThisFile() };
         SimpleStringIterator* it = new SimpleStringIterator(paths);
         const uint32_t cfgRc = impl->Configure(it);
         it->Release();
@@ -444,7 +444,7 @@ uint32_t Test_Resolver_Configure_InvalidJson_ReturnsError() {
     ExpectTrue(tr, WriteTextFile(invalidPath, "{ invalid json"), "Write invalid JSON config");
 
     if (preconditionsOk) {
-        std::vector<string> paths{ invalidPath };
+        std::vector<std::string> paths{ invalidPath };
         SimpleStringIterator* it = new SimpleStringIterator(paths);
         const uint32_t cfgRc = impl->Configure(it);
         it->Release();
