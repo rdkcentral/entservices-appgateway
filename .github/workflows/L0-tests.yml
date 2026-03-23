@@ -404,6 +404,52 @@ jobs:
           url="https://raw.githubusercontent.com/rdkcentral/networkmanager/develop/interface/INetworkManager.h"
           curl -fsSL "$url" -o "$dst_dir/INetworkManager.h"
 
+      - name: Detect framework namespace and package dirs
+        id: nsdetect
+        run: |
+          set -euo pipefail
+
+          prefix_usr="$GITHUB_WORKSPACE/install/usr"
+
+          wpe_core_cfg="$(find "$prefix_usr" -type f -name 'WPEFrameworkConfig.cmake' -print -quit 2>/dev/null || true)"
+          wpe_plugins_cfg="$(find "$prefix_usr" -type f -name 'WPEFrameworkPluginsConfig.cmake' -print -quit 2>/dev/null || true)"
+          th_core_cfg="$(find "$prefix_usr" -type f -name 'ThunderConfig.cmake' -print -quit 2>/dev/null || true)"
+          th_plugins_cfg="$(find "$prefix_usr" -type f -name 'ThunderPluginsConfig.cmake' -print -quit 2>/dev/null || true)"
+
+          namespace=""
+          if [ -n "${th_core_cfg}" ] && [ -n "${th_plugins_cfg}" ]; then
+            namespace="Thunder"
+          elif [ -n "${wpe_core_cfg}" ] && [ -n "${wpe_plugins_cfg}" ]; then
+            namespace="WPEFramework"
+          fi
+
+          if [ -z "${namespace}" ]; then
+            echo "Unable to detect a complete framework package set under: $prefix_usr"
+            echo "WPE core: ${wpe_core_cfg:-<missing>}"
+            echo "WPE plugins: ${wpe_plugins_cfg:-<missing>}"
+            echo "Thunder core: ${th_core_cfg:-<missing>}"
+            echo "Thunder plugins: ${th_plugins_cfg:-<missing>}"
+            find "$prefix_usr" -maxdepth 6 -type f -name '*Config.cmake' | sort || true
+            exit 1
+          fi
+
+          wpe_core_dir=""
+          wpe_plugins_dir=""
+          th_core_dir=""
+          th_plugins_dir=""
+
+          if [ -n "${wpe_core_cfg}" ]; then wpe_core_dir="$(dirname "$wpe_core_cfg")"; fi
+          if [ -n "${wpe_plugins_cfg}" ]; then wpe_plugins_dir="$(dirname "$wpe_plugins_cfg")"; fi
+          if [ -n "${th_core_cfg}" ]; then th_core_dir="$(dirname "$th_core_cfg")"; fi
+          if [ -n "${th_plugins_cfg}" ]; then th_plugins_dir="$(dirname "$th_plugins_cfg")"; fi
+
+          echo "Detected namespace=${namespace}"
+          echo "namespace=${namespace}" >> "$GITHUB_OUTPUT"
+          echo "wpe_core_dir=${wpe_core_dir}" >> "$GITHUB_OUTPUT"
+          echo "wpe_plugins_dir=${wpe_plugins_dir}" >> "$GITHUB_OUTPUT"
+          echo "th_core_dir=${th_core_dir}" >> "$GITHUB_OUTPUT"
+          echo "th_plugins_dir=${th_plugins_dir}" >> "$GITHUB_OUTPUT"
+
       - name: Build AppGateway plugin and stage to install prefix
         run: |
           set -euo pipefail
@@ -411,15 +457,7 @@ jobs:
           export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr${CMAKE_PREFIX_PATH:+;${CMAKE_PREFIX_PATH}}"
           export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake${CMAKE_MODULE_PATH:+;${CMAKE_MODULE_PATH}}"
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:$PATH"
-
-          APPGW_NAMESPACE="WPEFramework"
-          if [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFrameworkPlugins/WPEFrameworkPluginsConfig.cmake" ] && \
-             [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFramework/WPEFrameworkConfig.cmake" ]; then
-            APPGW_NAMESPACE="WPEFramework"
-          elif [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/ThunderPlugins/ThunderPluginsConfig.cmake" ] && \
-               [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/Thunder/ThunderConfig.cmake" ]; then
-            APPGW_NAMESPACE="Thunder"
-          fi
+          APPGW_NAMESPACE="${{ steps.nsdetect.outputs.namespace }}"
           echo "Using APPGW_NAMESPACE=${APPGW_NAMESPACE}"
 
           cmake -G Ninja \
@@ -430,7 +468,10 @@ jobs:
             -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH" \
             -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake" \
             -DConfigGenerator_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator" \
-            -DWPEFrameworkPlugins_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFrameworkPlugins" \
+            -DWPEFramework_DIR="${{ steps.nsdetect.outputs.wpe_core_dir }}" \
+            -DWPEFrameworkPlugins_DIR="${{ steps.nsdetect.outputs.wpe_plugins_dir }}" \
+            -DThunder_DIR="${{ steps.nsdetect.outputs.th_core_dir }}" \
+            -DThunderPlugins_DIR="${{ steps.nsdetect.outputs.th_plugins_dir }}" \
             -DDISABLE_SECURITY_TOKEN=ON \
             -DUSE_THUNDER_R4=ON \
             -DNAMESPACE="$APPGW_NAMESPACE" \
@@ -465,14 +506,7 @@ jobs:
           export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake${CMAKE_MODULE_PATH:+;${CMAKE_MODULE_PATH}}"
           export PREFIX="$GITHUB_WORKSPACE/install/usr"
 
-          APPGW_NAMESPACE="WPEFramework"
-          if [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFrameworkPlugins/WPEFrameworkPluginsConfig.cmake" ] && \
-             [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFramework/WPEFrameworkConfig.cmake" ]; then
-            APPGW_NAMESPACE="WPEFramework"
-          elif [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/ThunderPlugins/ThunderPluginsConfig.cmake" ] && \
-               [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/Thunder/ThunderConfig.cmake" ]; then
-            APPGW_NAMESPACE="Thunder"
-          fi
+          APPGW_NAMESPACE="${{ steps.nsdetect.outputs.namespace }}"
           echo "Using APPGW_NAMESPACE=${APPGW_NAMESPACE} for L0 tests"
 
           cmake -G Ninja \
