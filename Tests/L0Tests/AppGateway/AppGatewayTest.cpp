@@ -26,7 +26,7 @@ using L0Test::ExpectEqU32;
 using L0Test::ExpectTrue;
 using L0Test::TestResult;
 
-// Prototypes for additional l0test cases implemented in AppGateway_Init_DeinitTests.cpp
+// Prototypes for additional l0test cases implemented in AppGateway_Init_DeinitTests.cpp file
 extern uint32_t Test_Initialize_WithValidConfig_Succeeds();
 extern uint32_t Test_Initialize_Twice_Idempotent();
 extern uint32_t Test_Deinitialize_Twice_NoCrash();
