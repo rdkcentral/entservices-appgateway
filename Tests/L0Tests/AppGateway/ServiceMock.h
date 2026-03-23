@@ -67,9 +67,9 @@ namespace L0Test {
         uint32_t lastRc { WPEFramework::Core::ERROR_NONE };
 
         // Core::IUnknown
-        uint32_t AddRef() const override
+        void AddRef() const override
         {
-            return _refCount.fetch_add(1, std::memory_order_relaxed) + 1;
+            _refCount.fetch_add(1, std::memory_order_relaxed);
         }
 
         uint32_t Release() const override
@@ -172,9 +172,9 @@ namespace L0Test {
         }
 
         // Core::IUnknown
-        uint32_t AddRef() const override
+        void AddRef() const override
         {
-            return _refCount.fetch_add(1, std::memory_order_relaxed) + 1;
+            _refCount.fetch_add(1, std::memory_order_relaxed);
         }
 
         uint32_t Release() const override
@@ -257,6 +257,15 @@ namespace L0Test {
             return WPEFramework::Core::ERROR_NONE;
         }
 
+        WPEFramework::Core::hresult RecordGatewayConnectionContext(const uint32_t connectionId,
+                                                                   const string& contextKey,
+                                                                   const string& contextValue) override
+        {
+            std::lock_guard<std::mutex> lock(_ctxMutex);
+            _contexts[connectionId][contextKey] = contextValue;
+            return WPEFramework::Core::ERROR_NONE;
+        }
+
         WPEFramework::Core::hresult Register(INotification* notification) override
         {
             if (notification == nullptr) {
@@ -330,9 +339,9 @@ namespace L0Test {
 
         ~AuthenticatorFake() override = default;
 
-        uint32_t AddRef() const override
+        void AddRef() const override
         {
-            return _refCount.fetch_add(1, std::memory_order_relaxed) + 1;
+            _refCount.fetch_add(1, std::memory_order_relaxed);
         }
 
         uint32_t Release() const override
@@ -414,9 +423,9 @@ namespace L0Test {
 
         ~AppNotificationsFake() override = default;
 
-        uint32_t AddRef() const override
+        void AddRef() const override
         {
-            return _refCount.fetch_add(1, std::memory_order_relaxed) + 1;
+            _refCount.fetch_add(1, std::memory_order_relaxed);
         }
 
         uint32_t Release() const override
@@ -496,9 +505,9 @@ namespace L0Test {
 
         ~RequestHandlerFake() override = default;
 
-        uint32_t AddRef() const override
+        void AddRef() const override
         {
-            return _refCount.fetch_add(1, std::memory_order_relaxed) + 1;
+            _refCount.fetch_add(1, std::memory_order_relaxed);
         }
 
         uint32_t Release() const override
@@ -629,9 +638,9 @@ namespace L0Test {
         }
 
         // Core::IUnknown
-        uint32_t AddRef() const override
+        void AddRef() const override
         {
-            return _refCount.fetch_add(1, std::memory_order_relaxed) + 1;
+            _refCount.fetch_add(1, std::memory_order_relaxed);
         }
 
         uint32_t Release() const override
