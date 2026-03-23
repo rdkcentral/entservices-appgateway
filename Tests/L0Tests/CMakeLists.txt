@@ -8,6 +8,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(APPGW_TEST_ENABLE_WARNINGS "Enable additional compiler warnings for appgateway_l0test" ON)
 option(APPGW_ENABLE_COVERAGE "Enable coverage flags for appgateway_l0test" ON)
+option(APPGW_L0_ENABLE_APPGATEWAY "Build AppGateway L0 test target" ON)
+option(APPGW_L0_ENABLE_APPGATEWAYCOMMON "Build AppGatewayCommon L0 test target (when sources are added)" OFF)
+option(APPGW_L0_ENABLE_APPNOTIFICATIONS "Build AppNotifications L0 test target (when sources are added)" OFF)
 
 if(NOT DEFINED PREFIX OR "${PREFIX}" STREQUAL "")
     if(DEFINED ENV{PREFIX} AND NOT "$ENV{PREFIX}" STREQUAL "")
@@ -20,7 +23,7 @@ set(PREFIX "${PREFIX}" CACHE STRING "Install prefix to locate Thunder/WPEFramewo
 
 message(STATUS "Using PREFIX='${PREFIX}'")
 
-set(APPGW_L0_SOURCES
+set(APPGW_APPGATEWAY_L0_SOURCES
     ${CMAKE_SOURCE_DIR}/../../AppGateway/Module.cpp
     ${CMAKE_SOURCE_DIR}/../../AppGateway/AppGateway.cpp
     ${CMAKE_SOURCE_DIR}/../../AppGateway/Resolver.cpp
@@ -37,10 +40,28 @@ set(APPGW_L0_SOURCES
     AppGateway/AppGatewayImplementation_BranchTests.cpp
     common/L0Bootstrap.cpp
 )
+set(APPGW_L0_PRIMARY_TARGET "")
 
-add_executable(appgateway_l0test ${APPGW_L0_SOURCES})
+if(APPGW_L0_ENABLE_APPGATEWAY)
+    add_executable(appgateway_l0test ${APPGW_APPGATEWAY_L0_SOURCES})
+    set(APPGW_L0_PRIMARY_TARGET appgateway_l0test)
+else()
+    message(STATUS "APPGW_L0_ENABLE_APPGATEWAY=OFF; skipping appgateway_l0test target")
+endif()
 
-target_compile_definitions(appgateway_l0test PRIVATE
+if(APPGW_L0_ENABLE_APPGATEWAYCOMMON)
+    message(WARNING "APPGW_L0_ENABLE_APPGATEWAYCOMMON=ON but no L0 AppGatewayCommon source set is defined yet. Add Tests/L0Tests/AppGatewayCommon sources and target wiring.")
+endif()
+
+if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
+    message(WARNING "APPGW_L0_ENABLE_APPNOTIFICATIONS=ON but no L0 AppNotifications source set is defined yet. Add Tests/L0Tests/AppNotifications sources and target wiring.")
+endif()
+
+if(APPGW_L0_PRIMARY_TARGET STREQUAL "")
+    message(FATAL_ERROR "No L0 target enabled. Enable at least one APPGW_L0_ENABLE_* option.")
+endif()
+
+target_compile_definitions(${APPGW_L0_PRIMARY_TARGET} PRIVATE
     MODULE_NAME=AppGateway_L0Test
     APPGATEWAY_MAJOR_VERSION=1
     APPGATEWAY_MINOR_VERSION=0
@@ -52,82 +73,133 @@ target_compile_definitions(appgateway_l0test PRIVATE
 )
 
 if(APPGW_ENABLE_COVERAGE)
-    target_compile_options(appgateway_l0test PRIVATE -O0 -g --coverage)
-    target_link_options(appgateway_l0test PRIVATE --coverage)
+    target_compile_options(${APPGW_L0_PRIMARY_TARGET} PRIVATE -O0 -g --coverage)
+    target_link_options(${APPGW_L0_PRIMARY_TARGET} PRIVATE --coverage)
 endif()
 
 if(APPGW_TEST_ENABLE_WARNINGS)
-    target_compile_options(appgateway_l0test PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    target_compile_options(${APPGW_L0_PRIMARY_TARGET} PRIVATE -Wall -Wextra -Wno-unused-parameter)
 endif()
 
-target_include_directories(appgateway_l0test PRIVATE
+target_include_directories(${APPGW_L0_PRIMARY_TARGET} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/AppGateway
     ${CMAKE_CURRENT_SOURCE_DIR}/common
     ${CMAKE_SOURCE_DIR}/../..
     ${CMAKE_SOURCE_DIR}/../../AppGateway
     ${CMAKE_SOURCE_DIR}/../../helpers
-    ${PREFIX}/include
-    ${PREFIX}/include/WPEFramework
 )
 
-if(CMAKE_PREFIX_PATH)
-    foreach(_prefix IN LISTS CMAKE_PREFIX_PATH)
-        if(EXISTS "${_prefix}/include")
-            target_include_directories(appgateway_l0test PRIVATE "${_prefix}/include")
-        endif()
-        if(EXISTS "${_prefix}/include/WPEFramework")
-            target_include_directories(appgateway_l0test PRIVATE "${_prefix}/include/WPEFramework")
-        endif()
-    endforeach()
-endif()
-
 if(EXISTS "${PREFIX}/lib")
-    target_link_directories(appgateway_l0test PRIVATE "${PREFIX}/lib")
+    target_link_directories(${APPGW_L0_PRIMARY_TARGET} PRIVATE "${PREFIX}/lib")
 endif()
 if(EXISTS "${PREFIX}/lib/wpeframework/plugins")
-    target_link_directories(appgateway_l0test PRIVATE "${PREFIX}/lib/wpeframework/plugins")
+    target_link_directories(${APPGW_L0_PRIMARY_TARGET} PRIVATE "${PREFIX}/lib/wpeframework/plugins")
 endif()
 if(EXISTS "${PREFIX}/lib/plugins")
-    target_link_directories(appgateway_l0test PRIVATE "${PREFIX}/lib/plugins")
+    target_link_directories(${APPGW_L0_PRIMARY_TARGET} PRIVATE "${PREFIX}/lib/plugins")
 endif()
 
-find_library(WPEFRAMEWORK_CORE_LIB NAMES WPEFrameworkCore ThunderCore HINTS "${PREFIX}/lib")
-find_library(WPEFRAMEWORK_MESSAGING_LIB NAMES WPEFrameworkMessaging ThunderMessaging HINTS "${PREFIX}/lib")
-find_library(WPEFRAMEWORK_PLUGINS_LIB NAMES WPEFrameworkPlugins ThunderPlugins HINTS "${PREFIX}/lib")
-find_library(WPEFRAMEWORK_WEBSOCKET_LIB NAMES WPEFrameworkWebSocket ThunderWebSocket HINTS "${PREFIX}/lib")
+# Prefer namespace-based package targets (repo convention), fallback to direct libs for standalone CI layouts.
+set(APPGW_NAMESPACE "")
+if(DEFINED NAMESPACE AND NOT "${NAMESPACE}" STREQUAL "")
+    set(APPGW_NAMESPACE "${NAMESPACE}")
+elseif(DEFINED ENV{NAMESPACE} AND NOT "$ENV{NAMESPACE}" STREQUAL "")
+    set(APPGW_NAMESPACE "$ENV{NAMESPACE}")
+endif()
+
+set(APPGW_HAVE_CORE_TARGET FALSE)
+set(APPGW_HAVE_MESSAGING_TARGET FALSE)
+set(APPGW_HAVE_PLUGINS_TARGET FALSE)
+set(APPGW_HAVE_WEBSOCKET_TARGET FALSE)
+
+if(NOT "${APPGW_NAMESPACE}" STREQUAL "")
+    find_package(${APPGW_NAMESPACE}Core QUIET)
+    find_package(${APPGW_NAMESPACE}Messaging QUIET)
+    find_package(${APPGW_NAMESPACE}Plugins QUIET)
+    find_package(${APPGW_NAMESPACE}WebSocket QUIET)
+
+    if(TARGET ${APPGW_NAMESPACE}Core::${APPGW_NAMESPACE}Core)
+        target_link_libraries(${APPGW_L0_PRIMARY_TARGET} PRIVATE ${APPGW_NAMESPACE}Core::${APPGW_NAMESPACE}Core)
+        set(APPGW_HAVE_CORE_TARGET TRUE)
+    endif()
+    if(TARGET ${APPGW_NAMESPACE}Messaging::${APPGW_NAMESPACE}Messaging)
+        target_link_libraries(${APPGW_L0_PRIMARY_TARGET} PRIVATE ${APPGW_NAMESPACE}Messaging::${APPGW_NAMESPACE}Messaging)
+        set(APPGW_HAVE_MESSAGING_TARGET TRUE)
+    endif()
+    if(TARGET ${APPGW_NAMESPACE}Plugins::${APPGW_NAMESPACE}Plugins)
+        target_link_libraries(${APPGW_L0_PRIMARY_TARGET} PRIVATE ${APPGW_NAMESPACE}Plugins::${APPGW_NAMESPACE}Plugins)
+        set(APPGW_HAVE_PLUGINS_TARGET TRUE)
+    endif()
+    if(TARGET ${APPGW_NAMESPACE}WebSocket::${APPGW_NAMESPACE}WebSocket)
+        target_link_libraries(${APPGW_L0_PRIMARY_TARGET} PRIVATE ${APPGW_NAMESPACE}WebSocket::${APPGW_NAMESPACE}WebSocket)
+        set(APPGW_HAVE_WEBSOCKET_TARGET TRUE)
+    endif()
+endif()
+
+# Fallback include path discovery for environments without namespace package configs.
+if(NOT (APPGW_HAVE_CORE_TARGET AND APPGW_HAVE_MESSAGING_TARGET AND APPGW_HAVE_PLUGINS_TARGET AND APPGW_HAVE_WEBSOCKET_TARGET))
+    target_include_directories(${APPGW_L0_PRIMARY_TARGET} PRIVATE
+        ${PREFIX}/include
+        ${PREFIX}/include/WPEFramework
+    )
+
+    if(CMAKE_PREFIX_PATH)
+        foreach(_prefix IN LISTS CMAKE_PREFIX_PATH)
+            if(EXISTS "${_prefix}/include")
+                target_include_directories(${APPGW_L0_PRIMARY_TARGET} PRIVATE "${_prefix}/include")
+            endif()
+            if(EXISTS "${_prefix}/include/WPEFramework")
+                target_include_directories(${APPGW_L0_PRIMARY_TARGET} PRIVATE "${_prefix}/include/WPEFramework")
+            endif()
+        endforeach()
+    endif()
+endif()
+
+if(NOT APPGW_HAVE_CORE_TARGET)
+    find_library(WPEFRAMEWORK_CORE_LIB NAMES WPEFrameworkCore ThunderCore HINTS "${PREFIX}/lib")
+endif()
+if(NOT APPGW_HAVE_MESSAGING_TARGET)
+    find_library(WPEFRAMEWORK_MESSAGING_LIB NAMES WPEFrameworkMessaging ThunderMessaging HINTS "${PREFIX}/lib")
+endif()
+if(NOT APPGW_HAVE_PLUGINS_TARGET)
+    find_library(WPEFRAMEWORK_PLUGINS_LIB NAMES WPEFrameworkPlugins ThunderPlugins HINTS "${PREFIX}/lib")
+endif()
+if(NOT APPGW_HAVE_WEBSOCKET_TARGET)
+    find_library(WPEFRAMEWORK_WEBSOCKET_LIB NAMES WPEFrameworkWebSocket ThunderWebSocket HINTS "${PREFIX}/lib")
+endif()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-if(WPEFRAMEWORK_CORE_LIB)
-    target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_CORE_LIB})
+if(DEFINED WPEFRAMEWORK_CORE_LIB AND WPEFRAMEWORK_CORE_LIB)
+    target_link_libraries(${APPGW_L0_PRIMARY_TARGET} PRIVATE ${WPEFRAMEWORK_CORE_LIB})
 endif()
-if(WPEFRAMEWORK_MESSAGING_LIB)
-    target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_MESSAGING_LIB})
+if(DEFINED WPEFRAMEWORK_MESSAGING_LIB AND WPEFRAMEWORK_MESSAGING_LIB)
+    target_link_libraries(${APPGW_L0_PRIMARY_TARGET} PRIVATE ${WPEFRAMEWORK_MESSAGING_LIB})
 endif()
-if(WPEFRAMEWORK_PLUGINS_LIB)
-    target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_PLUGINS_LIB})
+if(DEFINED WPEFRAMEWORK_PLUGINS_LIB AND WPEFRAMEWORK_PLUGINS_LIB)
+    target_link_libraries(${APPGW_L0_PRIMARY_TARGET} PRIVATE ${WPEFRAMEWORK_PLUGINS_LIB})
 endif()
-if(WPEFRAMEWORK_WEBSOCKET_LIB)
-    target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_WEBSOCKET_LIB})
+if(DEFINED WPEFRAMEWORK_WEBSOCKET_LIB AND WPEFRAMEWORK_WEBSOCKET_LIB)
+    target_link_libraries(${APPGW_L0_PRIMARY_TARGET} PRIVATE ${WPEFRAMEWORK_WEBSOCKET_LIB})
 endif()
 
-target_link_libraries(appgateway_l0test PRIVATE
+target_link_libraries(${APPGW_L0_PRIMARY_TARGET} PRIVATE
     Threads::Threads
     m
     dl
 )
 
-set_target_properties(appgateway_l0test PROPERTIES
+set_target_properties(${APPGW_L0_PRIMARY_TARGET} PROPERTIES
     BUILD_RPATH "$ORIGIN;${PREFIX}/lib;${PREFIX}/lib/wpeframework;${PREFIX}/lib/wpeframework/plugins;${PREFIX}/lib/plugins"
     INSTALL_RPATH "${PREFIX}/lib;${PREFIX}/lib/wpeframework;${PREFIX}/lib/wpeframework/plugins;${PREFIX}/lib/plugins"
 )
 
 add_custom_target(run
-    DEPENDS appgateway_l0test
-    COMMAND $<TARGET_FILE:appgateway_l0test>
-    COMMENT "Running appgateway_l0test"
+    DEPENDS ${APPGW_L0_PRIMARY_TARGET}
+    COMMAND $<TARGET_FILE:${APPGW_L0_PRIMARY_TARGET}>
+    COMMENT "Running ${APPGW_L0_PRIMARY_TARGET}"
     VERBATIM
 )
 

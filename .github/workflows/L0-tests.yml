@@ -186,24 +186,36 @@ jobs:
           prefix="$GITHUB_WORKSPACE/install/usr"
           mkdir -p "$prefix/bin"
 
-          if command -v "$prefix/bin/ConfigGenerator" >/dev/null 2>&1; then
+          if [ -x "$prefix/bin/ConfigGenerator" ]; then
             echo "ConfigGenerator already present at: $prefix/bin/ConfigGenerator"
             exit 0
           fi
 
-          impl="$prefix/sbin/ConfigGenerator/config_generator.py"
-          if [ ! -f "$impl" ]; then
-            echo "ERROR: Expected ConfigGenerator python implementation not found at: $impl"
-            find "$prefix" -maxdepth 4 -type f -name 'config_generator.py' -o -name 'ConfigGenerator' 2>/dev/null || true
+          # Prefer an already-installed executable anywhere under the local prefix.
+          existing_exec="$(find "$prefix" -maxdepth 6 -type f -name 'ConfigGenerator' -perm -u+x -print -quit 2>/dev/null || true)"
+          if [ -n "${existing_exec}" ]; then
+            ln -sf "${existing_exec}" "$prefix/bin/ConfigGenerator"
+            echo "Linked existing ConfigGenerator executable: ${existing_exec} -> $prefix/bin/ConfigGenerator"
+            exit 0
+          fi
+
+          # Fallback: locate python implementation under install/build/workspace trees.
+          impl="$(find "$prefix" "$GITHUB_WORKSPACE/build" "$GITHUB_WORKSPACE/ThunderTools" \
+                    -type f -name 'config_generator.py' -print -quit 2>/dev/null || true)"
+          if [ -z "${impl}" ] || [ ! -f "${impl}" ]; then
+            echo "ERROR: Could not locate config_generator.py under prefix/build/workspace"
+            echo "Searched roots: $prefix, $GITHUB_WORKSPACE/build, $GITHUB_WORKSPACE/ThunderTools"
+            find "$prefix" "$GITHUB_WORKSPACE/build" "$GITHUB_WORKSPACE/ThunderTools" \
+              -maxdepth 8 -type f \( -name 'config_generator.py' -o -name 'ConfigGenerator' \) 2>/dev/null || true
             exit 1
           fi
 
-          cat > "$prefix/bin/ConfigGenerator" <<'EOF'
+          echo "Using ConfigGenerator python implementation: ${impl}"
+
+          cat > "$prefix/bin/ConfigGenerator" <<EOF
           #!/usr/bin/env bash
           set -euo pipefail
-          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-          PREFIX="$(cd "${SCRIPT_DIR}/.." && pwd)"
-          exec python3 "${PREFIX}/sbin/ConfigGenerator/config_generator.py" "$@"
+          exec python3 "${impl}" "\$@"
           EOF
 
           chmod +x "$prefix/bin/ConfigGenerator"

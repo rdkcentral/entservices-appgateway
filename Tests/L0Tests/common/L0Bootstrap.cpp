@@ -24,7 +24,7 @@ public:
 
     void Dispatch(WPEFramework::Core::IDispatch* job) override
     {
-        if (job != nullptr) {
+        if (nullptr != job) {
             job->Dispatch();
         }
     }

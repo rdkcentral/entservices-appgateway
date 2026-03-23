@@ -165,13 +165,13 @@ uint32_t Test_Responder_Respond_Success_And_Unavailable()
         auto* fake = static_cast<L0Test::ResponderFake*>(responder->QueryInterface(L0Test::ID_RESPONDER_FAKE));
 
         GatewayContext ctx = MakeContext(1, 200, "com.x");
-        uint32_t rc = responder->Respond(ctx, "{\\\"ok\\\":true}");
+        uint32_t rc = responder->Respond(ctx, R"({"ok":true})");
         ExpectEqU32(tr, rc, ERROR_NONE, "Respond returns ERROR_NONE in L0 harness");
 
         // Fake-only: validate disabling transport yields ERROR_UNAVAILABLE.
         if (fake != nullptr) {
             fake->SetTransportEnabled(false);
-            rc = responder->Respond(ctx, "{\\\"ok\\\":true}");
+            rc = responder->Respond(ctx, R"({"ok":true})");
             ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "Respond returns ERROR_UNAVAILABLE when transport is disabled (fake only)");
             fake->Release();
             fake = nullptr;
@@ -210,12 +210,12 @@ uint32_t Test_Responder_Emit_Success_And_Unavailable()
         auto* fake = static_cast<L0Test::ResponderFake*>(responder->QueryInterface(L0Test::ID_RESPONDER_FAKE));
 
         GatewayContext ctx = MakeContext(3, 201, "com.y");
-        uint32_t rc = responder->Emit(ctx, "event.name", "{\\\"a\\\":1}");
+        uint32_t rc = responder->Emit(ctx, "event.name", R"({"a":1})");
         ExpectEqU32(tr, rc, ERROR_NONE, "Emit returns ERROR_NONE in L0 harness");
 
         if (fake != nullptr) {
             fake->SetTransportEnabled(false);
-            rc = responder->Emit(ctx, "event.name", "{\\\"a\\\":1}");
+            rc = responder->Emit(ctx, "event.name", R"({"a":1})");
             ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "Emit returns ERROR_UNAVAILABLE when transport is disabled (fake only)");
             fake->Release();
             fake = nullptr;
@@ -253,12 +253,12 @@ uint32_t Test_Responder_Request_Success_And_Unavailable()
     if (responder != nullptr) {
         auto* fake = static_cast<L0Test::ResponderFake*>(responder->QueryInterface(L0Test::ID_RESPONDER_FAKE));
 
-        uint32_t rc = responder->Request(300 /*connectionId*/, 9 /*id*/, "method.x", "{\\\"b\\\":2}");
+        uint32_t rc = responder->Request(300 /*connectionId*/, 9 /*id*/, "method.x", R"({"b":2})");
         ExpectEqU32(tr, rc, ERROR_NONE, "Request returns ERROR_NONE in L0 harness");
 
         if (fake != nullptr) {
             fake->SetTransportEnabled(false);
-            rc = responder->Request(300 /*connectionId*/, 10 /*id*/, "method.x", "{\\\"b\\\":2}");
+            rc = responder->Request(300 /*connectionId*/, 10 /*id*/, "method.x", R"({"b":2})");
             ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "Request returns ERROR_UNAVAILABLE when transport is disabled (fake only)");
             fake->Release();
             fake = nullptr;
