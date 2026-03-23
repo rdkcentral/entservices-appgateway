@@ -187,9 +187,7 @@ namespace Plugin {
 
         // Track this request
         if (mRequestStates.end() == mRequestStates.find(key)) {
-            RequestState state;
-            state.appId = context.appId;
-            mRequestStates[key] = state;
+            mRequestStates[key].appId = context.appId;
             mHealthStats.totalCalls.fetch_add(1, std::memory_order_relaxed);
             LOGTRACE("Total call incremented (appId=%s, connId=%u, reqId=%u)",
                      context.appId.c_str(), context.connectionId, context.requestId);
@@ -205,15 +203,20 @@ namespace Plugin {
 
         RequestKey key = {context.connectionId, context.requestId};
         auto it = mRequestStates.find(key);
+        // NOTE: This method intentionally does NOT erase the entry from mRequestStates.
+        // It is designed as a standalone counter increment for callers that track responses
+        // independently from success/failure (i.e., via AGW_MARKER_RESPONSE_CALLS only).
+        // If the caller also invokes IncrementSuccessfulCalls or IncrementFailedCalls
+        // for the same request, do NOT call this method — those methods already increment
+        // totalResponses and erase the entry atomically to avoid double-counting.
 
-        if (mRequestStates.end() != it && false == it->second.responseReceived) {
+        if (mRequestStates.end() != it) {
             mHealthStats.totalResponses.fetch_add(1, std::memory_order_relaxed);
             LOGTRACE("Total response incremented (appId=%s, connId=%u, reqId=%u)",
                      context.appId.c_str(), context.connectionId, context.requestId);
         } else {
-            LOGTRACE("Duplicate/unknown response ignored (appId=%s, connId=%u, reqId=%u, exists=%d, responded=%d)",
-                     context.appId.c_str(), context.connectionId, context.requestId,
-                     mRequestStates.end() != it, mRequestStates.end() != it ? it->second.responseReceived : false);
+            LOGTRACE("Duplicate/unknown response ignored (appId=%s, connId=%u, reqId=%u)",
+                     context.appId.c_str(), context.connectionId, context.requestId);
         }
     }
 
@@ -224,16 +227,15 @@ namespace Plugin {
         RequestKey key = {context.connectionId, context.requestId};
         auto it = mRequestStates.find(key);
 
-        if (mRequestStates.end() != it && false == it->second.responseReceived) {
-            it->second.responseReceived = true;
-            it->second.isSuccess = true;
+        if (mRequestStates.end() != it) {
+            mHealthStats.totalResponses.fetch_add(1, std::memory_order_relaxed);
             mHealthStats.successfulCalls.fetch_add(1, std::memory_order_relaxed);
             LOGTRACE("Successful call incremented (appId=%s, connId=%u, reqId=%u)",
                      context.appId.c_str(), context.connectionId, context.requestId);
+            mRequestStates.erase(it);
         } else {
-            LOGTRACE("Duplicate/unknown success ignored (appId=%s, connId=%u, reqId=%u, exists=%d, responded=%d)",
-                     context.appId.c_str(), context.connectionId, context.requestId,
-                     mRequestStates.end() != it, mRequestStates.end() != it ? it->second.responseReceived : false);
+            LOGTRACE("Duplicate/unknown success ignored (appId=%s, connId=%u, reqId=%u)",
+                     context.appId.c_str(), context.connectionId, context.requestId);
         }
     }
 
@@ -244,16 +246,15 @@ namespace Plugin {
         RequestKey key = {context.connectionId, context.requestId};
         auto it = mRequestStates.find(key);
 
-        if (mRequestStates.end() != it && false == it->second.responseReceived) {
-            it->second.responseReceived = true;
-            it->second.isSuccess = false;
+        if (mRequestStates.end() != it) {
+            mHealthStats.totalResponses.fetch_add(1, std::memory_order_relaxed);
             mHealthStats.failedCalls.fetch_add(1, std::memory_order_relaxed);
             LOGTRACE("Failed call incremented (appId=%s, connId=%u, reqId=%u)",
                      context.appId.c_str(), context.connectionId, context.requestId);
+            mRequestStates.erase(it);
         } else {
-            LOGTRACE("Duplicate/unknown failure ignored (appId=%s, connId=%u, reqId=%u, exists=%d, responded=%d)",
-                     context.appId.c_str(), context.connectionId, context.requestId,
-                     mRequestStates.end() != it, mRequestStates.end() != it ? it->second.responseReceived : false);
+            LOGTRACE("Duplicate/unknown failure ignored (appId=%s, connId=%u, reqId=%u)",
+                     context.appId.c_str(), context.connectionId, context.requestId);
         }
     }
 
@@ -264,12 +265,8 @@ namespace Plugin {
         RequestKey key = {context.connectionId, context.requestId};
         auto it = mRequestStates.find(key);
 
-        // Check if this request exists and hasn't received a response yet
-        if (mRequestStates.end() != it && false == it->second.responseReceived) {
-            // Mark as responded (prevents double counting)
-            it->second.responseReceived = true;
-            it->second.isSuccess = isSuccess;
-
+        // Check if this request exists (presence in map means no response recorded yet)
+        if (mRequestStates.end() != it) {
             // Atomically increment both counters
             mHealthStats.totalResponses.fetch_add(1, std::memory_order_relaxed);
 
@@ -282,10 +279,12 @@ namespace Plugin {
                 LOGTRACE("Response recorded as FAILURE (appId=%s, connId=%u, reqId=%u)",
                          context.appId.c_str(), context.connectionId, context.requestId);
             }
+
+            // Entry served its purpose — erase to prevent unbounded map growth
+            mRequestStates.erase(it);
         } else {
-            LOGTRACE("Duplicate/unknown response ignored (appId=%s, connId=%u, reqId=%u, exists=%d, responded=%d)",
-                     context.appId.c_str(), context.connectionId, context.requestId,
-                     mRequestStates.end() != it, mRequestStates.end() != it ? it->second.responseReceived : false);
+            LOGTRACE("Duplicate/unknown response ignored (appId=%s, connId=%u, reqId=%u)",
+                     context.appId.c_str(), context.connectionId, context.requestId);
         }
     }
 
@@ -337,8 +336,8 @@ namespace Plugin {
 
         // 
         // Supported event name patterns:
-        // - "AppGwPluginApiError_split" - API errors from other plugins (sent immediately)
-        // - "AppGwPluginExtServiceError_split" - External service errors (sent immediately)
+        // - "ENTS_ERROR_AppGwPluginApiError" - API errors from other plugins (sent immediately)
+        // - "ENTS_ERROR_AppGwPlugExtnSrvErr" - External service errors (sent immediately)
         // - Any other event name - Generic telemetry event (cached and flushed periodically)
 
         bool isImmediateEvent = false;
@@ -348,8 +347,10 @@ namespace Plugin {
             // Extract API name from eventData if possible
             // eventData expected format: {"plugin": "<pluginName>", "api": "<apiName>", "error": "<errorDetails>"}
             JsonObject data;
-            data.FromString(eventData);
-            std::string apiName = data.HasLabel("api") ? data["api"].String() : eventName;
+            std::string apiName = eventName;
+            if (data.FromString(eventData) && data.HasLabel("api")) {
+                apiName = data["api"].String();
+            }
 
             // Track error count for aggregated metrics (sent periodically)
             RecordApiError(context, apiName);
@@ -366,8 +367,10 @@ namespace Plugin {
             // Extract service name from eventData if possible
             // eventData expected format: {"plugin": "<pluginName>", "service": "<serviceName>", "error": "<errorDetails>"}
             JsonObject data;
-            data.FromString(eventData);
-            std::string serviceName = data.HasLabel("service") ? data["service"].String() : eventName;
+            std::string serviceName = eventName;
+            if (data.FromString(eventData) && data.HasLabel("service")) {
+                serviceName = data["service"].String();
+            }
 
             // Track error count for aggregated metrics (sent periodically)
             RecordExternalServiceErrorInternal(context, serviceName);
@@ -407,12 +410,12 @@ namespace Plugin {
                                                  bool& isError)
     {
         // SPECIFIC format for API method metrics with explicit tags:
-        // "AppGw_PluginName_<Plugin>_MethodName_<Method>_Success_split"
-        // "AppGw_PluginName_<Plugin>_MethodName_<Method>_Error_split"
+        // "ENTS_INFO_AppGw_PluginName_<Plugin>_MethodName_<Method>_Success_split"
+        // "ENTS_INFO_AppGw_PluginName_<Plugin>_MethodName_<Method>_Error_split"
         //
         // Examples:
-        //   "AppGw_PluginName_LaunchDelegate_MethodName_session_Success_split"
-        //   "AppGw_PluginName_Badger_MethodName_setValue_Error_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourPlugin_MethodName_session_Success_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourPlugin_MethodName_setValue_Error_split"
         //
         // Other metrics like "AppGwBootstrapDuration_split" or "AppGXYS_abc_def_split" 
         // will NOT match because they lack the explicit "PluginName_" and "MethodName_" tags
@@ -472,11 +475,11 @@ namespace Plugin {
                                                         std::string& apiName)
     {
         // SPECIFIC format for API latency metrics with explicit tags:
-        // "AppGw_PluginName_<Plugin>_ApiName_<Api>_ApiLatency_split"
+        // "ENTS_INFO_AppGw_PluginName_<Plugin>_ApiName_<Api>_ApiLatency_split"
         //
         // Examples:
-        //   "AppGw_PluginName_Badger_ApiName_GetSettings_ApiLatency_split"
-        //   "AppGw_PluginName_OttServices_ApiName_GetToken_ApiLatency_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourPlugin_ApiName_GetSettings_ApiLatency_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourServices_ApiName_GetToken_ApiLatency_split"
 
         const std::string suffix = "_ApiLatency_split";
         const std::string prefix = AGW_INTERNAL_PLUGIN_PREFIX;
@@ -523,11 +526,11 @@ namespace Plugin {
                                                             std::string& serviceName)
     {
         // SPECIFIC format for service latency metrics with explicit tags:
-        // "AppGw_PluginName_<Plugin>_ServiceName_<Service>_ServiceLatency_split"
+        // "ENTS_INFO_AppGw_PluginName_<Plugin>_ServiceName_<Service>_ServiceLatency_split"
         //
         // Examples:
-        //   "AppGw_PluginName_OttServices_ServiceName_ThorPermissionService_ServiceLatency_split"
-        //   "AppGw_PluginName_Badger_ServiceName_AuthService_ServiceLatency_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourServices_ServiceName_PermissionService_ServiceLatency_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourPlugin_ServiceName_AuthService_ServiceLatency_split"
 
         const std::string suffix = "_ServiceLatency_split";
         const std::string prefix = AGW_INTERNAL_PLUGIN_PREFIX;
@@ -575,12 +578,12 @@ namespace Plugin {
                                                      bool& isError)
     {
         // SPECIFIC format for service method metrics with explicit tags:
-        // "AppGw_PluginName_<Plugin>_ServiceName_<Service>_Success_split"
-        // "AppGw_PluginName_<Plugin>_ServiceName_<Service>_Error_split"
+        // "ENTS_INFO_AppGw_PluginName_<Plugin>_ServiceName_<Service>_Success_split"
+        // "ENTS_INFO_AppGw_PluginName_<Plugin>_ServiceName_<Service>_Error_split"
         //
         // Examples:
-        //   "AppGw_PluginName_OttServices_ServiceName_ThorPermissionService_Success_split"
-        //   "AppGw_PluginName_Badger_ServiceName_AuthService_Error_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourServices_ServiceName_PermissionService_Success_split"
+        //   "ENTS_INFO_AppGw_PluginName_YourPlugin_ServiceName_AuthService_Error_split"
         //
         // Other metrics like "AppGwBootstrapDuration_split" or service latency metrics
         // will NOT match because they lack the Success/Error suffix or use different patterns
@@ -921,15 +924,6 @@ namespace Plugin {
         LOGTRACE("RecordTelemetryMetric from %s: metric=%s, value=%f, unit=%s",
                     context.appId.c_str(), metricName.c_str(), metricValue, metricUnit.c_str());
 
-#if 0                    
-        // Handle internal response tracking marker
-        if (AGW_MARKER_INTERNAL_RESPONSE == metricName) {
-            // Value encoding: 1.0 = success, 0.0 = failure
-            bool isSuccess = (metricValue >= 0.5);
-            RecordResponse(context, isSuccess);
-            return Core::ERROR_NONE;
-        }
-#endif
         // Handle bootstrap duration metric
         if (AGW_MARKER_BOOTSTRAP_DURATION == metricName) {
             RecordBootstrapTime(metricValue);
@@ -1008,7 +1002,20 @@ namespace Plugin {
             snapshot->successfulCalls = mHealthStats.successfulCalls.load(std::memory_order_relaxed);
             snapshot->failedCalls = mHealthStats.failedCalls.load(std::memory_order_relaxed);
             
-            // Snapshot request states (for pending response detection)
+            // Evict stale entries (requests with no response for > 5 minutes)
+            auto cutoff = std::chrono::steady_clock::now() - std::chrono::seconds(300);
+            for (auto it = mRequestStates.begin(); it != mRequestStates.end(); ) {
+                if (it->second.requestTime < cutoff) {
+                    LOGTRACE("Evicting stale request (connId=%u, reqId=%u, appId=%s)",
+                             it->first.connectionId, it->first.requestId,
+                             it->second.appId.c_str());
+                    it = mRequestStates.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+
+            // Snapshot request states (copy; keep live map for in-flight response tracking)
             snapshot->requestStates = mRequestStates;
             
             // Snapshot aggregated statistics (move semantics for efficiency)
@@ -1030,9 +1037,7 @@ namespace Plugin {
         // Lock released - new telemetry can now be recorded while snapshot is being sent
 
         // Send telemetry synchronously (no WorkerPool dispatch)
-        if (nullptr != snapshot) {
-            snapshot->SendAll();
-        }
+        snapshot->SendAll();
     }
 
     void AppGatewayTelemetry::SendHealthStats()
@@ -1043,22 +1048,8 @@ namespace Plugin {
         uint32_t successfulCalls = mHealthStats.successfulCalls.load(std::memory_order_relaxed);
         uint32_t failedCalls = mHealthStats.failedCalls.load(std::memory_order_relaxed);
 
-        // Calculate pending responses (requests without responses)
-        uint32_t pendingCount = 0;
-        JsonArray pendingRequests;
-
-        for (const auto& entry : mRequestStates) {
-            if (!entry.second.responseReceived) {
-                pendingCount++;
-            #if 0
-                JsonObject pendingInfo;
-                pendingInfo["connection_id"] = entry.first.connectionId;
-                pendingInfo["request_id"] = entry.first.requestId;
-                pendingInfo["app_id"] = entry.second.appId;
-                pendingRequests.Add(pendingInfo);
-            #endif
-            }
-        }
+        // All entries in mRequestStates are pending (responded entries are erased immediately)
+        uint32_t pendingCount = static_cast<uint32_t>(mRequestStates.size());
 
         // Only send if there's data
         if (0 == totalCalls && 0 == wsConnections && 0 == pendingCount) {
@@ -1074,13 +1065,6 @@ namespace Plugin {
         healthPayload["total_responses"] = totalResponses;
         healthPayload["successful_calls"] = successfulCalls;
         healthPayload["failed_calls"] = failedCalls;
-#if 0
-        healthPayload["pending_response_count"] = pendingCount;
-
-        if (pendingCount > 0) {
-            healthPayload["pending_requests"] = pendingRequests;
-        }
-#endif
         healthPayload["unit"] = AGW_UNIT_COUNT;
 
         //LOGINFO("Sending health stats to T2 (pending=%u)", pendingCount);
@@ -1658,22 +1642,8 @@ namespace Plugin {
 
     void AppGatewayTelemetry::TelemetrySnapshot::SendHealthStats()
     {
-        // Calculate pending responses (requests without responses)
-        uint32_t pendingCount = 0;
-        JsonArray pendingRequests;
-
-        for (const auto& entry : requestStates) {
-            if (!entry.second.responseReceived) {
-                pendingCount++;
-            #if 0
-                JsonObject pendingInfo;
-                pendingInfo["connection_id"] = entry.first.connectionId;
-                pendingInfo["request_id"] = entry.first.requestId;
-                pendingInfo["app_id"] = entry.second.appId;
-                pendingRequests.Add(pendingInfo);
-            #endif
-            }
-        }
+        // All entries in requestStates are pending (responded entries are erased immediately)
+        uint32_t pendingCount = static_cast<uint32_t>(requestStates.size());
 
         // Only send if there's data
         if (totalCalls == 0 && websocketConnections == 0 && pendingCount == 0) {
@@ -1689,13 +1659,6 @@ namespace Plugin {
         healthPayload["total_responses"] = totalResponses;
         healthPayload["successful_calls"] = successfulCalls;
         healthPayload["failed_calls"] = failedCalls;
-    #if 0
-        healthPayload["pending_response_count"] = pendingCount;
-
-        if (pendingCount > 0) {
-            healthPayload["pending_requests"] = pendingRequests;
-        }
-    #endif    
         healthPayload["unit"] = AGW_UNIT_COUNT;
 
         //LOGINFO("TelemetrySnapshot: Sending health stats (pending=%u)", pendingCount);
@@ -2018,22 +1981,8 @@ namespace Plugin {
 
     void AppGatewayTelemetry::FlushJob::SendHealthStats()
     {
-        // Calculate pending responses (requests without responses)
-        uint32_t pendingCount = 0;
-        JsonArray pendingRequests;
-
-        for (const auto& entry : mSnapshot->requestStates) {
-            if (!entry.second.responseReceived) {
-                pendingCount++;
-            #if 0
-                JsonObject pendingInfo;
-                pendingInfo["connection_id"] = entry.first.connectionId;
-                pendingInfo["request_id"] = entry.first.requestId;
-                pendingInfo["app_id"] = entry.second.appId;
-                pendingRequests.Add(pendingInfo);
-            #endif
-            }
-        }
+        // All entries in requestStates are pending (responded entries are erased immediately)
+        uint32_t pendingCount = static_cast<uint32_t>(mSnapshot->requestStates.size());
 
         // Only send if there's data
         if (mSnapshot->totalCalls == 0 && mSnapshot->websocketConnections == 0 && pendingCount == 0) {
@@ -2049,13 +1998,6 @@ namespace Plugin {
         healthPayload["total_responses"] = mSnapshot->totalResponses;
         healthPayload["successful_calls"] = mSnapshot->successfulCalls;
         healthPayload["failed_calls"] = mSnapshot->failedCalls;
-    #if 0
-        healthPayload["pending_response_count"] = pendingCount;
-
-        if (pendingCount > 0) {
-            healthPayload["pending_requests"] = pendingRequests;
-        }
-    #endif
         healthPayload["unit"] = AGW_UNIT_COUNT;
 
         //LOGINFO("FlushJob: Sending health stats (pending=%u)", pendingCount);

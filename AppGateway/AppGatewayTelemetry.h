@@ -55,7 +55,7 @@ namespace Plugin {
      * @brief AppGatewayTelemetry - Telemetry aggregator for App Gateway
      * 
      * This class implements the IAppGatewayTelemetry interface and acts as a
-     * centralized telemetry aggregator. Other plugins (Badger, OttServices, etc.)
+     * centralized telemetry aggregator. Other plugins in the AppGateway
      * can report their telemetry data via COM-RPC, and AppGateway aggregates
      * and sends to the T2 server.
      * 
@@ -63,7 +63,7 @@ namespace Plugin {
      * - Bootstrap time: Time taken to initialize all plugins
      * - Health stats: WebSocket connections, total/successful/failed calls
      * - API error stats: APIs that failed and their failure counts
-     * - External service errors: Failures from external services (GrpcServer, ThorPermission, etc.)
+     * - External service errors: Failures from external services (GrpcServer, Permission, etc.)
      * 
      * Data is reported via T2 telemetry at configurable intervals (default 1 hour)
      * or when cache threshold is reached.
@@ -92,7 +92,7 @@ namespace Plugin {
          * @brief Records a telemetry event from external plugins
          * 
          * The eventName acts as the marker for T2 telemetry.
-         * For API errors, use eventName like "agw_BadgerApiError" with eventData containing error details.
+         * For API errors, use eventName like "agw_xyzApiError" with eventData containing error details.
          * For service errors, use eventName like "agw_OttExternalServiceError" with eventData containing service info.
          * 
          * @param context Gateway context with caller info
@@ -111,7 +111,7 @@ namespace Plugin {
          * Metrics are aggregated (sum, min, max, count) and reported periodically.
          * 
          * Example metric names:
-         * - "agw_BadgerApiLatency" for Badger API latency in milliseconds
+         * - "agw_xyzApiLatency" for xyz API latency in milliseconds
          * - "agw_OttStreamingBitrate" for OTT streaming bitrate in kbps
          * 
          * @param context Gateway context with caller info
@@ -229,19 +229,15 @@ namespace Plugin {
 
         /**
          * @brief Request state tracking
-         * Tracks whether a request has received a response (success or failure)
+         * Tracks an in-flight request until a response is recorded, then erased.
          */
         struct RequestState
         {
             std::string appId;
-            bool responseReceived;      // true if response (success or failure) received
-            bool isSuccess;             // true if success response, false if error
             std::chrono::steady_clock::time_point requestTime;
             
             RequestState() 
-                : responseReceived(false)
-                , isSuccess(false)
-                , requestTime(std::chrono::steady_clock::now())
+                : requestTime(std::chrono::steady_clock::now())
             {}
         };
 
@@ -551,17 +547,17 @@ namespace Plugin {
                                std::string& methodName,
                                bool& isError);
 
-        // Helper to parse API latency metric: "AppGw_PluginName_<Plugin>_ApiName_<Api>_ApiLatency_split"
+        // Helper to parse API latency metric: "ENTS_INFO_AppGw_PluginName_<Plugin>_ApiName_<Api>_ApiLatency_split"
         bool ParseApiLatencyMetricName(const std::string& metricName,
                                       std::string& pluginName,
                                       std::string& apiName);
 
-        // Helper to parse service latency metric: "AppGw_PluginName_<Plugin>_ServiceName_<Service>_ServiceLatency_split"
+        // Helper to parse service latency metric: "ENTS_INFO_AppGw_PluginName_<Plugin>_ServiceName_<Service>_ServiceLatency_split"
         bool ParseServiceLatencyMetricName(const std::string& metricName,
                                           std::string& pluginName,
                                           std::string& serviceName);
 
-        // Helper to parse service method metric: "AppGw_PluginName_<Plugin>_ServiceName_<Service>_<Success|Error>_split"
+        // Helper to parse service method metric: "ENTS_INFO_AppGw_PluginName_<Plugin>_ServiceName_<Service>_<Success|Error>_split"
         bool ParseServiceMetricName(const std::string& metricName,
                                    std::string& pluginName,
                                    std::string& serviceName,

@@ -30,7 +30,7 @@ sequenceDiagram
     
     Note over Ext: Report multiple latency samples
     loop Multiple API calls
-        Ext->>AGT: RecordTelemetryMetric context AppGwPluginApiLatency_split value ms
+        Ext->>AGT: RecordTelemetryMetric context ENTS_INFO_AppGwPluginApiLat value ms
         AGT->>AGT: Aggregate metric
     end
     
@@ -48,7 +48,7 @@ sequenceDiagram
     AGT->>T2: sendMessage metricName as marker payload
     
     Note over AGT: AppGwPluginCustomMetric_split payload
-    Note over AGT: AppGwPluginApiLatency_split payload
+    Note over AGT: ENTS_INFO_AppGwPluginApiLat payload
     
     AGT->>AGT: Clear mMetricsCache
     deactivate AGT
@@ -133,14 +133,14 @@ AppGwOttStreamingBitrate_split: 135000,2500,8000,30,4500,kbps,3600
 
 ### API Latency Metric
 
-**Metric Name:** `AppGwPluginApiLatency_split`
+**Metric Name:** `ENTS_INFO_AppGwPluginApiLat`
 
 **Recording Call (Multiple Samples):**
 ```cpp
 // Sample 1
 telemetry->RecordTelemetryMetric(
     IAppGatewayTelemetry::PLUGIN_YOUR_PLUGIN,
-    "AppGwPluginApiLatency_split",
+    "ENTS_INFO_AppGwPluginApiLat",
     125.0,
     "ms"
 );
@@ -148,7 +148,7 @@ telemetry->RecordTelemetryMetric(
 // Sample 2
 telemetry->RecordTelemetryMetric(
     IAppGatewayTelemetry::PLUGIN_YOUR_PLUGIN,
-    "AppGwPluginApiLatency_split",
+    "ENTS_INFO_AppGwPluginApiLat",
     98.0,
     "ms"
 );
@@ -228,7 +228,7 @@ public:
             // Record latency metric - will be aggregated with other samples
             mTelemetry->RecordTelemetryMetric(
                 Exchange::IAppGatewayTelemetry::GatewayContext::PLUGIN_YOUR_PLUGIN,
-                "AppGwPluginApiLatency_split",
+                "ENTS_INFO_AppGwPluginApiLat",
                 latencyMs,
                 "ms"
             );

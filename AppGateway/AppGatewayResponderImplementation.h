@@ -325,7 +325,7 @@ namespace Plugin {
         // Token substring that indicates a connection is compliant with JSON RPC (RPC version 2).
         // When this substring is present in the authentication token, the connection is treated
         // as JSON RPC compliant and added to the compliant connections registry.
-        static constexpr const char* kCompliantJsonRpcFeatureFlag = "RPCV2=true";
+        static constexpr const char* kCompliantJsonRpcFeatureFlag = "RPCv2=true";
 
         void CheckAndAddCompliantJsonRpc(const uint32_t connectionId, const string& token) {
             // Split all query parameters based on delimiter '&'
