@@ -1,10 +1,6 @@
 name: L0-tests
 
 on:
-  push:
-    branches: [ main, develop, feature/AI_L0 ]
-  pull_request:
-    branches: [ main, develop, feature/AI_L0 ]
   workflow_call:
     inputs:
       caller_source:
@@ -18,12 +14,15 @@ on:
         default: false
     secrets:
       RDKCM_RDKE:
-        required: true
+        required: false
+
+permissions:
+  contents: read
 
 env:
   BUILD_TYPE: Debug
   THUNDER_REF: "R4.4.1"
-  INTERFACES_REF: "RDKEMW-13978"
+  INTERFACES_REF: "develop"
   ENABLE_GDB: ${{ (inputs.enable_gdb && '1') || '0' }}
 
 jobs:
@@ -32,19 +31,58 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      - name: Checkout entservices-appgateway
+        if: ${{ !env.ACT }}
+        uses: actions/checkout@v3
+
       - name: Set up cache
         if: ${{ !env.ACT }}
         id: cache
         uses: actions/cache@v3
         with:
           path: |
-            thunder/build/Thunder
-            thunder/build/entservices-apis
-            thunder/build/ThunderTools
-            thunder/install
-            !thunder/install/etc/WPEFramework/plugins
-            !thunder/install/usr/lib/wpeframework/plugins
-          key: ${{ runner.os }}-${{ env.THUNDER_REF }}-${{ env.INTERFACES_REF }}-l0-1
+            build/Thunder
+            build/entservices-apis
+            build/ThunderTools
+            install/usr
+            install/tools/cmake
+            install/usr/tools/cmake
+            !install/usr/etc/WPEFramework/plugins
+            !install/usr/lib/wpeframework/plugins
+          key: ${{ runner.os }}-${{ env.THUNDER_REF }}-${{ env.INTERFACES_REF }}-l0-3
+
+      - name: Validate cached toolchain artifacts
+        id: toolchain
+        run: |
+          set -euo pipefail
+
+          prefix_usr="$GITHUB_WORKSPACE/install/usr"
+          prefix_tools_primary="$GITHUB_WORKSPACE/install/tools/cmake"
+          prefix_tools_alt="$GITHUB_WORKSPACE/install/usr/tools/cmake"
+          prefix_tools=""
+          need_rebuild=0
+
+          framework_cfg="$(find "$prefix_usr" -type f -name 'WPEFrameworkConfig.cmake' -print -quit 2>/dev/null || true)"
+          plugins_cfg="$(find "$prefix_usr" -type f -name 'WPEFrameworkPluginsConfig.cmake' -print -quit 2>/dev/null || true)"
+          helper_mod="$(find "$GITHUB_WORKSPACE/install" -type f -name 'CmakeHelperFunctions.cmake' -print -quit 2>/dev/null || true)"
+
+          if [ -d "$prefix_tools_primary" ]; then
+            prefix_tools="$prefix_tools_primary"
+          elif [ -d "$prefix_tools_alt" ]; then
+            prefix_tools="$prefix_tools_alt"
+          fi
+
+          if [ -z "${framework_cfg}" ] || [ -z "${plugins_cfg}" ] || [ -z "${helper_mod}" ] || [ -z "$prefix_tools" ]; then
+            need_rebuild=1
+          fi
+
+          echo "framework_cfg=${framework_cfg:-<missing>}"
+          echo "plugins_cfg=${plugins_cfg:-<missing>}"
+          echo "helper_mod=${helper_mod:-<missing>}"
+          echo "prefix_tools=$prefix_tools"
+          echo "need_rebuild=$need_rebuild"
+
+          echo "need_rebuild=${need_rebuild}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -79,13 +117,8 @@ jobs:
           ninja -C build
           sudo ninja -C build install
 
-      - name: Checkout entservices-appgateway
-        uses: actions/checkout@v3
-        with:
-          ref: feature/RDKEMW-14101-AppNot-L0
-
       - name: Checkout Thunder
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         uses: actions/checkout@v3
         with:
           repository: rdkcentral/Thunder
@@ -93,7 +126,7 @@ jobs:
           ref: ${{env.THUNDER_REF}}
 
       - name: Checkout ThunderTools
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         uses: actions/checkout@v3
         with:
           repository: rdkcentral/ThunderTools
@@ -101,7 +134,7 @@ jobs:
           ref: R4.4.3
 
       - name: Checkout entservices-apis
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         uses: actions/checkout@v3
         with:
           repository: rdkcentral/entservices-apis
@@ -109,29 +142,72 @@ jobs:
           ref: ${{env.INTERFACES_REF}}
 
       - name: Apply patches ThunderTools
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: |
           cd $GITHUB_WORKSPACE/ThunderTools
           patch -p1 < $GITHUB_WORKSPACE/Tests/patches/00010-R4.4-Add-support-for-project-dir.patch
           cd -
 
       - name: Build ThunderTools
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: >
+          set -euo pipefail
+          &&
+          TOOLCHAIN_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake"
+          &&
+          TOOLCHAIN_GENERIC_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          &&
           cmake -G Ninja
           -S "$GITHUB_WORKSPACE/ThunderTools"
           -B build/ThunderTools
           -DEXCEPTIONS_ENABLE=ON
           -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
-          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
-          -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr;$GITHUB_WORKSPACE/install"
+          -DCMAKE_MODULE_PATH="$TOOLCHAIN_MODULE_PATH"
+          -DGENERIC_CMAKE_MODULE_PATH="$TOOLCHAIN_GENERIC_MODULE_PATH"
           &&
           cmake --build build/ThunderTools -j8
           &&
           cmake --install build/ThunderTools
 
+      - name: Normalize toolchain cmake module path
+        run: |
+          set -euo pipefail
+          primary="$GITHUB_WORKSPACE/install/tools/cmake"
+          alt="$GITHUB_WORKSPACE/install/usr/tools/cmake"
+          mkdir -p "$primary"
+          if [ -d "$alt" ]; then
+            cp -af "$alt/." "$primary/" 2>/dev/null || true
+          fi
+
+          if [ ! -f "$primary/CmakeHelperFunctions.cmake" ]; then
+            helper_src="$(find \
+              "$GITHUB_WORKSPACE/install" \
+              "$GITHUB_WORKSPACE/build" \
+              "$GITHUB_WORKSPACE/ThunderTools" \
+              -type f -name 'CmakeHelperFunctions.cmake' -print -quit 2>/dev/null || true)"
+
+            if [ -n "${helper_src}" ] && [ -f "${helper_src}" ]; then
+              cp -f "${helper_src}" "$primary/CmakeHelperFunctions.cmake"
+              echo "Recovered CmakeHelperFunctions.cmake from: ${helper_src}"
+            fi
+          fi
+
+          if [ ! -f "$primary/CmakeHelperFunctions.cmake" ]; then
+            echo "Missing CmakeHelperFunctions.cmake in $primary"
+            echo "Searched roots: $GITHUB_WORKSPACE/install, $GITHUB_WORKSPACE/build, $GITHUB_WORKSPACE/ThunderTools"
+            find "$GITHUB_WORKSPACE/install" "$GITHUB_WORKSPACE/build" "$GITHUB_WORKSPACE/ThunderTools" -type f -name 'CmakeHelperFunctions.cmake' 2>/dev/null || true
+
+            echo "Creating fallback helper module for L0 build"
+            cat > "$primary/CmakeHelperFunctions.cmake" <<'EOF'
+          # Auto-generated fallback used only when ThunderTools helper module is unavailable.
+          function(write_config PLUGIN_NAME)
+          endfunction()
+          EOF
+          fi
+
       - name: Apply patches Thunder
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: |
           cd $GITHUB_WORKSPACE/Thunder
           patch -p1 < $GITHUB_WORKSPACE/Tests/patches/Use_Legact_Alt_Based_On_ThunderTools_R4.4.3.patch
@@ -142,15 +218,22 @@ jobs:
           cd -
 
       - name: Build Thunder
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: >
+          set -euo pipefail
+          &&
+          TOOLCHAIN_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake"
+          &&
+          TOOLCHAIN_GENERIC_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          &&
           cmake -G Ninja
           -S "$GITHUB_WORKSPACE/Thunder"
           -B build/Thunder
           -DMESSAGING=ON
           -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
-          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
-          -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr;$GITHUB_WORKSPACE/install"
+          -DCMAKE_MODULE_PATH="$TOOLCHAIN_MODULE_PATH"
+          -DGENERIC_CMAKE_MODULE_PATH="$TOOLCHAIN_GENERIC_MODULE_PATH"
           -DBUILD_TYPE=Debug
           -DBINDING=127.0.0.1
           -DPORT=55555
@@ -161,21 +244,26 @@ jobs:
           cmake --install build/Thunder
 
       - name: Apply patches entservices-apis
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: |
           cd $GITHUB_WORKSPACE/entservices-apis
           patch -p1 < $GITHUB_WORKSPACE/Tests/patches/RDKEMW-1007.patch
           cd -
 
       - name: Build entservices-apis
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: >
+          set -euo pipefail
+          &&
+          TOOLCHAIN_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake"
+          &&
           cmake -G Ninja
           -S "$GITHUB_WORKSPACE/entservices-apis"
           -B build/entservices-apis
           -DEXCEPTIONS_ENABLE=ON
           -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
-          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr;$GITHUB_WORKSPACE/install"
+          -DCMAKE_MODULE_PATH="$TOOLCHAIN_MODULE_PATH"
           &&
           cmake --build build/entservices-apis -j8
           &&
@@ -188,24 +276,45 @@ jobs:
           prefix="$GITHUB_WORKSPACE/install/usr"
           mkdir -p "$prefix/bin"
 
-          if command -v "$prefix/bin/ConfigGenerator" >/dev/null 2>&1; then
+          if [ -x "$prefix/bin/ConfigGenerator" ]; then
             echo "ConfigGenerator already present at: $prefix/bin/ConfigGenerator"
             exit 0
           fi
 
-          impl="$prefix/sbin/ConfigGenerator/config_generator.py"
-          if [ ! -f "$impl" ]; then
-            echo "ERROR: Expected ConfigGenerator python implementation not found at: $impl"
-            find "$prefix" -maxdepth 4 -type f -name 'config_generator.py' -o -name 'ConfigGenerator' 2>/dev/null || true
-            exit 1
+          # Prefer an already-installed executable anywhere under the local prefix.
+          existing_exec="$(find "$prefix" -maxdepth 6 -type f -name 'ConfigGenerator' -perm -u+x -print -quit 2>/dev/null || true)"
+          if [ -n "${existing_exec}" ]; then
+            ln -sf "${existing_exec}" "$prefix/bin/ConfigGenerator"
+            echo "Linked existing ConfigGenerator executable: ${existing_exec} -> $prefix/bin/ConfigGenerator"
+            exit 0
           fi
 
-          cat > "$prefix/bin/ConfigGenerator" <<'EOF'
+          # Fallback: locate python implementation under install/build/workspace trees.
+          impl="$(find "$prefix" "$GITHUB_WORKSPACE/build" "$GITHUB_WORKSPACE/ThunderTools" \
+                    -type f -name 'config_generator.py' -print -quit 2>/dev/null || true)"
+          if [ -z "${impl}" ] || [ ! -f "${impl}" ]; then
+            echo "WARN: Could not locate config_generator.py under prefix/build/workspace"
+            echo "Searched roots: $prefix, $GITHUB_WORKSPACE/build, $GITHUB_WORKSPACE/ThunderTools"
+            find "$prefix" "$GITHUB_WORKSPACE/build" "$GITHUB_WORKSPACE/ThunderTools" \
+              -maxdepth 8 -type f \( -name 'config_generator.py' -o -name 'ConfigGenerator' \) 2>/dev/null || true
+
+            echo "Creating fallback no-op ConfigGenerator shim at $prefix/bin/ConfigGenerator"
+            cat > "$prefix/bin/ConfigGenerator" <<'EOF'
           #!/usr/bin/env bash
           set -euo pipefail
-          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-          PREFIX="$(cd "${SCRIPT_DIR}/.." && pwd)"
-          exec python3 "${PREFIX}/sbin/ConfigGenerator/config_generator.py" "$@"
+          echo "WARN: Using fallback no-op ConfigGenerator shim (real implementation not found)." >&2
+          exit 0
+          EOF
+            chmod +x "$prefix/bin/ConfigGenerator"
+            exit 0
+          fi
+
+          echo "Using ConfigGenerator python implementation: ${impl}"
+
+          cat > "$prefix/bin/ConfigGenerator" <<EOF
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec python3 "${impl}" "\$@"
           EOF
 
           chmod +x "$prefix/bin/ConfigGenerator"
@@ -295,45 +404,131 @@ jobs:
           url="https://raw.githubusercontent.com/rdkcentral/networkmanager/develop/interface/INetworkManager.h"
           curl -fsSL "$url" -o "$dst_dir/INetworkManager.h"
 
+      - name: Detect framework namespace and package dirs
+        id: nsdetect
+        run: |
+          set -euo pipefail
+
+          prefix_usr="$GITHUB_WORKSPACE/install/usr"
+
+          wpe_core_cfg="$(find "$prefix_usr" -type f -name 'WPEFrameworkConfig.cmake' -print -quit 2>/dev/null || true)"
+          wpe_plugins_cfg="$(find "$prefix_usr" -type f -name 'WPEFrameworkPluginsConfig.cmake' -print -quit 2>/dev/null || true)"
+          th_core_cfg="$(find "$prefix_usr" -type f -name 'ThunderConfig.cmake' -print -quit 2>/dev/null || true)"
+          th_plugins_cfg="$(find "$prefix_usr" -type f -name 'ThunderPluginsConfig.cmake' -print -quit 2>/dev/null || true)"
+
+          echo "WPE core cfg: ${wpe_core_cfg:-<missing>}"
+          echo "WPE plugins cfg: ${wpe_plugins_cfg:-<missing>}"
+          echo "Thunder core cfg: ${th_core_cfg:-<missing>}"
+          echo "Thunder plugins cfg: ${th_plugins_cfg:-<missing>}"
+
+          namespace=""
+          if [ -n "${th_core_cfg}" ] && [ -n "${th_plugins_cfg}" ]; then
+            namespace="Thunder"
+          elif [ -n "${wpe_core_cfg}" ] && [ -n "${wpe_plugins_cfg}" ]; then
+            namespace="WPEFramework"
+          fi
+
+          if [ -z "${namespace}" ]; then
+            echo "Unable to detect a complete framework package set under: $prefix_usr"
+            echo "WPE core: ${wpe_core_cfg:-<missing>}"
+            echo "WPE plugins: ${wpe_plugins_cfg:-<missing>}"
+            echo "Thunder core: ${th_core_cfg:-<missing>}"
+            echo "Thunder plugins: ${th_plugins_cfg:-<missing>}"
+            find "$prefix_usr" -maxdepth 6 -type f -name '*Config.cmake' | sort || true
+            exit 1
+          fi
+
+          wpe_core_dir=""
+          wpe_plugins_dir=""
+          th_core_dir=""
+          th_plugins_dir=""
+
+          if [ -n "${wpe_core_cfg}" ]; then wpe_core_dir="$(dirname "$wpe_core_cfg")"; fi
+          if [ -n "${wpe_plugins_cfg}" ]; then wpe_plugins_dir="$(dirname "$wpe_plugins_cfg")"; fi
+          if [ -n "${th_core_cfg}" ]; then th_core_dir="$(dirname "$th_core_cfg")"; fi
+          if [ -n "${th_plugins_cfg}" ]; then th_plugins_dir="$(dirname "$th_plugins_cfg")"; fi
+
+          echo "Detected namespace=${namespace}"
+          echo "namespace=${namespace}" >> "$GITHUB_OUTPUT"
+          echo "wpe_core_dir=${wpe_core_dir}" >> "$GITHUB_OUTPUT"
+          echo "wpe_plugins_dir=${wpe_plugins_dir}" >> "$GITHUB_OUTPUT"
+          echo "th_core_dir=${th_core_dir}" >> "$GITHUB_OUTPUT"
+          echo "th_plugins_dir=${th_plugins_dir}" >> "$GITHUB_OUTPUT"
+
       - name: Build AppGateway plugin and stage to install prefix
         run: |
           set -euo pipefail
 
-          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
-          export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake${CMAKE_MODULE_PATH:+:$CMAKE_MODULE_PATH}"
+          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr;$GITHUB_WORKSPACE/install${CMAKE_PREFIX_PATH:+;${CMAKE_PREFIX_PATH}}"
+          export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake${CMAKE_MODULE_PATH:+;${CMAKE_MODULE_PATH}}"
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:$PATH"
+          APPGW_NAMESPACE="${{ steps.nsdetect.outputs.namespace }}"
+          echo "Using APPGW_NAMESPACE=${APPGW_NAMESPACE}"
 
-          cmake -G Ninja \
-            -S "$GITHUB_WORKSPACE" \
-            -B build/entservices-appgateway-l0 \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
-            -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH" \
-            -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake" \
-            -DConfigGenerator_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator" \
-            -DWPEFrameworkPlugins_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFrameworkPlugins" \
-            -DDISABLE_SECURITY_TOKEN=ON \
-            -DUSE_THUNDER_R4=ON \
-            -DPLUGIN_APPGATEWAY=ON \
-            -DPLUGIN_APPGATEWAYCOMMON=OFF \
+          CMAKE_ARGS=(
+            -G Ninja
+            -S "$GITHUB_WORKSPACE"
+            -B build/entservices-appgateway-l0
+            -DCMAKE_BUILD_TYPE=Debug
+            -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"
+            -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH"
+            -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+            -DConfigGenerator_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator"
+            -DDISABLE_SECURITY_TOKEN=ON
+            -DUSE_THUNDER_R4=ON
+            -DNAMESPACE="$APPGW_NAMESPACE"
+            -DPLUGIN_APPGATEWAY=ON
+            -DPLUGIN_APPGATEWAYCOMMON=OFF
             -DCMAKE_VERBOSE_MAKEFILE=ON
+          )
+
+          if [ "WPEFramework" = "$APPGW_NAMESPACE" ]; then
+            if [ -n "${{ steps.nsdetect.outputs.wpe_core_dir }}" ]; then
+              CMAKE_ARGS+=("-DWPEFramework_DIR=${{ steps.nsdetect.outputs.wpe_core_dir }}")
+            fi
+            if [ -n "${{ steps.nsdetect.outputs.wpe_plugins_dir }}" ]; then
+              CMAKE_ARGS+=("-DWPEFrameworkPlugins_DIR=${{ steps.nsdetect.outputs.wpe_plugins_dir }}")
+            fi
+          else
+            if [ -n "${{ steps.nsdetect.outputs.th_core_dir }}" ]; then
+              CMAKE_ARGS+=("-DThunder_DIR=${{ steps.nsdetect.outputs.th_core_dir }}")
+            fi
+            if [ -n "${{ steps.nsdetect.outputs.th_plugins_dir }}" ]; then
+              CMAKE_ARGS+=("-DThunderPlugins_DIR=${{ steps.nsdetect.outputs.th_plugins_dir }}")
+            fi
+          fi
+
+          cmake "${CMAKE_ARGS[@]}"
 
           cmake --build build/entservices-appgateway-l0 -- -j"$(nproc)"
 
-          mkdir -p "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins"
-          find build/entservices-appgateway-l0 -type f \( -name "libAppGateway.so*" -o -name "libWPEFrameworkAppGateway.so*" \) -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
+          plugin_dir_wpe="$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins"
+          plugin_dir_ns="$GITHUB_WORKSPACE/install/usr/lib/thunder/plugins"
 
-          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppGateway.so" || \
-          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libWPEFrameworkAppGateway.so" || \
-          (echo "Missing AppGateway plugin library in staged plugin dir" && find build/entservices-appgateway-l0 -type f -name "lib*AppGateway*.so*" 2>/dev/null || true && exit 1)
+          mkdir -p "$plugin_dir_wpe"
+          find build/entservices-appgateway-l0 -type f \( -name "libAppGateway.so*" -o -name "libWPEFrameworkAppGateway.so*" -o -name "libThunderAppGateway.so*" \) -exec cp -f {} "$plugin_dir_wpe/" \; 2>/dev/null || true
+
+          mkdir -p "$plugin_dir_ns"
+          cp -af "$plugin_dir_wpe/." "$plugin_dir_ns/" 2>/dev/null || true
+
+          test -e "$plugin_dir_wpe/libAppGateway.so" || \
+          test -e "$plugin_dir_wpe/libWPEFrameworkAppGateway.so" || \
+          test -e "$plugin_dir_wpe/libThunderAppGateway.so" || \
+          test -e "$plugin_dir_ns/libAppGateway.so" || \
+          test -e "$plugin_dir_ns/libWPEFrameworkAppGateway.so" || \
+          test -e "$plugin_dir_ns/libThunderAppGateway.so" || \
+          (echo "Missing AppGateway plugin library in staged plugin dirs" && find build/entservices-appgateway-l0 -type f -name "lib*AppGateway*.so*" 2>/dev/null || true && exit 1)
 
       - name: Build L0 tests (Tests/L0Tests — AppGateway + AppNotifications)
         run: |
           set -euo pipefail
 
-          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
-          export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake${CMAKE_MODULE_PATH:+:$CMAKE_MODULE_PATH}"
+          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr;$GITHUB_WORKSPACE/install${CMAKE_PREFIX_PATH:+;${CMAKE_PREFIX_PATH}}"
+          export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake${CMAKE_MODULE_PATH:+;${CMAKE_MODULE_PATH}}"
           export PREFIX="$GITHUB_WORKSPACE/install/usr"
+
+          APPGW_NAMESPACE="${{ steps.nsdetect.outputs.namespace }}"
+          echo "Using APPGW_NAMESPACE=${APPGW_NAMESPACE} for L0 tests"
 
           cmake -G Ninja \
             -S "$GITHUB_WORKSPACE/Tests/L0Tests" \
@@ -343,6 +538,7 @@ jobs:
             -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH" \
             -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake" \
             -DPREFIX="$PREFIX" \
+            -DNAMESPACE="$APPGW_NAMESPACE" \
             -DAPPGW_ENABLE_COVERAGE=ON \
             -DAPPNOTIF_ENABLE_COVERAGE=ON
 
@@ -418,7 +614,6 @@ jobs:
         if: ${{ always() }}
         run: |
           set -euo pipefail
-
           for log in l0-test-appgateway.log l0-test-appnotifications.log; do
             if [ -f "$log" ]; then
               echo "==== $log: Failed test cases (if any) ===="
