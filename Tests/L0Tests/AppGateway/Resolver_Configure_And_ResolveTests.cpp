@@ -17,31 +17,20 @@
 #include <Resolver.h>
 #include <AppGateway.h>
 #include <plugins/IDispatcher.h>
+#include "L0Expect.hpp"
+#include "L0TestTypes.hpp"
 #include "ServiceMock.h"
 
 using AppGatewayPlugin = WPEFramework::Plugin::AppGateway;
 using WPEFramework::PluginHost::IPlugin;
 using WPEFramework::Core::ERROR_BAD_REQUEST;
 using WPEFramework::Core::ERROR_NONE;
+using L0Test::ExpectEqU32;
+using L0Test::ExpectTrue;
+using L0Test::TestResult;
 
 namespace {
 
-struct TestResult {
-    uint32_t failures { 0 };
-};
-
-static void ExpectTrue(TestResult& tr, const bool condition, const std::string& what) {
-    if (!condition) {
-        tr.failures++;
-        std::cerr << "FAIL: " << what << std::endl;
-    }
-}
-static void ExpectEqU32(TestResult& tr, const uint32_t actual, const uint32_t expected, const std::string& what) {
-    if (actual != expected) {
-        tr.failures++;
-        std::cerr << "FAIL: " << what << " expected=" << expected << " actual=" << actual << std::endl;
-    }
-}
 static void ExpectNotEmpty(TestResult& tr, const std::string& s, const std::string& what) {
     if (s.empty()) {
         tr.failures++;
