@@ -228,11 +228,7 @@ private:
 class ANImplFake final : public WPEFramework::Exchange::IAppNotifications,
                          public WPEFramework::Exchange::IConfiguration {
 public:
-    ANImplFake()
-        : _refCount(1)
-        , configureCount(0)
-    {
-    }
+    ANImplFake() = default;
 
     ~ANImplFake() override = default;
 
@@ -314,7 +310,7 @@ public:
     string lastCleanupOrigin;
 
 private:
-    mutable std::atomic<uint32_t> _refCount;
+    mutable std::atomic<uint32_t> _refCount{1};
 };
 
 // -----------------------------------------------------------------------
