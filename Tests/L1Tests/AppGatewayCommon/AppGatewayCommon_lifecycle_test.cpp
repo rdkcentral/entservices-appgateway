@@ -93,6 +93,7 @@ protected:
     NiceMock<MockLifecycleManagerState> mockLifecycle;
     NiceMock<MockRDKWindowManager> mockWindowMgr;
     Exchange::ILifecycleManagerState::INotification* capturedNotification = nullptr;
+    Exchange::IRDKWindowManager::INotification* capturedWMNotification = nullptr;
     std::vector<MockEmitter*> heapEmitters;
 
     void SetUp() override
@@ -127,7 +128,12 @@ protected:
                 return Core::ERROR_NONE;
             }));
         EXPECT_CALL(mockLifecycle, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-        EXPECT_CALL(mockWindowMgr, Register(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        // Capture IRDKWindowManager::INotification* when Register is called
+        EXPECT_CALL(mockWindowMgr, Register(_)).Times(AnyNumber())
+            .WillRepeatedly(::testing::Invoke([this](Exchange::IRDKWindowManager::INotification* n) -> uint32_t {
+                capturedWMNotification = n;
+                return Core::ERROR_NONE;
+            }));
         EXPECT_CALL(mockWindowMgr, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
 
         const string response = plugin.Initialize(&service);
@@ -747,6 +753,174 @@ TEST_F(LifecycleDelegateTest, AGC_L1_229_HandleEvent_ValidLifecycleEvent_Unsubsc
     // Now unsubscribe
     status = false;
     const auto rc = plugin.HandleAppEventNotifier(emitter, "Lifecycle.onBackground", false, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_TRUE(status);
+}
+
+/* ================================================================
+ * Gap 1 – OnFocus / OnBlur WindowManager notification callbacks
+ *
+ * These tests verify that WindowManager focus/blur events dispatch
+ * Presentation.onFocusedChanged and drive Lifecycle 1 foreground/
+ * background transitions when the app is ACTIVE.
+ * ================================================================ */
+
+TEST_F(LifecycleDelegateTest, AGC_L1_261_OnFocus_DispatchesFocusedChanged_And_Foreground)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+    ASSERT_NE(capturedWMNotification, nullptr);
+
+    // Make the app known and ACTIVE so focus triggers lifecycle events
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-focus-001",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-focus-001",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+
+    // Subscribe emitters for both events directly on the lifecycle delegate
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+
+    MockEmitter* focusEmitter = new MockEmitter();
+    heapEmitters.push_back(focusEmitter);
+    focusEmitter->AddRef();
+    lifecycleDelegate->AddNotification("Presentation.onFocusedChanged", focusEmitter);
+
+    MockEmitter* fgEmitter = new MockEmitter();
+    heapEmitters.push_back(fgEmitter);
+    fgEmitter->AddRef();
+    lifecycleDelegate->AddNotification("Lifecycle.onForeground", fgEmitter);
+
+    EXPECT_CALL(*focusEmitter, Emit(::testing::HasSubstr("Presentation.onFocusedChanged"), _, _))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(*fgEmitter, Emit(::testing::HasSubstr("Lifecycle.onForeground"), _, _))
+        .Times(::testing::AtLeast(1));
+
+    // Fire OnFocus
+    capturedWMNotification->OnFocus("instance-focus-001");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_262_OnBlur_DispatchesFocusedChanged_And_Background)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+    ASSERT_NE(capturedWMNotification, nullptr);
+
+    // Make the app known and ACTIVE, then focus it first
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-blur-001",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-blur-001",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+    // Focus the app so blur will clear it
+    capturedWMNotification->OnFocus("instance-blur-001");
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+
+    MockEmitter* focusEmitter = new MockEmitter();
+    heapEmitters.push_back(focusEmitter);
+    focusEmitter->AddRef();
+    lifecycleDelegate->AddNotification("Presentation.onFocusedChanged", focusEmitter);
+
+    MockEmitter* bgEmitter = new MockEmitter();
+    heapEmitters.push_back(bgEmitter);
+    bgEmitter->AddRef();
+    lifecycleDelegate->AddNotification("Lifecycle.onBackground", bgEmitter);
+
+    EXPECT_CALL(*focusEmitter, Emit(::testing::HasSubstr("Presentation.onFocusedChanged"), _, _))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(*bgEmitter, Emit(::testing::HasSubstr("Lifecycle.onBackground"), _, _))
+        .Times(::testing::AtLeast(1));
+
+    // Fire OnBlur
+    capturedWMNotification->OnBlur("instance-blur-001");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+}
+
+/* ================================================================
+ * Gap 2 – TERMINATING → Lifecycle.onUnloading dispatch
+ *
+ * Verifies that when an app transitions to TERMINATING, the
+ * Lifecycle 1 Lifecycle.onUnloading event is dispatched.
+ * ================================================================ */
+
+TEST_F(LifecycleDelegateTest, AGC_L1_263_Terminating_DispatchesOnUnloading)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    // Initialize the app in the registries
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-term-001",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+
+    // Subscribe to Lifecycle.onUnloading
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+    lifecycleDelegate->AddNotification("Lifecycle.onUnloading", emitter);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Lifecycle.onUnloading"), _, _))
+        .Times(::testing::AtLeast(1));
+
+    // Transition to TERMINATING
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-term-001",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::TERMINATING,
+        ""
+    );
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+}
+
+/* ================================================================
+ * Gap 5 – Presentation.onFocusedChanged subscription path
+ *
+ * Verifies that the event name is accepted by HandleEvent and
+ * correctly recorded via AddNotification/RemoveNotification.
+ * ================================================================ */
+
+TEST_F(LifecycleDelegateTest, AGC_L1_264_HandleEvent_PresentationFocusedChanged_SubscribeUnsubscribe)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    // Subscribe
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "Presentation.onFocusedChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    EXPECT_TRUE(status);
+
+    // Unsubscribe
+    status = false;
+    const auto rc = plugin.HandleAppEventNotifier(emitter, "Presentation.onFocusedChanged", false, status);
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     EXPECT_EQ(Core::ERROR_NONE, rc);

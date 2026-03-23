@@ -675,4 +675,209 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_246_UserSettings_OnPresentationLangu
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
+/* ================================================================
+ * Gap A – Remaining TTS notification dispatch callbacks
+ *
+ * OnSpeechReady, OnSpeechPaused, OnSpeechResumed,
+ * OnSpeechInterrupted, OnNetworkError — each dispatches a distinct
+ * event that apps can subscribe to.
+ * ================================================================ */
+
+TEST_F(TTSNotificationTest, AGC_L1_247_TTS_OnSpeechReady_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onWillSpeak", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedTTSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onWillSpeak"), _, _)).Times(::testing::AtLeast(1));
+    capturedTTSNotification->OnSpeechReady(5);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(TTSNotificationTest, AGC_L1_248_TTS_OnSpeechPaused_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechPause", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedTTSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onSpeechPause"), _, _)).Times(::testing::AtLeast(1));
+    capturedTTSNotification->OnSpeechPaused(15);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(TTSNotificationTest, AGC_L1_249_TTS_OnSpeechResumed_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechResume", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedTTSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onSpeechResume"), _, _)).Times(::testing::AtLeast(1));
+    capturedTTSNotification->OnSpeechResumed(15);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(TTSNotificationTest, AGC_L1_250_TTS_OnSpeechInterrupted_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechInterrupted", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedTTSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onSpeechInterrupted"), _, _)).Times(::testing::AtLeast(1));
+    capturedTTSNotification->OnSpeechInterrupted(20);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(TTSNotificationTest, AGC_L1_251_TTS_OnNetworkError_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onNetworkError", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedTTSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onNetworkError"), _, _)).Times(::testing::AtLeast(1));
+    capturedTTSNotification->OnNetworkError(25);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+/* ================================================================
+ * Gap B – Remaining UserSettings notification dispatch callbacks
+ *
+ * OnPreferredCaptionsLanguagesChanged, OnVoiceGuidanceRateChanged,
+ * OnVoiceGuidanceHintsChanged — each triggers dispatch through
+ * the UserSettingsDelegate notification handler.
+ * ================================================================ */
+
+/* ================================================================
+ * Gap 3 – OnPresentationLanguageChanged with no-hyphen locale
+ *
+ * When the locale string contains no '-' (e.g. "eng"),
+ * Localization.onLanguageChanged should NOT be dispatched,
+ * while onLocaleChanged and onPresentationLanguageChanged must still fire.
+ * ================================================================ */
+
+TEST_F(UserSettingsNotificationTest, AGC_L1_265_UserSettings_OnPresentationLanguageChanged_NoHyphen)
+{
+    MockEmitter* localeEmitter = new MockEmitter();
+    heapEmitters.push_back(localeEmitter);
+    localeEmitter->AddRef();
+
+    MockEmitter* langEmitter = new MockEmitter();
+    heapEmitters.push_back(langEmitter);
+    langEmitter->AddRef();
+
+    MockEmitter* presEmitter = new MockEmitter();
+    heapEmitters.push_back(presEmitter);
+    presEmitter->AddRef();
+
+    // Subscribe to all three locale-related events
+    bool status = false;
+    plugin.HandleAppEventNotifier(localeEmitter, "Localization.onLocaleChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedUSNotification, nullptr);
+
+    plugin.HandleAppEventNotifier(langEmitter, "Localization.onLanguageChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    plugin.HandleAppEventNotifier(presEmitter, "Localization.onPresentationLanguageChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // onLocaleChanged and onPresentationLanguageChanged must fire
+    EXPECT_CALL(*localeEmitter, Emit(::testing::HasSubstr("Localization.onLocaleChanged"), _, _))
+        .Times(::testing::AtLeast(1));
+    EXPECT_CALL(*presEmitter, Emit(::testing::HasSubstr("Localization.onPresentationLanguageChanged"), _, _))
+        .Times(::testing::AtLeast(1));
+    // onLanguageChanged must NOT fire for a non-hyphenated locale
+    EXPECT_CALL(*langEmitter, Emit(::testing::HasSubstr("Localization.onLanguageChanged"), _, _))
+        .Times(0);
+
+    // Fire with a non-hyphenated locale
+    capturedUSNotification->OnPresentationLanguageChanged("eng");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+}
+
+TEST_F(UserSettingsNotificationTest, AGC_L1_252_UserSettings_OnPreferredCaptionsLanguagesChanged_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "ClosedCaptions.onPreferredLanguagesChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedUSNotification, nullptr);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("ClosedCaptions.onPreferredLanguagesChanged"), _, _)).Times(::testing::AtLeast(1));
+    capturedUSNotification->OnPreferredCaptionsLanguagesChanged("eng,spa");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(UserSettingsNotificationTest, AGC_L1_253_UserSettings_OnVoiceGuidanceRateChanged_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "Accessibility.onVoiceGuidanceSettingsChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedUSNotification, nullptr);
+
+    // OnVoiceGuidanceRateChanged triggers DispatchVoiceGuidanceSettingsChanged
+    // which re-queries voice guidance state and dispatches the composite settings
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Accessibility.onVoiceGuidanceSettingsChanged"), _, _)).Times(::testing::AtLeast(1));
+    capturedUSNotification->OnVoiceGuidanceRateChanged(1.5);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
+TEST_F(UserSettingsNotificationTest, AGC_L1_254_UserSettings_OnVoiceGuidanceHintsChanged_Dispatches)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "Accessibility.onVoiceGuidanceSettingsChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ASSERT_NE(capturedUSNotification, nullptr);
+
+    // OnVoiceGuidanceHintsChanged triggers DispatchVoiceGuidanceSettingsChanged
+    // which re-queries voice guidance state and dispatches the composite settings
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Accessibility.onVoiceGuidanceSettingsChanged"), _, _)).Times(::testing::AtLeast(1));
+    capturedUSNotification->OnVoiceGuidanceHintsChanged(true);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+}
+
 } // namespace

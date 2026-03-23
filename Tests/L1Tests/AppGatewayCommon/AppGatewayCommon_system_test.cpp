@@ -29,6 +29,7 @@
 
 #include "ServiceMock.h"
 #include "MockJSONRPCDirectLink.h"
+#include "MockEmitter.h"
 #include "ThunderPortability.h"
 #include "WorkerPoolImplementation.h"
 
@@ -1009,6 +1010,233 @@ TEST_F(SystemDelegateTest, AGC_L1_206_GetTimeZone_MissingTimeZoneField)
 
     // success=true but no timeZone field → falls through to error path
     EXPECT_NE(Core::ERROR_NONE, rc);
+}
+
+/* ================================================================
+ * Gap C – SystemDelegate Emit notification dispatch tests
+ *
+ * These tests verify that when a Device.* event fires, the
+ * SystemDelegate re-queries the underlying JSON-RPC plugin,
+ * constructs the payload, and dispatches to registered emitters.
+ * ================================================================ */
+
+class SystemDelegateEmitTest : public ::testing::Test {
+protected:
+    Core::Sink<AppGatewayCommon> plugin;
+    NiceMock<ServiceMock> service;
+    Core::Sink<MockJSONRPC::MockLocalDispatcher> systemDispatcher;
+    Core::Sink<MockJSONRPC::MockLocalDispatcher> displayDispatcher;
+    Core::Sink<MockJSONRPC::MockLocalDispatcher> hdcpDispatcher;
+    std::vector<MockEmitter*> heapEmitters;
+
+    void SetUp() override
+    {
+        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+            .WillByDefault(Return(nullptr));
+
+        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.System")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                systemDispatcher.AddRef();
+                return static_cast<PluginHost::ILocalDispatcher*>(&systemDispatcher);
+            }));
+
+        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.DisplaySettings")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                displayDispatcher.AddRef();
+                return static_cast<PluginHost::ILocalDispatcher*>(&displayDispatcher);
+            }));
+
+        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.HdcpProfile")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                hdcpDispatcher.AddRef();
+                return static_cast<PluginHost::ILocalDispatcher*>(&hdcpDispatcher);
+            }));
+
+        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::IAuthenticate::ID, _))
+            .WillByDefault(Return(nullptr));
+
+        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        const string response = plugin.Initialize(&service);
+        ASSERT_TRUE(response.empty());
+    }
+
+    void TearDown() override
+    {
+        plugin.Deinitialize(&service);
+        // Wait for any pending async dispatch jobs to complete before
+        // destroying emitters to prevent use-after-free.
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        for (auto* e : heapEmitters) {
+            testing::Mock::VerifyAndClearExpectations(e);
+            delete e;
+        }
+        heapEmitters.clear();
+    }
+
+    // Register a heap-allocated MockEmitter directly on the SystemDelegate's
+    // notification map via AddNotification.  This avoids the async
+    // HandleAppEventNotifier → EventRegistrationJob path which triggers
+    // four slow SetupXxx subscription retries (~2 s timeout each ≈ 8 s),
+    // saturating the 2-thread worker pool and preventing the subsequent
+    // EventDelegateDispatchJob from executing within the test window.
+    MockEmitter* SubscribeEmitter(const std::string& event)
+    {
+        MockEmitter* emitter = new MockEmitter();
+        heapEmitters.push_back(emitter);
+        emitter->AddRef();
+
+        auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+        EXPECT_NE(systemDelegate, nullptr);
+        systemDelegate->AddNotification(event, emitter);
+
+        return emitter;
+    }
+};
+
+TEST_F(SystemDelegateEmitTest, AGC_L1_255_EmitOnScreenResolutionChanged_DispatchesToEmitter)
+{
+    displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"resolution":"3840x2160"})";
+        return Core::ERROR_NONE;
+    });
+
+    MockEmitter* emitter = SubscribeEmitter("Device.onScreenResolutionChanged");
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onScreenResolutionChanged"), ::testing::HasSubstr("screenResolution"), _))
+        .Times(::testing::AtLeast(1));
+
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    systemDelegate->EmitOnScreenResolutionChanged();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+}
+
+TEST_F(SystemDelegateEmitTest, AGC_L1_256_EmitOnVideoResolutionChanged_DispatchesToEmitter)
+{
+    displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"resolution":"3840x2160"})";
+        return Core::ERROR_NONE;
+    });
+
+    MockEmitter* emitter = SubscribeEmitter("Device.onVideoResolutionChanged");
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onVideoResolutionChanged"), ::testing::HasSubstr("videoResolution"), _))
+        .Times(::testing::AtLeast(1));
+
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    systemDelegate->EmitOnVideoResolutionChanged();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+}
+
+TEST_F(SystemDelegateEmitTest, AGC_L1_257_EmitOnHdcpChanged_DispatchesToEmitter)
+{
+    hdcpDispatcher.SetHandler("getHDCPStatus", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"HDCPStatus":{"isConnected":true,"isHDCPCompliant":true,"isHDCPEnabled":true,"hdcpReason":1,"supportedHDCPVersion":"2.2","receiverHDCPVersion":"1.4","currentHDCPVersion":"1.4"}})";
+        return Core::ERROR_NONE;
+    });
+
+    MockEmitter* emitter = SubscribeEmitter("Device.onHdcpChanged");
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onHdcpChanged"), _, _))
+        .Times(::testing::AtLeast(1));
+
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    systemDelegate->EmitOnHdcpChanged();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+}
+
+TEST_F(SystemDelegateEmitTest, AGC_L1_258_EmitOnHdrChanged_DispatchesToEmitter)
+{
+    displayDispatcher.SetHandler("getTVHDRCapabilities", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"capabilities":23,"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    MockEmitter* emitter = SubscribeEmitter("Device.onHdrChanged");
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onHdrChanged"), _, _))
+        .Times(::testing::AtLeast(1));
+
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    systemDelegate->EmitOnHdrChanged();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+}
+
+TEST_F(SystemDelegateEmitTest, AGC_L1_259_EmitOnAudioChanged_DispatchesToEmitter)
+{
+    displayDispatcher.SetHandler("getAudioFormat", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"supportedAudioFormat":["PCM","DOLBY DIGITAL 5.1"]})";
+        return Core::ERROR_NONE;
+    });
+
+    MockEmitter* emitter = SubscribeEmitter("Device.onAudioChanged");
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onAudioChanged"), _, _))
+        .Times(::testing::AtLeast(1));
+
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    systemDelegate->EmitOnAudioChanged();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+}
+
+TEST_F(SystemDelegateEmitTest, AGC_L1_260_EmitOnNameChanged_DispatchesToEmitter)
+{
+    systemDispatcher.SetHandler("getFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"friendlyName":"Living Room TV"})";
+        return Core::ERROR_NONE;
+    });
+
+    MockEmitter* emitter = SubscribeEmitter("Device.onDeviceNameChanged");
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onDeviceNameChanged"), ::testing::HasSubstr("friendlyName"), _))
+        .Times(::testing::AtLeast(1));
+
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    systemDelegate->EmitOnNameChanged();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+}
+
+/* ================================================================
+ * Gap 4 – SystemDelegate::HandleEvent unsubscribe path
+ *
+ * Verifies that HandleEvent(listen=false) correctly removes an
+ * emitter from the notification map via RemoveNotification.
+ * ================================================================ */
+
+TEST_F(SystemDelegateEmitTest, AGC_L1_266_HandleEvent_Unsubscribe_RemovesEmitter)
+{
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    // Subscribe directly via AddNotification
+    systemDelegate->AddNotification("Device.onHdrChanged", emitter);
+    EXPECT_TRUE(systemDelegate->IsNotificationRegistered("Device.onHdrChanged"));
+
+    // Now use HandleEvent to unsubscribe
+    bool registrationError = true;
+    const bool handled = systemDelegate->HandleEvent(emitter, "Device.onHdrChanged", false, registrationError);
+
+    EXPECT_TRUE(handled);
+    EXPECT_FALSE(registrationError);
+    // After removal the notification should no longer be registered
+    EXPECT_FALSE(systemDelegate->IsNotificationRegistered("Device.onHdrChanged"));
 }
 
 } // namespace
