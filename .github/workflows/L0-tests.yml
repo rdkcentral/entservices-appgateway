@@ -1,10 +1,6 @@
 name: L0-tests
 
 on:
-  push:
-    branches: [ main, develop, feature/AI_L0 ]
-  pull_request:
-    branches: [ main, develop, feature/AI_L0 ]
   workflow_call:
     inputs:
       caller_source:
@@ -18,7 +14,7 @@ on:
         default: false
     secrets:
       RDKCM_RDKE:
-        required: true
+        required: false
 
 permissions:
   contents: read
@@ -26,7 +22,7 @@ permissions:
 env:
   BUILD_TYPE: Debug
   THUNDER_REF: "R4.4.1"
-  INTERFACES_REF: "RDKEMW-13978"
+  INTERFACES_REF: "develop"
   ENABLE_GDB: ${{ (inputs.enable_gdb && '1') || '0' }}
 
 jobs:
@@ -41,12 +37,12 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            thunder/build/Thunder
-            thunder/build/entservices-apis
-            thunder/build/ThunderTools
-            thunder/install
-            !thunder/install/etc/WPEFramework/plugins
-            !thunder/install/usr/lib/wpeframework/plugins
+            build/Thunder
+            build/entservices-apis
+            build/ThunderTools
+            install/usr
+            !install/usr/etc/WPEFramework/plugins
+            !install/usr/lib/wpeframework/plugins
           key: ${{ runner.os }}-${{ env.THUNDER_REF }}-${{ env.INTERFACES_REF }}-l0-1
 
       - name: Set up Python

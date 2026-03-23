@@ -43,10 +43,14 @@ public:
         /**
          * Register an interface instance for a given callsign + interfaceId.
          * The registry owns one COM reference to the stored interface.
+         * A nullptr instance is treated as unregister for this key.
          */
-        if (instance != nullptr) {
-            instance->AddRef();
+        if (instance == nullptr) {
+            UnregisterInterface(callsign, interfaceId);
+            return;
         }
+
+        instance->AddRef();
 
         auto& byId = _registry[callsign];
         auto it = byId.find(interfaceId);
