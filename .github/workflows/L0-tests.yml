@@ -42,9 +42,10 @@ jobs:
             build/ThunderTools
             install/usr
             install/tools/cmake
+            install/usr/tools/cmake
             !install/usr/etc/WPEFramework/plugins
             !install/usr/lib/wpeframework/plugins
-          key: ${{ runner.os }}-${{ env.THUNDER_REF }}-${{ env.INTERFACES_REF }}-l0-2
+          key: ${{ runner.os }}-${{ env.THUNDER_REF }}-${{ env.INTERFACES_REF }}-l0-3
 
       - name: Validate cached toolchain artifacts
         id: toolchain
@@ -52,14 +53,22 @@ jobs:
           set -euo pipefail
 
           prefix_usr="$GITHUB_WORKSPACE/install/usr"
-          prefix_tools="$GITHUB_WORKSPACE/install/tools/cmake"
+          prefix_tools_primary="$GITHUB_WORKSPACE/install/tools/cmake"
+          prefix_tools_alt="$GITHUB_WORKSPACE/install/usr/tools/cmake"
+          prefix_tools=""
           need_rebuild=0
 
           framework_cfg="$(find "$prefix_usr" -type f \( -name 'WPEFrameworkConfig.cmake' -o -name 'ThunderConfig.cmake' \) -print -quit 2>/dev/null || true)"
           plugins_cfg="$(find "$prefix_usr" -type f \( -name 'WPEFrameworkPluginsConfig.cmake' -o -name 'ThunderPluginsConfig.cmake' \) -print -quit 2>/dev/null || true)"
           helper_mod="$(find "$GITHUB_WORKSPACE/install" -type f -name 'CmakeHelperFunctions.cmake' -print -quit 2>/dev/null || true)"
 
-          if [ -z "${framework_cfg}" ] || [ -z "${plugins_cfg}" ] || [ -z "${helper_mod}" ] || [ ! -d "$prefix_tools" ]; then
+          if [ -d "$prefix_tools_primary" ]; then
+            prefix_tools="$prefix_tools_primary"
+          elif [ -d "$prefix_tools_alt" ]; then
+            prefix_tools="$prefix_tools_alt"
+          fi
+
+          if [ -z "${framework_cfg}" ] || [ -z "${plugins_cfg}" ] || [ -z "${helper_mod}" ] || [ -z "$prefix_tools" ]; then
             need_rebuild=1
           fi
 
