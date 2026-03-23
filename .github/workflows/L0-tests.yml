@@ -41,9 +41,35 @@ jobs:
             build/entservices-apis
             build/ThunderTools
             install/usr
+            install/tools/cmake
             !install/usr/etc/WPEFramework/plugins
             !install/usr/lib/wpeframework/plugins
-          key: ${{ runner.os }}-${{ env.THUNDER_REF }}-${{ env.INTERFACES_REF }}-l0-1
+          key: ${{ runner.os }}-${{ env.THUNDER_REF }}-${{ env.INTERFACES_REF }}-l0-2
+
+      - name: Validate cached toolchain artifacts
+        id: toolchain
+        run: |
+          set -euo pipefail
+
+          prefix_usr="$GITHUB_WORKSPACE/install/usr"
+          prefix_tools="$GITHUB_WORKSPACE/install/tools/cmake"
+          need_rebuild=0
+
+          framework_cfg="$(find "$prefix_usr" -type f \( -name 'WPEFrameworkConfig.cmake' -o -name 'ThunderConfig.cmake' \) -print -quit 2>/dev/null || true)"
+          plugins_cfg="$(find "$prefix_usr" -type f \( -name 'WPEFrameworkPluginsConfig.cmake' -o -name 'ThunderPluginsConfig.cmake' \) -print -quit 2>/dev/null || true)"
+          helper_mod="$(find "$GITHUB_WORKSPACE/install" -type f -name 'CmakeHelperFunctions.cmake' -print -quit 2>/dev/null || true)"
+
+          if [ -z "${framework_cfg}" ] || [ -z "${plugins_cfg}" ] || [ -z "${helper_mod}" ] || [ ! -d "$prefix_tools" ]; then
+            need_rebuild=1
+          fi
+
+          echo "framework_cfg=${framework_cfg:-<missing>}"
+          echo "plugins_cfg=${plugins_cfg:-<missing>}"
+          echo "helper_mod=${helper_mod:-<missing>}"
+          echo "prefix_tools=$prefix_tools"
+          echo "need_rebuild=$need_rebuild"
+
+          echo "need_rebuild=${need_rebuild}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -83,7 +109,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Checkout Thunder
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         uses: actions/checkout@v3
         with:
           repository: rdkcentral/Thunder
@@ -91,7 +117,7 @@ jobs:
           ref: ${{env.THUNDER_REF}}
 
       - name: Checkout ThunderTools
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         uses: actions/checkout@v3
         with:
           repository: rdkcentral/ThunderTools
@@ -99,7 +125,7 @@ jobs:
           ref: R4.4.3
 
       - name: Checkout entservices-apis
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         uses: actions/checkout@v3
         with:
           repository: rdkcentral/entservices-apis
@@ -107,14 +133,14 @@ jobs:
           ref: ${{env.INTERFACES_REF}}
 
       - name: Apply patches ThunderTools
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: |
           cd $GITHUB_WORKSPACE/ThunderTools
           patch -p1 < $GITHUB_WORKSPACE/Tests/patches/00010-R4.4-Add-support-for-project-dir.patch
           cd -
 
       - name: Build ThunderTools
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: >
           cmake -G Ninja
           -S "$GITHUB_WORKSPACE/ThunderTools"
@@ -129,7 +155,7 @@ jobs:
           cmake --install build/ThunderTools
 
       - name: Apply patches Thunder
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: |
           cd $GITHUB_WORKSPACE/Thunder
           patch -p1 < $GITHUB_WORKSPACE/Tests/patches/Use_Legact_Alt_Based_On_ThunderTools_R4.4.3.patch
@@ -140,7 +166,7 @@ jobs:
           cd -
 
       - name: Build Thunder
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: >
           cmake -G Ninja
           -S "$GITHUB_WORKSPACE/Thunder"
@@ -159,14 +185,14 @@ jobs:
           cmake --install build/Thunder
 
       - name: Apply patches entservices-apis
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: |
           cd $GITHUB_WORKSPACE/entservices-apis
           patch -p1 < $GITHUB_WORKSPACE/Tests/patches/RDKEMW-1007.patch
           cd -
 
       - name: Build entservices-apis
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: >
           cmake -G Ninja
           -S "$GITHUB_WORKSPACE/entservices-apis"
@@ -339,12 +365,20 @@ jobs:
 
           cmake --build build/entservices-appgateway-l0 -- -j"$(nproc)"
 
-          mkdir -p "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins"
-          find build/entservices-appgateway-l0 -type f \( -name "libAppGateway.so*" -o -name "libWPEFrameworkAppGateway.so*" \) -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
+          plugin_dir_wpe="$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins"
+          plugin_dir_ns="$GITHUB_WORKSPACE/install/usr/lib/thunder/plugins"
 
-          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppGateway.so" || \
-          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libWPEFrameworkAppGateway.so" || \
-          (echo "Missing AppGateway plugin library in staged plugin dir" && find build/entservices-appgateway-l0 -type f -name "lib*AppGateway*.so*" 2>/dev/null || true && exit 1)
+          mkdir -p "$plugin_dir_wpe"
+          find build/entservices-appgateway-l0 -type f \( -name "libAppGateway.so*" -o -name "libWPEFrameworkAppGateway.so*" \) -exec cp -f {} "$plugin_dir_wpe/" \; 2>/dev/null || true
+
+          mkdir -p "$plugin_dir_ns"
+          cp -af "$plugin_dir_wpe/." "$plugin_dir_ns/" 2>/dev/null || true
+
+          test -e "$plugin_dir_wpe/libAppGateway.so" || \
+          test -e "$plugin_dir_wpe/libWPEFrameworkAppGateway.so" || \
+          test -e "$plugin_dir_ns/libAppGateway.so" || \
+          test -e "$plugin_dir_ns/libWPEFrameworkAppGateway.so" || \
+          (echo "Missing AppGateway plugin library in staged plugin dirs" && find build/entservices-appgateway-l0 -type f -name "lib*AppGateway*.so*" 2>/dev/null || true && exit 1)
 
       - name: Build AppGateway L0 tests (Tests/L0Tests)
         run: |

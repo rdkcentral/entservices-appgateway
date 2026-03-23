@@ -191,9 +191,36 @@ target_link_libraries(${APPGW_L0_PRIMARY_TARGET} PRIVATE
     dl
 )
 
+# Keep runtime search paths compatible across namespace/layout variants.
+set(APPGW_RPATH_DIRS
+    "${PREFIX}/lib"
+    "${PREFIX}/lib/plugins"
+    "${PREFIX}/lib/wpeframework"
+    "${PREFIX}/lib/wpeframework/plugins"
+    "${PREFIX}/lib/thunder"
+    "${PREFIX}/lib/thunder/plugins"
+)
+
+if(NOT "${APPGW_NAMESPACE}" STREQUAL "")
+    string(TOLOWER "${APPGW_NAMESPACE}" APPGW_STORAGE_DIRECTORY)
+    list(APPEND APPGW_RPATH_DIRS
+        "${PREFIX}/lib/${APPGW_STORAGE_DIRECTORY}"
+        "${PREFIX}/lib/${APPGW_STORAGE_DIRECTORY}/plugins"
+    )
+endif()
+
+list(REMOVE_DUPLICATES APPGW_RPATH_DIRS)
+
+set(APPGW_BUILD_RPATH "$ORIGIN")
+foreach(_rpath_dir IN LISTS APPGW_RPATH_DIRS)
+    set(APPGW_BUILD_RPATH "${APPGW_BUILD_RPATH};${_rpath_dir}")
+endforeach()
+
+set(APPGW_INSTALL_RPATH "${APPGW_RPATH_DIRS}")
+
 set_target_properties(${APPGW_L0_PRIMARY_TARGET} PROPERTIES
-    BUILD_RPATH "$ORIGIN;${PREFIX}/lib;${PREFIX}/lib/wpeframework;${PREFIX}/lib/wpeframework/plugins;${PREFIX}/lib/plugins"
-    INSTALL_RPATH "${PREFIX}/lib;${PREFIX}/lib/wpeframework;${PREFIX}/lib/wpeframework/plugins;${PREFIX}/lib/plugins"
+    BUILD_RPATH "${APPGW_BUILD_RPATH}"
+    INSTALL_RPATH "${APPGW_INSTALL_RPATH}"
 )
 
 add_custom_target(run
