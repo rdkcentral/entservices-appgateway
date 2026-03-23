@@ -1,6 +1,5 @@
 #include <iostream>
 #include <string>
-
 #include <core/core.h>
 #include <plugins/IDispatcher.h>
 
