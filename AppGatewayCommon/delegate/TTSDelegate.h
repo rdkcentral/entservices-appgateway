@@ -41,10 +41,10 @@ public:
             std::lock_guard<std::mutex> lock(mTTSMutex);
             if (nullptr != mTextToSpeech)
             {
-                if (mNotificationHandler.GetRegistered())
+                if (GetRegistered())
                 {
                     mTextToSpeech->Unregister(&mNotificationHandler);
-                    mNotificationHandler.SetRegistered(false);
+                    SetRegistered(false);
                 }
                 mTextToSpeech->Release();
                 mTextToSpeech = nullptr;
@@ -57,26 +57,12 @@ public:
     {
         if (listen)
         {
-            auto tts = GetTTS();
-            
-            if (nullptr == tts)
+            if (Register())
             {
-                LOGERR("TextToSpeech interface not available");
-                return false;
+                AddNotification(event, cb);
+                return true;
             }
-
-            if (!mNotificationHandler.GetRegistered())
-            {
-                LOGINFO("Registering for TextToSpeech notifications");
-                tts->Register(&mNotificationHandler);
-                mNotificationHandler.SetRegistered(true);
-            }
-            else
-            {
-                LOGTRACE(" Is TTS registered = %s", mNotificationHandler.GetRegistered() ? "true" : "false");
-            }
-
-            AddNotification(event, cb);
+            return false;
         }
         else
         {
@@ -115,7 +101,7 @@ private:
     class TTSNotificationHandler : public Exchange::ITextToSpeech::INotification
     {
     public:
-        TTSNotificationHandler(TTSDelegate &parent) : mParent(parent), registered(false) {}
+        TTSNotificationHandler(TTSDelegate &parent) : mParent(parent) {}
         ~TTSNotificationHandler() {}
             
         void OnVoiceChanged(const string voice)
@@ -159,30 +145,54 @@ private:
             mParent.Dispatch("TextToSpeech.onTtsstatechanged", ObjectUtils::CreateBooleanJsonString("value", state));
         }
 
-        // New Method for Set registered
-        void SetRegistered(bool state)
-        {
-            std::lock_guard<std::mutex> lock(registerMutex);
-            registered = state;
-        }
-
-        // New Method for get registered
-        bool GetRegistered()
-        {
-            std::lock_guard<std::mutex> lock(registerMutex);
-            return registered;
-        }
-
         BEGIN_INTERFACE_MAP(TTSNotificationHandler)
         INTERFACE_ENTRY(Exchange::ITextToSpeech::INotification)
         END_INTERFACE_MAP
     private:
         TTSDelegate &mParent;
-        bool registered;
-        std::mutex registerMutex;
+        
     };
     Exchange::ITextToSpeech *mTextToSpeech;
     PluginHost::IShell *mShell;
     Core::Sink<TTSNotificationHandler> mNotificationHandler;
     mutable std::mutex mTTSMutex;
+    bool registered = false;
+    mutable std::mutex registerMutex;
+
+    // New Method for Set registered
+    void SetRegistered(bool state)
+    {
+        std::lock_guard<std::mutex> lock(registerMutex);
+        registered = state;
+    }
+
+    // New Method for get registered
+    bool GetRegistered()
+    {
+        std::lock_guard<std::mutex> lock(registerMutex);
+        return registered;
+    }
+
+    bool Register()
+    {
+        auto tts = GetTTS();    
+        if (nullptr == tts)
+        {
+            LOGERR("TextToSpeech interface not available");
+            return false;
+        }
+        std::lock_guard<std::mutex> lock(registerMutex);
+        if (!registered)
+        {
+            if (nullptr != tts) {
+                LOGINFO("Registering for TextToSpeech notifications");
+                tts->Register(&mNotificationHandler);
+                registered = true;
+            } else {
+                LOGERR("Failed to register for TextToSpeech notifications because interface is null");
+                return false;
+            }
+        }
+        return true;
+    }
 };

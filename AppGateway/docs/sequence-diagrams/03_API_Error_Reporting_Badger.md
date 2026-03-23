@@ -38,7 +38,7 @@ sequenceDiagram
     
     Note over TelemetryClient: Build JSON payload:<br/>{"plugin": "Plugin_Name_1",<br/> "service": "ExternalService1",<br/> "error": "NOT_AVAILABLE"}
     
-    TelemetryClient->>Telemetry: RecordTelemetryEvent(<br/>context,<br/>"AppGwPluginExtServiceError_split",<br/>eventData) [COM-RPC]
+    TelemetryClient->>Telemetry: RecordTelemetryEvent(<br/>context,<br/>"ENTS_ERROR_AppGwPlugExtnSrvErr",<br/>eventData) [COM-RPC]
     activate Telemetry
     
     Note over Telemetry: Store in cache:<br/>service_errors["ExternalService1"]++
@@ -106,7 +106,7 @@ sequenceDiagram
 ## Generic Marker System
 
 ### Event Marker (Immediate - Individual Occurrences)
-**Marker:** `AppGwPluginExtServiceError_split`
+**Marker:** `ENTS_ERROR_AppGwPlugExtnSrvErr`
 **Payload:**
 ```json
 {
@@ -142,12 +142,12 @@ AppGwApiErrorCount_apiMethod1_split: 15,1,count,3600
 #define AGW_PLUGIN_YOUR_PLUGIN               "YourPlugin"
 #define AGW_SERVICE_EXTERNAL_SERVICE_1       "ExternalService1"
 #define AGW_ERROR_NOT_AVAILABLE              "NOT_AVAILABLE"
-#define AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR  "AppGwPluginExtServiceError_split"
+#define AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR  "ENTS_ERROR_AppGwPlugExtnSrvErr"
 ```
 
 ## Benefits of Generic Markers
 
-- **Single Marker per Category**: `AppGwPluginExtServiceError_split` used by all plugins for immediate error reporting
+- **Single Marker per Category**: `ENTS_ERROR_AppGwPlugExtnSrvErr` used by all plugins for immediate error reporting
 - **Individual Metrics per API**: Each failing API gets its own metric for trending: `AppGwApiErrorCount_<ApiName>`
 - **Plugin Name in Payload**: Events include plugin context for filtering
 - **No Marker Duplication**: No need for plugin-specific error markers

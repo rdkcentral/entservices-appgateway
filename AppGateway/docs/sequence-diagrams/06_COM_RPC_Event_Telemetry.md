@@ -24,7 +24,7 @@ sequenceDiagram
     Shell-->>Ext: IAppGatewayTelemetry interface
     
     Note over Ext: Report API Error
-    Ext->>COMRPC: RecordTelemetryEvent context AppGwPluginApiError_split data
+    Ext->>COMRPC: RecordTelemetryEvent context ENTS_ERROR_AppGwPluginApiError data
     COMRPC->>AGT: RecordTelemetryEvent GatewayContext eventName eventData
     activate AGT
     AGT->>AGT: Parse eventName contains ApiError
@@ -36,7 +36,7 @@ sequenceDiagram
     COMRPC-->>Ext: Success
     
     Note over Ext: Report External Service Error
-    Ext->>COMRPC: RecordTelemetryEvent context AppGwPluginExtServiceError_split data
+    Ext->>COMRPC: RecordTelemetryEvent context ENTS_ERROR_AppGwPlugExtnSrvErr data
     COMRPC->>AGT: RecordTelemetryEvent GatewayContext eventName eventData
     activate AGT
     AGT->>AGT: Parse eventName contains ExternalServiceError
@@ -80,7 +80,7 @@ sequenceDiagram
 1. **Interface Acquisition**: External plugin queries IShell for `IAppGatewayTelemetry` interface using `APPGATEWAY_CALLSIGN`
 2. **Interface Resolution**: IShell resolves the aggregated interface from AppGateway
 3. **Error Recording**: Plugin calls `RecordTelemetryEvent()` with:
-   - `eventName`: `AppGwPluginApiError_split` (or plugin-specific marker)
+   - `eventName`: `ENTS_ERROR_AppGwPluginApiError` (or plugin-specific marker)
    - `eventData`: JSON with `api` field (e.g., `{"api": "getApplications"}`)
 4. **Event Parsing**: AppGatewayTelemetry parses event name to identify error type
 5. **API Extraction**: Extracts API name from JSON payload
@@ -91,7 +91,7 @@ sequenceDiagram
 
 1. **Interface Acquisition**: Same as API error flow
 2. **Error Recording**: Plugin calls `RecordTelemetryEvent()` with:
-   - `eventName`: `AppGwPluginExtServiceError_split` (or plugin-specific marker)
+   - `eventName`: `ENTS_ERROR_AppGwPlugExtnSrvErr` (or plugin-specific marker)
    - `eventData`: JSON with `service` field (e.g., `{"service": "StreamingService"}`)
 3. **Event Parsing**: AppGatewayTelemetry identifies external service error type
 4. **Service Extraction**: Extracts service name from JSON payload
@@ -112,7 +112,7 @@ sequenceDiagram
 
 ### API Error Event
 
-**Event Name:** `AppGwPluginApiError_split` (generic) or plugin-specific marker
+**Event Name:** `ENTS_ERROR_AppGwPluginApiError` (generic) or plugin-specific marker
 
 **Event Data Format:**
 ```json
@@ -134,7 +134,7 @@ sequenceDiagram
 
 ### External Service Error Event
 
-**Event Name:** `AppGwPluginExtServiceError_split` (generic) or `AppGwOttExtServiceError_split` (plugin-specific)
+**Event Name:** `ENTS_ERROR_AppGwPlugExtnSrvErr` (generic) or `AppGwOttExtServiceError_split` (plugin-specific)
 
 **Event Data Format:**
 ```json
@@ -184,7 +184,7 @@ void ReportApiError(const string& apiName)
         // Record telemetry event
         telemetry->RecordTelemetryEvent(
             Exchange::IAppGatewayTelemetry::GatewayContext::PLUGIN_YOUR_PLUGIN,
-            "AppGwPluginApiError_split",
+            "ENTS_ERROR_AppGwPluginApiError",
             eventDataStr
         );
         
@@ -213,7 +213,7 @@ void ReportServiceError(const string& serviceName)
         // Record telemetry event
         telemetry->RecordTelemetryEvent(
             Exchange::IAppGatewayTelemetry::GatewayContext::PLUGIN_YOUR_PLUGIN,
-            "AppGwPluginExtServiceError_split",
+            "ENTS_ERROR_AppGwPlugExtnSrvErr",
             eventDataStr
         );
         

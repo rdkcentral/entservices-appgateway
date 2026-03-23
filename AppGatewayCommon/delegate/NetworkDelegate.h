@@ -31,6 +31,7 @@
 #include <set>
 #include "ObjectUtils.h"
 #include "UtilsFirebolt.h"
+#include <mutex>
 
 using namespace WPEFramework;
 
@@ -52,11 +53,16 @@ public:
 
     ~NetworkDelegate()
     {
+        Core::SafeSyncType<Core::CriticalSection> lock(mNetworkManagerLock);
         if (nullptr != mNetworkManager)
         {
-            if (mNotificationHandler.GetRegistered())
             {
-                mNetworkManager->Unregister(&mNotificationHandler);
+                std::lock_guard<std::mutex> lock(mRegistrationMutex);
+                if (mNotificationHandler.GetRegistered())
+                {
+                    mNetworkManager->Unregister(&mNotificationHandler);
+                    mNotificationHandler.SetRegistered(false);
+                }
             }
             mNetworkManager->Release();
             mNetworkManager = nullptr;
@@ -77,16 +83,18 @@ public:
             }
 
             AddNotification(event, cb);
-
-            if (!mNotificationHandler.GetRegistered())
             {
-                LOGINFO("Registering for NetworkManager notifications");
-                mNetworkManager->Register(&mNotificationHandler);
-                mNotificationHandler.SetRegistered(true);
-            }
-            else
-            {
-                LOGTRACE("Is NetworkManager registered = %s", mNotificationHandler.GetRegistered() ? "true" : "false");
+                std::lock_guard<std::mutex> lock(mRegistrationMutex);
+                if (!mNotificationHandler.GetRegistered())
+                {
+                    LOGINFO("Registering for NetworkManager notifications");
+                    networkManager->Register(&mNotificationHandler);
+                    mNotificationHandler.SetRegistered(true);
+                }
+                else
+                {
+                    LOGTRACE("Is NetworkManager registered = %s", mNotificationHandler.GetRegistered() ? "true" : "false");
+                }
             }
             return true;
         }
@@ -101,7 +109,6 @@ public:
 
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError)
     {
-        LOGDBG("Checking for handle event");
         // Check if event is present in VALID_NETWORK_EVENT make check case insensitive
         if (VALID_NETWORK_EVENT.find(StringUtils::toLower(event)) != VALID_NETWORK_EVENT.end())
         {
@@ -177,7 +184,7 @@ public:
 
         // Get available interfaces
         Exchange::INetworkManager::IInterfaceDetailsIterator *interfaces = nullptr;
-        uint32_t rc = mNetworkManager->GetAvailableInterfaces(interfaces);
+        uint32_t rc = networkManager->GetAvailableInterfaces(interfaces);
 
         if (rc != Core::ERROR_NONE)
         {
@@ -247,20 +254,10 @@ private:
         NetworkNotificationHandler(NetworkDelegate &parent) : mParent(parent), registered(false) {}
         ~NetworkNotificationHandler() {}
 
-        void onInterfaceStateChange(const Exchange::INetworkManager::InterfaceState state, const string interface)
-        {
-            LOGDBG("onInterfaceStateChange: interface=%s, state=%d", interface.c_str(), state);
-        }
-
         void onActiveInterfaceChange(const string prevActiveInterface, const string currentActiveInterface)
         {
             LOGDBG("onActiveInterfaceChange: prev=%s, current=%s", prevActiveInterface.c_str(), currentActiveInterface.c_str());
             mParent.Dispatch("Network.onConnectedChanged", ObjectUtils::CreateBooleanJsonString("value", currentActiveInterface.empty() ? false : true) );
-        }
-
-        void onIPAddressChange(const string interface, const string ipversion, const string ipaddress, const Exchange::INetworkManager::IPStatus status)
-        {
-            LOGDBG("onIPAddressChange: interface=%s, ip=%s, status=%d", interface.c_str(), ipaddress.c_str(), status);
         }
 
         void onInternetStatusChange(const Exchange::INetworkManager::InternetStatus prevState, const Exchange::INetworkManager::InternetStatus currState, const string interface)
@@ -284,22 +281,7 @@ private:
                       << "\",\"prevState\":\"" << statusToString(prevState) << "\"}}";
             mParent.Dispatch("device.onNetworkChanged", jsonStream.str());
         }
-
-        void onAvailableSSIDs(const string jsonOfScanResults)
-        {
-            LOGDBG("onAvailableSSIDs received");
-        }
-
-        void onWiFiStateChange(const Exchange::INetworkManager::WiFiState state)
-        {
-            LOGDBG("onWiFiStateChange: state=%d", state);
-        }
-
-        void onWiFiSignalQualityChange(const string ssid, const string strength, const string noise, const string snr, const Exchange::INetworkManager::WiFiSignalQuality quality)
-        {
-            LOGDBG("onWiFiSignalQualityChange: ssid=%s", ssid.c_str());
-        }
-
+        
         // Registration management methods
         void SetRegistered(bool state)
         {
@@ -326,6 +308,7 @@ private:
     Exchange::INetworkManager *mNetworkManager;
     PluginHost::IShell *mShell;
     Core::Sink<NetworkNotificationHandler> mNotificationHandler;
+    mutable std::mutex mRegistrationMutex;
 };
 
 #endif // __NETWORKDELEGATE_H__
