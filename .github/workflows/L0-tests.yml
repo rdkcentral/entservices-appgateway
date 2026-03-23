@@ -179,8 +179,25 @@ jobs:
           if [ -d "$alt" ]; then
             cp -af "$alt/." "$primary/" 2>/dev/null || true
           fi
+
+          if [ ! -f "$primary/CmakeHelperFunctions.cmake" ]; then
+            helper_src="$(find \
+              "$GITHUB_WORKSPACE/install" \
+              "$GITHUB_WORKSPACE/build" \
+              "$GITHUB_WORKSPACE/ThunderTools" \
+              -type f -name 'CmakeHelperFunctions.cmake' -print -quit 2>/dev/null || true)"
+
+            if [ -n "${helper_src}" ] && [ -f "${helper_src}" ]; then
+              cp -f "${helper_src}" "$primary/CmakeHelperFunctions.cmake"
+              echo "Recovered CmakeHelperFunctions.cmake from: ${helper_src}"
+            fi
+          fi
+
           test -f "$primary/CmakeHelperFunctions.cmake" || \
-            (echo "Missing CmakeHelperFunctions.cmake in $primary" && find "$GITHUB_WORKSPACE/install" -type f -name 'CmakeHelperFunctions.cmake' 2>/dev/null || true && exit 1)
+            (echo "Missing CmakeHelperFunctions.cmake in $primary" && \
+             echo "Searched roots: $GITHUB_WORKSPACE/install, $GITHUB_WORKSPACE/build, $GITHUB_WORKSPACE/ThunderTools" && \
+             find "$GITHUB_WORKSPACE/install" "$GITHUB_WORKSPACE/build" "$GITHUB_WORKSPACE/ThunderTools" -type f -name 'CmakeHelperFunctions.cmake' 2>/dev/null || true && \
+             exit 1)
 
       - name: Apply patches Thunder
         if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
