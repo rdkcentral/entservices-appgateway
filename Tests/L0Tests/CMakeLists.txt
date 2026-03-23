@@ -113,22 +113,7 @@ if(WPEFRAMEWORK_WEBSOCKET_LIB)
     target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_WEBSOCKET_LIB})
 endif()
 
-find_library(APPGATEWAY_PLUGIN_LIB
-    NAMES AppGateway WPEFrameworkAppGateway
-    HINTS
-        "${CMAKE_BINARY_DIR}/AppGateway"
-        "${CMAKE_BINARY_DIR}/../AppGateway"
-        "${PREFIX}/lib/wpeframework/plugins"
-        "${PREFIX}/lib/plugins"
-        "${PREFIX}/lib"
-)
-
-if(NOT APPGATEWAY_PLUGIN_LIB)
-    message(FATAL_ERROR "AppGateway plugin library not found. Ensure libAppGateway.so is built and staged under ${PREFIX}/lib/wpeframework/plugins or ${PREFIX}/lib/plugins")
-endif()
-
 target_link_libraries(appgateway_l0test PRIVATE
-    ${APPGATEWAY_PLUGIN_LIB}
     Threads::Threads
     m
     dl

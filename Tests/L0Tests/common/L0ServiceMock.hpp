@@ -29,7 +29,10 @@ namespace L0Test {
 class L0ServiceMock {
 public:
     L0ServiceMock() = default;
-    virtual ~L0ServiceMock() = default;
+    virtual ~L0ServiceMock()
+    {
+        ClearRegistry();
+    }
 
     L0ServiceMock(const L0ServiceMock&) = delete;
     L0ServiceMock& operator=(const L0ServiceMock&) = delete;
@@ -39,9 +42,23 @@ public:
     {
         /**
          * Register an interface instance for a given callsign + interfaceId.
-         * The registry does not take ownership; caller controls lifetime.
+         * The registry owns one COM reference to the stored interface.
          */
-        _registry[callsign][interfaceId] = instance;
+        if (instance != nullptr) {
+            instance->AddRef();
+        }
+
+        auto& byId = _registry[callsign];
+        auto it = byId.find(interfaceId);
+        if (it != byId.end()) {
+            if (it->second != nullptr) {
+                it->second->Release();
+            }
+            it->second = instance;
+            return;
+        }
+
+        byId.emplace(interfaceId, instance);
     }
 
     // PUBLIC_INTERFACE
@@ -50,7 +67,13 @@ public:
         /** Unregister an interface instance. */
         auto it = _registry.find(callsign);
         if (it != _registry.end()) {
-            it->second.erase(interfaceId);
+            auto jt = it->second.find(interfaceId);
+            if (jt != it->second.end()) {
+                if (jt->second != nullptr) {
+                    jt->second->Release();
+                }
+                it->second.erase(jt);
+            }
             if (it->second.empty()) {
                 _registry.erase(it);
             }
@@ -63,6 +86,7 @@ public:
         /**
          * Return the registered interface for (callsign, interfaceId) or nullptr.
          * This is a helper used by per-plugin ServiceMock implementations.
+         * Caller receives an AddRef'd pointer and is expected to Release().
          */
         auto it = _registry.find(callsign);
         if (it == _registry.end()) {
@@ -72,10 +96,25 @@ public:
         if (jt == it->second.end()) {
             return nullptr;
         }
+        if (jt->second != nullptr) {
+            jt->second->AddRef();
+        }
         return jt->second;
     }
 
 private:
+    void ClearRegistry()
+    {
+        for (auto& byCallsign : _registry) {
+            for (auto& byInterface : byCallsign.second) {
+                if (byInterface.second != nullptr) {
+                    byInterface.second->Release();
+                }
+            }
+        }
+        _registry.clear();
+    }
+
     std::map<std::string, std::map<uint32_t, WPEFramework::Core::IUnknown*>> _registry;
 };
 

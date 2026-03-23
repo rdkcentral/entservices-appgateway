@@ -729,8 +729,6 @@ namespace L0Test {
 
         string ConfigLine() const override
         {
-            // print a message
-            std::cerr << "ConfigLine in service mock called ...." << std::endl;
             // Default behavior (used by most existing L0 tests):
             // Thunder RootConfig parsing expects a JSON object.
             //
@@ -739,7 +737,14 @@ namespace L0Test {
             if (_cfg.configLineOverride.empty() == false) {
                 return _cfg.configLineOverride;
             }
-            return "";
+
+            // Optional debug logging for config resolution in test runs.
+            const char* verbose = std::getenv("APPGW_L0_VERBOSE_CONFIGLINE");
+            if (verbose != nullptr && *verbose != '\0' && std::string(verbose) != "0") {
+                std::cerr << "ConfigLine in service mock called, using default {}" << std::endl;
+            }
+
+            return "{}";
 
         }
         WPEFramework::Core::hresult ConfigLine(const string& /*config*/) override { return WPEFramework::Core::ERROR_NONE; }

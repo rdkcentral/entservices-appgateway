@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <atomic>
 #include <sys/stat.h>
 #include <cstdlib>
 #include <thread>
