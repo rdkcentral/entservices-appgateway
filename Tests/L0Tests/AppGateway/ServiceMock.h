@@ -121,19 +121,19 @@ namespace L0Test {
             lastParams = params;
 
             // Deterministic error mapping controlled by method name.
-            if (method == "l0.notPermitted") {
+            if ("l0.notPermitted" == method) {
                 result = "{\"error\":\"NotPermitted\"}";
                 lastResult = result;
                 lastRc = WPEFramework::Core::ERROR_PRIVILIGED_REQUEST;
                 return lastRc;
             }
-            if (method == "l0.notSupported") {
+            if ("l0.notSupported" == method) {
                 result = "{\"error\":\"NotSupported\"}";
                 lastResult = result;
                 lastRc = WPEFramework::Core::ERROR_NOT_SUPPORTED;
                 return lastRc;
             }
-            if (method == "l0.notAvailable") {
+            if ("l0.notAvailable" == method) {
                 result = "{\"error\":\"NotAvailable\"}";
                 lastResult = result;
                 lastRc = WPEFramework::Core::ERROR_UNAVAILABLE;

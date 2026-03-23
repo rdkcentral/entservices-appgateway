@@ -412,6 +412,16 @@ jobs:
           export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake${CMAKE_MODULE_PATH:+;${CMAKE_MODULE_PATH}}"
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:$PATH"
 
+          APPGW_NAMESPACE="WPEFramework"
+          if [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFrameworkPlugins/WPEFrameworkPluginsConfig.cmake" ] && \
+             [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFramework/WPEFrameworkConfig.cmake" ]; then
+            APPGW_NAMESPACE="WPEFramework"
+          elif [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/ThunderPlugins/ThunderPluginsConfig.cmake" ] && \
+               [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/Thunder/ThunderConfig.cmake" ]; then
+            APPGW_NAMESPACE="Thunder"
+          fi
+          echo "Using APPGW_NAMESPACE=${APPGW_NAMESPACE}"
+
           cmake -G Ninja \
             -S "$GITHUB_WORKSPACE" \
             -B build/entservices-appgateway-l0 \
@@ -423,7 +433,7 @@ jobs:
             -DWPEFrameworkPlugins_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFrameworkPlugins" \
             -DDISABLE_SECURITY_TOKEN=ON \
             -DUSE_THUNDER_R4=ON \
-            -DNAMESPACE=WPEFramework \
+            -DNAMESPACE="$APPGW_NAMESPACE" \
             -DPLUGIN_APPGATEWAY=ON \
             -DPLUGIN_APPGATEWAYCOMMON=OFF \
             -DCMAKE_VERBOSE_MAKEFILE=ON
@@ -434,15 +444,17 @@ jobs:
           plugin_dir_ns="$GITHUB_WORKSPACE/install/usr/lib/thunder/plugins"
 
           mkdir -p "$plugin_dir_wpe"
-          find build/entservices-appgateway-l0 -type f \( -name "libAppGateway.so*" -o -name "libWPEFrameworkAppGateway.so*" \) -exec cp -f {} "$plugin_dir_wpe/" \; 2>/dev/null || true
+          find build/entservices-appgateway-l0 -type f \( -name "libAppGateway.so*" -o -name "libWPEFrameworkAppGateway.so*" -o -name "libThunderAppGateway.so*" \) -exec cp -f {} "$plugin_dir_wpe/" \; 2>/dev/null || true
 
           mkdir -p "$plugin_dir_ns"
           cp -af "$plugin_dir_wpe/." "$plugin_dir_ns/" 2>/dev/null || true
 
           test -e "$plugin_dir_wpe/libAppGateway.so" || \
           test -e "$plugin_dir_wpe/libWPEFrameworkAppGateway.so" || \
+          test -e "$plugin_dir_wpe/libThunderAppGateway.so" || \
           test -e "$plugin_dir_ns/libAppGateway.so" || \
           test -e "$plugin_dir_ns/libWPEFrameworkAppGateway.so" || \
+          test -e "$plugin_dir_ns/libThunderAppGateway.so" || \
           (echo "Missing AppGateway plugin library in staged plugin dirs" && find build/entservices-appgateway-l0 -type f -name "lib*AppGateway*.so*" 2>/dev/null || true && exit 1)
 
       - name: Build AppGateway L0 tests (Tests/L0Tests)
@@ -453,6 +465,16 @@ jobs:
           export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake${CMAKE_MODULE_PATH:+;${CMAKE_MODULE_PATH}}"
           export PREFIX="$GITHUB_WORKSPACE/install/usr"
 
+          APPGW_NAMESPACE="WPEFramework"
+          if [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFrameworkPlugins/WPEFrameworkPluginsConfig.cmake" ] && \
+             [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFramework/WPEFrameworkConfig.cmake" ]; then
+            APPGW_NAMESPACE="WPEFramework"
+          elif [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/ThunderPlugins/ThunderPluginsConfig.cmake" ] && \
+               [ -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/Thunder/ThunderConfig.cmake" ]; then
+            APPGW_NAMESPACE="Thunder"
+          fi
+          echo "Using APPGW_NAMESPACE=${APPGW_NAMESPACE} for L0 tests"
+
           cmake -G Ninja \
             -S "$GITHUB_WORKSPACE/Tests/L0Tests" \
             -B build/entservices-appgateway-l0tests-only \
@@ -461,6 +483,7 @@ jobs:
             -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH" \
             -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake" \
             -DPREFIX="$PREFIX" \
+            -DNAMESPACE="$APPGW_NAMESPACE" \
             -DAPPGW_ENABLE_COVERAGE=ON
 
           cmake --build build/entservices-appgateway-l0tests-only --target appgateway_l0test -- -j"$(nproc)"

@@ -27,7 +27,7 @@ inline int ResultToExitCode(const uint32_t failures)
 {
     /**
      * Convert a failure count to a process exit code.
-     * Convention: 0 => success, non-zero => failure count (clamped by int range by caller).
+    * Convention: 0 => success, non-zero => failure count (clamped to int max in this function).
      */
     if (0 == failures) {
         return 0;
