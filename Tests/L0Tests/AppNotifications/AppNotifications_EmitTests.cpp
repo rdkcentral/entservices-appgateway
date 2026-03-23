@@ -23,30 +23,16 @@
 
 #include <interfaces/IAppNotifications.h>
 #include <interfaces/IConfiguration.h>
-#include <AppNotificationsImplementation.h>
 #include "AppNotificationsServiceMock.h"
+#include "AppNotificationsTestHelpers.h"
 #include "L0Expect.hpp"
 #include "L0TestTypes.hpp"
 
 using WPEFramework::Core::ERROR_NONE;
 using WPEFramework::Exchange::IAppNotifications;
 using WPEFramework::Exchange::IConfiguration;
-using WPEFramework::Plugin::AppNotificationsImplementation;
 
 namespace {
-
-IAppNotifications* CreateConfiguredImpl(L0Test::AppNotificationsServiceMock* shell)
-{
-    auto* impl = WPEFramework::Core::Service<AppNotificationsImplementation>::Create<IAppNotifications>();
-    if (impl == nullptr) { return nullptr; }
-    auto* cfg = impl->QueryInterface<IConfiguration>();
-    if (cfg != nullptr) {
-        cfg->Configure(shell);
-        cfg->Release();
-    }
-    return impl;
-}
-
 IAppNotifications::AppNotificationContext MakeContext(uint32_t connId,
                                                        uint32_t reqId,
                                                        const std::string& appId,
@@ -191,7 +177,7 @@ uint32_t Test_AN_Configure_Success()
 
     L0Test::AppNotificationsServiceMock shell;
 
-    auto* rawImpl = WPEFramework::Core::Service<AppNotificationsImplementation>::Create<IAppNotifications>();
+    auto* rawImpl = L0Test::CreateRawImpl();
     L0Test::ExpectTrue(tr, rawImpl != nullptr, "Configure_Success: impl creation");
     if (rawImpl == nullptr) { return tr.failures; }
 

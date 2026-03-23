@@ -12,8 +12,8 @@
 #include <plugins/IShell.h>
 
 #include <AppNotifications.h>
-#include <AppNotificationsImplementation.h>
 #include "AppNotificationsServiceMock.h"
+#include "AppNotificationsTestHelpers.h"
 #include "L0Expect.hpp"
 #include "L0TestTypes.hpp"
 

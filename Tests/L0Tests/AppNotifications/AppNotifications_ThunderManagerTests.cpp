@@ -40,31 +40,16 @@
 
 #include <interfaces/IAppNotifications.h>
 #include <interfaces/IConfiguration.h>
-#include <AppNotificationsImplementation.h>
 #include "AppNotificationsServiceMock.h"
+#include "AppNotificationsTestHelpers.h"
 #include "L0Expect.hpp"
 #include "L0TestTypes.hpp"
 
 using WPEFramework::Core::ERROR_NONE;
 using WPEFramework::Exchange::IAppNotifications;
 using WPEFramework::Exchange::IConfiguration;
-using WPEFramework::Plugin::AppNotificationsImplementation;
 
 namespace {
-
-// Configures impl with a shell that provides a notification handler
-// for callsign "org.rdk.FbSettings".
-IAppNotifications* CreateConfiguredImpl(L0Test::AppNotificationsServiceMock* shell)
-{
-    auto* impl = WPEFramework::Core::Service<AppNotificationsImplementation>::Create<IAppNotifications>();
-    if (impl == nullptr) { return nullptr; }
-    auto* cfg = impl->QueryInterface<IConfiguration>();
-    if (cfg != nullptr) {
-        cfg->Configure(shell);
-        cfg->Release();
-    }
-    return impl;
-}
 
 IAppNotifications::AppNotificationContext MakeContext(uint32_t connId,
                                                        uint32_t reqId,

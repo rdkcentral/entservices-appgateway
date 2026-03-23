@@ -33,45 +33,17 @@
 #include <plugins/IShell.h>
 
 #include <interfaces/IAppNotifications.h>
-#include <AppNotificationsImplementation.h>
 #include "AppNotificationsServiceMock.h"
+#include "AppNotificationsTestHelpers.h"
 #include "L0Expect.hpp"
 #include "L0TestTypes.hpp"
 
 using WPEFramework::Core::ERROR_NONE;
 using WPEFramework::Exchange::IAppNotifications;
 using WPEFramework::Exchange::IConfiguration;
-using WPEFramework::Plugin::AppNotificationsImplementation;
-
-namespace {
-
-// Helper: create a configured AppNotificationsImplementation
-// Returns the impl interface (AddRef already held by Create).
-// Caller must call impl->Release() when done.
-// The shell mock is provided separately.
-//
-// IMPORTANT: We configure the shell with provideNotificationHandler=false so that
-// ThunderSubscriptionManager::HandleNotifier() returns false, leaving
-// mRegisteredNotifications empty.  This prevents the known destructor-ordering
-// bug in AppNotificationsImplementation where ~AppNotificationsImplementation
-// nulls mShell before the ThunderSubscriptionManager member destructor runs and
-// tries to call mShell->QueryInterfaceByCallsign (causing a null-ptr segfault).
-// The SubscriberMap Subscribe/Unsubscribe/Cleanup logic under test is unaffected.
-IAppNotifications* CreateConfiguredImpl(L0Test::AppNotificationsServiceMock* shell)
-{
-    auto* impl = WPEFramework::Core::Service<AppNotificationsImplementation>::Create<IAppNotifications>();
-    if (impl == nullptr) {
-        return nullptr;
-    }
-    auto* cfg = impl->QueryInterface<IConfiguration>();
-    if (cfg != nullptr) {
-        cfg->Configure(shell);
-        cfg->Release();
-    }
-    return impl;
-}
 
 // Helper: build a simple AppNotificationContext
+namespace {
 IAppNotifications::AppNotificationContext MakeContext(uint32_t connId,
                                                        uint32_t reqId,
                                                        const std::string& appId,

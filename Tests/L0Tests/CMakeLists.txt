@@ -177,6 +177,7 @@ set(APPNOTIF_L0_SOURCES
     ${CMAKE_SOURCE_DIR}/../../AppNotifications/Module.cpp
     ${CMAKE_SOURCE_DIR}/../../AppNotifications/AppNotifications.cpp
     ${CMAKE_SOURCE_DIR}/../../AppNotifications/AppNotificationsImplementation.cpp
+    AppNotifications/AppNotificationsTestHelpers.cpp
     AppNotifications/AppNotificationsTest.cpp
     AppNotifications/AppNotifications_Init_DeinitTests.cpp
     AppNotifications/AppNotifications_SubscribeTests.cpp
