@@ -64,22 +64,6 @@ extern uint32_t Test_AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAddi
 // Targeted AppGatewayResponderImplementation coverage tests
 extern uint32_t Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery();
 extern uint32_t Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey();
-extern uint32_t Test_AppGatewayResponderImplementation_Auth_Dispatch_Disconnect_Flows();
-extern uint32_t Test_AppGatewayResponderImplementation_DispatchWsMsg_ResolverMissing_NoCrash();
-
-// NOTE:
-// These two cases are referenced in the test registry below but do not currently have
-// implementations in this repo's L0 suite, causing the coverage build to fail at link time.
-// Provide minimal stubs so L0 coverage can run end-to-end. Replace with real tests when available.
-uint32_t Test_AppGatewayResponderImplementation_Auth_Dispatch_Disconnect_Flows()
-{
-    return 0;
-}
-
-uint32_t Test_AppGatewayResponderImplementation_DispatchWsMsg_ResolverMissing_NoCrash()
-{
-    return 0;
-}
 
 namespace {
 
@@ -428,8 +412,6 @@ int main()
         // Targeted AppGatewayResponderImplementation coverage tests
        // { "AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery", Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery },
         { "AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey", Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey },
-        { "AppGatewayResponderImplementation_Auth_Dispatch_Disconnect_Flows", Test_AppGatewayResponderImplementation_Auth_Dispatch_Disconnect_Flows },
-        { "AppGatewayResponderImplementation_DispatchWsMsg_ResolverMissing_NoCrash", Test_AppGatewayResponderImplementation_DispatchWsMsg_ResolverMissing_NoCrash },
     };
 
     uint32_t failures = 0;

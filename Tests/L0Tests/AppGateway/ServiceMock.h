@@ -17,6 +17,7 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
+#include <iostream>
 #include <string>
 #include <vector>
 #include <list>
@@ -450,7 +451,7 @@ namespace L0Test {
             return nullptr;
         }
 
-        WPEFramework::Core::hresult Notify(const string& event, const string& payload) //override
+        WPEFramework::Core::hresult Notify(const string& event, const string& payload) override
         {
             lastEvent = event;
             lastPayload = payload;
