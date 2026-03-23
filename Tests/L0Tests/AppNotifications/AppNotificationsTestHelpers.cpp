@@ -1,18 +1,18 @@
 /*
  * AppNotificationsTestHelpers.cpp
  *
- * Single translation unit that includes AppNotificationsImplementation.h
- * (which transitively includes UtilsController.h with non-inline function
- * definitions).  All other test TUs include only the forward-declaring
- * AppNotificationsTestHelpers.h, so UtilsController.h symbols are defined
- * exactly once and the ODR linker error is avoided.
+ * Single translation unit that pulls in AppNotificationsImplementation.cpp
+ * (which itself includes AppNotificationsImplementation.h and transitively
+ * UtilsController.h with non-inline function definitions).  By including the
+ * production .cpp here and removing it from APPNOTIF_L0_SOURCES, all
+ * Utils::* symbols are defined exactly once and the ODR linker error is
+ * avoided.  All other test TUs include only AppNotificationsTestHelpers.h.
  */
 
-#include <core/core.h>
-#include <plugins/IShell.h>
-#include <interfaces/IAppNotifications.h>
-#include <interfaces/IConfiguration.h>
-#include <AppNotificationsImplementation.h>
+// Pull in the production implementation as part of this TU so that
+// UtilsController.h functions are emitted exactly once.
+// NOLINTNEXTLINE(build/include)
+#include <AppNotificationsImplementation.cpp>
 
 #include "AppNotificationsServiceMock.h"
 #include "AppNotificationsTestHelpers.h"
