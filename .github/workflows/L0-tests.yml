@@ -142,13 +142,18 @@ jobs:
       - name: Build ThunderTools
         if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: >
+          set -euo pipefail
+          &&
+          TOOLCHAIN_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake"
+          &&
           cmake -G Ninja
           -S "$GITHUB_WORKSPACE/ThunderTools"
           -B build/ThunderTools
           -DEXCEPTIONS_ENABLE=ON
           -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
-          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
-          -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr;$GITHUB_WORKSPACE/install"
+          -DCMAKE_MODULE_PATH="$TOOLCHAIN_MODULE_PATH"
+          -DGENERIC_CMAKE_MODULE_PATH="$TOOLCHAIN_MODULE_PATH"
           &&
           cmake --build build/ThunderTools -j8
           &&
@@ -168,13 +173,18 @@ jobs:
       - name: Build Thunder
         if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: >
+          set -euo pipefail
+          &&
+          TOOLCHAIN_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake"
+          &&
           cmake -G Ninja
           -S "$GITHUB_WORKSPACE/Thunder"
           -B build/Thunder
           -DMESSAGING=ON
           -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
-          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
-          -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr;$GITHUB_WORKSPACE/install"
+          -DCMAKE_MODULE_PATH="$TOOLCHAIN_MODULE_PATH"
+          -DGENERIC_CMAKE_MODULE_PATH="$TOOLCHAIN_MODULE_PATH"
           -DBUILD_TYPE=Debug
           -DBINDING=127.0.0.1
           -DPORT=55555
@@ -194,12 +204,17 @@ jobs:
       - name: Build entservices-apis
         if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: >
+          set -euo pipefail
+          &&
+          TOOLCHAIN_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake"
+          &&
           cmake -G Ninja
           -S "$GITHUB_WORKSPACE/entservices-apis"
           -B build/entservices-apis
           -DEXCEPTIONS_ENABLE=ON
           -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
-          -DCMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr;$GITHUB_WORKSPACE/install"
+          -DCMAKE_MODULE_PATH="$TOOLCHAIN_MODULE_PATH"
           &&
           cmake --build build/entservices-apis -j8
           &&
@@ -344,8 +359,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
-          export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake${CMAKE_MODULE_PATH:+:$CMAKE_MODULE_PATH}"
+          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr;$GITHUB_WORKSPACE/install${CMAKE_PREFIX_PATH:+;${CMAKE_PREFIX_PATH}}"
+          export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake${CMAKE_MODULE_PATH:+;${CMAKE_MODULE_PATH}}"
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:$PATH"
 
           cmake -G Ninja \
@@ -354,11 +369,12 @@ jobs:
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
             -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH" \
-            -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake" \
+            -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake" \
             -DConfigGenerator_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator" \
             -DWPEFrameworkPlugins_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFrameworkPlugins" \
             -DDISABLE_SECURITY_TOKEN=ON \
             -DUSE_THUNDER_R4=ON \
+            -DNAMESPACE=WPEFramework \
             -DPLUGIN_APPGATEWAY=ON \
             -DPLUGIN_APPGATEWAYCOMMON=OFF \
             -DCMAKE_VERBOSE_MAKEFILE=ON
@@ -384,8 +400,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
-          export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake${CMAKE_MODULE_PATH:+:$CMAKE_MODULE_PATH}"
+          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr;$GITHUB_WORKSPACE/install${CMAKE_PREFIX_PATH:+;${CMAKE_PREFIX_PATH}}"
+          export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake${CMAKE_MODULE_PATH:+;${CMAKE_MODULE_PATH}}"
           export PREFIX="$GITHUB_WORKSPACE/install/usr"
 
           cmake -G Ninja \
@@ -394,7 +410,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
             -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH" \
-            -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake" \
+            -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake" \
             -DPREFIX="$PREFIX" \
             -DAPPGW_ENABLE_COVERAGE=ON
 
