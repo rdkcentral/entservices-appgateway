@@ -155,6 +155,8 @@ jobs:
           &&
           TOOLCHAIN_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake"
           &&
+          TOOLCHAIN_GENERIC_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          &&
           cmake -G Ninja
           -S "$GITHUB_WORKSPACE/ThunderTools"
           -B build/ThunderTools
@@ -162,7 +164,7 @@ jobs:
           -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
           -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr;$GITHUB_WORKSPACE/install"
           -DCMAKE_MODULE_PATH="$TOOLCHAIN_MODULE_PATH"
-          -DGENERIC_CMAKE_MODULE_PATH="$TOOLCHAIN_MODULE_PATH"
+          -DGENERIC_CMAKE_MODULE_PATH="$TOOLCHAIN_GENERIC_MODULE_PATH"
           &&
           cmake --build build/ThunderTools -j8
           &&
@@ -186,6 +188,8 @@ jobs:
           &&
           TOOLCHAIN_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake"
           &&
+          TOOLCHAIN_GENERIC_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake"
+          &&
           cmake -G Ninja
           -S "$GITHUB_WORKSPACE/Thunder"
           -B build/Thunder
@@ -193,7 +197,7 @@ jobs:
           -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install/usr"
           -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr;$GITHUB_WORKSPACE/install"
           -DCMAKE_MODULE_PATH="$TOOLCHAIN_MODULE_PATH"
-          -DGENERIC_CMAKE_MODULE_PATH="$TOOLCHAIN_MODULE_PATH"
+          -DGENERIC_CMAKE_MODULE_PATH="$TOOLCHAIN_GENERIC_MODULE_PATH"
           -DBUILD_TYPE=Debug
           -DBINDING=127.0.0.1
           -DPORT=55555
@@ -378,7 +382,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
             -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH" \
-            -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake" \
+            -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake" \
             -DConfigGenerator_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator" \
             -DWPEFrameworkPlugins_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFrameworkPlugins" \
             -DDISABLE_SECURITY_TOKEN=ON \
@@ -419,7 +423,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
             -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH" \
-            -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake" \
+            -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake" \
             -DPREFIX="$PREFIX" \
             -DAPPGW_ENABLE_COVERAGE=ON
 
