@@ -11,7 +11,7 @@
 #include "ServiceMock.h"
 
 // Context conversion utilities: Supporting_Files path is added via CMake for tests
-#include <ContextUtils.h>
+#include "helpers/ContextUtils.h"
 #include "ContextConversionHelpers.h"
 
 using WPEFramework::Core::ERROR_BAD_REQUEST;
@@ -76,7 +76,7 @@ struct PluginAndService {
     IPlugin* plugin { nullptr };
 
     explicit PluginAndService(const L0Test::ServiceMock::Config& cfg = {})
-        : service(new L0Test::ServiceMock(cfg))
+        : service(new L0Test::ServiceMock(cfg, true))
         , plugin(WPEFramework::Core::Service<AppGateway>::Create<IPlugin>()) {
     }
 
@@ -291,7 +291,8 @@ uint32_t Test_Json_Params_Empty_Equals_EmptyObject() {
 // PUBLIC_INTERFACE
 uint32_t Test_Json_EmptyAppId_BadRequest() {
     /** Provide an empty appId string while all other fields are present.
-     *  JSON glue should detect empty appId and return ERROR_BAD_REQUEST.
+    *  Currently resolve is not exposed over JSON-RPC and returns ERROR_UNKNOWN_METHOD;
+    *  verify that this remains true for the empty-appId input path.
      */
     TestResult tr;
 

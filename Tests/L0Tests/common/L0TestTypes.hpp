@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 #include <ostream>
 #include <string>
 
@@ -26,9 +27,18 @@ inline int ResultToExitCode(const uint32_t failures)
 {
     /**
      * Convert a failure count to a process exit code.
-     * Convention: 0 => success, non-zero => failure count (clamped by int range by caller).
+    * Convention: 0 => success, non-zero => failure count (clamped to int max in this function).
      */
-    return (failures == 0) ? 0 : static_cast<int>(failures);
+    if (0 == failures) {
+        return 0;
+    }
+
+    constexpr uint32_t kIntMaxU32 = static_cast<uint32_t>(std::numeric_limits<int>::max());
+    if (kIntMaxU32 < failures) {
+        return std::numeric_limits<int>::max();
+    }
+
+    return static_cast<int>(failures);
 }
 
 // PUBLIC_INTERFACE
@@ -42,7 +52,7 @@ inline int ResultToExitCode(const TestResult& tr)
 inline void PrintTotals(std::ostream& out, const char* suiteName, const uint32_t failures)
 {
     /** Print a consistent totals line. */
-    if (failures == 0) {
+    if (0 == failures) {
         out << (suiteName ? suiteName : "L0Test") << " passed." << std::endl;
     } else {
         out << (suiteName ? suiteName : "L0Test") << " total failures: " << failures << std::endl;

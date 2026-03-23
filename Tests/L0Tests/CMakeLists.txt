@@ -8,6 +8,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(APPGW_TEST_ENABLE_WARNINGS "Enable additional compiler warnings for appgateway_l0test" ON)
 option(APPGW_ENABLE_COVERAGE "Enable coverage flags for appgateway_l0test" ON)
+option(APPNOTIF_ENABLE_COVERAGE "Enable coverage flags for appnotifications_l0test" ON)
+option(APPGW_L0_ENABLE_APPGATEWAY "Build AppGateway L0 test target" ON)
+option(APPGW_L0_ENABLE_APPGATEWAYCOMMON "Build AppGatewayCommon L0 test target (when sources are added)" OFF)
+option(APPGW_L0_ENABLE_APPNOTIFICATIONS "Build AppNotifications L0 test target" ON)
 
 if(NOT DEFINED PREFIX OR "${PREFIX}" STREQUAL "")
     if(DEFINED ENV{PREFIX} AND NOT "$ENV{PREFIX}" STREQUAL "")
@@ -20,7 +24,10 @@ set(PREFIX "${PREFIX}" CACHE STRING "Install prefix to locate Thunder/WPEFramewo
 
 message(STATUS "Using PREFIX='${PREFIX}'")
 
-set(APPGW_L0_SOURCES
+# ---------------------------------------------------------------------------
+# Source lists
+# ---------------------------------------------------------------------------
+set(APPGW_APPGATEWAY_L0_SOURCES
     ${CMAKE_SOURCE_DIR}/../../AppGateway/Module.cpp
     ${CMAKE_SOURCE_DIR}/../../AppGateway/AppGateway.cpp
     ${CMAKE_SOURCE_DIR}/../../AppGateway/Resolver.cpp
@@ -38,113 +45,341 @@ set(APPGW_L0_SOURCES
     common/L0Bootstrap.cpp
 )
 
-add_executable(appgateway_l0test ${APPGW_L0_SOURCES})
-
-target_compile_definitions(appgateway_l0test PRIVATE
-    MODULE_NAME=AppGateway_L0Test
-    APPGATEWAY_MAJOR_VERSION=1
-    APPGATEWAY_MINOR_VERSION=0
-    APPGATEWAY_PATCH_VERSION=0
-    LEGACY_FIREBOLT_VERSION="0"
-    RDK8_FIREBOLT_VERSION="8"
-    ENABLE_DEBUG_FOR_CONNECTION="enableDebugForConnection"
-    DISABLE_DEBUG_FOR_CONNECTION="disableDebugForConnection"
+set(APPNOTIF_L0_SOURCES
+    ${CMAKE_SOURCE_DIR}/../../AppNotifications/Module.cpp
+    ${CMAKE_SOURCE_DIR}/../../AppNotifications/AppNotifications.cpp
+    AppNotifications/AppNotificationsTestHelpers.cpp
+    AppNotifications/AppNotificationsTest.cpp
+    AppNotifications/AppNotifications_Init_DeinitTests.cpp
+    AppNotifications/AppNotifications_SubscribeTests.cpp
+    AppNotifications/AppNotifications_EmitTests.cpp
+    AppNotifications/AppNotifications_SubscriberMapTests.cpp
+    AppNotifications/AppNotifications_ThunderManagerTests.cpp
+    AppNotifications/AppNotifications_ContextEqualityTests.cpp
+    AppNotifications/AppNotifications_BoundaryTests.cpp
+    common/L0Bootstrap.cpp
 )
 
-if(APPGW_ENABLE_COVERAGE)
-    target_compile_options(appgateway_l0test PRIVATE -O0 -g --coverage)
-    target_link_options(appgateway_l0test PRIVATE --coverage)
+# ---------------------------------------------------------------------------
+# Declare targets
+# ---------------------------------------------------------------------------
+set(APPGW_L0_PRIMARY_TARGET "")
+
+if(APPGW_L0_ENABLE_APPGATEWAY)
+    add_executable(appgateway_l0test ${APPGW_APPGATEWAY_L0_SOURCES})
+    set(APPGW_L0_PRIMARY_TARGET appgateway_l0test)
+else()
+    message(STATUS "APPGW_L0_ENABLE_APPGATEWAY=OFF; skipping appgateway_l0test target")
 endif()
 
-if(APPGW_TEST_ENABLE_WARNINGS)
-    target_compile_options(appgateway_l0test PRIVATE -Wall -Wextra -Wno-unused-parameter)
+if(APPGW_L0_ENABLE_APPGATEWAYCOMMON)
+    message(WARNING "APPGW_L0_ENABLE_APPGATEWAYCOMMON=ON but no L0 AppGatewayCommon source set is defined yet. Add Tests/L0Tests/AppGatewayCommon sources and target wiring.")
 endif()
 
-target_include_directories(appgateway_l0test PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/AppGateway
-    ${CMAKE_CURRENT_SOURCE_DIR}/common
-    ${CMAKE_SOURCE_DIR}/../..
-    ${CMAKE_SOURCE_DIR}/../../AppGateway
-    ${CMAKE_SOURCE_DIR}/../../helpers
-    ${PREFIX}/include
-    ${PREFIX}/include/WPEFramework
-)
+if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
+    add_executable(appnotifications_l0test ${APPNOTIF_L0_SOURCES})
+endif()
 
-if(CMAKE_PREFIX_PATH)
-    foreach(_prefix IN LISTS CMAKE_PREFIX_PATH)
-        if(EXISTS "${_prefix}/include")
-            target_include_directories(appgateway_l0test PRIVATE "${_prefix}/include")
+if(APPGW_L0_PRIMARY_TARGET STREQUAL "" AND NOT APPGW_L0_ENABLE_APPNOTIFICATIONS)
+    message(FATAL_ERROR "No L0 target enabled. Enable at least one APPGW_L0_ENABLE_* option.")
+endif()
+
+# ---------------------------------------------------------------------------
+# AppGateway target compile options / definitions / includes
+# ---------------------------------------------------------------------------
+if(APPGW_L0_ENABLE_APPGATEWAY)
+    target_compile_definitions(appgateway_l0test PRIVATE
+        MODULE_NAME=AppGateway_L0Test
+        APPGATEWAY_MAJOR_VERSION=1
+        APPGATEWAY_MINOR_VERSION=0
+        APPGATEWAY_PATCH_VERSION=0
+        LEGACY_FIREBOLT_VERSION="0"
+        RDK8_FIREBOLT_VERSION="8"
+        ENABLE_DEBUG_FOR_CONNECTION="enableDebugForConnection"
+        DISABLE_DEBUG_FOR_CONNECTION="disableDebugForConnection"
+    )
+
+    if(APPGW_ENABLE_COVERAGE)
+        target_compile_options(appgateway_l0test PRIVATE -O0 -g --coverage)
+        target_link_options(appgateway_l0test PRIVATE --coverage)
+    endif()
+
+    if(APPGW_TEST_ENABLE_WARNINGS)
+        target_compile_options(appgateway_l0test PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    endif()
+
+    target_include_directories(appgateway_l0test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/AppGateway
+        ${CMAKE_CURRENT_SOURCE_DIR}/common
+        ${CMAKE_SOURCE_DIR}/../..
+        ${CMAKE_SOURCE_DIR}/../../AppGateway
+        ${CMAKE_SOURCE_DIR}/../../helpers
+    )
+
+    if(EXISTS "${PREFIX}/lib")
+        target_link_directories(appgateway_l0test PRIVATE "${PREFIX}/lib")
+    endif()
+    if(EXISTS "${PREFIX}/lib/wpeframework/plugins")
+        target_link_directories(appgateway_l0test PRIVATE "${PREFIX}/lib/wpeframework/plugins")
+    endif()
+    if(EXISTS "${PREFIX}/lib/plugins")
+        target_link_directories(appgateway_l0test PRIVATE "${PREFIX}/lib/plugins")
+    endif()
+endif()
+
+# ---------------------------------------------------------------------------
+# AppNotifications target compile options / definitions / includes
+# ---------------------------------------------------------------------------
+if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
+    target_compile_definitions(appnotifications_l0test PRIVATE
+        MODULE_NAME=AppNotifications_L0Test
+        APPNOTIFICATIONS_MAJOR_VERSION=1
+        APPNOTIFICATIONS_MINOR_VERSION=0
+        APPNOTIFICATIONS_PATCH_VERSION=0
+        DISABLE_SECURITY_TOKEN=1
+        USE_THUNDER_R4=1
+    )
+
+    if(APPNOTIF_ENABLE_COVERAGE)
+        target_compile_options(appnotifications_l0test PRIVATE -O0 -g --coverage)
+        target_link_options(appnotifications_l0test PRIVATE --coverage)
+    endif()
+
+    if(APPGW_TEST_ENABLE_WARNINGS)
+        target_compile_options(appnotifications_l0test PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    endif()
+
+    target_include_directories(appnotifications_l0test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/AppNotifications
+        ${CMAKE_CURRENT_SOURCE_DIR}/common
+        ${CMAKE_SOURCE_DIR}/../..
+        ${CMAKE_SOURCE_DIR}/../../AppNotifications
+        ${CMAKE_SOURCE_DIR}/../../helpers
+    )
+
+    if(EXISTS "${PREFIX}/lib")
+        target_link_directories(appnotifications_l0test PRIVATE "${PREFIX}/lib")
+    endif()
+    if(EXISTS "${PREFIX}/lib/wpeframework/plugins")
+        target_link_directories(appnotifications_l0test PRIVATE "${PREFIX}/lib/wpeframework/plugins")
+    endif()
+    if(EXISTS "${PREFIX}/lib/plugins")
+        target_link_directories(appnotifications_l0test PRIVATE "${PREFIX}/lib/plugins")
+    endif()
+endif()
+
+# ---------------------------------------------------------------------------
+# Thunder / WPEFramework library discovery (shared for both targets)
+# ---------------------------------------------------------------------------
+# Prefer namespace-based package targets (repo convention), fallback to direct
+# libs for standalone CI layouts.
+set(APPGW_NAMESPACE "")
+if(DEFINED NAMESPACE AND NOT "${NAMESPACE}" STREQUAL "")
+    set(APPGW_NAMESPACE "${NAMESPACE}")
+elseif(DEFINED ENV{NAMESPACE} AND NOT "$ENV{NAMESPACE}" STREQUAL "")
+    set(APPGW_NAMESPACE "$ENV{NAMESPACE}")
+endif()
+
+set(APPGW_HAVE_CORE_TARGET FALSE)
+set(APPGW_HAVE_MESSAGING_TARGET FALSE)
+set(APPGW_HAVE_PLUGINS_TARGET FALSE)
+set(APPGW_HAVE_WEBSOCKET_TARGET FALSE)
+
+if(NOT "${APPGW_NAMESPACE}" STREQUAL "")
+    find_package(${APPGW_NAMESPACE}Core QUIET)
+    find_package(${APPGW_NAMESPACE}Messaging QUIET)
+    find_package(${APPGW_NAMESPACE}Plugins QUIET)
+    find_package(${APPGW_NAMESPACE}WebSocket QUIET)
+
+    if(TARGET ${APPGW_NAMESPACE}Core::${APPGW_NAMESPACE}Core)
+        if(APPGW_L0_ENABLE_APPGATEWAY)
+            target_link_libraries(appgateway_l0test PRIVATE ${APPGW_NAMESPACE}Core::${APPGW_NAMESPACE}Core)
         endif()
-        if(EXISTS "${_prefix}/include/WPEFramework")
-            target_include_directories(appgateway_l0test PRIVATE "${_prefix}/include/WPEFramework")
+        if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
+            target_link_libraries(appnotifications_l0test PRIVATE ${APPGW_NAMESPACE}Core::${APPGW_NAMESPACE}Core)
         endif()
-    endforeach()
+        set(APPGW_HAVE_CORE_TARGET TRUE)
+    endif()
+    if(TARGET ${APPGW_NAMESPACE}Messaging::${APPGW_NAMESPACE}Messaging)
+        if(APPGW_L0_ENABLE_APPGATEWAY)
+            target_link_libraries(appgateway_l0test PRIVATE ${APPGW_NAMESPACE}Messaging::${APPGW_NAMESPACE}Messaging)
+        endif()
+        if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
+            target_link_libraries(appnotifications_l0test PRIVATE ${APPGW_NAMESPACE}Messaging::${APPGW_NAMESPACE}Messaging)
+        endif()
+        set(APPGW_HAVE_MESSAGING_TARGET TRUE)
+    endif()
+    if(TARGET ${APPGW_NAMESPACE}Plugins::${APPGW_NAMESPACE}Plugins)
+        if(APPGW_L0_ENABLE_APPGATEWAY)
+            target_link_libraries(appgateway_l0test PRIVATE ${APPGW_NAMESPACE}Plugins::${APPGW_NAMESPACE}Plugins)
+        endif()
+        if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
+            target_link_libraries(appnotifications_l0test PRIVATE ${APPGW_NAMESPACE}Plugins::${APPGW_NAMESPACE}Plugins)
+        endif()
+        set(APPGW_HAVE_PLUGINS_TARGET TRUE)
+    endif()
+    if(TARGET ${APPGW_NAMESPACE}WebSocket::${APPGW_NAMESPACE}WebSocket)
+        if(APPGW_L0_ENABLE_APPGATEWAY)
+            target_link_libraries(appgateway_l0test PRIVATE ${APPGW_NAMESPACE}WebSocket::${APPGW_NAMESPACE}WebSocket)
+        endif()
+        if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
+            target_link_libraries(appnotifications_l0test PRIVATE ${APPGW_NAMESPACE}WebSocket::${APPGW_NAMESPACE}WebSocket)
+        endif()
+        set(APPGW_HAVE_WEBSOCKET_TARGET TRUE)
+    endif()
 endif()
 
-if(EXISTS "${PREFIX}/lib")
-    target_link_directories(appgateway_l0test PRIVATE "${PREFIX}/lib")
-endif()
-if(EXISTS "${PREFIX}/lib/wpeframework/plugins")
-    target_link_directories(appgateway_l0test PRIVATE "${PREFIX}/lib/wpeframework/plugins")
-endif()
-if(EXISTS "${PREFIX}/lib/plugins")
-    target_link_directories(appgateway_l0test PRIVATE "${PREFIX}/lib/plugins")
+# Fallback include path discovery for environments without namespace package configs.
+if(NOT (APPGW_HAVE_CORE_TARGET AND APPGW_HAVE_MESSAGING_TARGET AND APPGW_HAVE_PLUGINS_TARGET AND APPGW_HAVE_WEBSOCKET_TARGET))
+    if(APPGW_L0_ENABLE_APPGATEWAY)
+        target_include_directories(appgateway_l0test PRIVATE
+            ${PREFIX}/include
+            ${PREFIX}/include/WPEFramework
+        )
+    endif()
+    if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
+        target_include_directories(appnotifications_l0test PRIVATE
+            ${PREFIX}/include
+            ${PREFIX}/include/WPEFramework
+        )
+    endif()
+
+    if(CMAKE_PREFIX_PATH)
+        foreach(_prefix IN LISTS CMAKE_PREFIX_PATH)
+            if(EXISTS "${_prefix}/include")
+                if(APPGW_L0_ENABLE_APPGATEWAY)
+                    target_include_directories(appgateway_l0test PRIVATE "${_prefix}/include")
+                endif()
+                if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
+                    target_include_directories(appnotifications_l0test PRIVATE "${_prefix}/include")
+                endif()
+            endif()
+            if(EXISTS "${_prefix}/include/WPEFramework")
+                if(APPGW_L0_ENABLE_APPGATEWAY)
+                    target_include_directories(appgateway_l0test PRIVATE "${_prefix}/include/WPEFramework")
+                endif()
+                if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
+                    target_include_directories(appnotifications_l0test PRIVATE "${_prefix}/include/WPEFramework")
+                endif()
+            endif()
+        endforeach()
+    endif()
 endif()
 
-find_library(WPEFRAMEWORK_CORE_LIB NAMES WPEFrameworkCore ThunderCore HINTS "${PREFIX}/lib")
-find_library(WPEFRAMEWORK_MESSAGING_LIB NAMES WPEFrameworkMessaging ThunderMessaging HINTS "${PREFIX}/lib")
-find_library(WPEFRAMEWORK_PLUGINS_LIB NAMES WPEFrameworkPlugins ThunderPlugins HINTS "${PREFIX}/lib")
-find_library(WPEFRAMEWORK_WEBSOCKET_LIB NAMES WPEFrameworkWebSocket ThunderWebSocket HINTS "${PREFIX}/lib")
+if(NOT APPGW_HAVE_CORE_TARGET)
+    find_library(WPEFRAMEWORK_CORE_LIB NAMES WPEFrameworkCore ThunderCore HINTS "${PREFIX}/lib")
+endif()
+if(NOT APPGW_HAVE_MESSAGING_TARGET)
+    find_library(WPEFRAMEWORK_MESSAGING_LIB NAMES WPEFrameworkMessaging ThunderMessaging HINTS "${PREFIX}/lib")
+endif()
+if(NOT APPGW_HAVE_PLUGINS_TARGET)
+    find_library(WPEFRAMEWORK_PLUGINS_LIB NAMES WPEFrameworkPlugins ThunderPlugins HINTS "${PREFIX}/lib")
+endif()
+if(NOT APPGW_HAVE_WEBSOCKET_TARGET)
+    find_library(WPEFRAMEWORK_WEBSOCKET_LIB NAMES WPEFrameworkWebSocket ThunderWebSocket HINTS "${PREFIX}/lib")
+endif()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-if(WPEFRAMEWORK_CORE_LIB)
-    target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_CORE_LIB})
-endif()
-if(WPEFRAMEWORK_MESSAGING_LIB)
-    target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_MESSAGING_LIB})
-endif()
-if(WPEFRAMEWORK_PLUGINS_LIB)
-    target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_PLUGINS_LIB})
-endif()
-if(WPEFRAMEWORK_WEBSOCKET_LIB)
-    target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_WEBSOCKET_LIB})
+if(APPGW_L0_ENABLE_APPGATEWAY)
+    if(DEFINED WPEFRAMEWORK_CORE_LIB AND WPEFRAMEWORK_CORE_LIB)
+        target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_CORE_LIB})
+    endif()
+    if(DEFINED WPEFRAMEWORK_MESSAGING_LIB AND WPEFRAMEWORK_MESSAGING_LIB)
+        target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_MESSAGING_LIB})
+    endif()
+    if(DEFINED WPEFRAMEWORK_PLUGINS_LIB AND WPEFRAMEWORK_PLUGINS_LIB)
+        target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_PLUGINS_LIB})
+    endif()
+    if(DEFINED WPEFRAMEWORK_WEBSOCKET_LIB AND WPEFRAMEWORK_WEBSOCKET_LIB)
+        target_link_libraries(appgateway_l0test PRIVATE ${WPEFRAMEWORK_WEBSOCKET_LIB})
+    endif()
+
+    target_link_libraries(appgateway_l0test PRIVATE
+        Threads::Threads
+        m
+        dl
+    )
 endif()
 
-find_library(APPGATEWAY_PLUGIN_LIB
-    NAMES AppGateway WPEFrameworkAppGateway
-    HINTS
-        "${CMAKE_BINARY_DIR}/AppGateway"
-        "${CMAKE_BINARY_DIR}/../AppGateway"
-        "${PREFIX}/lib/wpeframework/plugins"
-        "${PREFIX}/lib/plugins"
-        "${PREFIX}/lib"
+if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
+    if(DEFINED WPEFRAMEWORK_CORE_LIB AND WPEFRAMEWORK_CORE_LIB)
+        target_link_libraries(appnotifications_l0test PRIVATE ${WPEFRAMEWORK_CORE_LIB})
+    endif()
+    if(DEFINED WPEFRAMEWORK_MESSAGING_LIB AND WPEFRAMEWORK_MESSAGING_LIB)
+        target_link_libraries(appnotifications_l0test PRIVATE ${WPEFRAMEWORK_MESSAGING_LIB})
+    endif()
+    if(DEFINED WPEFRAMEWORK_PLUGINS_LIB AND WPEFRAMEWORK_PLUGINS_LIB)
+        target_link_libraries(appnotifications_l0test PRIVATE ${WPEFRAMEWORK_PLUGINS_LIB})
+    endif()
+    if(DEFINED WPEFRAMEWORK_WEBSOCKET_LIB AND WPEFRAMEWORK_WEBSOCKET_LIB)
+        target_link_libraries(appnotifications_l0test PRIVATE ${WPEFRAMEWORK_WEBSOCKET_LIB})
+    endif()
+
+    target_link_libraries(appnotifications_l0test PRIVATE
+        Threads::Threads
+        m
+        dl
+    )
+endif()
+
+# ---------------------------------------------------------------------------
+# Runtime search paths (shared rpath dirs, applied to both targets)
+# ---------------------------------------------------------------------------
+set(APPGW_RPATH_DIRS
+    "${PREFIX}/lib"
+    "${PREFIX}/lib/plugins"
+    "${PREFIX}/lib/wpeframework"
+    "${PREFIX}/lib/wpeframework/plugins"
+    "${PREFIX}/lib/thunder"
+    "${PREFIX}/lib/thunder/plugins"
 )
 
-if(NOT APPGATEWAY_PLUGIN_LIB)
-    message(FATAL_ERROR "AppGateway plugin library not found. Ensure libAppGateway.so is built and staged under ${PREFIX}/lib/wpeframework/plugins or ${PREFIX}/lib/plugins")
+if(NOT "${APPGW_NAMESPACE}" STREQUAL "")
+    string(TOLOWER "${APPGW_NAMESPACE}" APPGW_STORAGE_DIRECTORY)
+    list(APPEND APPGW_RPATH_DIRS
+        "${PREFIX}/lib/${APPGW_STORAGE_DIRECTORY}"
+        "${PREFIX}/lib/${APPGW_STORAGE_DIRECTORY}/plugins"
+    )
 endif()
 
-target_link_libraries(appgateway_l0test PRIVATE
-    ${APPGATEWAY_PLUGIN_LIB}
-    Threads::Threads
-    m
-    dl
-)
+list(REMOVE_DUPLICATES APPGW_RPATH_DIRS)
 
-set_target_properties(appgateway_l0test PROPERTIES
-    BUILD_RPATH "$ORIGIN;${PREFIX}/lib;${PREFIX}/lib/wpeframework;${PREFIX}/lib/wpeframework/plugins;${PREFIX}/lib/plugins"
-    INSTALL_RPATH "${PREFIX}/lib;${PREFIX}/lib/wpeframework;${PREFIX}/lib/wpeframework/plugins;${PREFIX}/lib/plugins"
-)
+set(APPGW_BUILD_RPATH "$ORIGIN")
+foreach(_rpath_dir IN LISTS APPGW_RPATH_DIRS)
+    set(APPGW_BUILD_RPATH "${APPGW_BUILD_RPATH};${_rpath_dir}")
+endforeach()
 
-add_custom_target(run
-    DEPENDS appgateway_l0test
-    COMMAND $<TARGET_FILE:appgateway_l0test>
-    COMMENT "Running appgateway_l0test"
-    VERBATIM
-)
+set(APPGW_INSTALL_RPATH "${APPGW_RPATH_DIRS}")
+
+if(APPGW_L0_ENABLE_APPGATEWAY)
+    set_target_properties(appgateway_l0test PROPERTIES
+        BUILD_RPATH "${APPGW_BUILD_RPATH}"
+        INSTALL_RPATH "${APPGW_INSTALL_RPATH}"
+    )
+endif()
+
+if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
+    set_target_properties(appnotifications_l0test PROPERTIES
+        BUILD_RPATH "${APPGW_BUILD_RPATH}"
+        INSTALL_RPATH "${APPGW_INSTALL_RPATH}"
+    )
+endif()
+
+# ---------------------------------------------------------------------------
+# Utility targets
+# ---------------------------------------------------------------------------
+if(APPGW_L0_ENABLE_APPGATEWAY)
+    add_custom_target(run
+        DEPENDS appgateway_l0test
+        COMMAND $<TARGET_FILE:appgateway_l0test>
+        COMMENT "Running appgateway_l0test"
+        VERBATIM
+    )
+endif()
 
 find_program(LCOV_EXECUTABLE lcov)
 find_program(GENHTML_EXECUTABLE genhtml)
@@ -164,122 +399,3 @@ else()
         VERBATIM
     )
 endif()
-
-# ===========================================================================
-# AppNotifications L0 Test Target
-# ===========================================================================
-
-option(APPNOTIF_ENABLE_COVERAGE "Enable coverage flags for appnotifications_l0test" ON)
-
-find_package(CURL QUIET)
-
-set(APPNOTIF_L0_SOURCES
-    ${CMAKE_SOURCE_DIR}/../../AppNotifications/Module.cpp
-    ${CMAKE_SOURCE_DIR}/../../AppNotifications/AppNotifications.cpp
-    AppNotifications/AppNotificationsTestHelpers.cpp
-    AppNotifications/AppNotificationsTest.cpp
-    AppNotifications/AppNotifications_Init_DeinitTests.cpp
-    AppNotifications/AppNotifications_SubscribeTests.cpp
-    AppNotifications/AppNotifications_EmitTests.cpp
-    AppNotifications/AppNotifications_SubscriberMapTests.cpp
-    AppNotifications/AppNotifications_ThunderManagerTests.cpp
-    AppNotifications/AppNotifications_ContextEqualityTests.cpp
-    AppNotifications/AppNotifications_BoundaryTests.cpp
-    common/L0Bootstrap.cpp
-)
-
-add_executable(appnotifications_l0test ${APPNOTIF_L0_SOURCES})
-
-target_compile_definitions(appnotifications_l0test PRIVATE
-    MODULE_NAME=AppNotifications_L0Test
-    DISABLE_SECURITY_TOKEN
-    USE_THUNDER_R4
-    APPNOTIFICATIONS_MAJOR_VERSION=1
-    APPNOTIFICATIONS_MINOR_VERSION=0
-    APPNOTIFICATIONS_PATCH_VERSION=0
-)
-
-if(APPNOTIF_ENABLE_COVERAGE)
-    target_compile_options(appnotifications_l0test PRIVATE -O0 -g --coverage)
-    target_link_options(appnotifications_l0test PRIVATE --coverage)
-endif()
-
-if(APPGW_TEST_ENABLE_WARNINGS)
-    target_compile_options(appnotifications_l0test PRIVATE -Wall -Wextra -Wno-unused-parameter)
-endif()
-
-target_include_directories(appnotifications_l0test PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/AppNotifications
-    ${CMAKE_CURRENT_SOURCE_DIR}/common
-    ${CMAKE_SOURCE_DIR}/../..
-    ${CMAKE_SOURCE_DIR}/../../AppNotifications
-    ${CMAKE_SOURCE_DIR}/../../helpers
-    ${PREFIX}/include
-    ${PREFIX}/include/WPEFramework
-)
-
-if(CMAKE_PREFIX_PATH)
-    foreach(_prefix IN LISTS CMAKE_PREFIX_PATH)
-        if(EXISTS "${_prefix}/include")
-            target_include_directories(appnotifications_l0test PRIVATE "${_prefix}/include")
-        endif()
-        if(EXISTS "${_prefix}/include/WPEFramework")
-            target_include_directories(appnotifications_l0test PRIVATE "${_prefix}/include/WPEFramework")
-        endif()
-    endforeach()
-endif()
-
-if(EXISTS "${PREFIX}/lib")
-    target_link_directories(appnotifications_l0test PRIVATE "${PREFIX}/lib")
-endif()
-if(EXISTS "${PREFIX}/lib/wpeframework/plugins")
-    target_link_directories(appnotifications_l0test PRIVATE "${PREFIX}/lib/wpeframework/plugins")
-endif()
-if(EXISTS "${PREFIX}/lib/plugins")
-    target_link_directories(appnotifications_l0test PRIVATE "${PREFIX}/lib/plugins")
-endif()
-
-# Link Thunder libraries (reuse the find_library results from above)
-if(WPEFRAMEWORK_CORE_LIB)
-    target_link_libraries(appnotifications_l0test PRIVATE ${WPEFRAMEWORK_CORE_LIB})
-endif()
-if(WPEFRAMEWORK_MESSAGING_LIB)
-    target_link_libraries(appnotifications_l0test PRIVATE ${WPEFRAMEWORK_MESSAGING_LIB})
-endif()
-if(WPEFRAMEWORK_PLUGINS_LIB)
-    target_link_libraries(appnotifications_l0test PRIVATE ${WPEFRAMEWORK_PLUGINS_LIB})
-endif()
-if(WPEFRAMEWORK_WEBSOCKET_LIB)
-    target_link_libraries(appnotifications_l0test PRIVATE ${WPEFRAMEWORK_WEBSOCKET_LIB})
-endif()
-
-# Link curl (required by UtilsController.h included via AppNotificationsImplementation.h)
-if(CURL_FOUND)
-    target_link_libraries(appnotifications_l0test PRIVATE CURL::libcurl)
-else()
-    find_library(CURL_LIBRARY NAMES curl HINTS "${PREFIX}/lib" "/usr/lib" "/usr/local/lib")
-    if(CURL_LIBRARY)
-        target_link_libraries(appnotifications_l0test PRIVATE ${CURL_LIBRARY})
-    else()
-        message(WARNING "libcurl not found; appnotifications_l0test may fail to link")
-    endif()
-endif()
-
-target_link_libraries(appnotifications_l0test PRIVATE
-    Threads::Threads
-    m
-    dl
-)
-
-set_target_properties(appnotifications_l0test PROPERTIES
-    BUILD_RPATH "$ORIGIN;${PREFIX}/lib;${PREFIX}/lib/wpeframework;${PREFIX}/lib/wpeframework/plugins;${PREFIX}/lib/plugins"
-    INSTALL_RPATH "${PREFIX}/lib;${PREFIX}/lib/wpeframework;${PREFIX}/lib/wpeframework/plugins;${PREFIX}/lib/plugins"
-)
-
-add_custom_target(run_appnotifications
-    DEPENDS appnotifications_l0test
-    COMMAND $<TARGET_FILE:appnotifications_l0test>
-    COMMENT "Running appnotifications_l0test"
-    VERBATIM
-)

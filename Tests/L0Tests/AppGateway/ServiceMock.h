@@ -17,6 +17,7 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
+#include <iostream>
 #include <string>
 #include <vector>
 #include <list>
@@ -120,19 +121,19 @@ namespace L0Test {
             lastParams = params;
 
             // Deterministic error mapping controlled by method name.
-            if (method == "l0.notPermitted") {
+            if ("l0.notPermitted" == method) {
                 result = "{\"error\":\"NotPermitted\"}";
                 lastResult = result;
                 lastRc = WPEFramework::Core::ERROR_PRIVILIGED_REQUEST;
                 return lastRc;
             }
-            if (method == "l0.notSupported") {
+            if ("l0.notSupported" == method) {
                 result = "{\"error\":\"NotSupported\"}";
                 lastResult = result;
                 lastRc = WPEFramework::Core::ERROR_NOT_SUPPORTED;
                 return lastRc;
             }
-            if (method == "l0.notAvailable") {
+            if ("l0.notAvailable" == method) {
                 result = "{\"error\":\"NotAvailable\"}";
                 lastResult = result;
                 lastRc = WPEFramework::Core::ERROR_UNAVAILABLE;
@@ -450,7 +451,7 @@ namespace L0Test {
             return nullptr;
         }
 
-        WPEFramework::Core::hresult Notify(const string& event, const string& payload) //override
+        WPEFramework::Core::hresult Notify(const string& event, const string& payload)
         {
             lastEvent = event;
             lastPayload = payload;
@@ -581,7 +582,7 @@ namespace L0Test {
             string configLineOverride;
 
             // PUBLIC_INTERFACE
-            Config(const bool resolver = true, const bool responder = true, const bool responderTransport = true)
+            explicit Config(const bool resolver = true, const bool responder = true, const bool responderTransport = true)
                 : provideResolver(resolver)
                 , provideResponder(responder)
                 , responderTransportAvailable(responderTransport)
@@ -729,8 +730,6 @@ namespace L0Test {
 
         string ConfigLine() const override
         {
-            // print a message
-            std::cerr << "ConfigLine in service mock called ...." << std::endl;
             // Default behavior (used by most existing L0 tests):
             // Thunder RootConfig parsing expects a JSON object.
             //
@@ -739,7 +738,14 @@ namespace L0Test {
             if (_cfg.configLineOverride.empty() == false) {
                 return _cfg.configLineOverride;
             }
-            return "";
+
+            // Optional debug logging for config resolution in test runs.
+            const char* verbose = std::getenv("APPGW_L0_VERBOSE_CONFIGLINE");
+            if (verbose != nullptr && *verbose != '\0' && std::string(verbose) != "0") {
+                std::cerr << "ConfigLine in service mock called, using default {}" << std::endl;
+            }
+
+            return "{}";
 
         }
         WPEFramework::Core::hresult ConfigLine(const string& /*config*/) override { return WPEFramework::Core::ERROR_NONE; }

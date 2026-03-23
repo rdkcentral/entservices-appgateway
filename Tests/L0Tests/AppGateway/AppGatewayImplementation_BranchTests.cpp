@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <atomic>
 #include <sys/stat.h>
 #include <cstdlib>
 #include <thread>
@@ -240,7 +241,12 @@ static void ConfigureImplOrFail(TestResult& tr,
     auto* configIfc = static_cast<WPEFramework::Exchange::IConfiguration*>(impl->QueryInterface(WPEFramework::Exchange::IConfiguration::ID));
     ExpectTrue(tr, configIfc != nullptr, "IConfiguration available on AppGatewayImplementation");
     if (configIfc != nullptr) {
-        (void)configIfc->Configure(shell);
+        const uint32_t cfgRcShell = configIfc->Configure(shell);
+        ExpectEqU32(tr, cfgRcShell, ERROR_NONE, "IConfiguration::Configure(shell) returns ERROR_NONE");
+        if (cfgRcShell != ERROR_NONE) {
+            configIfc->Release();
+            return;
+        }
         configIfc->Release();
     }
 
@@ -342,7 +348,7 @@ uint32_t Test_AppGatewayImplementation_EventListen_TriggersNotify()
     /** Exercise event listen path:
      *  - method is an event (localization.onLocaleChanged)
      *  - params contains listen=true
-     *  - verify Notify() called on IAppNotifications fake
+    *  - verify Subscribe() is called on IAppNotifications fake
      */
     TestResult tr;
 
@@ -372,10 +378,9 @@ uint32_t Test_AppGatewayImplementation_EventListen_TriggersNotify()
         auto* notif = service->GetAppNotificationsFake();
         ExpectTrue(tr, notif != nullptr, "AppNotificationsFake cached");
         if (notif != nullptr) {
-            ExpectTrue(tr, notif->notifyCount > 0, "Notify called");
-            ExpectTrue(tr, notif->lastEvent == "appgateway.event.listen", "Notify event name matches");
-            ExpectTrue(tr, notif->lastPayload.find("\"event\":\"localization.onLocaleChanged\"") != std::string::npos,
-                       "Notify payload includes original event method");
+            ExpectTrue(tr, notif->subscribeCount > 0, "Subscribe called for event listen flow");
+            // Intentionally not asserting on Notify()-specific tracking here;
+            // production event-listen flow uses IAppNotifications::Subscribe().
         }
 
         DrainAsyncRespondJobs();

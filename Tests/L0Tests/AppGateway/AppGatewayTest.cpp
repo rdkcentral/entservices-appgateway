@@ -7,7 +7,10 @@
 #include <AppGateway.h>
 #include "ServiceMock.h"
 
-#include "ContextUtils.h"
+#include "helpers/ContextUtils.h"
+#include "L0Bootstrap.hpp"
+#include "L0Expect.hpp"
+#include "L0TestTypes.hpp"
 
 using WPEFramework::Core::ERROR_BAD_REQUEST;
 using WPEFramework::Core::ERROR_NONE;
@@ -18,6 +21,10 @@ using WPEFramework::Core::ERROR_UNKNOWN_METHOD;
 using WPEFramework::Plugin::AppGateway;
 using WPEFramework::PluginHost::IDispatcher;
 using WPEFramework::PluginHost::IPlugin;
+using L0Test::ExpectEqStr;
+using L0Test::ExpectEqU32;
+using L0Test::ExpectTrue;
+using L0Test::TestResult;
 
 // Prototypes for additional l0test cases implemented in AppGateway_Init_DeinitTests.cpp
 extern uint32_t Test_Initialize_WithValidConfig_Succeeds();
@@ -57,215 +64,15 @@ extern uint32_t Test_AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAddi
 // Targeted AppGatewayResponderImplementation coverage tests
 extern uint32_t Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery();
 extern uint32_t Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey();
-extern uint32_t Test_AppGatewayResponderImplementation_Auth_Dispatch_Disconnect_Flows();
-extern uint32_t Test_AppGatewayResponderImplementation_DispatchWsMsg_ResolverMissing_NoCrash();
-
-// NOTE:
-// These two cases are referenced in the test registry below but do not currently have
-// implementations in this repo's L0 suite, causing the coverage build to fail at link time.
-// Provide minimal stubs so L0 coverage can run end-to-end. Replace with real tests when available.
-uint32_t Test_AppGatewayResponderImplementation_Auth_Dispatch_Disconnect_Flows()
-{
-    return 0;
-}
-
-uint32_t Test_AppGatewayResponderImplementation_DispatchWsMsg_ResolverMissing_NoCrash()
-{
-    return 0;
-}
 
 namespace {
-
-/*
- * TEST-ONLY BOOTSTRAP
- * -------------------
- * These l0tests run the AppGateway plugin in-proc (without the real Thunder host).
- * Some Thunder/WPEFramework code paths (e.g. JSON-RPC resolving) assume that the
- * global Core::WorkerPool singleton is available.
- *
- * In production, Thunder initializes this for the process. For the l0test harness,
- * we explicitly create, run, and tear down the WorkerPool for the lifetime of the
- * test executable, to avoid aborts and to ensure clean shutdown.
- */
-class TestOnlyDispatcher final : public WPEFramework::Core::ThreadPool::IDispatcher {
-public:
-    TestOnlyDispatcher() = default;
-    ~TestOnlyDispatcher() override = default;
-
-    TestOnlyDispatcher(const TestOnlyDispatcher&) = delete;
-    TestOnlyDispatcher& operator=(const TestOnlyDispatcher&) = delete;
-
-    void Initialize() override
-    {
-        // No-op for l0tests. The worker threads will call this on start.
-    }
-
-    void Deinitialize() override
-    {
-        // No-op for l0tests. The worker threads will call this on stop.
-    }
-
-    void Dispatch(WPEFramework::Core::IDispatch* job) override
-    {
-        if (job != nullptr) {
-            job->Dispatch();
-        }
-    }
-};
-
-/*
- * Optional test-only Core::Messaging sink.
- * Some builds may route tracing/logging via Core::Messaging::IStore.
- * We provide a no-op sink only if none is configured, keeping tests deterministic.
- */
-class NullMessageStore final : public WPEFramework::Core::Messaging::IStore {
-public:
-    NullMessageStore() = default;
-    ~NullMessageStore() override = default;
-
-    NullMessageStore(const NullMessageStore&) = delete;
-    NullMessageStore& operator=(const NullMessageStore&) = delete;
-
-    bool Default(const WPEFramework::Core::Messaging::Metadata& /*metadata*/) const override
-    {
-        // Accept defaults; we drop messages anyway.
-        return true;
-    }
-
-    void Push(const WPEFramework::Core::Messaging::MessageInfo& /*messageInfo*/,
-              const WPEFramework::Core::Messaging::IEvent* /*message*/) override
-    {
-        // Intentionally no-op.
-    }
-};
-
-class L0TestBootstrap final {
-public:
-    L0TestBootstrap()
-        : _ownsWorkerPool(false)
-        , _dispatcher(nullptr)
-        , _workerPool(nullptr)
-        , _ownsMessageStore(false)
-        , _messageStore(nullptr)
-    {
-        InitializeMessagingIfNeeded();
-        InitializeWorkerPoolIfNeeded();
-    }
-
-    ~L0TestBootstrap()
-    {
-        // Ensure teardown happens even if the test process exits early.
-        DeinitializeWorkerPoolIfOwned();
-        DeinitializeMessagingIfOwned();
-    }
-
-    L0TestBootstrap(const L0TestBootstrap&) = delete;
-    L0TestBootstrap& operator=(const L0TestBootstrap&) = delete;
-
-private:
-    void InitializeWorkerPoolIfNeeded()
-    {
-        // Core::IWorkerPool is a global singleton used by various Thunder subsystems.
-        if (WPEFramework::Core::IWorkerPool::IsAvailable() == false) {
-            // Keep sizes modest; we only need basic dispatch for in-proc tests.
-            const uint8_t threadCount = 2;
-            const uint32_t stackSize = 0;   // use default stack size
-            const uint32_t queueSize = 64;  // sufficient for l0 tests
-
-            _dispatcher = new TestOnlyDispatcher();
-            _workerPool = new WPEFramework::Core::WorkerPool(threadCount, stackSize, queueSize, _dispatcher);
-
-            WPEFramework::Core::IWorkerPool::Assign(_workerPool);
-            _workerPool->Run();
-
-            _ownsWorkerPool = true;
-        }
-    }
-
-    void DeinitializeWorkerPoolIfOwned()
-    {
-        if (_ownsWorkerPool == true) {
-            // Stop threads and timers cleanly before deleting.
-            if (_workerPool != nullptr) {
-                _workerPool->Stop();
-            }
-
-            // Detach global singleton first, then destroy.
-            WPEFramework::Core::IWorkerPool::Assign(nullptr);
-
-            delete _workerPool;
-            _workerPool = nullptr;
-
-            delete _dispatcher;
-            _dispatcher = nullptr;
-
-            _ownsWorkerPool = false;
-        }
-    }
-
-    void InitializeMessagingIfNeeded()
-    {
-        // Only install a test sink if none is configured by the runtime/build.
-        if (WPEFramework::Core::Messaging::IStore::Instance() == nullptr) {
-            _messageStore = new NullMessageStore();
-            WPEFramework::Core::Messaging::IStore::Set(_messageStore);
-            _ownsMessageStore = true;
-        }
-    }
-
-    void DeinitializeMessagingIfOwned()
-    {
-        if (_ownsMessageStore == true) {
-            WPEFramework::Core::Messaging::IStore::Set(nullptr);
-            delete _messageStore;
-            _messageStore = nullptr;
-            _ownsMessageStore = false;
-        }
-    }
-
-private:
-    bool _ownsWorkerPool;
-    TestOnlyDispatcher* _dispatcher;
-    WPEFramework::Core::WorkerPool* _workerPool;
-
-    bool _ownsMessageStore;
-    NullMessageStore* _messageStore;
-};
-
-struct TestResult {
-    uint32_t failures { 0 };
-};
-
-void ExpectTrue(TestResult& tr, const bool condition, const std::string& what)
-{
-    if (!condition) {
-        tr.failures++;
-        std::cerr << "FAIL: " << what << std::endl;
-    }
-}
-
-void ExpectEqU32(TestResult& tr, const uint32_t actual, const uint32_t expected, const std::string& what)
-{
-    if (actual != expected) {
-        tr.failures++;
-        std::cerr << "FAIL: " << what << " expected=" << expected << " actual=" << actual << std::endl;
-    }
-}
-
-void ExpectEqStr(TestResult& tr, const std::string& actual, const std::string& expected, const std::string& what)
-{
-    if (actual != expected) {
-        tr.failures++;
-        std::cerr << "FAIL: " << what << " expected='" << expected << "' actual='" << actual << "'" << std::endl;
-    }
-}
 
 struct PluginAndService {
     L0Test::ServiceMock* service { nullptr };
     IPlugin* plugin { nullptr };
 
     explicit PluginAndService(const L0Test::ServiceMock::Config& cfg = {})
-        : service(new L0Test::ServiceMock(cfg))
+        : service(new L0Test::ServiceMock(cfg, true))
         , plugin(WPEFramework::Core::Service<AppGateway>::Create<IPlugin>())
     {
     }
@@ -541,9 +348,8 @@ static uint32_t Test_ContextUtils_Conversions()
 
 int main()
 {
-    // Test-only bootstrap for WorkerPool (and optional Core::Messaging store).
-    // This must be constructed before any plugin Initialize()/Invoke() calls.
-    L0TestBootstrap bootstrap;
+    // Shared L0 bootstrap for WorkerPool lifecycle.
+    L0Test::L0BootstrapGuard bootstrap;
 
     // Run instructions (from repo root):
     //   export LD_LIBRARY_PATH=$PWD/dependencies/install/lib:$PWD/build/appgatewayl0test/AppGateway:$LD_LIBRARY_PATH
@@ -606,8 +412,6 @@ int main()
         // Targeted AppGatewayResponderImplementation coverage tests
        // { "AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery", Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery },
         { "AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey", Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey },
-        { "AppGatewayResponderImplementation_Auth_Dispatch_Disconnect_Flows", Test_AppGatewayResponderImplementation_Auth_Dispatch_Disconnect_Flows },
-        { "AppGatewayResponderImplementation_DispatchWsMsg_ResolverMissing_NoCrash", Test_AppGatewayResponderImplementation_DispatchWsMsg_ResolverMissing_NoCrash },
     };
 
     uint32_t failures = 0;
@@ -623,16 +427,10 @@ int main()
         failures += f;
     }
 
-    // Ensure any remaining Thunder Core singletons are explicitly disposed before process exit.
-    // This reduces teardown log noise like:
-    //   [Singleton.cpp] ~SingletonList !!! singleton list is not empty !!!
-    WPEFramework::Core::Singleton::Dispose();
-
     if (failures == 0) {
-        std::cout << "AppGateway l0test passed." << std::endl;
-        return 0;
+        L0Test::PrintTotals(std::cout, "AppGateway l0test", failures);
+    } else {
+        L0Test::PrintTotals(std::cerr, "AppGateway l0test", failures);
     }
-
-    std::cerr << "AppGateway l0test total failures: " << failures << std::endl;
-    return static_cast<int>(failures);
+    return L0Test::ResultToExitCode(failures);
 }

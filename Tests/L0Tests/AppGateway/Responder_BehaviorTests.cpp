@@ -6,6 +6,8 @@
 
 #include <AppGateway.h>
 #include "ServiceMock.h"
+#include "L0Expect.hpp"
+#include "L0TestTypes.hpp"
 
 using WPEFramework::Core::ERROR_BAD_REQUEST;
 using WPEFramework::Core::ERROR_NONE;
@@ -14,41 +16,19 @@ using WPEFramework::Exchange::IAppGatewayResponder;
 using WPEFramework::Exchange::GatewayContext;
 using WPEFramework::Plugin::AppGateway;
 using WPEFramework::PluginHost::IPlugin;
+using L0Test::ExpectEqStr;
+using L0Test::ExpectEqU32;
+using L0Test::ExpectTrue;
+using L0Test::TestResult;
 
 namespace {
-
-struct TestResult {
-    uint32_t failures { 0 };
-};
-
-static void ExpectTrue(TestResult& tr, const bool condition, const std::string& what)
-{
-    if (!condition) {
-        tr.failures++;
-        std::cerr << "FAIL: " << what << std::endl;
-    }
-}
-static void ExpectEqU32(TestResult& tr, const uint32_t actual, const uint32_t expected, const std::string& what)
-{
-    if (actual != expected) {
-        tr.failures++;
-        std::cerr << "FAIL: " << what << " expected=" << expected << " actual=" << actual << std::endl;
-    }
-}
-static void ExpectEqStr(TestResult& tr, const std::string& actual, const std::string& expected, const std::string& what)
-{
-    if (actual != expected) {
-        tr.failures++;
-        std::cerr << "FAIL: " << what << " expected='" << expected << "' actual='" << actual << "'" << std::endl;
-    }
-}
 
 struct PluginAndService {
     L0Test::ServiceMock* service { nullptr };
     IPlugin* plugin { nullptr };
 
     explicit PluginAndService(const L0Test::ServiceMock::Config& cfg = {})
-        : service(new L0Test::ServiceMock(cfg))
+        : service(new L0Test::ServiceMock(cfg, true))
         , plugin(WPEFramework::Core::Service<AppGateway>::Create<IPlugin>())
     {
     }
@@ -83,7 +63,7 @@ public:
         return nullptr;
     }
 
-    void OnAppConnectionChanged(const string& appId, const uint32_t connectionId, const bool connected) override
+    void OnAppConnectionChanged(const std::string& appId, const uint32_t connectionId, const bool connected) override
     {
         lastAppId = appId;
         lastConnectionId = connectionId;
@@ -92,7 +72,7 @@ public:
     }
 
     uint32_t receivedCount { 0 };
-    string lastAppId;
+    std::string lastAppId;
     uint32_t lastConnectionId { 0 };
     bool lastConnected { false };
 };
@@ -185,13 +165,13 @@ uint32_t Test_Responder_Respond_Success_And_Unavailable()
         auto* fake = static_cast<L0Test::ResponderFake*>(responder->QueryInterface(L0Test::ID_RESPONDER_FAKE));
 
         GatewayContext ctx = MakeContext(1, 200, "com.x");
-        uint32_t rc = responder->Respond(ctx, "{\\\"ok\\\":true}");
+        uint32_t rc = responder->Respond(ctx, R"({"ok":true})");
         ExpectEqU32(tr, rc, ERROR_NONE, "Respond returns ERROR_NONE in L0 harness");
 
         // Fake-only: validate disabling transport yields ERROR_UNAVAILABLE.
         if (fake != nullptr) {
             fake->SetTransportEnabled(false);
-            rc = responder->Respond(ctx, "{\\\"ok\\\":true}");
+            rc = responder->Respond(ctx, R"({"ok":true})");
             ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "Respond returns ERROR_UNAVAILABLE when transport is disabled (fake only)");
             fake->Release();
             fake = nullptr;
@@ -230,12 +210,12 @@ uint32_t Test_Responder_Emit_Success_And_Unavailable()
         auto* fake = static_cast<L0Test::ResponderFake*>(responder->QueryInterface(L0Test::ID_RESPONDER_FAKE));
 
         GatewayContext ctx = MakeContext(3, 201, "com.y");
-        uint32_t rc = responder->Emit(ctx, "event.name", "{\\\"a\\\":1}");
+        uint32_t rc = responder->Emit(ctx, "event.name", R"({"a":1})");
         ExpectEqU32(tr, rc, ERROR_NONE, "Emit returns ERROR_NONE in L0 harness");
 
         if (fake != nullptr) {
             fake->SetTransportEnabled(false);
-            rc = responder->Emit(ctx, "event.name", "{\\\"a\\\":1}");
+            rc = responder->Emit(ctx, "event.name", R"({"a":1})");
             ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "Emit returns ERROR_UNAVAILABLE when transport is disabled (fake only)");
             fake->Release();
             fake = nullptr;
@@ -273,12 +253,12 @@ uint32_t Test_Responder_Request_Success_And_Unavailable()
     if (responder != nullptr) {
         auto* fake = static_cast<L0Test::ResponderFake*>(responder->QueryInterface(L0Test::ID_RESPONDER_FAKE));
 
-        uint32_t rc = responder->Request(300 /*connectionId*/, 9 /*id*/, "method.x", "{\\\"b\\\":2}");
+        uint32_t rc = responder->Request(300 /*connectionId*/, 9 /*id*/, "method.x", R"({"b":2})");
         ExpectEqU32(tr, rc, ERROR_NONE, "Request returns ERROR_NONE in L0 harness");
 
         if (fake != nullptr) {
             fake->SetTransportEnabled(false);
-            rc = responder->Request(300 /*connectionId*/, 10 /*id*/, "method.x", "{\\\"b\\\":2}");
+            rc = responder->Request(300 /*connectionId*/, 10 /*id*/, "method.x", R"({"b":2})");
             ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "Request returns ERROR_UNAVAILABLE when transport is disabled (fake only)");
             fake->Release();
             fake = nullptr;
@@ -317,6 +297,7 @@ uint32_t Test_Responder_GetGatewayConnectionContext_Known_And_Unknown()
         auto* fake = static_cast<L0Test::ResponderFake*>(responder->QueryInterface(L0Test::ID_RESPONDER_FAKE));
 
         const uint32_t cid = 410;
+        bool usedEnvInjection = false;
         if (fake != nullptr) {
             fake->SetConnectionContext(cid, "header.user-agent", "UA/1.0");
         } else {
@@ -324,20 +305,40 @@ uint32_t Test_Responder_GetGatewayConnectionContext_Known_And_Unknown()
             setenv("APPGATEWAY_TEST_CONN_ID", "410", 1);
             setenv("APPGATEWAY_TEST_CTX_KEY", "header.user-agent", 1);
             setenv("APPGATEWAY_TEST_CTX_VALUE", "UA/1.0", 1);
+            usedEnvInjection = true;
         }
 
         std::string value;
         uint32_t rc = responder->GetGatewayConnectionContext(cid, "header.user-agent", value);
-        ExpectEqU32(tr, rc, ERROR_NONE, "GetGatewayConnectionContext returns ERROR_NONE for known key");
-        ExpectEqStr(tr, value, "", "Current implementation keeps context value empty (stub)");
+        if (fake != nullptr) {
+            ExpectEqU32(tr, rc, ERROR_NONE, "Fake returns ERROR_NONE for known key");
+            ExpectEqStr(tr, value, "UA/1.0", "Fake returns stored context value for known key");
+        } else {
+            ExpectEqU32(tr, rc, ERROR_NONE, "Implementation returns ERROR_NONE for known key");
+            ExpectEqStr(tr, value, "", "Current implementation keeps context value empty (stub)");
+        }
 
         value.clear();
         rc = responder->GetGatewayConnectionContext(cid, "missing.key", value);
-        ExpectEqU32(tr, rc, ERROR_NONE, "Unknown key returns ERROR_NONE in current stub");
+        if (fake != nullptr) {
+            ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "Fake returns ERROR_BAD_REQUEST for unknown key");
+        } else {
+            ExpectEqU32(tr, rc, ERROR_NONE, "Implementation returns ERROR_NONE for unknown key (current stub)");
+        }
 
         value.clear();
         rc = responder->GetGatewayConnectionContext(999 /*unknown cid*/, "header.user-agent", value);
-        ExpectEqU32(tr, rc, ERROR_NONE, "Unknown connection returns ERROR_NONE in current stub");
+        if (fake != nullptr) {
+            ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "Fake returns ERROR_BAD_REQUEST for unknown connection");
+        } else {
+            ExpectEqU32(tr, rc, ERROR_NONE, "Implementation returns ERROR_NONE for unknown connection (current stub)");
+        }
+
+        if (usedEnvInjection) {
+            unsetenv("APPGATEWAY_TEST_CONN_ID");
+            unsetenv("APPGATEWAY_TEST_CTX_KEY");
+            unsetenv("APPGATEWAY_TEST_CTX_VALUE");
+        }
 
         if (fake != nullptr) {
             fake->Release();

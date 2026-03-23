@@ -7,6 +7,8 @@
 
 #include <AppGateway.h>
 #include "ServiceMock.h"
+#include "L0Expect.hpp"
+#include "L0TestTypes.hpp"
 
 using WPEFramework::Core::ERROR_BAD_REQUEST;
 using WPEFramework::Core::ERROR_NONE;
@@ -17,38 +19,17 @@ using WPEFramework::PluginHost::IPlugin;
 
 namespace {
 
-// Minimal expectation helpers local to this translation unit
-struct TestResult {
-    uint32_t failures { 0 };
-};
-
-static void ExpectTrue(TestResult& tr, const bool condition, const std::string& what) {
-    if (!condition) {
-        tr.failures++;
-        std::cerr << "FAIL: " << what << std::endl;
-    }
-}
-
-static void ExpectEqU32(TestResult& tr, const uint32_t actual, const uint32_t expected, const std::string& what) {
-    if (actual != expected) {
-        tr.failures++;
-        std::cerr << "FAIL: " << what << " expected=" << expected << " actual=" << actual << std::endl;
-    }
-}
-
-static void ExpectEqStr(TestResult& tr, const std::string& actual, const std::string& expected, const std::string& what) {
-    if (actual != expected) {
-        tr.failures++;
-        std::cerr << "FAIL: " << what << " expected='" << expected << "' actual='" << actual << "'" << std::endl;
-    }
-}
+using TestResult = L0Test::TestResult;
+using L0Test::ExpectEqStr;
+using L0Test::ExpectEqU32;
+using L0Test::ExpectTrue;
 
 struct PluginAndService {
     L0Test::ServiceMock* service { nullptr };
     IPlugin* plugin { nullptr };
 
     explicit PluginAndService(const L0Test::ServiceMock::Config& cfg = {})
-        : service(new L0Test::ServiceMock(cfg))
+        : service(new L0Test::ServiceMock(cfg, true))
         , plugin(WPEFramework::Core::Service<AppGateway>::Create<IPlugin>())
     {
     }
