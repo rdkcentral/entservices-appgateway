@@ -58,8 +58,8 @@ jobs:
           prefix_tools=""
           need_rebuild=0
 
-          framework_cfg="$(find "$prefix_usr" -type f \( -name 'WPEFrameworkConfig.cmake' -o -name 'ThunderConfig.cmake' \) -print -quit 2>/dev/null || true)"
-          plugins_cfg="$(find "$prefix_usr" -type f \( -name 'WPEFrameworkPluginsConfig.cmake' -o -name 'ThunderPluginsConfig.cmake' \) -print -quit 2>/dev/null || true)"
+          framework_cfg="$(find "$prefix_usr" -type f -name 'WPEFrameworkConfig.cmake' -print -quit 2>/dev/null || true)"
+          plugins_cfg="$(find "$prefix_usr" -type f -name 'WPEFrameworkPluginsConfig.cmake' -print -quit 2>/dev/null || true)"
           helper_mod="$(find "$GITHUB_WORKSPACE/install" -type f -name 'CmakeHelperFunctions.cmake' -print -quit 2>/dev/null || true)"
 
           if [ -d "$prefix_tools_primary" ]; then
@@ -169,6 +169,18 @@ jobs:
           cmake --build build/ThunderTools -j8
           &&
           cmake --install build/ThunderTools
+
+      - name: Normalize toolchain cmake module path
+        run: |
+          set -euo pipefail
+          primary="$GITHUB_WORKSPACE/install/tools/cmake"
+          alt="$GITHUB_WORKSPACE/install/usr/tools/cmake"
+          mkdir -p "$primary"
+          if [ -d "$alt" ]; then
+            cp -af "$alt/." "$primary/" 2>/dev/null || true
+          fi
+          test -f "$primary/CmakeHelperFunctions.cmake" || \
+            (echo "Missing CmakeHelperFunctions.cmake in $primary" && find "$GITHUB_WORKSPACE/install" -type f -name 'CmakeHelperFunctions.cmake' 2>/dev/null || true && exit 1)
 
       - name: Apply patches Thunder
         if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
@@ -372,8 +384,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr;$GITHUB_WORKSPACE/install${CMAKE_PREFIX_PATH:+;${CMAKE_PREFIX_PATH}}"
-          export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake${CMAKE_MODULE_PATH:+;${CMAKE_MODULE_PATH}}"
+          export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr${CMAKE_PREFIX_PATH:+;${CMAKE_PREFIX_PATH}}"
+          export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake${CMAKE_MODULE_PATH:+;${CMAKE_MODULE_PATH}}"
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:$PATH"
 
           cmake -G Ninja \

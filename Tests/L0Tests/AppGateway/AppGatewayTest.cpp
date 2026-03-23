@@ -1,12 +1,13 @@
 #include <iostream>
 #include <string>
+
 #include <core/core.h>
 #include <plugins/IDispatcher.h>
 
 #include <AppGateway.h>
 #include "ServiceMock.h"
 
-#include "ContextUtils.h"
+#include "helpers/ContextUtils.h"
 #include "L0Bootstrap.hpp"
 #include "L0Expect.hpp"
 #include "L0TestTypes.hpp"
