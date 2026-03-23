@@ -13,7 +13,10 @@
  */
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
+#include <mutex>
 #include <string>
 
 #include <core/core.h>
@@ -28,6 +31,7 @@ public:
         : _refCount(1)
         , _statusResult(statusResult)
         , _handleRc(handleRc)
+        , _releaseCount(0)
     {
     }
 
@@ -45,6 +49,13 @@ public:
         if (newCount == 0) {
             delete this;
             return WPEFramework::Core::ERROR_DESTRUCTION_SUCCEEDED;
+        }
+        // Signal waiters whenever a Release brings us back to refcount == 1.
+        // This happens when HandleNotifier() finishes calling internalNotifier->Release()
+        // after HandleAppEventNotifier returns (whether success or error).
+        if (newCount == 1) {
+            _releaseCount.fetch_add(1, std::memory_order_release);
+            _releaseCv.notify_all();
         }
         return WPEFramework::Core::ERROR_NONE;
     }
@@ -85,6 +96,39 @@ public:
         lastListen = false;
     }
 
+    /**
+     * WaitForHandlerRelease: block until the background thread has called
+     * internalNotifier->Release() (i.e. refcount drops back to 1), or until
+     * the timeout expires.  Call this after WaitForJobs() in tests that use
+     * SetHandleRc(ERROR_GENERAL) or SetStatusResult(false) to guarantee the
+     * background SubscriberJob has fully completed before service is destroyed.
+     *
+     * @param expectedReleases  How many Release-to-1 signals to wait for (total cumulative).
+     * @param timeoutMs         Timeout in milliseconds (default 5000).
+     * @return true if all expected releases were observed within the timeout.
+     */
+    bool WaitForHandlerRelease(uint32_t expectedReleases = 1,
+                                uint32_t timeoutMs = 5000) const
+    {
+        std::unique_lock<std::mutex> lock(_releaseMutex);
+        return _releaseCv.wait_for(lock,
+            std::chrono::milliseconds(timeoutMs),
+            [this, expectedReleases]() {
+                return _releaseCount.load(std::memory_order_acquire) >= expectedReleases;
+            });
+    }
+
+    /**
+     * ResetReleaseCount: reset the cumulative release counter.
+     * Call this just before starting the operations you want to synchronize on,
+     * then call WaitForHandlerRelease(N) where N is the number of
+     * HandleNotifier calls you expect.
+     */
+    void ResetReleaseCount()
+    {
+        _releaseCount.store(0, std::memory_order_release);
+    }
+
     // Observable state
     uint32_t handleCount{0};
     IEmitter* lastEmitter{nullptr};
@@ -95,6 +139,10 @@ private:
     mutable std::atomic<uint32_t> _refCount;
     bool _statusResult;
     uint32_t _handleRc;
+
+    mutable std::atomic<uint32_t> _releaseCount;
+    mutable std::mutex _releaseMutex;
+    mutable std::condition_variable _releaseCv;
 };
 
 } // namespace L0Test

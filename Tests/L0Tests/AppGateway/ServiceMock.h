@@ -581,7 +581,7 @@ namespace L0Test {
             string configLineOverride;
 
             // PUBLIC_INTERFACE
-            explicit Config(const bool resolver = true, const bool responder = true, const bool responderTransport = true)
+            Config(const bool resolver = true, const bool responder = true, const bool responderTransport = true)
                 : provideResolver(resolver)
                 , provideResponder(responder)
                 , responderTransportAvailable(responderTransport)
