@@ -180,31 +180,12 @@ jobs:
             cp -af "$alt/." "$primary/" 2>/dev/null || true
           fi
 
-          if [ ! -f "$primary/CmakeHelperFunctions.cmake" ]; then
-            helper_src="$(find \
-              "$GITHUB_WORKSPACE/install" \
-              "$GITHUB_WORKSPACE/build" \
-              "$GITHUB_WORKSPACE/ThunderTools" \
-              -type f -name 'CmakeHelperFunctions.cmake' -print -quit 2>/dev/null || true)"
-
-            if [ -n "${helper_src}" ] && [ -f "${helper_src}" ]; then
-              cp -f "${helper_src}" "$primary/CmakeHelperFunctions.cmake"
-              echo "Recovered CmakeHelperFunctions.cmake from: ${helper_src}"
-            fi
-          fi
-
-          if [ ! -f "$primary/CmakeHelperFunctions.cmake" ]; then
-            echo "Missing CmakeHelperFunctions.cmake in $primary"
-            echo "Searched roots: $GITHUB_WORKSPACE/install, $GITHUB_WORKSPACE/build, $GITHUB_WORKSPACE/ThunderTools"
-            find "$GITHUB_WORKSPACE/install" "$GITHUB_WORKSPACE/build" "$GITHUB_WORKSPACE/ThunderTools" -type f -name 'CmakeHelperFunctions.cmake' 2>/dev/null || true
-
-            echo "Creating fallback helper module for L0 build"
-            cat > "$primary/CmakeHelperFunctions.cmake" <<'EOF'
-          # Auto-generated fallback used only when ThunderTools helper module is unavailable.
-          function(write_config PLUGIN_NAME)
-          endfunction()
-          EOF
-          fi
+          # NOTE: Do NOT copy or generate CmakeHelperFunctions.cmake into this directory.
+          # CmakeHelperFunctions.cmake is Thunder's own cmake module (in Thunder/cmake/common/).
+          # Placing any version of it here would shadow Thunder's real implementation via
+          # CMAKE_MODULE_PATH precedence and cause "Unknown CMake command InstallPackageConfig".
+          # Thunder finds it from its own source tree (cmake/common) during its own build,
+          # and from install/usr/include/<NAMESPACE>/Modules after Thunder is installed.
 
       - name: Apply patches Thunder
         if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
