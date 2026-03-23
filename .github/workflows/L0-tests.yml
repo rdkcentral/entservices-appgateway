@@ -19,9 +19,6 @@ on:
 permissions:
   contents: read
 
-permissions:
-  contents: read
-
 env:
   BUILD_TYPE: Debug
   THUNDER_REF: "R4.4.1"
