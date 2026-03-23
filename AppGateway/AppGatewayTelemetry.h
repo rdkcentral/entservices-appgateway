@@ -229,19 +229,15 @@ namespace Plugin {
 
         /**
          * @brief Request state tracking
-         * Tracks whether a request has received a response (success or failure)
+         * Tracks an in-flight request until a response is recorded, then erased.
          */
         struct RequestState
         {
             std::string appId;
-            bool responseReceived;      // true if response (success or failure) received
-            bool isSuccess;             // true if success response, false if error
             std::chrono::steady_clock::time_point requestTime;
             
             RequestState() 
-                : responseReceived(false)
-                , isSuccess(false)
-                , requestTime(std::chrono::steady_clock::now())
+                : requestTime(std::chrono::steady_clock::now())
             {}
         };
 

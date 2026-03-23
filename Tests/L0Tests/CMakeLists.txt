@@ -44,7 +44,6 @@ set(APPGW_APPGATEWAY_L0_SOURCES
     AppGateway/AppGatewayImplementation_BranchTests.cpp
     common/L0Bootstrap.cpp
 )
-
 set(APPNOTIF_L0_SOURCES
     ${CMAKE_SOURCE_DIR}/../../AppNotifications/Module.cpp
     ${CMAKE_SOURCE_DIR}/../../AppNotifications/AppNotifications.cpp
