@@ -1,6 +1,10 @@
 name: L0-tests
 
 on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
   workflow_call:
     inputs:
       caller_source:
