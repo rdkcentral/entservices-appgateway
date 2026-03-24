@@ -292,8 +292,8 @@ uint32_t Test_AppGatewayImplementation_PermissionGroup_Denied()
         ExpectEqU32(tr, rc, ERROR_GENERAL, "Denied permissionGroup returns ERROR_GENERAL in current implementation");
 
         // Verify authenticator was consulted.
-        auto* auth = service->GetAuthenticatorFake();
-        ExpectTrue(tr, auth != nullptr, "AuthenticatorFake cached");
+        auto* auth = service->GetAuthenticatorMock();
+        ExpectTrue(tr, auth != nullptr, "AuthenticatorMock cached");
         if (auth != nullptr) {
             ExpectTrue(tr, auth->checkPermissionCount > 0, "CheckPermissionGroup called");
         }
@@ -375,8 +375,8 @@ uint32_t Test_AppGatewayImplementation_EventListen_TriggersNotify()
         ExpectEqU32(tr, rc, ERROR_NONE, "Event listen resolve returns ERROR_NONE");
         ExpectTrue(tr, resolution.find("\"listening\":true") != std::string::npos, "Resolution includes listening=true");
 
-        auto* notif = service->GetAppNotificationsFake();
-        ExpectTrue(tr, notif != nullptr, "AppNotificationsFake cached");
+        auto* notif = service->GetAppNotificationsMock();
+        ExpectTrue(tr, notif != nullptr, "AppNotificationsMock cached");
         if (notif != nullptr) {
             ExpectTrue(tr, notif->subscribeCount > 0, "Subscribe called for event listen flow");
             // Intentionally not asserting on Notify()-specific tracking here;
@@ -449,7 +449,7 @@ uint32_t Test_AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAdditionalC
 {
     /** Exercise COM-RPC handler path with UpdateContext(onlyAdditionalContext=true):
      *  - override method as useComRpc=true and has additionalContext object (so onlyAdditionalContext path builds _additionalContext)
-     *  - provide RequestHandlerFake for alias callsign "org.rdk.FbSettings"
+     *  - provide RequestHandlerMock for alias callsign "org.rdk.FbSettings"
      */
     TestResult tr;
 
@@ -489,8 +489,8 @@ uint32_t Test_AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAdditionalC
         ExpectEqU32(tr, rc, ERROR_NONE, "COM-RPC handler returns ERROR_NONE");
         ExpectTrue(tr, resolution == "null" || !resolution.empty(), "Resolution present");
 
-        auto* handler = service->GetRequestHandlerFake();
-        ExpectTrue(tr, handler != nullptr, "RequestHandlerFake cached");
+        auto* handler = service->GetRequestHandlerMock();
+        ExpectTrue(tr, handler != nullptr, "RequestHandlerMock cached");
         if (handler != nullptr) {
             ExpectTrue(tr, handler->handleCount > 0, "HandleAppGatewayRequest called");
             // Verify _additionalContext presence (origin injected)

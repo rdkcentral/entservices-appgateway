@@ -8,9 +8,9 @@
 namespace L0Test {
 
 /**
- * @brief Lightweight base service mock/fake for L0 tests.
+ * @brief Lightweight base service mock for L0 tests.
  *
- * Many plugin L0 tests need a minimal "host service" that can return a fake
+ * Many plugin L0 tests need a minimal "host service" that can return a mock
  * implementation when a plugin queries by callsign and interface ID.
  *
  * This class provides a small registry:
@@ -18,13 +18,13 @@ namespace L0Test {
  *
  * Usage:
  *   class MyServiceMock : public L0Test::L0ServiceMock { ... };
- *   auto* fake = Core::Service<MyFake>::Create<Exchange::IMyIface>();
- *   service.RegisterInterface("SomeCallsign", Exchange::IMyIface::ID, fake);
+ *   auto* mock = Core::Service<MyMock>::Create<Exchange::IMyIface>();
+ *   service.RegisterInterface("SomeCallsign", Exchange::IMyIface::ID, mock);
  *
  * Notes:
  * - This is intentionally NOT a full PluginHost::IShell replacement.
  * - It is meant to be embedded/extended by per-plugin ServiceMock implementations.
- * - No gmock; use simple fakes.
+ * - No gmock; use simple mocks.
  */
 class L0ServiceMock {
 public:

@@ -40,22 +40,22 @@ namespace L0Test {
 
     // Test-only interface IDs to safely obtain concrete fake instances via QueryInterface
     // without relying on dynamic_cast across shared-library boundaries.
-    static constexpr uint32_t ID_RESPONDER_FAKE       = 0xF0F0F001;
-    static constexpr uint32_t ID_AUTHENTICATOR_FAKE   = 0xF0F0F002;
-    static constexpr uint32_t ID_NOTIFICATIONS_FAKE   = 0xF0F0F003;
-    static constexpr uint32_t ID_REQUEST_HANDLER_FAKE = 0xF0F0F004;
+    static constexpr uint32_t ID_RESPONDER_MOCK       = 0xF0F0F001;
+    static constexpr uint32_t ID_AUTHENTICATOR_MOCK   = 0xF0F0F002;
+    static constexpr uint32_t ID_NOTIFICATIONS_MOCK   = 0xF0F0F003;
+    static constexpr uint32_t ID_REQUEST_HANDLER_MOCK = 0xF0F0F004;
 
-    // A simple deterministic resolver fake with multiple error paths.
+    // A simple deterministic resolver mock with multiple error paths.
     // Also records the last call so targeted responder tests can verify callsign/context routing.
-    class ResolverFake final : public WPEFramework::Exchange::IAppGatewayResolver,
+    class ResolverMock final : public WPEFramework::Exchange::IAppGatewayResolver,
                                public WPEFramework::Exchange::IConfiguration {
     public:
-        ResolverFake()
+        ResolverMock()
             : _refCount(1)
         {
         }
 
-        ~ResolverFake() override = default;
+        ~ResolverMock() override = default;
 
         // Recorded state for assertions (test-only).
         uint32_t resolveCount { 0 };
@@ -152,16 +152,16 @@ namespace L0Test {
     };
 
     // Responder fake with controllable transport availability and simple notification/context scaffolding.
-    class ResponderFake final : public WPEFramework::Exchange::IAppGatewayResponder,
+    class ResponderMock final : public WPEFramework::Exchange::IAppGatewayResponder,
                                 public WPEFramework::Exchange::IConfiguration {
     public:
-        explicit ResponderFake(const bool transportEnabled = true)
+        explicit ResponderMock(const bool transportEnabled = true)
             : _refCount(1)
             , _transportEnabled(transportEnabled)
         {
         }
 
-        ~ResponderFake() override
+        ~ResponderMock() override
         {
             for (auto* n : _notifications) {
                 if (n != nullptr) {
@@ -197,7 +197,7 @@ namespace L0Test {
                 AddRef();
                 return static_cast<WPEFramework::Exchange::IConfiguration*>(this);
             }
-            if (id == ID_RESPONDER_FAKE) {
+            if (id == ID_RESPONDER_MOCK) {
                 AddRef();
                 return this;
             }
@@ -327,17 +327,17 @@ namespace L0Test {
         std::unordered_map<uint32_t, std::unordered_map<string, string>> _contexts;
     };
 
-    // Fake Authenticator (used by AppGatewayImplementation permission checks).
-    class AuthenticatorFake final : public WPEFramework::Exchange::IAppGatewayAuthenticator {
+    // Mock Authenticator (used by AppGatewayImplementation permission checks).
+    class AuthenticatorMock final : public WPEFramework::Exchange::IAppGatewayAuthenticator {
     public:
-        explicit AuthenticatorFake(bool allowed = true, bool failCheck = false)
+        explicit AuthenticatorMock(bool allowed = true, bool failCheck = false)
             : _refCount(1)
             , _allowed(allowed)
             , _failCheck(failCheck)
         {
         }
 
-        ~AuthenticatorFake() override = default;
+        ~AuthenticatorMock() override = default;
 
         void AddRef() const override
         {
@@ -360,7 +360,7 @@ namespace L0Test {
                 AddRef();
                 return static_cast<WPEFramework::Exchange::IAppGatewayAuthenticator*>(this);
             }
-            if (id == ID_AUTHENTICATOR_FAKE) {
+            if (id == ID_AUTHENTICATOR_MOCK) {
                 AddRef();
                 return this;
             }
@@ -413,15 +413,15 @@ namespace L0Test {
         bool _failCheck;
     };
 
-    // Fake AppNotifications (used by AppGatewayImplementation event listen/notify path).
-    class AppNotificationsFake final : public WPEFramework::Exchange::IAppNotifications {
+    // Mock AppNotifications (used by AppGatewayImplementation event listen/notify path).
+    class AppNotificationsMock final : public WPEFramework::Exchange::IAppNotifications {
     public:
-        AppNotificationsFake()
+        AppNotificationsMock()
             : _refCount(1)
         {
         }
 
-        ~AppNotificationsFake() override = default;
+        ~AppNotificationsMock() override = default;
 
         void AddRef() const override
         {
@@ -444,7 +444,7 @@ namespace L0Test {
                 AddRef();
                 return static_cast<WPEFramework::Exchange::IAppNotifications*>(this);
             }
-            if (id == ID_NOTIFICATIONS_FAKE) {
+            if (id == ID_NOTIFICATIONS_MOCK) {
                 AddRef();
                 return this;
             }
@@ -494,16 +494,16 @@ namespace L0Test {
         mutable std::atomic<uint32_t> _refCount;
     };
 
-    // Fake COM-RPC request handler (used by AppGatewayImplementation::ProcessComRpcRequest).
-    class RequestHandlerFake final : public WPEFramework::Exchange::IAppGatewayRequestHandler {
+    // Mock COM-RPC request handler (used by AppGatewayImplementation::ProcessComRpcRequest).
+    class RequestHandlerMock final : public WPEFramework::Exchange::IAppGatewayRequestHandler {
     public:
-        explicit RequestHandlerFake(uint32_t rc = WPEFramework::Core::ERROR_NONE)
+        explicit RequestHandlerMock(uint32_t rc = WPEFramework::Core::ERROR_NONE)
             : _refCount(1)
             , _rc(rc)
         {
         }
 
-        ~RequestHandlerFake() override = default;
+        ~RequestHandlerMock() override = default;
 
         void AddRef() const override
         {
@@ -526,7 +526,7 @@ namespace L0Test {
                 AddRef();
                 return static_cast<WPEFramework::Exchange::IAppGatewayRequestHandler*>(this);
             }
-            if (id == ID_REQUEST_HANDLER_FAKE) {
+            if (id == ID_REQUEST_HANDLER_MOCK) {
                 AddRef();
                 return this;
             }
@@ -604,36 +604,36 @@ namespace L0Test {
             , _className("AppGateway")
             , _cfg(cfg)
             , _selfDelete(selfDelete)
-            , _resolverFake(nullptr)
-            , _responderFake(nullptr)
-            , _appNotificationsFake(nullptr)
-            , _authenticatorFake(nullptr)
-            , _requestHandlerFake(nullptr)
+            , _resolverMock(nullptr)
+            , _responderMock(nullptr)
+            , _appNotificationsMock(nullptr)
+            , _authenticatorMock(nullptr)
+            , _requestHandlerMock(nullptr)
         {
             // IMPORTANT: Do NOT override _cfg here; tests depend on explicit per-test configuration.
         }
 
         ~ServiceMock() override
         {
-            if (_resolverFake != nullptr) {
-                _resolverFake->Release();
-                _resolverFake = nullptr;
+            if (_resolverMock != nullptr) {
+                _resolverMock->Release();
+                _resolverMock = nullptr;
             }
-            if (_responderFake != nullptr) {
-                _responderFake->Release();
-                _responderFake = nullptr;
+            if (_responderMock != nullptr) {
+                _responderMock->Release();
+                _responderMock = nullptr;
             }
-            if (_appNotificationsFake != nullptr) {
-                _appNotificationsFake->Release();
-                _appNotificationsFake = nullptr;
+            if (_appNotificationsMock != nullptr) {
+                _appNotificationsMock->Release();
+                _appNotificationsMock = nullptr;
             }
-            if (_authenticatorFake != nullptr) {
-                _authenticatorFake->Release();
-                _authenticatorFake = nullptr;
+            if (_authenticatorMock != nullptr) {
+                _authenticatorMock->Release();
+                _authenticatorMock = nullptr;
             }
-            if (_requestHandlerFake != nullptr) {
-                _requestHandlerFake->Release();
-                _requestHandlerFake = nullptr;
+            if (_requestHandlerMock != nullptr) {
+                _requestHandlerMock->Release();
+                _requestHandlerMock = nullptr;
             }
         }
 
@@ -666,21 +666,21 @@ namespace L0Test {
             // Some code paths query interfaces directly on IShell.
             if (id == WPEFramework::Exchange::IAppGatewayResolver::ID) {
                 if (_cfg.provideResolver) {
-                    if (_resolverFake == nullptr) {
-                        _resolverFake = new ResolverFake();
+                    if (_resolverMock == nullptr) {
+                        _resolverMock = new ResolverMock();
                     }
-                    _resolverFake->AddRef();
-                    return static_cast<WPEFramework::Exchange::IAppGatewayResolver*>(_resolverFake);
+                    _resolverMock->AddRef();
+                    return static_cast<WPEFramework::Exchange::IAppGatewayResolver*>(_resolverMock);
                 }
                 return nullptr;
             }
             if (id == WPEFramework::Exchange::IAppGatewayResponder::ID) {
                 if (_cfg.provideResponder) {
-                    if (_responderFake == nullptr) {
-                        _responderFake = new ResponderFake(_cfg.responderTransportAvailable);
+                    if (_responderMock == nullptr) {
+                        _responderMock = new ResponderMock(_cfg.responderTransportAvailable);
                     }
-                    _responderFake->AddRef();
-                    return static_cast<WPEFramework::Exchange::IAppGatewayResponder*>(_responderFake);
+                    _responderMock->AddRef();
+                    return static_cast<WPEFramework::Exchange::IAppGatewayResponder*>(_responderMock);
                 }
                 return nullptr;
             }
@@ -773,22 +773,22 @@ namespace L0Test {
             // NOTE: Return values follow COM semantics: pointer is returned AddRef'd.
             if (id == WPEFramework::Exchange::IAppNotifications::ID) {
                 if (_cfg.provideAppNotifications && name == "org.rdk.AppNotifications") {
-                    if (_appNotificationsFake == nullptr) {
-                        _appNotificationsFake = new AppNotificationsFake();
+                    if (_appNotificationsMock == nullptr) {
+                        _appNotificationsMock = new AppNotificationsMock();
                     }
-                    _appNotificationsFake->AddRef();
-                    return static_cast<WPEFramework::Exchange::IAppNotifications*>(_appNotificationsFake);
+                    _appNotificationsMock->AddRef();
+                    return static_cast<WPEFramework::Exchange::IAppNotifications*>(_appNotificationsMock);
                 }
                 return nullptr;
             }
 
             if (id == WPEFramework::Exchange::IAppGatewayAuthenticator::ID) {
                 if (_cfg.provideAuthenticator && name == "org.rdk.LaunchDelegate") {
-                    if (_authenticatorFake == nullptr) {
-                        _authenticatorFake = new AuthenticatorFake(_cfg.authenticatorAllowed, _cfg.authenticatorFailCheck);
+                    if (_authenticatorMock == nullptr) {
+                        _authenticatorMock = new AuthenticatorMock(_cfg.authenticatorAllowed, _cfg.authenticatorFailCheck);
                     }
-                    _authenticatorFake->AddRef();
-                    return static_cast<WPEFramework::Exchange::IAppGatewayAuthenticator*>(_authenticatorFake);
+                    _authenticatorMock->AddRef();
+                    return static_cast<WPEFramework::Exchange::IAppGatewayAuthenticator*>(_authenticatorMock);
                 }
                 return nullptr;
             }
@@ -798,11 +798,11 @@ namespace L0Test {
                 if (name == "org.rdk.LaunchDelegate") {
                     // Reuse the responder fake as "internal responder" as well; tests can inspect call counters.
                     if (_cfg.provideResponder) {
-                        if (_responderFake == nullptr) {
-                            _responderFake = new ResponderFake(_cfg.responderTransportAvailable);
+                        if (_responderMock == nullptr) {
+                            _responderMock = new ResponderMock(_cfg.responderTransportAvailable);
                         }
-                        _responderFake->AddRef();
-                        return static_cast<WPEFramework::Exchange::IAppGatewayResponder*>(_responderFake);
+                        _responderMock->AddRef();
+                        return static_cast<WPEFramework::Exchange::IAppGatewayResponder*>(_responderMock);
                     }
                 }
                 return nullptr;
@@ -810,11 +810,11 @@ namespace L0Test {
 
             if (id == WPEFramework::Exchange::IAppGatewayRequestHandler::ID) {
                 if (_cfg.provideRequestHandler && name == _cfg.requestHandlerCallsign) {
-                    if (_requestHandlerFake == nullptr) {
-                        _requestHandlerFake = new RequestHandlerFake();
+                    if (_requestHandlerMock == nullptr) {
+                        _requestHandlerMock = new RequestHandlerMock();
                     }
-                    _requestHandlerFake->AddRef();
-                    return static_cast<WPEFramework::Exchange::IAppGatewayRequestHandler*>(_requestHandlerFake);
+                    _requestHandlerMock->AddRef();
+                    return static_cast<WPEFramework::Exchange::IAppGatewayRequestHandler*>(_requestHandlerMock);
                 }
                 return nullptr;
             }
@@ -874,11 +874,11 @@ namespace L0Test {
                 if (_cfg.provideResolver == false) {
                     return nullptr;
                 }
-                if (_resolverFake == nullptr) {
-                    _resolverFake = new ResolverFake();
+                if (_resolverMock == nullptr) {
+                    _resolverMock = new ResolverMock();
                 }
-                _resolverFake->AddRef();
-                return static_cast<WPEFramework::Exchange::IAppGatewayResolver*>(_resolverFake);
+                _resolverMock->AddRef();
+                return static_cast<WPEFramework::Exchange::IAppGatewayResolver*>(_resolverMock);
             }
 
             // Responder (aggregate)
@@ -891,11 +891,11 @@ namespace L0Test {
                 if (_cfg.provideResponder == false) {
                     return nullptr;
                 }
-                if (_responderFake == nullptr) {
-                    _responderFake = new ResponderFake(_cfg.responderTransportAvailable);
+                if (_responderMock == nullptr) {
+                    _responderMock = new ResponderMock(_cfg.responderTransportAvailable);
                 }
-                _responderFake->AddRef();
-                return static_cast<WPEFramework::Exchange::IAppGatewayResponder*>(_responderFake);
+                _responderMock->AddRef();
+                return static_cast<WPEFramework::Exchange::IAppGatewayResponder*>(_responderMock);
             }
 
             return nullptr;
@@ -905,11 +905,11 @@ namespace L0Test {
         void Callsign(const std::string& cs) { _callsign = cs; }
         void ClassName(const std::string& cn) { _className = cn; }
 
-        ResponderFake* GetResponderFake() const { return _responderFake; }
-        ResolverFake* GetResolverFake() const { return _resolverFake; }
-        AppNotificationsFake* GetAppNotificationsFake() const { return _appNotificationsFake; }
-        AuthenticatorFake* GetAuthenticatorFake() const { return _authenticatorFake; }
-        RequestHandlerFake* GetRequestHandlerFake() const { return _requestHandlerFake; }
+        ResponderMock* GetResponderMock() const { return _responderMock; }
+        ResolverMock* GetResolverMock() const { return _resolverMock; }
+        AppNotificationsMock* GetAppNotificationsMock() const { return _appNotificationsMock; }
+        AuthenticatorMock* GetAuthenticatorMock() const { return _authenticatorMock; }
+        RequestHandlerMock* GetRequestHandlerMock() const { return _requestHandlerMock; }
 
     private:
         mutable std::atomic<uint32_t> _refCount;
@@ -919,12 +919,12 @@ namespace L0Test {
         Config _cfg;
         const bool _selfDelete;
 
-        ResolverFake* _resolverFake;
-        ResponderFake* _responderFake;
+        ResolverMock* _resolverMock;
+        ResponderMock* _responderMock;
 
-        AppNotificationsFake* _appNotificationsFake;
-        AuthenticatorFake* _authenticatorFake;
-        RequestHandlerFake* _requestHandlerFake;
+        AppNotificationsMock* _appNotificationsMock;
+        AuthenticatorMock* _authenticatorMock;
+        RequestHandlerMock* _requestHandlerMock;
     };
 
 } // namespace L0Test

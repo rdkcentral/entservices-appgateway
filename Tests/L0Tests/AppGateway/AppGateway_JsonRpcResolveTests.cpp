@@ -28,7 +28,7 @@ Run instructions (from repository root):
 
 Notes:
 - This test suite reuses the l0test harness and does not open sockets or use networking.
-- If APPGATEWAY_RESOLUTIONS_PATH is not set, tests will fallback to the ServiceMock ResolverFake and print a note.
+- If APPGATEWAY_RESOLUTIONS_PATH is not set, tests will fallback to the ServiceMock ResolverMock and print a note.
 */
 
 namespace {
@@ -66,7 +66,7 @@ struct PluginAndService {
 };
 
 // Helper to print an informative message about APPGATEWAY_RESOLUTIONS_PATH.
-// We do not require it because ResolverFake (ServiceMock) is used, but we log user guidance.
+// We do not require it because ResolverMock (ServiceMock) is used, but we log user guidance.
 static void CheckResolutionsEnvOnce() {
     static bool printed = false;
     if (printed) {
@@ -76,10 +76,10 @@ static void CheckResolutionsEnvOnce() {
     const char* path = std::getenv("APPGATEWAY_RESOLUTIONS_PATH");
     if (path == nullptr || *path == '\0') {
         std::cerr << "NOTE: APPGATEWAY_RESOLUTIONS_PATH not set; "
-                     "falling back to ServiceMock ResolverFake overlay. Tests will continue." << std::endl;
+                     "falling back to ServiceMock ResolverMock overlay. Tests will continue." << std::endl;
     } else {
         std::cerr << "INFO: APPGATEWAY_RESOLUTIONS_PATH=" << path
-                  << " (ResolverFake does not load it; provided for real implementation runs)" << std::endl;
+                  << " (ResolverMock does not load it; provided for real implementation runs)" << std::endl;
     }
 }
 

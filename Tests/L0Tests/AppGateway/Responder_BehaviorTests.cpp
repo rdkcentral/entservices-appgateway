@@ -115,20 +115,20 @@ uint32_t Test_Responder_Register_Unregister_Notifications()
         const uint32_t regRc = responder->Register(&collector);
         ExpectEqU32(tr, regRc, ERROR_NONE, "Register returns ERROR_NONE");
 
-        // If the in-proc ResponderFake is available, simulate a connection status change.
+        // If the in-proc ResponderMock is available, simulate a connection status change.
         // Otherwise we are running with the real responder implementation, where we can't
         // synthetically trigger a websocket connect/disconnect in this unit test.
-        auto* fake = static_cast<L0Test::ResponderFake*>(responder->QueryInterface(L0Test::ID_RESPONDER_FAKE));
-        if (fake != nullptr) {
-            fake->SimulateAppConnectionChanged("com.example.app", 101, true);
+        auto* mock = static_cast<L0Test::ResponderMock*>(responder->QueryInterface(L0Test::ID_RESPONDER_MOCK));
+        if (mock != nullptr) {
+            mock->SimulateAppConnectionChanged("com.example.app", 101, true);
             ExpectEqU32(tr, collector.receivedCount, 1u, "Listener receives simulated connection change after Register");
             ExpectEqStr(tr, collector.lastAppId, "com.example.app", "AppId propagated to listener");
             ExpectEqU32(tr, collector.lastConnectionId, 101u, "ConnectionId propagated to listener");
             ExpectTrue(tr, collector.lastConnected, "Connected=true propagated");
-            fake->Release();
-            fake = nullptr;
+            mock->Release();
+            mock = nullptr;
         } else {
-            std::cerr << "NOTE: ResponderFake not available; skipping simulated connection-change validation." << std::endl;
+            std::cerr << "NOTE: ResponderMock not available; skipping simulated connection-change validation." << std::endl;
         }
 
         const uint32_t unregRc = responder->Unregister(&collector);
@@ -162,21 +162,21 @@ uint32_t Test_Responder_Respond_Success_And_Unavailable()
     ExpectTrue(tr, responder != nullptr, "Responder interface available");
 
     if (responder != nullptr) {
-        auto* fake = static_cast<L0Test::ResponderFake*>(responder->QueryInterface(L0Test::ID_RESPONDER_FAKE));
+        auto* mock = static_cast<L0Test::ResponderMock*>(responder->QueryInterface(L0Test::ID_RESPONDER_MOCK));
 
         GatewayContext ctx = MakeContext(1, 200, "com.x");
         uint32_t rc = responder->Respond(ctx, R"({"ok":true})");
         ExpectEqU32(tr, rc, ERROR_NONE, "Respond returns ERROR_NONE in L0 harness");
 
-        // Fake-only: validate disabling transport yields ERROR_UNAVAILABLE.
-        if (fake != nullptr) {
-            fake->SetTransportEnabled(false);
+        // Mock-only: validate disabling transport yields ERROR_UNAVAILABLE.
+        if (mock != nullptr) {
+            mock->SetTransportEnabled(false);
             rc = responder->Respond(ctx, R"({"ok":true})");
-            ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "Respond returns ERROR_UNAVAILABLE when transport is disabled (fake only)");
-            fake->Release();
-            fake = nullptr;
+            ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "Respond returns ERROR_UNAVAILABLE when transport is disabled (mock only)");
+            mock->Release();
+            mock = nullptr;
         } else {
-            std::cerr << "NOTE: ResponderFake not available; skipping transport-disable validation." << std::endl;
+            std::cerr << "NOTE: ResponderMock not available; skipping transport-disable validation." << std::endl;
         }
 
         responder->Release();
@@ -207,20 +207,20 @@ uint32_t Test_Responder_Emit_Success_And_Unavailable()
     ExpectTrue(tr, responder != nullptr, "Responder interface available");
 
     if (responder != nullptr) {
-        auto* fake = static_cast<L0Test::ResponderFake*>(responder->QueryInterface(L0Test::ID_RESPONDER_FAKE));
+        auto* mock = static_cast<L0Test::ResponderMock*>(responder->QueryInterface(L0Test::ID_RESPONDER_MOCK));
 
         GatewayContext ctx = MakeContext(3, 201, "com.y");
         uint32_t rc = responder->Emit(ctx, "event.name", R"({"a":1})");
         ExpectEqU32(tr, rc, ERROR_NONE, "Emit returns ERROR_NONE in L0 harness");
 
-        if (fake != nullptr) {
-            fake->SetTransportEnabled(false);
+        if (mock != nullptr) {
+            mock->SetTransportEnabled(false);
             rc = responder->Emit(ctx, "event.name", R"({"a":1})");
-            ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "Emit returns ERROR_UNAVAILABLE when transport is disabled (fake only)");
-            fake->Release();
-            fake = nullptr;
+            ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "Emit returns ERROR_UNAVAILABLE when transport is disabled (mock only)");
+            mock->Release();
+            mock = nullptr;
         } else {
-            std::cerr << "NOTE: ResponderFake not available; skipping transport-disable validation." << std::endl;
+            std::cerr << "NOTE: ResponderMock not available; skipping transport-disable validation." << std::endl;
         }
 
         responder->Release();
@@ -251,19 +251,19 @@ uint32_t Test_Responder_Request_Success_And_Unavailable()
     ExpectTrue(tr, responder != nullptr, "Responder interface available");
 
     if (responder != nullptr) {
-        auto* fake = static_cast<L0Test::ResponderFake*>(responder->QueryInterface(L0Test::ID_RESPONDER_FAKE));
+        auto* mock = static_cast<L0Test::ResponderMock*>(responder->QueryInterface(L0Test::ID_RESPONDER_MOCK));
 
         uint32_t rc = responder->Request(300 /*connectionId*/, 9 /*id*/, "method.x", R"({"b":2})");
         ExpectEqU32(tr, rc, ERROR_NONE, "Request returns ERROR_NONE in L0 harness");
 
-        if (fake != nullptr) {
-            fake->SetTransportEnabled(false);
+        if (mock != nullptr) {
+            mock->SetTransportEnabled(false);
             rc = responder->Request(300 /*connectionId*/, 10 /*id*/, "method.x", R"({"b":2})");
-            ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "Request returns ERROR_UNAVAILABLE when transport is disabled (fake only)");
-            fake->Release();
-            fake = nullptr;
+            ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "Request returns ERROR_UNAVAILABLE when transport is disabled (mock only)");
+            mock->Release();
+            mock = nullptr;
         } else {
-            std::cerr << "NOTE: ResponderFake not available; skipping transport-disable validation." << std::endl;
+            std::cerr << "NOTE: ResponderMock not available; skipping transport-disable validation." << std::endl;
         }
 
         responder->Release();
@@ -294,12 +294,12 @@ uint32_t Test_Responder_GetGatewayConnectionContext_Known_And_Unknown()
     ExpectTrue(tr, responder != nullptr, "Responder interface available");
 
     if (responder != nullptr) {
-        auto* fake = static_cast<L0Test::ResponderFake*>(responder->QueryInterface(L0Test::ID_RESPONDER_FAKE));
+        auto* mock = static_cast<L0Test::ResponderMock*>(responder->QueryInterface(L0Test::ID_RESPONDER_MOCK));
 
         const uint32_t cid = 410;
         bool usedEnvInjection = false;
-        if (fake != nullptr) {
-            fake->SetConnectionContext(cid, "header.user-agent", "UA/1.0");
+        if (mock != nullptr) {
+            mock->SetConnectionContext(cid, "header.user-agent", "UA/1.0");
         } else {
             // Real responder: use env-var injection hook (consumed by AppGatewayResponderImplementation).
             setenv("APPGATEWAY_TEST_CONN_ID", "410", 1);
@@ -310,9 +310,9 @@ uint32_t Test_Responder_GetGatewayConnectionContext_Known_And_Unknown()
 
         std::string value;
         uint32_t rc = responder->GetGatewayConnectionContext(cid, "header.user-agent", value);
-        if (fake != nullptr) {
-            ExpectEqU32(tr, rc, ERROR_NONE, "Fake returns ERROR_NONE for known key");
-            ExpectEqStr(tr, value, "UA/1.0", "Fake returns stored context value for known key");
+        if (mock != nullptr) {
+            ExpectEqU32(tr, rc, ERROR_NONE, "Mock returns ERROR_NONE for known key");
+            ExpectEqStr(tr, value, "UA/1.0", "Mock returns stored context value for known key");
         } else {
             ExpectEqU32(tr, rc, ERROR_NONE, "Implementation returns ERROR_NONE for known key");
             ExpectEqStr(tr, value, "", "Current implementation keeps context value empty (stub)");
@@ -320,16 +320,16 @@ uint32_t Test_Responder_GetGatewayConnectionContext_Known_And_Unknown()
 
         value.clear();
         rc = responder->GetGatewayConnectionContext(cid, "missing.key", value);
-        if (fake != nullptr) {
-            ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "Fake returns ERROR_BAD_REQUEST for unknown key");
+        if (mock != nullptr) {
+            ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "Mock returns ERROR_BAD_REQUEST for unknown key");
         } else {
             ExpectEqU32(tr, rc, ERROR_NONE, "Implementation returns ERROR_NONE for unknown key (current stub)");
         }
 
         value.clear();
         rc = responder->GetGatewayConnectionContext(999 /*unknown cid*/, "header.user-agent", value);
-        if (fake != nullptr) {
-            ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "Fake returns ERROR_BAD_REQUEST for unknown connection");
+        if (mock != nullptr) {
+            ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "Mock returns ERROR_BAD_REQUEST for unknown connection");
         } else {
             ExpectEqU32(tr, rc, ERROR_NONE, "Implementation returns ERROR_NONE for unknown connection (current stub)");
         }
@@ -340,9 +340,9 @@ uint32_t Test_Responder_GetGatewayConnectionContext_Known_And_Unknown()
             unsetenv("APPGATEWAY_TEST_CTX_VALUE");
         }
 
-        if (fake != nullptr) {
-            fake->Release();
-            fake = nullptr;
+        if (mock != nullptr) {
+            mock->Release();
+            mock = nullptr;
         }
 
         responder->Release();
