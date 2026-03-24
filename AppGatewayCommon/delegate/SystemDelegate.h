@@ -72,12 +72,7 @@ public:
         , _hdcpSubscribed(false)
         , _systemSubscribed(false)
     {
-        // Proactively subscribe to underlying Thunder events so we can react quickly.
-        // Actual dispatch to apps only happens if registrations exist (BaseEventDelegate check).
-        SetupDisplaySettingsSubscription();
-        SetupDisplaySettingsAudioSubscription();
-        SetupHdcpProfileSubscription();
-        SetupFriendlyNameSystemSub();
+            LOGINFO("SystemDelegate initialized");
     }
 
     ~SystemDelegate()
@@ -886,12 +881,12 @@ public:
             return false;
         }
 
-        const std::string newTz = "\"" + params[_T("newTimeZone")].String() + "\""; // wrap in quotes to make it a valid JSON string
+        const std::string newTz =  params[_T("newTimeZone")].String();
         if (newTz.empty()) {
             LOGERR("[AppGatewayCommon|TimezoneChanged] newTimeZone parameter is empty");
             return false;
         }
-        Dispatch(EVENT_ON_TIMEZONE_CHANGED, newTz);
+        Dispatch(EVENT_ON_TIMEZONE_CHANGED, "\"" + newTz + "\"");
         return true;
     }
 
