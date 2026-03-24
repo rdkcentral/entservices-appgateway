@@ -68,9 +68,6 @@ namespace Plugin {
         mService = service;
         mReportingStartTime = std::chrono::steady_clock::now();
 
-        // Initialize T2 telemetry
-        Utils::Telemetry::init();
-
         // Start the periodic reporting timer
         if (!mTimerRunning) {
             uint64_t intervalMs = static_cast<uint64_t>(mReportingIntervalSec) * 1000;
