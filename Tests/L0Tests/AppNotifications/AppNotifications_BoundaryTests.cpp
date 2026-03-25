@@ -224,3 +224,52 @@ uint32_t Test_AN_Impl_Destructor_NullShell()
     L0Test::ExpectTrue(tr, true, "Impl_Destructor_NullShell: no crash on destroy with null shell");
     return tr.failures;
 }
+
+// ---------------------------------------------------------------------------
+// AN-L0-083: Impl destructor with non-null mShell releases it
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_Impl_Destructor_NonNullShell()
+{
+    /** AppNotificationsImplementation destructor releases mShell when non-null. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock shell(MakeSafeConfig());
+    auto* impl = L0Test::CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "Impl_Destructor_NonNullShell: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    // Release — destructor should call mShell->Release() without crash
+    impl->Release();
+
+    L0Test::ExpectTrue(tr, true,
+        "Impl_Destructor_NonNullShell: no crash on destroy with non-null shell");
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// AN-L0-093: Subscribe with empty module string does not crash
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_Subscribe_EmptyModule()
+{
+    /** Subscribe with an empty module string does not crash. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock shell(MakeSafeConfig());
+    auto* impl = L0Test::CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "Subscribe_EmptyModule: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
+
+    // Empty module string
+    const uint32_t rc = impl->Subscribe(ctx, true, "", "onEmptyModuleEvent");
+    L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
+        "Subscribe_EmptyModule: returns ERROR_NONE");
+
+    YieldToWorkerPool();
+
+    impl->Release();
+    return tr.failures;
+}

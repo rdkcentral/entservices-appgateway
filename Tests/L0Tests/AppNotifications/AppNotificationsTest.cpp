@@ -25,6 +25,8 @@ extern uint32_t Test_AN_Initialize_ConfigureInterface();
 extern uint32_t Test_AN_Deinitialize_HappyPath();
 extern uint32_t Test_AN_Deinitialize_NullImpl();
 extern uint32_t Test_AN_Constructor_Destructor_Lifecycle();
+extern uint32_t Test_AN_Information_ReturnsEmpty();
+extern uint32_t Test_AN_Deactivated_MatchingConnectionId();
 
 // -----------------------------------------------------------------------
 // Forward declarations for tests in AppNotifications_SubscribeTests.cpp
@@ -39,6 +41,9 @@ extern uint32_t Test_AN_Cleanup_RemovesMatchingSubscribers();
 extern uint32_t Test_AN_Cleanup_EmptiesEntireKey();
 extern uint32_t Test_AN_Cleanup_NoMatch_NoCrash();
 extern uint32_t Test_AN_Cleanup_MultipleEvents();
+extern uint32_t Test_AN_Cleanup_PartialMatch_KeepsOthers();
+extern uint32_t Test_AN_Cleanup_DifferentOrigin_NoMatch();
+extern uint32_t Test_AN_Cleanup_EmptyMap_NoCrash();
 
 // -----------------------------------------------------------------------
 // Forward declarations for tests in AppNotifications_EmitTests.cpp
@@ -47,6 +52,7 @@ extern uint32_t Test_AN_Emit_SubmitsJob();
 extern uint32_t Test_AN_Emit_EmptyPayload();
 extern uint32_t Test_AN_Emit_EmptyAppId();
 extern uint32_t Test_AN_Configure_Success();
+extern uint32_t Test_AN_Configure_DoubleConfigure();
 
 // -----------------------------------------------------------------------
 // Forward declarations for tests in AppNotifications_SubscriberMapTests.cpp
@@ -70,6 +76,14 @@ extern uint32_t Test_AN_DispatchToGateway_LazyAcquire_Success();
 extern uint32_t Test_AN_DispatchToGateway_LazyAcquire_Failure();
 extern uint32_t Test_AN_DispatchToLaunchDelegate_LazyAcquire_Success();
 extern uint32_t Test_AN_DispatchToLaunchDelegate_LazyAcquire_Failure();
+extern uint32_t Test_AN_EventUpdate_VersionedEventName();
+extern uint32_t Test_AN_EventUpdate_AppId_NonMatch_Skipped();
+extern uint32_t Test_AN_DispatchToGateway_CachedRespnder_Reuse();
+extern uint32_t Test_AN_DispatchToLaunchDelegate_CachedResponder_Reuse();
+extern uint32_t Test_AN_SubscriberMap_Destructor_ReleasesResponders();
+extern uint32_t Test_AN_Emit_MixedOrigins_DispatchBoth();
+extern uint32_t Test_AN_EventUpdate_NonVersionedEventName();
+extern uint32_t Test_AN_Emit_SpecificAppId_MatchesOne();
 
 // -----------------------------------------------------------------------
 // Forward declarations for tests in AppNotifications_ThunderManagerTests.cpp
@@ -89,6 +103,9 @@ extern uint32_t Test_AN_IsNotificationRegistered_Exists();
 extern uint32_t Test_AN_IsNotificationRegistered_NotExists();
 extern uint32_t Test_AN_IsNotificationRegistered_CaseInsensitive();
 extern uint32_t Test_AN_ThunderMgr_Destructor_UnsubscribesAll();
+extern uint32_t Test_AN_Emitter_Emit_Callback();
+extern uint32_t Test_AN_SubscriberJob_Dispatch_Subscribe();
+extern uint32_t Test_AN_SubscriberJob_Dispatch_Unsubscribe();
 
 // -----------------------------------------------------------------------
 // Forward declarations for tests in AppNotifications_ContextEqualityTests.cpp
@@ -109,6 +126,9 @@ extern uint32_t Test_AN_Boundary_Cleanup_ZeroConnectionId();
 extern uint32_t Test_AN_Boundary_MaxUint32_ConnectionId();
 extern uint32_t Test_AN_Boundary_MaxUint32_RequestId();
 extern uint32_t Test_AN_Impl_Destructor_NullShell();
+extern uint32_t Test_AN_Impl_Destructor_NonNullShell();
+extern uint32_t Test_AN_Subscribe_EmptyModule();
+
 
 int main()
 {
@@ -128,6 +148,8 @@ int main()
         { "AN_Deinitialize_HappyPath",                       Test_AN_Deinitialize_HappyPath                        },
         { "AN_Deinitialize_NullImpl",                        Test_AN_Deinitialize_NullImpl                         },
         { "AN_Constructor_Destructor_Lifecycle",             Test_AN_Constructor_Destructor_Lifecycle              },
+        { "AN_Information_ReturnsEmpty",                     Test_AN_Information_ReturnsEmpty                      },
+        { "AN_Deactivated_MatchingConnectionId",             Test_AN_Deactivated_MatchingConnectionId              },
 
         // Subscribe / Unsubscribe / Cleanup tests
         { "AN_Subscribe_FirstListener_TriggersThunderSub",   Test_AN_Subscribe_FirstListener_TriggersThunderSub    },
@@ -140,12 +162,16 @@ int main()
         { "AN_Cleanup_EmptiesEntireKey",                     Test_AN_Cleanup_EmptiesEntireKey                      },
         { "AN_Cleanup_NoMatch_NoCrash",                      Test_AN_Cleanup_NoMatch_NoCrash                       },
         { "AN_Cleanup_MultipleEvents",                       Test_AN_Cleanup_MultipleEvents                        },
+        { "AN_Cleanup_PartialMatch_KeepsOthers",             Test_AN_Cleanup_PartialMatch_KeepsOthers              },
+        { "AN_Cleanup_DifferentOrigin_NoMatch",              Test_AN_Cleanup_DifferentOrigin_NoMatch               },
+        { "AN_Cleanup_EmptyMap_NoCrash",                     Test_AN_Cleanup_EmptyMap_NoCrash                      },
 
         // Emit / Configure tests
         { "AN_Emit_SubmitsJob",                              Test_AN_Emit_SubmitsJob                               },
         { "AN_Emit_EmptyPayload",                            Test_AN_Emit_EmptyPayload                             },
         { "AN_Emit_EmptyAppId",                              Test_AN_Emit_EmptyAppId                               },
         { "AN_Configure_Success",                            Test_AN_Configure_Success                             },
+        { "AN_Configure_DoubleConfigure",                    Test_AN_Configure_DoubleConfigure                     },
 
         // SubscriberMap tests
         { "AN_SubscriberMap_Add_NewKey",                     Test_AN_SubscriberMap_Add_NewKey                      },
@@ -167,6 +193,14 @@ int main()
         { "AN_DispatchToGateway_LazyAcquire_Failure",        Test_AN_DispatchToGateway_LazyAcquire_Failure         },
         { "AN_DispatchToLaunchDelegate_LazyAcquire_Success", Test_AN_DispatchToLaunchDelegate_LazyAcquire_Success  },
         { "AN_DispatchToLaunchDelegate_LazyAcquire_Failure", Test_AN_DispatchToLaunchDelegate_LazyAcquire_Failure  },
+        { "AN_EventUpdate_VersionedEventName",               Test_AN_EventUpdate_VersionedEventName                },
+        { "AN_EventUpdate_AppId_NonMatch_Skipped",           Test_AN_EventUpdate_AppId_NonMatch_Skipped            },
+        { "AN_DispatchToGateway_CachedResponder_Reuse",      Test_AN_DispatchToGateway_CachedRespnder_Reuse        },
+        { "AN_DispatchToLaunchDelegate_CachedResponder_Reuse", Test_AN_DispatchToLaunchDelegate_CachedResponder_Reuse },
+        { "AN_SubscriberMap_Destructor_ReleasesResponders",  Test_AN_SubscriberMap_Destructor_ReleasesResponders   },
+        { "AN_Emit_MixedOrigins_DispatchBoth",               Test_AN_Emit_MixedOrigins_DispatchBoth                },
+        { "AN_EventUpdate_NonVersionedEventName",            Test_AN_EventUpdate_NonVersionedEventName             },
+        { "AN_Emit_SpecificAppId_MatchesOne",                Test_AN_Emit_SpecificAppId_MatchesOne                 },
 
         // ThunderSubscriptionManager tests
         { "AN_ThunderMgr_Subscribe_NewEvent",                Test_AN_ThunderMgr_Subscribe_NewEvent                 },
@@ -184,6 +218,9 @@ int main()
         { "AN_IsNotificationRegistered_NotExists",           Test_AN_IsNotificationRegistered_NotExists            },
         { "AN_IsNotificationRegistered_CaseInsensitive",     Test_AN_IsNotificationRegistered_CaseInsensitive      },
         { "AN_ThunderMgr_Destructor_UnsubscribesAll",        Test_AN_ThunderMgr_Destructor_UnsubscribesAll         },
+        { "AN_Emitter_Emit_Callback",                        Test_AN_Emitter_Emit_Callback                         },
+        { "AN_SubscriberJob_Dispatch_Subscribe",             Test_AN_SubscriberJob_Dispatch_Subscribe              },
+        { "AN_SubscriberJob_Dispatch_Unsubscribe",           Test_AN_SubscriberJob_Dispatch_Unsubscribe            },
 
         // Context equality tests
         { "AN_AppNotificationContext_Equality",              Test_AN_AppNotificationContext_Equality               },
@@ -200,6 +237,8 @@ int main()
         { "AN_Boundary_MaxUint32_ConnectionId",              Test_AN_Boundary_MaxUint32_ConnectionId               },
         { "AN_Boundary_MaxUint32_RequestId",                 Test_AN_Boundary_MaxUint32_RequestId                  },
         { "AN_Impl_Destructor_NullShell",                    Test_AN_Impl_Destructor_NullShell                     },
+        { "AN_Impl_Destructor_NonNullShell",                 Test_AN_Impl_Destructor_NonNullShell                  },
+        { "AN_Subscribe_EmptyModule",                        Test_AN_Subscribe_EmptyModule                         },
     };
 
     uint32_t failures = 0;

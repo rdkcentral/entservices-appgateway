@@ -711,3 +711,140 @@ uint32_t Test_AN_ThunderMgr_Destructor_UnsubscribesAll()
 
     return tr.failures;
 }
+
+// ---------------------------------------------------------------------------
+// AN-L0-085: Emitter::Emit() callback invoked through handler fake
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_Emitter_Emit_Callback()
+{
+    /** When HandleAppEventNotifier is called, the Emitter callback is provided.
+     *  Calling Emitter::Emit() dispatches through the impl's EmitJob path. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock::Config cfg;
+    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.provideNotificationHandler  = true;
+    cfg.handlerStatusResult         = true;
+    L0Test::AppNotificationsServiceMock shell(cfg);
+    auto* impl = CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "Emitter_Emit_Callback: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    // Subscribe a context so there's a listener for the emitter to target
+    auto ctx = MakeContext(10, 1001, "com.emitter.app", "org.rdk.AppGateway");
+    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onEmitterTestEvent");
+    YieldToWorkerPool();
+
+    // Get the handler fake to access the emitter callback
+    L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
+    L0Test::ExpectTrue(tr, handler != nullptr,
+        "Emitter_Emit_Callback: handler fake should exist");
+    L0Test::ExpectTrue(tr, handler != nullptr && handler->lastEmitter != nullptr,
+        "Emitter_Emit_Callback: emitter should be non-null");
+
+    if (handler != nullptr && handler->lastEmitter != nullptr) {
+        // Call the Emitter::Emit() method directly through the IEmitter interface
+        handler->lastEmitter->Emit("onEmitterTestEvent", R"({"emitter":"callback"})", "");
+        YieldToWorkerPool();
+
+        // Verify the AppGateway responder received the dispatch
+        L0Test::ANResponderFake* gw = shell.GetAppGatewayFake();
+        L0Test::ExpectTrue(tr, gw != nullptr,
+            "Emitter_Emit_Callback: AppGateway responder should be acquired");
+        if (gw != nullptr) {
+            L0Test::ExpectTrue(tr, gw->emitCount > 0,
+                "Emitter_Emit_Callback: Emit dispatched through emitter callback");
+        }
+    }
+
+    // Unsubscribe to clear mRegisteredNotifications before release
+    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onEmitterTestEvent");
+    YieldToWorkerPool();
+
+    impl->Release();
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// AN-L0-095: SubscriberJob::Dispatch subscribe=true branch (explicit verify)
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_SubscriberJob_Dispatch_Subscribe()
+{
+    /** SubscriberJob::Dispatch with subscribe=true calls
+     *  ThunderSubscriptionManager::Subscribe. Verified via handler invocation. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock::Config cfg;
+    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.provideNotificationHandler  = true;
+    cfg.handlerStatusResult         = true;
+    L0Test::AppNotificationsServiceMock shell(cfg);
+    auto* impl = CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "SubscriberJob_Dispatch_Subscribe: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
+    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onJobSubEvent");
+    YieldToWorkerPool();
+
+    L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
+    L0Test::ExpectTrue(tr, handler != nullptr && handler->handleCount >= 1,
+        "SubscriberJob_Dispatch_Subscribe: handler called (subscribe branch)");
+    if (handler != nullptr) {
+        L0Test::ExpectTrue(tr, handler->lastListen,
+            "SubscriberJob_Dispatch_Subscribe: last call should be listen=true");
+    }
+
+    // Cleanup: unsubscribe to drain mRegisteredNotifications
+    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onJobSubEvent");
+    YieldToWorkerPool();
+
+    impl->Release();
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// AN-L0-096: SubscriberJob::Dispatch subscribe=false branch (explicit verify)
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_SubscriberJob_Dispatch_Unsubscribe()
+{
+    /** SubscriberJob::Dispatch with subscribe=false calls
+     *  ThunderSubscriptionManager::Unsubscribe. Verified via handler invocation. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock::Config cfg;
+    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.provideNotificationHandler  = true;
+    cfg.handlerStatusResult         = true;
+    L0Test::AppNotificationsServiceMock shell(cfg);
+    auto* impl = CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "SubscriberJob_Dispatch_Unsubscribe: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
+
+    // Subscribe first
+    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onJobUnsubEvent");
+    YieldToWorkerPool();
+
+    L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
+    uint32_t countAfterSub = handler ? handler->handleCount : 0u;
+
+    // Unsubscribe — last listener, so SubscriberJob(unsub) is enqueued
+    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onJobUnsubEvent");
+    YieldToWorkerPool();
+
+    if (handler != nullptr) {
+        L0Test::ExpectTrue(tr, handler->handleCount > countAfterSub,
+            "SubscriberJob_Dispatch_Unsubscribe: handler called for unsubscribe branch");
+        L0Test::ExpectTrue(tr, !handler->lastListen,
+            "SubscriberJob_Dispatch_Unsubscribe: last call should be listen=false");
+    }
+
+    // mRegisteredNotifications drained by the unsubscribe — safe to release
+    impl->Release();
+    return tr.failures;
+}

@@ -194,3 +194,40 @@ uint32_t Test_AN_Configure_Success()
     rawImpl->Release();
     return tr.failures;
 }
+
+// ---------------------------------------------------------------------------
+// AN-L0-084: Configure() called twice does not crash
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_Configure_DoubleConfigure()
+{
+    /** Calling Configure() twice does not crash (leaks a ref, but safe). */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock::Config safeCfg;
+    safeCfg.provideNotificationHandler = false;
+    L0Test::AppNotificationsServiceMock shell(safeCfg);
+    auto* rawImpl = L0Test::CreateRawImpl();
+    L0Test::ExpectTrue(tr, rawImpl != nullptr,
+        "Configure_DoubleConfigure: impl creation");
+    if (rawImpl == nullptr) { return tr.failures; }
+
+    auto* cfg = rawImpl->QueryInterface<IConfiguration>();
+    L0Test::ExpectTrue(tr, cfg != nullptr,
+        "Configure_DoubleConfigure: IConfiguration available");
+
+    if (cfg != nullptr) {
+        const uint32_t rc1 = cfg->Configure(&shell);
+        L0Test::ExpectEqU32(tr, rc1, static_cast<uint32_t>(ERROR_NONE),
+            "Configure_DoubleConfigure: first Configure returns ERROR_NONE");
+
+        // Second Configure — should not crash
+        const uint32_t rc2 = cfg->Configure(&shell);
+        L0Test::ExpectEqU32(tr, rc2, static_cast<uint32_t>(ERROR_NONE),
+            "Configure_DoubleConfigure: second Configure returns ERROR_NONE");
+
+        cfg->Release();
+    }
+
+    rawImpl->Release();
+    return tr.failures;
+}

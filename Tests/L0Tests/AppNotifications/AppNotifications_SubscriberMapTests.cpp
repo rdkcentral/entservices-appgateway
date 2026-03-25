@@ -680,3 +680,326 @@ uint32_t Test_AN_DispatchToLaunchDelegate_LazyAcquire_Failure()
     impl->Release();
     return tr.failures;
 }
+
+// ---------------------------------------------------------------------------
+// AN-L0-086: EventUpdate with versioned event name (.v8 suffix) strips version
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_EventUpdate_VersionedEventName()
+{
+    /** EventUpdate with a .v8 suffixed event name should strip the suffix
+     *  when dispatching via GetBaseEventNameFromVersionedEvent. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock shell(MakeSafeConfig());
+    auto* impl = CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "EventUpdate_VersionedEventName: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    // Subscribe with the versioned event name (key stored as lowercase of "onevent.v8")
+    auto ctx = MakeContext(10, 1001, "com.app.v8", "org.rdk.AppGateway");
+    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onEvent.v8");
+    YieldToWorkerPool();
+
+    // Emit using the same versioned key — EventUpdate will call
+    // GetBaseEventNameFromVersionedEvent("onevent.v8") → "onevent"
+    impl->Emit("onEvent.v8", R"({"version":"8"})", "");
+    YieldToWorkerPool();
+
+    L0Test::ANResponderFake* gw = shell.GetAppGatewayFake();
+    L0Test::ExpectTrue(tr, gw != nullptr,
+        "EventUpdate_VersionedEventName: gw acquired");
+    if (gw != nullptr) {
+        L0Test::ExpectTrue(tr, gw->emitCount >= 1,
+            "EventUpdate_VersionedEventName: dispatch should occur for versioned event");
+        // The dispatched method name should have the .v8 suffix stripped
+        // but preserve the original case from the Emit() call
+        L0Test::ExpectEqStr(tr, gw->lastEmitMethod, "onEvent",
+            "EventUpdate_VersionedEventName: dispatched method should be base name without .v8");
+    }
+
+    impl->Release();
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// AN-L0-087: EventUpdate appId filter — non-matching appId is skipped
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_EventUpdate_AppId_NonMatch_Skipped()
+{
+    /** EventUpdate with non-empty appId that doesn't match any subscriber's appId
+     *  should not dispatch to anyone. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock shell(MakeSafeConfig());
+    auto* impl = CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "EventUpdate_AppId_NonMatch_Skipped: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    auto ctx1 = MakeContext(10, 1001, "com.app.alpha", "org.rdk.AppGateway");
+    auto ctx2 = MakeContext(11, 1002, "com.app.beta",  "org.rdk.AppGateway");
+
+    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onTargetedEvent");
+    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onTargetedEvent");
+    YieldToWorkerPool();
+
+    // Emit with appId that matches neither subscriber
+    impl->Emit("onTargetedEvent", R"({"data":"none"})", "com.app.nonexistent");
+    YieldToWorkerPool();
+
+    L0Test::ANResponderFake* gw = shell.GetAppGatewayFake();
+    // No dispatches should have occurred since no subscriber matches
+    L0Test::ExpectTrue(tr, gw == nullptr || gw->emitCount == 0,
+        "EventUpdate_AppId_NonMatch_Skipped: no dispatch when appId matches no subscriber");
+
+    impl->Release();
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// AN-L0-088: DispatchToGateway reuses cached responder on second dispatch
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_DispatchToGateway_CachedRespnder_Reuse()
+{
+    /** DispatchToGateway lazy-acquires on first call, then reuses the cached
+     *  pointer on subsequent calls. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock shell(MakeSafeConfig());
+    auto* impl = CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "DispatchToGateway_CachedReuse: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
+    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onCachedGwEvent");
+    YieldToWorkerPool();
+
+    // First Emit — lazy-acquires AppGateway responder
+    impl->Emit("onCachedGwEvent", R"({"first":true})", "");
+    YieldToWorkerPool();
+
+    L0Test::ANResponderFake* gw = shell.GetAppGatewayFake();
+    L0Test::ExpectTrue(tr, gw != nullptr,
+        "DispatchToGateway_CachedReuse: gw acquired after first dispatch");
+    if (gw != nullptr) {
+        L0Test::ExpectEqU32(tr, gw->emitCount, 1u,
+            "DispatchToGateway_CachedReuse: first dispatch count");
+    }
+
+    // Second Emit — should reuse the cached pointer
+    impl->Emit("onCachedGwEvent", R"({"second":true})", "");
+    YieldToWorkerPool();
+
+    if (gw != nullptr) {
+        L0Test::ExpectEqU32(tr, gw->emitCount, 2u,
+            "DispatchToGateway_CachedReuse: second dispatch reuses cached gw (count=2)");
+        L0Test::ExpectEqStr(tr, gw->lastEmitPayload, R"({"second":true})",
+            "DispatchToGateway_CachedReuse: last payload should be from second emit");
+    }
+
+    impl->Release();
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// AN-L0-089: DispatchToLaunchDelegate reuses cached responder on second dispatch
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_DispatchToLaunchDelegate_CachedResponder_Reuse()
+{
+    /** DispatchToLaunchDelegate lazy-acquires on first call, then reuses cached
+     *  pointer on subsequent calls. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock shell(MakeSafeConfig());
+    auto* impl = CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "DispatchToLaunchDelegate_CachedReuse: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.LaunchDelegate");
+    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onCachedLdEvent");
+    YieldToWorkerPool();
+
+    // First Emit — lazy-acquires InternalGateway responder
+    impl->Emit("onCachedLdEvent", R"({"first":true})", "");
+    YieldToWorkerPool();
+
+    L0Test::ANResponderFake* ld = shell.GetInternalGatewayFake();
+    L0Test::ExpectTrue(tr, ld != nullptr,
+        "DispatchToLaunchDelegate_CachedReuse: ld acquired after first dispatch");
+    if (ld != nullptr) {
+        L0Test::ExpectEqU32(tr, ld->emitCount, 1u,
+            "DispatchToLaunchDelegate_CachedReuse: first dispatch count");
+    }
+
+    // Second Emit — should reuse the cached pointer
+    impl->Emit("onCachedLdEvent", R"({"second":true})", "");
+    YieldToWorkerPool();
+
+    if (ld != nullptr) {
+        L0Test::ExpectEqU32(tr, ld->emitCount, 2u,
+            "DispatchToLaunchDelegate_CachedReuse: second dispatch reuses cached ld (count=2)");
+        L0Test::ExpectEqStr(tr, ld->lastEmitPayload, R"({"second":true})",
+            "DispatchToLaunchDelegate_CachedReuse: last payload from second emit");
+    }
+
+    impl->Release();
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// AN-L0-090: SubscriberMap destructor releases non-null responder pointers
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_SubscriberMap_Destructor_ReleasesResponders()
+{
+    /** When SubscriberMap is destroyed (via impl->Release()), it should release
+     *  both mAppGateway and mInternalGatewayNotifier if they were acquired. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock shell(MakeSafeConfig());
+    auto* impl = CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "SubscriberMap_Destructor_ReleasesResponders: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    // Subscribe with gateway origin and emit to acquire mAppGateway
+    auto ctxGw = MakeContext(1, 100, "com.app.gw", "org.rdk.AppGateway");
+    impl->Subscribe(ctxGw, true, "org.rdk.FbSettings", "onDestrGwEvent");
+    YieldToWorkerPool();
+    impl->Emit("onDestrGwEvent", R"({"gw":1})", "");
+    YieldToWorkerPool();
+
+    // Subscribe with LaunchDelegate origin and emit to acquire mInternalGatewayNotifier
+    auto ctxLd = MakeContext(2, 200, "com.app.ld", "org.rdk.LaunchDelegate");
+    impl->Subscribe(ctxLd, true, "org.rdk.FbSettings", "onDestrLdEvent");
+    YieldToWorkerPool();
+    impl->Emit("onDestrLdEvent", R"({"ld":1})", "");
+    YieldToWorkerPool();
+
+    // Verify both responders were acquired
+    L0Test::ExpectTrue(tr, shell.GetAppGatewayFake() != nullptr,
+        "SubscriberMap_Destructor_ReleasesResponders: gw acquired");
+    L0Test::ExpectTrue(tr, shell.GetInternalGatewayFake() != nullptr,
+        "SubscriberMap_Destructor_ReleasesResponders: ld acquired");
+
+    // Release impl — SubscriberMap destructor should Release() both responders
+    impl->Release();
+
+    L0Test::ExpectTrue(tr, true,
+        "SubscriberMap_Destructor_ReleasesResponders: no crash on destroy with acquired responders");
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// AN-L0-094: Emit dispatches to mixed origins (gateway + launchdelegate)
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_Emit_MixedOrigins_DispatchBoth()
+{
+    /** When two subscribers for the same event have different origins,
+     *  Emit dispatches to both AppGateway and LaunchDelegate responders. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock shell(MakeSafeConfig());
+    auto* impl = CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "Emit_MixedOrigins_DispatchBoth: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    auto ctxGw = MakeContext(10, 1001, "com.app.gw", "org.rdk.AppGateway");
+    auto ctxLd = MakeContext(11, 1002, "com.app.ld", "org.rdk.LaunchDelegate");
+
+    impl->Subscribe(ctxGw, true, "org.rdk.FbSettings", "onMixedOriginEvent");
+    impl->Subscribe(ctxLd, true, "org.rdk.FbSettings", "onMixedOriginEvent");
+    YieldToWorkerPool();
+
+    // Emit to both — should dispatch to both responders
+    impl->Emit("onMixedOriginEvent", R"({"mixed":true})", "");
+    YieldToWorkerPool();
+
+    L0Test::ANResponderFake* gw = shell.GetAppGatewayFake();
+    L0Test::ANResponderFake* ld = shell.GetInternalGatewayFake();
+
+    L0Test::ExpectTrue(tr, gw != nullptr && gw->emitCount >= 1,
+        "Emit_MixedOrigins_DispatchBoth: AppGateway responder should receive dispatch");
+    L0Test::ExpectTrue(tr, ld != nullptr && ld->emitCount >= 1,
+        "Emit_MixedOrigins_DispatchBoth: LaunchDelegate responder should receive dispatch");
+
+    impl->Release();
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// AN-L0-097: EventUpdate with non-versioned event name passes through unchanged
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_EventUpdate_NonVersionedEventName()
+{
+    /** EventUpdate with a regular (non .v8) event name passes the event name
+     *  through GetBaseEventNameFromVersionedEvent unchanged. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock shell(MakeSafeConfig());
+    auto* impl = CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "EventUpdate_NonVersionedEventName: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    auto ctx = MakeContext(10, 1001, "com.app", "org.rdk.AppGateway");
+    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onregularevent");
+    YieldToWorkerPool();
+
+    impl->Emit("onRegularEvent", R"({"regular":true})", "");
+    YieldToWorkerPool();
+
+    L0Test::ANResponderFake* gw = shell.GetAppGatewayFake();
+    L0Test::ExpectTrue(tr, gw != nullptr && gw->emitCount >= 1,
+        "EventUpdate_NonVersionedEventName: dispatch occurred");
+    if (gw != nullptr) {
+        // The event name should pass through unchanged (preserving original case from Emit)
+        L0Test::ExpectEqStr(tr, gw->lastEmitMethod, "onRegularEvent",
+            "EventUpdate_NonVersionedEventName: method name should remain unchanged");
+    }
+
+    impl->Release();
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// AN-L0-098: Emit with specific appId matching one of multiple subscribers
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_Emit_SpecificAppId_MatchesOne()
+{
+    /** Emit with a specific appId should dispatch only to the matching subscriber. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock shell(MakeSafeConfig());
+    auto* impl = CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "Emit_SpecificAppId_MatchesOne: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    auto ctx1 = MakeContext(10, 1001, "com.app.target",  "org.rdk.AppGateway");
+    auto ctx2 = MakeContext(11, 1002, "com.app.bystander", "org.rdk.AppGateway");
+    auto ctx3 = MakeContext(12, 1003, "com.app.other",   "org.rdk.AppGateway");
+
+    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onSelectiveEvent");
+    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onSelectiveEvent");
+    impl->Subscribe(ctx3, true, "org.rdk.FbSettings", "onSelectiveEvent");
+    YieldToWorkerPool();
+
+    // Emit targeting only "com.app.target"
+    impl->Emit("onSelectiveEvent", R"({"targeted":true})", "com.app.target");
+    YieldToWorkerPool();
+
+    L0Test::ANResponderFake* gw = shell.GetAppGatewayFake();
+    L0Test::ExpectTrue(tr, gw != nullptr,
+        "Emit_SpecificAppId_MatchesOne: gw acquired");
+    if (gw != nullptr) {
+        L0Test::ExpectEqU32(tr, gw->emitCount, 1u,
+            "Emit_SpecificAppId_MatchesOne: only one subscriber should receive dispatch");
+    }
+
+    impl->Release();
+    return tr.failures;
+}

@@ -379,3 +379,118 @@ uint32_t Test_AN_Cleanup_MultipleEvents()
     impl->Release();
     return tr.failures;
 }
+
+// ---------------------------------------------------------------------------
+// AN-L0-091: CleanupNotifications partial match — keeps non-matching contexts
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_Cleanup_PartialMatch_KeepsOthers()
+{
+    /** CleanupNotifications removes only matching contexts; non-matching contexts
+     *  remain and still receive events. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock::Config shellCfg;
+    shellCfg.provideNotificationHandler = false;
+    L0Test::AppNotificationsServiceMock shell(shellCfg);
+    auto* impl = CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "Cleanup_PartialMatch_KeepsOthers: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    // Subscribe 3 contexts: 2 with matching connectionId+origin, 1 with different
+    auto ctx1 = MakeContext(50, 1001, "com.app.one",   "org.rdk.AppGateway");
+    auto ctx2 = MakeContext(50, 1002, "com.app.two",   "org.rdk.AppGateway");
+    auto ctx3 = MakeContext(51, 1003, "com.app.three", "org.rdk.AppGateway");
+
+    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onPartialClean");
+    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onPartialClean");
+    impl->Subscribe(ctx3, true, "org.rdk.FbSettings", "onPartialClean");
+    YieldToWorkerPool();
+
+    // Cleanup connectionId=50 — ctx1 and ctx2 removed, ctx3 remains
+    const uint32_t rcClean = impl->Cleanup(50, "org.rdk.AppGateway");
+    L0Test::ExpectEqU32(tr, rcClean, static_cast<uint32_t>(ERROR_NONE),
+        "Cleanup_PartialMatch_KeepsOthers: Cleanup returns ERROR_NONE");
+
+    // Emit — only ctx3 (connId=51) should still receive the event
+    impl->Emit("onPartialClean", R"({"after":"cleanup"})", "");
+    YieldToWorkerPool();
+
+    L0Test::ANResponderFake* gw = shell.GetAppGatewayFake();
+    L0Test::ExpectTrue(tr, gw != nullptr,
+        "Cleanup_PartialMatch_KeepsOthers: gw acquired");
+    if (gw != nullptr) {
+        // Only 1 context (ctx3) should have received the dispatch
+        L0Test::ExpectEqU32(tr, gw->emitCount, 1u,
+            "Cleanup_PartialMatch_KeepsOthers: only surviving context should receive event");
+    }
+
+    impl->Release();
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// AN-L0-092: CleanupNotifications with different origins — only exact match removed
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_Cleanup_DifferentOrigin_NoMatch()
+{
+    /** CleanupNotifications matches both connectionId AND origin; different origin
+     *  should not remove the context. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock::Config shellCfg;
+    shellCfg.provideNotificationHandler = false;
+    L0Test::AppNotificationsServiceMock shell(shellCfg);
+    auto* impl = CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "Cleanup_DifferentOrigin_NoMatch: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    auto ctx = MakeContext(60, 1001, "com.app", "org.rdk.AppGateway");
+    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onOriginTest");
+    YieldToWorkerPool();
+
+    // Cleanup with matching connId but different origin — should NOT remove
+    const uint32_t rcClean = impl->Cleanup(60, "org.rdk.LaunchDelegate");
+    L0Test::ExpectEqU32(tr, rcClean, static_cast<uint32_t>(ERROR_NONE),
+        "Cleanup_DifferentOrigin_NoMatch: returns ERROR_NONE");
+
+    // Emit — context should still be active (origin didn't match cleanup)
+    impl->Emit("onOriginTest", R"({"still":"active"})", "");
+    YieldToWorkerPool();
+
+    L0Test::ANResponderFake* gw = shell.GetAppGatewayFake();
+    L0Test::ExpectTrue(tr, gw != nullptr && gw->emitCount >= 1,
+        "Cleanup_DifferentOrigin_NoMatch: context should still receive events after mismatched cleanup");
+
+    impl->Release();
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// AN-L0-099: Cleanup on empty SubscriberMap does not crash
+// ---------------------------------------------------------------------------
+uint32_t Test_AN_Cleanup_EmptyMap_NoCrash()
+{
+    /** Cleanup() on an impl with no subscribers (empty map) does not crash. */
+    L0Test::TestResult tr;
+
+    L0Test::AppNotificationsServiceMock::Config shellCfg;
+    shellCfg.provideNotificationHandler = false;
+    L0Test::AppNotificationsServiceMock shell(shellCfg);
+    auto* impl = CreateConfiguredImpl(&shell);
+    L0Test::ExpectTrue(tr, impl != nullptr,
+        "Cleanup_EmptyMap_NoCrash: impl creation");
+    if (impl == nullptr) { return tr.failures; }
+
+    // No Subscribe calls — map is completely empty
+    const uint32_t rcClean = impl->Cleanup(1, "org.rdk.AppGateway");
+    L0Test::ExpectEqU32(tr, rcClean, static_cast<uint32_t>(ERROR_NONE),
+        "Cleanup_EmptyMap_NoCrash: returns ERROR_NONE");
+
+    L0Test::ExpectTrue(tr, true,
+        "Cleanup_EmptyMap_NoCrash: no crash with empty subscriber map");
+
+    impl->Release();
+    return tr.failures;
+}

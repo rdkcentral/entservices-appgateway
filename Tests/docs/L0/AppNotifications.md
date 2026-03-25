@@ -18,6 +18,8 @@ Below is a categorized quick reference for all L0 AppNotifications unit tests. E
 | AN-L0-011 Impl_Destructor_ShellRelease         | Impl destructor releases configured shell. |
 | AN-L0-012 Impl_Destructor_NullShell            | Impl destructor handles no-shell case without crash. |
 | AN-L0-013 Configure_Success                    | Configure stores IShell and calls AddRef; returns ERROR_NONE. |
+| AN-L0-084 Information_ReturnsEmpty             | Information() returns empty string (no metadata). |
+| AN-L0-085 Configure_DoubleConfigure            | Calling Configure() twice returns ERROR_NONE both times without crash. |
 
 ## Subscription, Unsubscription, Cleanup
 | Test ID                | Description |
@@ -35,6 +37,9 @@ Below is a categorized quick reference for all L0 AppNotifications unit tests. E
 | AN-L0-024 Cleanup_EmptiesEntireKey                        | Cleanup removes key from map when last context is erased. |
 | AN-L0-025 Cleanup_NoMatch_NoCrash                         | Cleanup on no matches is a safe no-op. |
 | AN-L0-026 Cleanup_MultipleEvents                          | Cleanup removes subscribers across multiple events. |
+| AN-L0-086 Cleanup_PartialMatch_KeepsOthers                | Cleanup removes matching contexts but keeps non-matching ones in the same key. |
+| AN-L0-087 Cleanup_DifferentOrigin_NoMatch                 | Cleanup with a different origin leaves all subscribers intact. |
+| AN-L0-088 Cleanup_EmptyMap_NoCrash                        | Cleanup on an empty subscriber map is a safe no-op. |
 
 ## Subscriber Map Implementation
 | Test ID                              | Description |
@@ -57,6 +62,10 @@ Below is a categorized quick reference for all L0 AppNotifications unit tests. E
 | AN-L0-038 EventUpdate_FilterByAppId           | appId filter delivers event to only matching listener. |
 | AN-L0-039 EventUpdate_NoListeners_LogWarning  | No subscribers logs warning, no crash. |
 | AN-L0-040 EventUpdate_VersionedEventKey       | Versioned event keys are converted for dispatch. |
+| AN-L0-089 EventUpdate_NonVersionedEventName   | Non-versioned event name is passed through unchanged to dispatch. |
+| AN-L0-090 EventUpdate_AppId_NonMatch_Skipped  | EventUpdate with non-matching appId skips dispatch for that listener. |
+| AN-L0-091 Emit_MixedOrigins_DispatchBoth      | Emit dispatches to both gateway and non-gateway origin subscribers. |
+| AN-L0-092 Emit_SpecificAppId_MatchesOne       | Emit with specific appId dispatches only to the matching subscriber. |
 | AN-L0-041 Dispatch_OriginGateway              | Gateway-origin context uses DispatchToGateway. |
 | AN-L0-042 Dispatch_OriginNonGateway           | Non-gateway origin uses DispatchToLaunchDelegate. |
 | AN-L0-043 DispatchToGateway_LazyAcquire_Success | Handles lazy lookup for responder interface. |
