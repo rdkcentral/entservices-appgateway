@@ -36,8 +36,26 @@
 
 #include <sys/stat.h>
 #include <cstdio>
+#include <unistd.h>
 
 using namespace WPEFramework;
+
+namespace {
+// Removes /opt/ai2managers whether it is a file or a directory.
+// std::remove() only works on files; a stale directory would be
+// silently left behind, causing subsequent tests to malfunction.
+inline void RemoveAi2managers()
+{
+    const char* path = "/opt/ai2managers";
+    struct stat st;
+    if (stat(path, &st) != 0) return;          // nothing to remove
+    if (S_ISDIR(st.st_mode)) {
+        rmdir(path);                           // empty directory
+    } else {
+        std::remove(path);                     // regular file
+    }
+}
+} // anonymous namespace
 using namespace WPEFramework::Plugin;
 using ::testing::_;
 using ::testing::AnyNumber;
@@ -95,11 +113,14 @@ protected:
     Exchange::ILifecycleManagerState::INotification* capturedNotification = nullptr;
     Exchange::IRDKWindowManager::INotification* capturedWMNotification = nullptr;
     std::vector<MockEmitter*> heapEmitters;
+    bool initialized_ = false;
 
     void SetUp() override
     {
         // LifecycleDelegate only registers notifications when /opt/ai2managers exists
-        // (ConfigUtils::useAppManagers() gate). Create the file for the test environment.
+        // (ConfigUtils::useAppManagers() gate). Ensure it exists as a regular file.
+        // Remove first in case a prior run or CI step left it as a directory.
+        RemoveAi2managers();
         std::FILE* f = std::fopen("/opt/ai2managers", "w");
         if (nullptr == f) {
             GTEST_SKIP() << "Skipping LifecycleDelegate tests: unable to create /opt/ai2managers (insufficient permissions or read-only filesystem)";
@@ -141,10 +162,12 @@ protected:
 
         const string response = plugin.Initialize(&service);
         ASSERT_TRUE(response.empty());
+        initialized_ = true;
     }
 
     void TearDown() override
     {
+        if (!initialized_) return;
         plugin.Deinitialize(&service);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         for (auto* e : heapEmitters) {
@@ -152,7 +175,7 @@ protected:
             delete e;
         }
         heapEmitters.clear();
-        std::remove("/opt/ai2managers");
+        RemoveAi2managers();
     }
 };
 
@@ -519,8 +542,8 @@ protected:
 
     void SetUp() override
     {
-        // Ensure /opt/ai2managers does NOT exist
-        std::remove("/opt/ai2managers");
+        // Ensure /opt/ai2managers does NOT exist (handles both file and directory)
+        RemoveAi2managers();
 
         // All calls return nullptr
         ON_CALL(service, QueryInterfaceByCallsign(_, _))

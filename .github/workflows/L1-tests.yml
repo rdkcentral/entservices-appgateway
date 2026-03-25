@@ -526,7 +526,8 @@ jobs:
           # LifecycleDelegate only registers notifications when ConfigUtils::useAppManagers()
           # returns true, which checks for /opt/ai2managers. The test SetUp creates it too,
           # but pre-creating it here avoids permission issues on some CI environments.
-          sudo mkdir -p /opt/ai2managers
+          # Must be a file (not a directory) because the test's SetUp uses fopen().
+          sudo touch /opt/ai2managers
 
       - name: Run unit tests without valgrind (optionally under gdb)
         run: |
