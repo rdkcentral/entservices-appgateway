@@ -1,0 +1,119 @@
+# AppNotifications L1 Tests
+
+This document lists and briefly describes all Level 1 (L1) test cases implemented for the AppNotifications plugin in the `test_AppNotifications.cpp` file.
+
+## Test Case Index
+
+Below are all top-level test cases (by Google Test name) for AppNotifications L1, grouped by feature area (inferred from source):
+
+### 1. Configuration
+- Configure_StoresShellAndAddsRef
+- Configure_CalledTwice_ReleasesOldShellAndAddsRefNew
+
+### 2. Subscribe API
+- Subscribe_Listen_True_NewEvent_ReturnsNone
+- Subscribe_Listen_True_SameEvent_TwiceNoExtraWorkerJob
+- Subscribe_Listen_True_AddsContextToMap
+- Subscribe_Listen_True_MixedCaseEvent_KeyIsLowercased
+- Subscribe_Listen_False_RemovesContextFromMap
+- Subscribe_Listen_False_LastContext_EmitsUnsubscribeJob
+- Subscribe_Listen_False_NonExistentEvent_ReturnsNone
+- Subscribe_Listen_False_OneOfTwoContextsRemoved
+- Subscribe_MultipleDistinctEvents_AllPresentInMap
+- Subscribe_EmptyModule_Listen_True_ReturnsNoneAndAddsToMap
+- Subscribe_EmptyEvent_Listen_True_ReturnsNoneAndAddsToMap
+- Subscribe_PartialUnsubscribe_ThenResubscribe_Works
+- Subscribe_Listen_False_EmptyEvent_NoEntry_ReturnsNone
+
+### 3. Emit API
+- Emit_ReturnsNoneImmediately
+- Emit_EmptyPayload_ReturnsNone
+- Emit_EmptyAppId_ReturnsNone
+- Emit_EmptyEvent_ReturnsNone
+- Emit_WithSubscriber_GatewayOrigin_DispatchesToGateway
+- Emit_WithSubscriber_NonGatewayOrigin_DispatchesToLaunchDelegate
+- Emit_NoSubscribersForEvent_NoDispatch
+- Emit_WithAppIdFilter_OnlyDispatchesMatchingAppId
+- Emit_GatewayQueryFails_DoesNotCrash
+- Emit_LaunchDelegateQueryFails_DoesNotCrash
+- Emit_AfterCleanup_NoDispatch
+- Emit_EmptyAppId_DispatchesToAllSubscribers
+- Emit_AppIdNoMatch_NoDispatch
+
+### 4. Cleanup API
+- Cleanup_RemovesAllContextsMatchingConnectionIdAndOrigin
+- Cleanup_ConnectionIdNotPresent_NoChange
+- Cleanup_OriginMismatch_NoChange
+- Cleanup_EmptyMap_ReturnsNone
+- Cleanup_MultipleEventsForConnection_AllCleared
+- Cleanup_ThenSubscribe_WorksCorrectly
+- Cleanup_EmptyOrigin_OnlyRemovesEmptyOriginContexts
+- Cleanup_ZeroConnectionId_OnlyRemovesMatchingConnId
+- Cleanup_BothOriginAndConnIdMustMatch_ConnIdMatchOnly_NoRemoval
+
+### 5. Internal SubscriberMap
+- SubscriberMap_Add_And_Exists
+- SubscriberMap_Get_ReturnsCorrectContexts
+- SubscriberMap_Get_NonExistentKey_ReturnsEmpty
+- SubscriberMap_Remove_ExistingContext_KeyErasedWhenEmpty
+- SubscriberMap_Remove_NonExistentKey_NoOp
+- SubscriberMap_Exists_CaseInsensitive
+- SubscriberMap_CleanupNotifications_ByConnectionAndOrigin
+- SubscriberMap_CleanupNotifications_ErasesKeyWhenAllRemoved
+- SubscriberMap_Remove_OnlyRemovesOneMatchingContext_WhenMultipleSameKey
+- SubscriberMap_CleanupNotifications_ConnIdMatchOnly_OriginMismatch_NoRemoval
+- SubscriberMap_DispatchToGateway_CachesInterface_QueryCalledOnce
+- SubscriberMap_DispatchToGateway_NullGateway_DoesNotCrash
+- SubscriberMap_DispatchToLaunchDelegate_NullDelegate_DoesNotCrash
+- SubscriberMap_DispatchToLaunchDelegate_CachesInterface_QueryCalledOnce
+- SubscriberMap_EventUpdate_AppIdEmpty_DispatchesToAllSubscribers
+- SubscriberMap_EventUpdate_AppIdNonMatch_NoDispatch
+- SubscriberMap_EventUpdate_NoSubscribersForKey_NoDispatch
+
+### 6. ThunderSubscriptionManager
+- ThunderManager_IsNotificationRegistered_FalseByDefault
+- ThunderManager_RegisterNotification_WhenHandlerAvailable
+- ThunderManager_RegisterNotification_WhenHandlerUnavailable_NotRegistered
+- ThunderManager_RegisterNotification_HandlerReturnsFalseStatus_NotRegistered
+- ThunderManager_UnregisterNotification_WhenRegistered
+- ThunderManager_UnregisterNotification_WhenNotRegistered_NoOp
+- ThunderManager_Subscribe_AlreadyRegistered_NoDuplicateRegistration
+- ThunderManager_HandleNotifier_HandlerReturnsError_ReturnsFalse
+- ThunderManager_HandleNotifier_ModuleNotAvailable_ReturnsFalse
+- ThunderManager_HandleNotifier_ThrowsException_PropagatesFromHandlerMock
+- ThunderManager_RegisterNotification_ThrowsException_Propagates
+- ThunderManager_UnregisterNotification_HandlerReturnsFalseStatus_NotRemovedFromList
+- ThunderManager_Unsubscribe_WhenRegistered_CallsUnregister
+- ThunderManager_Unsubscribe_WhenNotRegistered_IsNoOp
+- ThunderManager_HandleNotifier_HandlerReturnsErrorNoneButStatusFalse_ReturnsFalse
+
+### 7. Emitter/Notification Flow/End-to-End
+- Emitter_Emit_SubmitsEmitJobToWorkerPool
+- Emitter_Emit_EmptyArguments_NocrashNoThrow
+- EndToEnd_SubscribeEmitCleanup_GatewayOrigin
+- EndToEnd_MultipleSubscribersEmitOneAppId
+- Notification_EmitterEmit_WithSubscriber_GatewayOrigin_DispatchesViaGateway
+- Notification_EmitterEmit_WithSubscriber_NonGatewayOrigin_DispatchesViaLaunchDelegate
+- Notification_EmitterEmit_NoSubscribers_NoDispatch
+- Notification_EmitterEmit_EmptyAppId_BroadcastsToAllSubscribers
+- Notification_EmitterEmit_AppIdFiltered_OnlyMatchingSubscriberDispatched
+- Notification_NotificationHandler_ReceivesEmit_DirectCall
+- Notification_NotificationHandler_Reset_ClearsStoredState
+- Notification_NotificationHandler_WaitTimeout_ReturnsFalse_WhenNoEmit
+- Notification_NotificationHandler_MultipleEmitCalls_LastValueStored
+- Notification_HandleNotifier_PassesCorrectEmitterToHandler
+- Notification_HandleNotifier_EmitterCanBeInvokedByHandler_TriggersEventUpdate
+- Notification_EndToEnd_EmitterEmit_NotificationHandler_Receives
+- Notification_EndToEnd_SubscribeEmitViaEmitter_GatewayDispatch
+- Notification_EndToEnd_SubscribeEmitViaEmitter_LaunchDelegateDispatch
+- Notification_DispatchToGateway_GatewayContextFields_MatchSubscriberContext
+- Notification_DispatchToLaunchDelegate_GatewayContextFields_MatchSubscriberContext
+
+
+---
+
+### Notes
+- This document was auto-generated from test case function names in `Tests/L1Tests/tests/test_AppNotifications.cpp`.
+- Some tests cover edge cases, error handling paths, and the internal state of the implementation.
+- See the code for full details, test cases, and comments.
+
