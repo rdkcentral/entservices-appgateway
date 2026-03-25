@@ -31,6 +31,8 @@
 #include "BaseEventDelegate.h"
 #include <algorithm>
 #include "ContextUtils.h"
+#include <mutex>
+
 
 using namespace WPEFramework;
 
@@ -1179,61 +1181,61 @@ private:
 
     bool isDisplaySubscribed() const
     {
-        Core::SafeSyncLock lock(_displaySubscriptionLock);
+        Core::SafeSyncType<Core::CriticalSection> lock(_displaySubscriptionLock);
         return _displaySubscribed;
     }
 
     void markDisplaySubscribed()
     {
-        Core::SafeSyncLock lock(_displaySubscriptionLock);
+        Core::SafeSyncType<Core::CriticalSection> lock(_displaySubscriptionLock);
         _displaySubscribed = true;
     }
 
     bool isDisplayAudioSubscribed() const
     {
-        Core::SafeSyncLock lock(_displayAudioSubscriptionLock);
+        Core::SafeSyncType<Core::CriticalSection> lock(_displayAudioSubscriptionLock);
         return _displayAudioSubscribed;
     }
 
     void markDisplayAudioSubscribed()
     {
-        Core::SafeSyncLock lock(_displayAudioSubscriptionLock);
+        Core::SafeSyncType<Core::CriticalSection> lock(_displayAudioSubscriptionLock);
         _displayAudioSubscribed = true;
     }
 
     bool isHdcpSubscribed() const
     {
-        Core::SafeSyncLock lock(_hdcpSubscriptionLock);
+        Core::SafeSyncType<Core::CriticalSection> lock(_hdcpSubscriptionLock);
         return _hdcpSubscribed;
     }
 
      void markHdcpSubscribed()
     {
-        Core::SafeSyncLock lock(_hdcpSubscriptionLock);
+        Core::SafeSyncType<Core::CriticalSection> lock(_hdcpSubscriptionLock);
         _hdcpSubscribed = true;
     }
 
     bool isSystemSubscribed() const
     {
-        Core::SafeSyncLock lock(_systemSubscriptionLock);
+        Core::SafeSyncType<Core::CriticalSection> lock(_systemSubscriptionLock);
         return _systemSubscribed;
     }
 
     void markSystemSubscribed()
     {
-        Core::SafeSyncLock lock(_systemSubscriptionLock);
+        Core::SafeSyncType<Core::CriticalSection> lock(_systemSubscriptionLock);
         _systemSubscribed = true;
     }
 
     bool isTimezoneSubscribed() const
     {
-        Core::SafeSyncLock lock(_timezoneSubscriptionLock);
+        Core::SafeSyncType<Core::CriticalSection> lock(_timezoneSubscriptionLock);
         return _timezoneSubscribed;
     }
 
     void markTimezoneSubscribed()
     {
-        Core::SafeSyncLock lock(_timezoneSubscriptionLock);
+        Core::SafeSyncType<Core::CriticalSection> lock(_timezoneSubscriptionLock);
         _timezoneSubscribed = true;
     }
 
