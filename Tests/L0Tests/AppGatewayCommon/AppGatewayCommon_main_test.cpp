@@ -108,6 +108,13 @@ extern uint32_t Test_GetSessionId_DelegateUnavailable();
 extern uint32_t Test_HandleAppEventNotifier_NullCb();
 extern uint32_t Test_HandleAppEventNotifier_ValidCb();
 extern uint32_t Test_HandleAppEventNotifier_BeforeInit();
+// Gap 1–7 delegate event subscription contract tests
+extern uint32_t Test_HandleAppEventNotifier_UnrecognizedEvent();
+extern uint32_t Test_HandleAppEventNotifier_NetworkEvent_ListenTrue();
+extern uint32_t Test_HandleAppEventNotifier_UserSettingsEvent_ListenTrue();
+extern uint32_t Test_HandleAppEventNotifier_TTSEvent_ListenTrue();
+extern uint32_t Test_HandleAppEventNotifier_SystemDeviceEvent();
+extern uint32_t Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly();
 
 int main()
 {
@@ -213,6 +220,13 @@ int main()
                 // AGC_L0_088–092 — Pre-init / post-deinit guards and re-initialization
         { "HandleRequest_BeforeInit",                     Test_HandleRequest_BeforeInit },
         { "HandleAppEventNotifier_BeforeInit",            Test_HandleAppEventNotifier_BeforeInit },
+        // AGC_L0_093–098 — Gap 1–7 delegate event subscription contract tests
+        { "EventNotifier_UnrecognizedEvent",              Test_HandleAppEventNotifier_UnrecognizedEvent },
+        { "EventNotifier_NetworkEvent_ListenTrue",        Test_HandleAppEventNotifier_NetworkEvent_ListenTrue },
+        { "EventNotifier_UserSettingsEvent_ListenTrue",   Test_HandleAppEventNotifier_UserSettingsEvent_ListenTrue },
+        { "EventNotifier_TTSEvent_ListenTrue",            Test_HandleAppEventNotifier_TTSEvent_ListenTrue },
+        { "EventNotifier_SystemDeviceEvent",              Test_HandleAppEventNotifier_SystemDeviceEvent },
+        { "EventNotifier_NetworkEvent_UnsubscribeOnly",   Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly },
         { "Authenticate_BeforeInit",                      Test_Authenticate_BeforeInit },
         { "HandleRequest_AfterDeinit",                    Test_HandleRequest_AfterDeinit },
         { "Reinitialize_AfterDeinit",                     Test_Reinitialize_AfterDeinit },
