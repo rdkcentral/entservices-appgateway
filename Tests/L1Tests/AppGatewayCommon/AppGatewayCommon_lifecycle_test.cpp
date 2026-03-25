@@ -101,7 +101,10 @@ protected:
         // LifecycleDelegate only registers notifications when /opt/ai2managers exists
         // (ConfigUtils::useAppManagers() gate). Create the file for the test environment.
         std::FILE* f = std::fopen("/opt/ai2managers", "w");
-        if (f) std::fclose(f);
+        if (nullptr == f) {
+            GTEST_SKIP() << "Skipping LifecycleDelegate tests: unable to create /opt/ai2managers (insufficient permissions or read-only filesystem)";
+        }
+        std::fclose(f);
 
         ON_CALL(service, QueryInterfaceByCallsign(_, _))
             .WillByDefault(Return(nullptr));

@@ -489,16 +489,6 @@ elseif(WPEFRAMEWORK_WEBSOCKET_LIB)
     target_link_libraries(appgatewaycommon_l0test PRIVATE ${WPEFRAMEWORK_WEBSOCKET_LIB})
 endif()
 
-find_library(APPGATEWAYCOMMON_PLUGIN_LIB
-    NAMES AppGatewayCommon WPEFrameworkAppGatewayCommon
-    HINTS
-        "${CMAKE_BINARY_DIR}/AppGatewayCommon"
-        "${CMAKE_BINARY_DIR}/../AppGatewayCommon"
-        "${PREFIX}/lib/wpeframework/plugins"
-        "${PREFIX}/lib/plugins"
-        "${PREFIX}/lib"
-)
-
 find_library(UUID_LIB NAMES uuid)
 if(NOT UUID_LIB)
     find_package(PkgConfig QUIET)
@@ -512,10 +502,6 @@ target_link_libraries(appgatewaycommon_l0test PRIVATE
     m
     dl
 )
-
-if(APPGATEWAYCOMMON_PLUGIN_LIB)
-    target_link_libraries(appgatewaycommon_l0test PRIVATE ${APPGATEWAYCOMMON_PLUGIN_LIB})
-endif()
 
 if(UUID_LIB)
     target_link_libraries(appgatewaycommon_l0test PRIVATE ${UUID_LIB})

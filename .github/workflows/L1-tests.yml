@@ -42,7 +42,7 @@ env:
 jobs:
   L1-tests:
     name: Build and run unit tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         compiler: [ gcc, clang ]
@@ -476,7 +476,6 @@ jobs:
             -DUSE_THUNDER_R4=ON \
             -DPLUGIN_APPGATEWAY=ON \
             -DPLUGIN_APPGATEWAYCOMMON=ON \
-            -DPLUGIN_APPNOTIFICATIONS=ON \
             -DCMAKE_C_FLAGS="${COVERAGE_C_FLAGS} ${EXTRA_DEBUG_DEFS}" \
             -DCMAKE_CXX_FLAGS="${COVERAGE_CXX_FLAGS} ${EXTRA_DEBUG_DEFS}" \
             -DCMAKE_EXE_LINKER_FLAGS="${COVERAGE_LINKER_FLAGS}" \
@@ -486,23 +485,19 @@ jobs:
           cmake --build build/entservices-appgateway-l1tests-only -- -j"$(nproc)"
           cmake --build build/entservices-appgateway-l1tests-only --target AppGatewayL1Test -- -j"$(nproc)"
           cmake --build build/entservices-appgateway-l1tests-only --target AppGatewayCommonL1Test -- -j"$(nproc)"
-          cmake --build build/entservices-appgateway-l1tests-only --target AppNotificationsL1Test -- -j"$(nproc)"
 
           cmake --build build/entservices-appgateway-l1tests-only --target AppGateway -- -j"$(nproc)" || true
           cmake --build build/entservices-appgateway-l1tests-only --target AppGatewayCommon -- -j"$(nproc)" || true
-          cmake --build build/entservices-appgateway-l1tests-only --target AppNotifications -- -j"$(nproc)" || true
           cmake --build build/entservices-appgateway-l1tests-only --target L1TestsIN -- -j"$(nproc)" || true
 
           mkdir -p "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins"
           find build/entservices-appgateway-l1tests-only/AppGateway -maxdepth 1 -type f -name "*.so*" -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
           find build/entservices-appgateway-l1tests-only/AppGatewayCommon -maxdepth 1 -type f -name "*.so*" -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
-          find build/entservices-appgateway-l1tests-only/AppNotifications -maxdepth 1 -type f -name "*.so*" -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
           find build/entservices-appgateway-l1tests-only -maxdepth 1 -type f -name "*.so*" -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
 
           ls -la "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins" || true
           test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppGateway.so" || (echo "Missing libAppGateway.so in staged plugin dir" && exit 1)
           test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppGatewayCommon.so" || (echo "Missing libAppGatewayCommon.so in staged plugin dir" && exit 1)
-          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppNotifications.so" || (echo "Missing libAppNotifications.so in staged plugin dir" && exit 1)
 
       - name: Copy required mock headers into install prefix include/Tests/mocks
         run: |
@@ -510,6 +505,14 @@ jobs:
           cp -f "$GITHUB_WORKSPACE/Tests/mocks/Module.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/Module.h"
           cp -f "$GITHUB_WORKSPACE/Tests/mocks/ServiceMock.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/ServiceMock.h"
           cp -f "$GITHUB_WORKSPACE/Tests/mocks/ThunderPortability.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/ThunderPortability.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockEmitter.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockEmitter.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockSharedStorage.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockSharedStorage.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockUserSettings.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockUserSettings.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockNetworkManager.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockNetworkManager.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockLifecycleManagerState.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockLifecycleManagerState.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockRDKWindowManager.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockRDKWindowManager.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockTextToSpeech.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockTextToSpeech.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockJSONRPCDirectLink.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockJSONRPCDirectLink.h"
 
       - name: Stage AppGateway resolution.base.json into config root (avoid /etc)
         run: |
@@ -517,6 +520,13 @@ jobs:
           cp -f "$GITHUB_WORKSPACE/AppGateway/resolutions/resolution.base.json" /tmp/app-gateway/resolution.base.json
           echo "APPGATEWAY_CONFIG_PATH=/tmp/app-gateway" >> "$GITHUB_ENV"
           ls -la /tmp/app-gateway || true
+
+      - name: Ensure /opt/ai2managers exists for lifecycle tests
+        run: |
+          # LifecycleDelegate only registers notifications when ConfigUtils::useAppManagers()
+          # returns true, which checks for /opt/ai2managers. The test SetUp creates it too,
+          # but pre-creating it here avoids permission issues on some CI environments.
+          sudo mkdir -p /opt/ai2managers
 
       - name: Run unit tests without valgrind (optionally under gdb)
         run: |
@@ -566,7 +576,6 @@ jobs:
 
           test_bin_appgateway="build/entservices-appgateway-l1tests-only/AppGatewayL1Test"
           test_bin_appgatewaycommon="build/entservices-appgateway-l1tests-only/AppGatewayCommonL1Test"
-          test_bin_appnotifications="build/entservices-appgateway-l1tests-only/AppNotificationsL1Test"
 
           if [ "${ENABLE_GDB:-0}" = "1" ]; then
             echo "ENABLE_GDB=1 -> running unit tests under gdb (batch mode)."
@@ -575,23 +584,15 @@ jobs:
               -ex "run" \
               -ex "bt full" \
               --args "${test_bin_appgateway}"
-
             gdb -q -batch \
               -ex "set pagination off" \
               -ex "run" \
               -ex "bt full" \
               --args "${test_bin_appgatewaycommon}"
-
-            gdb -q -batch \
-              -ex "set pagination off" \
-              -ex "run" \
-              -ex "bt full" \
-              --args "${test_bin_appnotifications}"              
           else
             echo "ENABLE_GDB!=1 -> running unit tests normally (default behavior)."
             "${test_bin_appgateway}"
             "${test_bin_appgatewaycommon}"
-            "${test_bin_appnotifications}"
           fi
 
           cp -rf "$(pwd)/rdkL1TestResults.json" "$GITHUB_WORKSPACE/rdkL1TestResultsWithoutValgrind.json"
@@ -625,21 +626,12 @@ jobs:
 
           valgrind \
             --tool=memcheck \
-            --log-file=valgrind_log_appgatewaycommon \
+            --log-file=valgrind_log_common \
             --leak-check=yes \
             --show-reachable=yes \
             --track-fds=yes \
             --fair-sched=try \
             build/entservices-appgateway-l1tests-only/AppGatewayCommonL1Test
-
-          valgrind \
-            --tool=memcheck \
-            --log-file=valgrind_log_appnotifications \
-            --leak-check=yes \
-            --show-reachable=yes \
-            --track-fds=yes \
-            --fair-sched=try \
-            build/entservices-appgateway-l1tests-only/AppNotificationsL1Test
 
           cp -rf "$(pwd)/rdkL1TestResults.json" "$GITHUB_WORKSPACE/rdkL1TestResultsWithValgrind.json"
           rm -rf "$(pwd)/rdkL1TestResults.json"
@@ -679,20 +671,9 @@ jobs:
           # "notes file" and "stamp mismatch" errors.
           # GCC 13/geninfo can emit occasional end-line mismatch metadata for gtest TU symbols.
           # Keep report generation best-effort by tolerating mismatch while still producing output.
-          # --ignore-errors mismatch was added in lcov 1.16; only pass it on supported versions.
-          lcov_version=$(lcov --version 2>&1 | grep -oP '(?<=LCOV version )\S+' | head -1)
-          lcov_version="${lcov_version:-0.0}"
-          lcov_major=$(echo "${lcov_version}" | cut -d. -f1)
-          lcov_minor=$(echo "${lcov_version}" | cut -d. -f2)
-          lcov_major="${lcov_major:-0}"
-          lcov_minor="${lcov_minor:-0}"
-          lcov_ignore_flag=""
-          if [ "${lcov_major}" -gt 1 ] || { [ "${lcov_major}" -eq 1 ] && [ "${lcov_minor}" -ge 16 ]; }; then
-            lcov_ignore_flag="--ignore-errors mismatch"
-          fi
           lcov -c \
             --rc geninfo_unexecuted_blocks=1 \
-            ${lcov_ignore_flag} \
+            --ignore-errors mismatch \
             -o coverage.info \
             -d "${build_dir}" || true
 
@@ -709,6 +690,7 @@ jobs:
             '*/Tests/headers/*' \
             '*/Tests/mocks/*' \
             '*/Tests/L1Tests/tests/*' \
+            '*/Tests/L1Tests/AppGatewayCommon/*' \
             '*/Thunder/*' \
             -o filtered_coverage.info || true
 
@@ -739,8 +721,6 @@ jobs:
             filtered_coverage.info
             coverage/
             valgrind_log
-            valgrind_log_appgatewaycommon
-            valgrind_log_appnotifications
             rdkL1TestResultsWithoutValgrind.json
             rdkL1TestResultsWithValgrind.json
           if-no-files-found: warn

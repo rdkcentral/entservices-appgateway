@@ -245,8 +245,6 @@ int main()
         failures += f;
     }
 
-    WPEFramework::Core::Singleton::Dispose();
-
     PrintTotals(std::cerr, "AppGatewayCommon l0test", failures);
     return ResultToExitCode(failures);
 }

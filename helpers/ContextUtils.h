@@ -23,8 +23,6 @@
 #include <interfaces/IAppNotifications.h>
 
 #include "UtilsCallsign.h"
-using namespace WPEFramework;
-using namespace std;
 
 #define LEGACY_FIREBOLT_VERSION "0"
 #define RDK8_FIREBOLT_VERSION "8"
@@ -37,8 +35,8 @@ class ContextUtils {
     public:
         // Implement a static method which accepts a Exchange::IAppNotifications::Context object and
         // converts it into Exchange::IAppGateway::Context object
-        static Exchange::GatewayContext ConvertNotificationToAppGatewayContext(const Exchange::IAppNotifications::AppNotificationContext& notificationsContext){
-            Exchange::GatewayContext appGatewayContext;
+        static WPEFramework::Exchange::GatewayContext ConvertNotificationToAppGatewayContext(const WPEFramework::Exchange::IAppNotifications::AppNotificationContext& notificationsContext){
+            WPEFramework::Exchange::GatewayContext appGatewayContext;
             // Perform the conversion logic here
             appGatewayContext.requestId = notificationsContext.requestId;
             appGatewayContext.connectionId = notificationsContext.connectionId;
@@ -49,8 +47,8 @@ class ContextUtils {
 
         // Implement a static method which accepts a Exchange::IAppGateway::Context object and
         // converts it into Exchange::IAppNotifications::Context object
-        static Exchange::IAppNotifications::AppNotificationContext ConvertAppGatewayToNotificationContext(const Exchange::GatewayContext& appGatewayContext, const string& origin){
-            Exchange::IAppNotifications::AppNotificationContext notificationsContext;
+        static WPEFramework::Exchange::IAppNotifications::AppNotificationContext ConvertAppGatewayToNotificationContext(const WPEFramework::Exchange::GatewayContext& appGatewayContext, const std::string& origin){
+            WPEFramework::Exchange::IAppNotifications::AppNotificationContext notificationsContext;
             // Perform the conversion logic here
             notificationsContext.requestId = appGatewayContext.requestId;
             notificationsContext.connectionId = appGatewayContext.connectionId;
@@ -60,26 +58,26 @@ class ContextUtils {
             return notificationsContext;
         }
 
-        static bool IsOriginGateway(const string& origin) {
+        static bool IsOriginGateway(const std::string& origin) {
             return APP_GATEWAY_CALLSIGN == origin;
         }
 
-        static bool IsRDK8Compliant(const string& version) {
+        static bool IsRDK8Compliant(const std::string& version) {
             return RDK8_FIREBOLT_VERSION == version;
         }
 
-        static string GetEventNameFromContextBasedonVersion(const string& version, const string& baseEventName) {
+        static std::string GetEventNameFromContextBasedonVersion(const std::string& version, const std::string& baseEventName) {
             if (RDK8_FIREBOLT_VERSION == version ) {
                 return GetRDK8VersionedEventName(baseEventName);
             }
             return baseEventName;
         }
 
-        static string GetRDK8VersionedEventName(const string& baseEventName) {
+        static std::string GetRDK8VersionedEventName(const std::string& baseEventName) {
             return baseEventName + RDK8_SUFFIX;
         }
 
-        static string GetBaseEventNameFromVersionedEvent(const string& versionedEventName) {
+        static std::string GetBaseEventNameFromVersionedEvent(const std::string& versionedEventName) {
             if (versionedEventName.size() > RDK8_SUFFIX_LENGTH && RDK8_SUFFIX == versionedEventName.substr(versionedEventName.size() - RDK8_SUFFIX_LENGTH)) {
                 return versionedEventName.substr(0, versionedEventName.size() - RDK8_SUFFIX_LENGTH);
             }

@@ -365,7 +365,7 @@ if(TEST_SRC)
         ${CMAKE_INSTALL_PREFIX}/include
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:include>
-        ${CMAKE_SOURCE_DIR}/../mocks
+        ${CMAKE_CURRENT_SOURCE_DIR}/../mocks
         ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
     )
 
@@ -454,7 +454,7 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS)
 
         ${CMAKE_INSTALL_PREFIX}/include
 
-        ${CMAKE_SOURCE_DIR}/../mocks
+        ${CMAKE_CURRENT_SOURCE_DIR}/../mocks
 
             ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
         )
@@ -488,7 +488,7 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS)
 
             ${CMAKE_INSTALL_PREFIX}/include
 
-            ${CMAKE_SOURCE_DIR}/../mocks
+            ${CMAKE_CURRENT_SOURCE_DIR}/../mocks
 
             ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
         )
