@@ -22,8 +22,14 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <mutex>
+#include <stdexcept>
 #include <string>
 #include <thread>
+
+#include <sys/syscall.h>
+#include <unistd.h>
 
 #include "Module.h"
 
@@ -95,7 +101,7 @@ public:
     uint32_t Release() const override
     {
         const uint32_t result = --m_refCount;
-        if (result == 0) {
+        if (0 == result) {
             delete this;
         }
         return result;
@@ -175,16 +181,19 @@ protected:
     {
         TEST_LOG("AppNotificationsTest Destructor");
 
-        // Allow async worker-pool jobs to drain before teardown.
-        std::this_thread::sleep_for(std::chrono::milliseconds(60));
-
-        // Clear registered notifications so ThunderSubscriptionManager::~dtor
-        // doesn't attempt HandleNotifier(listen=false) calls after mShell is
-        // already null (AppNotificationsImplementation::~dtor nulls mShell first).
-        impl.mThunderManager.mRegisteredNotifications.clear();
-
+        // Stop the worker pool first to ensure no in-flight jobs are running
+        // that might access mRegisteredNotifications concurrently.
         workerPool->Stop();
         Core::IWorkerPool::Assign(nullptr);
+
+        // Clear registered notifications under the ThunderSubscriptionManager mutex
+        // so ThunderSubscriptionManager::~dtor doesn't attempt HandleNotifier(listen=false)
+        // calls after mShell is already null (AppNotificationsImplementation::~dtor nulls
+        // mShell first).
+        {
+            std::lock_guard<std::mutex> lock(impl.mThunderManager.mThunderSubscriberMutex);
+            impl.mThunderManager.mRegisteredNotifications.clear();
+        }
     }
 
     virtual void SetUp()
@@ -1462,7 +1471,8 @@ TEST_F(AppNotificationsTest, ThunderManager_Unsubscribe_WhenRegistered_CallsUnre
             ::testing::SetArgReferee<3>(true),
             Return(Core::ERROR_NONE)));
     impl.mThunderManager.Subscribe("org.rdk.UnsubMod", "unsubEvt");
-    // IsNotificationRegistered lowercases its input, so "unsubEvt" → stored as "unsubeVt".
+    // IsNotificationRegistered lowercases both the stored event and the lookup key,
+    // so "unsubEvt" is compared internally as "unsubevt".
     EXPECT_TRUE(impl.mThunderManager.IsNotificationRegistered("org.rdk.UnsubMod", "unsubEvt"));
 
     // Unsubscribe.
@@ -3272,7 +3282,7 @@ public:
     void AddRef() const override { ++mRefCount; }
     uint32_t Release() const override {
         uint32_t result = --mRefCount;
-        if (result == 0) delete this;
+        if (0 == result) delete this;
         return result;
     }
     void* QueryInterface(const uint32_t) override { return nullptr; }
@@ -3625,10 +3635,4 @@ TEST_F(AppNotificationsPluginTest, QueryInterface_UnknownInterface_ReturnsNull)
     Core::Sink<Plugin::AppNotifications> plugin;
     void* result = plugin.QueryInterface(0xDEADBEEF);
     EXPECT_EQ(nullptr, result);
-}
-
-int main(int argc, char** argv)
-{
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

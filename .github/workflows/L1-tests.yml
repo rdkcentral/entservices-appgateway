@@ -678,8 +678,11 @@ jobs:
           # Keep report generation best-effort by tolerating mismatch while still producing output.
           # --ignore-errors mismatch was added in lcov 1.16; only pass it on supported versions.
           lcov_version=$(lcov --version 2>&1 | grep -oP '(?<=LCOV version )\S+' | head -1)
+          lcov_version="${lcov_version:-0.0}"
           lcov_major=$(echo "${lcov_version}" | cut -d. -f1)
           lcov_minor=$(echo "${lcov_version}" | cut -d. -f2)
+          lcov_major="${lcov_major:-0}"
+          lcov_minor="${lcov_minor:-0}"
           lcov_ignore_flag=""
           if [ "${lcov_major}" -gt 1 ] || { [ "${lcov_major}" -eq 1 ] && [ "${lcov_minor}" -ge 16 ]; }; then
             lcov_ignore_flag="--ignore-errors mismatch"

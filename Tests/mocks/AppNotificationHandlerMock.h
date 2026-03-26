@@ -43,7 +43,7 @@ public:
     uint32_t Release() const override
     {
         const uint32_t result = --_refCount;
-        if (result == 0) {
+        if (0 == result) {
             delete this;
         }
         return result;
