@@ -68,8 +68,9 @@ namespace Plugin {
         mService = service;
         mReportingStartTime = std::chrono::steady_clock::now();
 
-        // Initialize T2 telemetry
-        Utils::Telemetry::init();
+        // Telemetry initialization is handled by PowerManager for all Thunder plugins,
+        // including AppGateway. Avoid calling init() here to prevent multiple initializations.
+        // Utils::Telemetry::init();
 
         // Start the periodic reporting timer
         if (!mTimerRunning) {
