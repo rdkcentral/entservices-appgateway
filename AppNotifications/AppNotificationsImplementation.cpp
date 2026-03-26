@@ -114,8 +114,13 @@ namespace WPEFramework
             LOGINFO("Configuring AppNotifications");
             uint32_t result = Core::ERROR_NONE;
             ASSERT(shell != nullptr);
-            mShell = shell;
-            mShell->AddRef();
+            if (mShell != shell) {
+                if (mShell != nullptr) {
+                    mShell->Release();
+                }
+                mShell = shell;
+                mShell->AddRef();
+            }
             return result;
         }
 

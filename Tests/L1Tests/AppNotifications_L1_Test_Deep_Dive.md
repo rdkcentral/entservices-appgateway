@@ -1249,19 +1249,23 @@ When two `EXPECT_CALL`s match the same call (e.g. a wildcard `(_, _)` and a spec
 
 Both `mAppGateway` and `mInternalGatewayNotifier` are lazy-initialized and cached on the first dispatch. Subsequent dispatches reuse them. Tests verify this with `Times(1)` on `QueryInterfaceByCallsign`. The `SubscriberMap` destructor releases these cached pointers, so tests must call `gatewayMock->Release()` to balance the initial test-side `AddRef` from the `QueryInterfaceByCallsign` lambda.
 
-### 11.6 Destructor safety — `ClearRegistrations()`
+### 11.6 Destructor safety — current behavior
 
-The `ThunderSubscriptionManager` destructor iterates `mRegisteredNotifications` and calls `HandleNotifier(module, event, false)` for each. `HandleNotifier` calls `mParent.mShell->QueryInterfaceByCallsign(...)`. If `mShell` is already null when the destructor runs, this is undefined behaviour.
+The `ThunderSubscriptionManager` destructor iterates `mRegisteredNotifications` and calls `HandleNotifier(module, event, false)` for each. `HandleNotifier` ultimately calls `mParent.mShell->QueryInterfaceByCallsign(...)`, so if `mShell` were already `nullptr` at that point it would be undefined behaviour.
 
-The fix applied in `AppNotificationsImplementation::~AppNotificationsImplementation()`:
+In the **current** production implementation there is no `ClearRegistrations()` helper on `mThunderManager`, and `AppNotificationsImplementation::~AppNotificationsImplementation()` releases `mShell` as part of its normal teardown. This means teardown safety depends on the fact that `ThunderSubscriptionManager` does not attempt to use `mShell` after it has been released, and on the destruction order of members rather than on a dedicated `ClearRegistrations()` call.
+
+In the test fixture (`~AppNotificationsTest`), the worker pool is stopped first (ensuring no in-flight jobs can access the registrations list concurrently), and then `mRegisteredNotifications` is cleared under the `mThunderSubscriberMutex` before the `impl` destructor runs:
 
 ```cpp
-mThunderManager.ClearRegistrations();  // discard list under mutex
-if (mShell != nullptr) {
-    mShell->Release();
-    mShell = nullptr;
+workerPool->Stop();
+Core::IWorkerPool::Assign(nullptr);
+
+{
+    std::lock_guard<std::mutex> lock(impl.mThunderManager.mThunderSubscriberMutex);
+    impl.mThunderManager.mRegisteredNotifications.clear();
 }
-// C++ member dtors run here: mThunderManager dtor loop is now a no-op
+// impl destructor runs: mThunderManager dtor loop is now a no-op
 ```
 
 ### 11.7 `ThunderManager_HandleNotifier_ThrowsException` — manual ref counting
