@@ -158,6 +158,12 @@ TEST_F(AppGatewayCommonTest, DISABLED_AGC_L1_003_HandleAppEventNotifier_SubmitsJ
 
 TEST_F(AppGatewayCommonTest, AGC_L1_004_UnknownMethod_ReturnsUnknownKey)
 {
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    plugin.Initialize(&service);
+
     const auto ctx = MakeContext();
     string result;
 
@@ -165,42 +171,63 @@ TEST_F(AppGatewayCommonTest, AGC_L1_004_UnknownMethod_ReturnsUnknownKey)
 
     EXPECT_EQ(Core::ERROR_UNKNOWN_KEY, rc);
     EXPECT_FALSE(result.empty());
+
+    plugin.Deinitialize(&service);
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_009_DeviceSetName_InvalidPayload)
 {
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    plugin.Initialize(&service);
+
     const auto ctx = MakeContext();
     string result;
 
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.setname", "{invalid", result);
 
     EXPECT_EQ(Core::ERROR_BAD_REQUEST, rc);
-    EXPECT_EQ("{\"error\":\"Invalid payload\"}", result);
+    EXPECT_EQ("{\"error\":\"Invalid payload: missing or invalid 'value' field\"}", result);
+
+    plugin.Deinitialize(&service);
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_011_013_016_018_020_022_026_027_InvalidPayloads)
 {
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    plugin.Initialize(&service);
+
     const auto ctx = MakeContext();
 
-    const std::vector<std::string> methods = {
-        "localization.setcountrycode",
-        "localization.settimezone",
-        "voiceguidance.setenabled",
-        "audiodescriptions.setenabled",
-        "closedcaptions.setenabled",
-        "localization.setlocale",
-        "localization.setpreferredaudiolanguages",
-        "closedcaptions.setpreferredlanguages",
-        "voiceguidance.setspeed",
-        "voiceguidance.setnavigationhints"
+    // Maps each method to the exact error string returned by production code for invalid payload
+    const std::vector<std::pair<std::string, std::string>> methodErrors = {
+        { "localization.setcountrycode",           "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}" },
+        { "localization.settimezone",              "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}" },
+        { "voiceguidance.setenabled",              "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}" },
+        { "audiodescriptions.setenabled",          "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}" },
+        { "closedcaptions.setenabled",             "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}" },
+        { "localization.setlocale",                "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}" },
+        { "localization.setpreferredaudiolanguages","{\"error\":\"Invalid payload: 'value' field must be a string or array\"}" },
+        { "closedcaptions.setpreferredlanguages",  "{\"error\":\"Invalid payload: 'value' field must be a string or array\"}" },
+        { "voiceguidance.setspeed",                "{\"error\":\"Invalid payload: missing, invalid, or out-of-range 'value' field (expected 0.5-2.0)\"}" },
+        { "voiceguidance.setnavigationhints",      "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}" },
     };
 
-    for (const auto& method : methods) {
+    for (const auto& entry : methodErrors) {
+        const auto& method = entry.first;
+        const auto& expectedError = entry.second;
         string result;
         const auto rc = plugin.HandleAppGatewayRequest(ctx, method, "{invalid", result);
         EXPECT_EQ(Core::ERROR_BAD_REQUEST, rc) << "method=" << method;
-        EXPECT_EQ("{\"error\":\"Invalid payload\"}", result) << "method=" << method;
+        EXPECT_EQ(expectedError, result) << "method=" << method;
     }
+
+    plugin.Deinitialize(&service);
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_005_006_007_010_012_014_015_017_019_021_023_024_025_NullDelegate)
@@ -342,6 +369,12 @@ TEST_F(AppGatewayCommonTest, AGC_L1_008_DeviceSetName_ValidPayload_NoDelegate)
 
 TEST_F(AppGatewayCommonTest, AGC_L1_Extra_AddAdditionalInfo_RouteSuccess)
 {
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    plugin.Initialize(&service);
+
     const auto ctx = MakeContext();
     string result;
 
@@ -349,6 +382,8 @@ TEST_F(AppGatewayCommonTest, AGC_L1_Extra_AddAdditionalInfo_RouteSuccess)
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_EQ("null", result);
+
+    plugin.Deinitialize(&service);
 }
 
 TEST_F(AppGatewayCommonTest, AGC_L1_CaseInsensitiveRouting_UnknownAndKnown)
@@ -361,7 +396,8 @@ TEST_F(AppGatewayCommonTest, AGC_L1_CaseInsensitiveRouting_UnknownAndKnown)
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.HandleAppGatewayRequest(ctx, "DEVICE.NETWORK", "{}", result));
 
     result.clear();
-    EXPECT_EQ(Core::ERROR_UNKNOWN_KEY, plugin.HandleAppGatewayRequest(ctx, "Not.A.Method", "{}", result));
+    // With null delegate the top-level guard fires before routing, so unknown methods also return ERROR_UNAVAILABLE
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.HandleAppGatewayRequest(ctx, "Not.A.Method", "{}", result));
 }
 
 } // namespace
