@@ -53,8 +53,9 @@ void YieldToWorkerPool()
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
-// Helper: create a shell config with no notification handler to avoid the
-// destructor null-mShell crash (known plugin bug in AppNotificationsImplementation).
+// Helper: create a shell config with no notification handler to keep
+// mRegisteredNotifications empty and avoid ThunderSubscriptionManager
+// cleanup paths that require a full Thunder environment.
 // Emit tests do not require a handler — they only need the AppGateway responder.
 L0Test::AppNotificationsServiceMock::Config MakeEmitTestConfig()
 {
