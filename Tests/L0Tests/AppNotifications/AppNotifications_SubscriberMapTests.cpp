@@ -38,8 +38,8 @@ using WPEFramework::Exchange::IConfiguration;
 namespace {
 
 // Safe config: disables the notification handler so HandleNotifier() never
-// returns true, keeping mRegisteredNotifications empty and avoiding the
-// destructor segfault (known bug in AppNotificationsImplementation).
+// returns true, keeping mRegisteredNotifications empty and avoiding
+// ThunderSubscriptionManager cleanup paths that require a full Thunder environment.
 L0Test::AppNotificationsServiceMock::Config MakeSafeConfig(
     bool provideGw  = true,
     bool provideIgw = true)

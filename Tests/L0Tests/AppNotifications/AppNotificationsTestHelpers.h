@@ -32,9 +32,9 @@ class AppNotificationsServiceMock;
  * The caller owns the returned pointer and must call Release() when done.
  * Returns nullptr if creation or configuration fails.
  *
- * IMPORTANT: Configure the shell with provideNotificationHandler=false
- * (MakeSafeConfig) to avoid the known destructor-ordering segfault in
- * AppNotificationsImplementation when mRegisteredNotifications is non-empty.
+ * NOTE: Most tests configure the shell with provideNotificationHandler=false
+ * to keep mRegisteredNotifications empty, avoiding ThunderSubscriptionManager
+ * cleanup paths that require a fully mocked Thunder environment.
  */
 WPEFramework::Exchange::IAppNotifications*
 CreateConfiguredImpl(AppNotificationsServiceMock* shell);

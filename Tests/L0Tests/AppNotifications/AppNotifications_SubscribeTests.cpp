@@ -76,7 +76,7 @@ uint32_t Test_AN_Subscribe_FirstListener_TriggersThunderSub()
     L0Test::TestResult tr;
 
     // Use provideNotificationHandler=false to keep mRegisteredNotifications empty,
-    // avoiding the destructor null-shell crash (known plugin bug).
+    // avoiding ThunderSubscriptionManager cleanup paths that require a full Thunder environment.
     L0Test::AppNotificationsServiceMock::Config shellCfg;
     shellCfg.provideNotificationHandler = false;
     L0Test::AppNotificationsServiceMock shell(shellCfg);
