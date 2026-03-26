@@ -58,8 +58,6 @@ using ::testing::StrEq;
 // ---------------------------------------------------------------------------
 // Named constants
 // ---------------------------------------------------------------------------
-#define APP_NOTIFICATIONS_GATEWAY_CALLSIGN      "org.rdk.AppGateway"
-#define APP_NOTIFICATIONS_DELEGATE_CALLSIGN     "org.rdk.LaunchDelegate"
 #define APP_NOTIFICATIONS_DEFAULT_CONNECTION_ID  100
 #define APP_NOTIFICATIONS_DEFAULT_APP_ID         "test.app"
 #define APP_NOTIFICATIONS_DEFAULT_REQUEST_ID     1
@@ -208,7 +206,7 @@ protected:
         uint32_t requestId    = APP_NOTIFICATIONS_DEFAULT_REQUEST_ID,
         uint32_t connectionId = APP_NOTIFICATIONS_DEFAULT_CONNECTION_ID,
         const std::string& appId  = APP_NOTIFICATIONS_DEFAULT_APP_ID,
-        const std::string& origin = APP_NOTIFICATIONS_GATEWAY_CALLSIGN,
+        const std::string& origin = APP_GATEWAY_CALLSIGN,
         const std::string& version = "0")
     {
         Exchange::IAppNotifications::AppNotificationContext ctx;
@@ -262,7 +260,7 @@ TEST_F(AppNotificationsTest, Subscribe_Listen_True_NewEvent_ReturnsNone)
 {
     // Subscribing to a new event (not previously in map) must submit a SubscriberJob
     // and return ERROR_NONE immediately.
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     EXPECT_EQ(Core::ERROR_NONE,
         impl.Subscribe(ctx, true, "org.rdk.SomePlugin", "someEvent"));
 }
@@ -271,8 +269,8 @@ TEST_F(AppNotificationsTest, Subscribe_Listen_True_SameEvent_TwiceNoExtraWorkerJ
 {
     // Subscribing to the same event a second time (listen=true) should not submit
     // a second worker pool job — only adds context to the existing map entry.
-    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 101, "app2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx1 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 101, "app2", APP_GATEWAY_CALLSIGN);
 
     EXPECT_EQ(Core::ERROR_NONE,
         impl.Subscribe(ctx1, true, "org.rdk.SomePlugin", "someEvent"));
@@ -287,7 +285,7 @@ TEST_F(AppNotificationsTest, Subscribe_Listen_True_SameEvent_TwiceNoExtraWorkerJ
 
 TEST_F(AppNotificationsTest, Subscribe_Listen_True_AddsContextToMap)
 {
-    auto ctx = MakeContext(5, 200, "app5", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(5, 200, "app5", APP_GATEWAY_CALLSIGN);
     EXPECT_EQ(Core::ERROR_NONE,
         impl.Subscribe(ctx, true, "org.rdk.Plugin", "testEvent"));
 
@@ -300,7 +298,7 @@ TEST_F(AppNotificationsTest, Subscribe_Listen_True_AddsContextToMap)
 
 TEST_F(AppNotificationsTest, Subscribe_Listen_True_MixedCaseEvent_KeyIsLowercased)
 {
-    auto ctx = MakeContext(1, 100, "myApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "myApp", APP_GATEWAY_CALLSIGN);
     EXPECT_EQ(Core::ERROR_NONE,
         impl.Subscribe(ctx, true, "org.rdk.Module", "MyMixedCaseEvent"));
 
@@ -315,7 +313,7 @@ TEST_F(AppNotificationsTest, Subscribe_Listen_True_MixedCaseEvent_KeyIsLowercase
 
 TEST_F(AppNotificationsTest, Subscribe_Listen_False_RemovesContextFromMap)
 {
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
 
     impl.Subscribe(ctx, true, "org.rdk.Plugin", "removeEvent");
     EXPECT_TRUE(impl.mSubMap.Exists("removeevent"));
@@ -329,7 +327,7 @@ TEST_F(AppNotificationsTest, Subscribe_Listen_False_LastContext_EmitsUnsubscribe
 {
     // When all contexts for an event are removed, a SubscriberJob for unsubscription
     // must be submitted. Subscribe must still return ERROR_NONE.
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
 
     impl.Subscribe(ctx, true, "org.rdk.Plugin", "eventX");
     EXPECT_EQ(Core::ERROR_NONE,
@@ -341,15 +339,15 @@ TEST_F(AppNotificationsTest, Subscribe_Listen_False_LastContext_EmitsUnsubscribe
 TEST_F(AppNotificationsTest, Subscribe_Listen_False_NonExistentEvent_ReturnsNone)
 {
     // Unsubscribing an event that was never subscribed must still return ERROR_NONE.
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     EXPECT_EQ(Core::ERROR_NONE,
         impl.Subscribe(ctx, false, "org.rdk.Plugin", "nonExistentEvent"));
 }
 
 TEST_F(AppNotificationsTest, Subscribe_Listen_False_OneOfTwoContextsRemoved)
 {
-    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 101, "app2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx1 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 101, "app2", APP_GATEWAY_CALLSIGN);
 
     impl.Subscribe(ctx1, true, "org.rdk.Plugin", "sharedEvent");
     impl.Subscribe(ctx2, true, "org.rdk.Plugin", "sharedEvent");
@@ -366,7 +364,7 @@ TEST_F(AppNotificationsTest, Subscribe_Listen_False_OneOfTwoContextsRemoved)
 
 TEST_F(AppNotificationsTest, Subscribe_MultipleDistinctEvents_AllPresentInMap)
 {
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
 
     impl.Subscribe(ctx, true, "org.rdk.Plugin", "eventA");
     impl.Subscribe(ctx, true, "org.rdk.Plugin", "eventB");
@@ -424,7 +422,7 @@ TEST_F(AppNotificationsTest, Emit_WithSubscriber_GatewayOrigin_DispatchesToGatew
 
     EXPECT_CALL(service, QueryInterfaceByCallsign(
             _,
-            StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+            StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -433,7 +431,7 @@ TEST_F(AppNotificationsTest, Emit_WithSubscriber_GatewayOrigin_DispatchesToGatew
 
     EXPECT_CALL(*gatewayMock, Emit(_, _, _)).Times(AnyNumber());
 
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     impl.Subscribe(ctx, true, "org.rdk.Plugin", "dispatchEvent");
 
     EXPECT_EQ(Core::ERROR_NONE,
@@ -456,7 +454,7 @@ TEST_F(AppNotificationsTest, Emit_WithSubscriber_NonGatewayOrigin_DispatchesToLa
 
     EXPECT_CALL(service, QueryInterfaceByCallsign(
             _,
-            StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+            StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             launchDelegateMock->AddRef();
@@ -465,7 +463,7 @@ TEST_F(AppNotificationsTest, Emit_WithSubscriber_NonGatewayOrigin_DispatchesToLa
 
     EXPECT_CALL(*launchDelegateMock, Emit(_, _, _)).Times(AnyNumber());
 
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", GATEWAY_AUTHENTICATOR_CALLSIGN);
     impl.Subscribe(ctx, true, "org.rdk.Plugin", "delegateEvent");
 
     EXPECT_EQ(Core::ERROR_NONE,
@@ -480,8 +478,8 @@ TEST_F(AppNotificationsTest, Emit_NoSubscribersForEvent_NoDispatch)
 {
     // No subscribers registered; Emit must still return ERROR_NONE.
     // No calls to QueryInterfaceByCallsign for dispatch should happen.
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN))).Times(0);
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN))).Times(0);
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN))).Times(0);
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN))).Times(0);
 
     EXPECT_EQ(Core::ERROR_NONE,
         impl.Emit("unknownEvent", "{}", ""));
@@ -498,7 +496,7 @@ TEST_F(AppNotificationsTest, Emit_WithAppIdFilter_OnlyDispatchesMatchingAppId)
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
 
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -508,8 +506,8 @@ TEST_F(AppNotificationsTest, Emit_WithAppIdFilter_OnlyDispatchesMatchingAppId)
     // Only app1 should receive the emit.
     EXPECT_CALL(*gatewayMock, Emit(_, _, _)).Times(AnyNumber());
 
-    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 101, "app2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx1 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 101, "app2", APP_GATEWAY_CALLSIGN);
     impl.Subscribe(ctx1, true, "org.rdk.Plugin", "filteredEvent");
     impl.Subscribe(ctx2, true, "org.rdk.Plugin", "filteredEvent");
 
@@ -529,11 +527,11 @@ TEST_F(AppNotificationsTest, Emit_GatewayQueryFails_DoesNotCrash)
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
 
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
 
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     impl.Subscribe(ctx, true, "org.rdk.Plugin", "missingGatewayEvent");
 
     EXPECT_EQ(Core::ERROR_NONE,
@@ -548,11 +546,11 @@ TEST_F(AppNotificationsTest, Emit_LaunchDelegateQueryFails_DoesNotCrash)
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
 
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
 
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", GATEWAY_AUTHENTICATOR_CALLSIGN);
     impl.Subscribe(ctx, true, "org.rdk.Plugin", "missingDelegateEvent");
 
     EXPECT_EQ(Core::ERROR_NONE,
@@ -567,15 +565,15 @@ TEST_F(AppNotificationsTest, Emit_LaunchDelegateQueryFails_DoesNotCrash)
 
 TEST_F(AppNotificationsTest, Cleanup_RemovesAllContextsMatchingConnectionIdAndOrigin)
 {
-    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);  // same conn+origin
-    auto ctx3 = MakeContext(3, 200, "app2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);  // different connId
+    auto ctx1 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 100, "app1", APP_GATEWAY_CALLSIGN);  // same conn+origin
+    auto ctx3 = MakeContext(3, 200, "app2", APP_GATEWAY_CALLSIGN);  // different connId
 
     impl.Subscribe(ctx1, true, "org.rdk.Plugin", "eventA");
     impl.Subscribe(ctx2, true, "org.rdk.Plugin", "eventB");
     impl.Subscribe(ctx3, true, "org.rdk.Plugin", "eventA");
 
-    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(100, APP_NOTIFICATIONS_GATEWAY_CALLSIGN));
+    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(100, APP_GATEWAY_CALLSIGN));
 
     // eventA: ctx1 (connId=100) removed, ctx3 (connId=200) remains.
     EXPECT_TRUE(impl.mSubMap.Exists("eventa"));
@@ -589,11 +587,11 @@ TEST_F(AppNotificationsTest, Cleanup_RemovesAllContextsMatchingConnectionIdAndOr
 
 TEST_F(AppNotificationsTest, Cleanup_ConnectionIdNotPresent_NoChange)
 {
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     impl.Subscribe(ctx, true, "org.rdk.Plugin", "persistEvent");
 
     // Cleanup with a connectionId that was never subscribed — nothing removed.
-    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(999, APP_NOTIFICATIONS_GATEWAY_CALLSIGN));
+    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(999, APP_GATEWAY_CALLSIGN));
 
     // The subscriber map entry for "persistevent" must still be present.
     EXPECT_TRUE(impl.mSubMap.Exists("persistevent"));
@@ -601,29 +599,29 @@ TEST_F(AppNotificationsTest, Cleanup_ConnectionIdNotPresent_NoChange)
 
 TEST_F(AppNotificationsTest, Cleanup_OriginMismatch_NoChange)
 {
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     impl.Subscribe(ctx, true, "org.rdk.Plugin", "stayEvent");
 
     // Cleanup with same connectionId but different origin — nothing removed.
-    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(100, APP_NOTIFICATIONS_DELEGATE_CALLSIGN));
+    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(100, GATEWAY_AUTHENTICATOR_CALLSIGN));
 
     EXPECT_TRUE(impl.mSubMap.Exists("stayevent"));
 }
 
 TEST_F(AppNotificationsTest, Cleanup_EmptyMap_ReturnsNone)
 {
-    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(1, APP_NOTIFICATIONS_GATEWAY_CALLSIGN));
+    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(1, APP_GATEWAY_CALLSIGN));
 }
 
 TEST_F(AppNotificationsTest, Cleanup_MultipleEventsForConnection_AllCleared)
 {
-    auto ctx = MakeContext(1, 55, "myApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 55, "myApp", APP_GATEWAY_CALLSIGN);
 
     impl.Subscribe(ctx, true, "org.rdk.A", "alpha");
     impl.Subscribe(ctx, true, "org.rdk.B", "beta");
     impl.Subscribe(ctx, true, "org.rdk.C", "gamma");
 
-    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(55, APP_NOTIFICATIONS_GATEWAY_CALLSIGN));
+    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(55, APP_GATEWAY_CALLSIGN));
 
     EXPECT_FALSE(impl.mSubMap.Exists("alpha"));
     EXPECT_FALSE(impl.mSubMap.Exists("beta"));
@@ -632,9 +630,9 @@ TEST_F(AppNotificationsTest, Cleanup_MultipleEventsForConnection_AllCleared)
 
 TEST_F(AppNotificationsTest, Cleanup_ThenSubscribe_WorksCorrectly)
 {
-    auto ctx = MakeContext(1, 77, "appX", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 77, "appX", APP_GATEWAY_CALLSIGN);
     impl.Subscribe(ctx, true, "org.rdk.Plugin", "cyclicEvent");
-    impl.Cleanup(77, APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.Cleanup(77, APP_GATEWAY_CALLSIGN);
 
     EXPECT_FALSE(impl.mSubMap.Exists("cyclicevent"));
 
@@ -650,15 +648,15 @@ TEST_F(AppNotificationsTest, Cleanup_ThenSubscribe_WorksCorrectly)
 
 TEST_F(AppNotificationsTest, SubscriberMap_Add_And_Exists)
 {
-    auto ctx = MakeContext(1, 10, "a", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 10, "a", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("SomeKey", ctx);
     EXPECT_TRUE(impl.mSubMap.Exists("somekey"));
 }
 
 TEST_F(AppNotificationsTest, SubscriberMap_Get_ReturnsCorrectContexts)
 {
-    auto ctx1 = MakeContext(1, 10, "a", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 11, "b", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx1 = MakeContext(1, 10, "a", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 11, "b", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("myKey", ctx1);
     impl.mSubMap.Add("myKey", ctx2);
 
@@ -674,7 +672,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_Get_NonExistentKey_ReturnsEmpty)
 
 TEST_F(AppNotificationsTest, SubscriberMap_Remove_ExistingContext_KeyErasedWhenEmpty)
 {
-    auto ctx = MakeContext(1, 10, "a", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 10, "a", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("removeKey", ctx);
     EXPECT_TRUE(impl.mSubMap.Exists("removekey"));
 
@@ -684,7 +682,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_Remove_ExistingContext_KeyErasedWhenE
 
 TEST_F(AppNotificationsTest, SubscriberMap_Remove_NonExistentKey_NoOp)
 {
-    auto ctx = MakeContext(1, 10, "a", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 10, "a", APP_GATEWAY_CALLSIGN);
     // No crash expected.
     impl.mSubMap.Remove("ghost", ctx);
     EXPECT_FALSE(impl.mSubMap.Exists("ghost"));
@@ -692,7 +690,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_Remove_NonExistentKey_NoOp)
 
 TEST_F(AppNotificationsTest, SubscriberMap_Exists_CaseInsensitive)
 {
-    auto ctx = MakeContext(1, 10, "a", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 10, "a", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("UPPER", ctx);
     EXPECT_TRUE(impl.mSubMap.Exists("upper"));
     EXPECT_TRUE(impl.mSubMap.Exists("UPPER"));
@@ -701,12 +699,12 @@ TEST_F(AppNotificationsTest, SubscriberMap_Exists_CaseInsensitive)
 
 TEST_F(AppNotificationsTest, SubscriberMap_CleanupNotifications_ByConnectionAndOrigin)
 {
-    auto ctx1 = MakeContext(1, 42, "appA", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 43, "appB", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx1 = MakeContext(1, 42, "appA", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 43, "appB", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("cleanKey", ctx1);
     impl.mSubMap.Add("cleanKey", ctx2);
 
-    impl.mSubMap.CleanupNotifications(42, APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.mSubMap.CleanupNotifications(42, APP_GATEWAY_CALLSIGN);
 
     EXPECT_TRUE(impl.mSubMap.Exists("cleankey"));
     auto vec = impl.mSubMap.Get("cleankey");
@@ -716,10 +714,10 @@ TEST_F(AppNotificationsTest, SubscriberMap_CleanupNotifications_ByConnectionAndO
 
 TEST_F(AppNotificationsTest, SubscriberMap_CleanupNotifications_ErasesKeyWhenAllRemoved)
 {
-    auto ctx = MakeContext(1, 88, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 88, "app1", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("eraseKey", ctx);
 
-    impl.mSubMap.CleanupNotifications(88, APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.mSubMap.CleanupNotifications(88, APP_GATEWAY_CALLSIGN);
 
     EXPECT_FALSE(impl.mSubMap.Exists("erasekey"));
 }
@@ -910,7 +908,7 @@ TEST_F(AppNotificationsTest, EndToEnd_SubscribeEmitCleanup_GatewayOrigin)
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
 
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -918,7 +916,7 @@ TEST_F(AppNotificationsTest, EndToEnd_SubscribeEmitCleanup_GatewayOrigin)
         }));
     EXPECT_CALL(*gatewayMock, Emit(_, StrEq("e2eEvent"), _)).Times(AnyNumber());
 
-    auto ctx = MakeContext(10, 300, "e2eApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(10, 300, "e2eApp", APP_GATEWAY_CALLSIGN);
 
     EXPECT_EQ(Core::ERROR_NONE,
         impl.Subscribe(ctx, true, "org.rdk.Plugin", "e2eEvent"));
@@ -930,7 +928,7 @@ TEST_F(AppNotificationsTest, EndToEnd_SubscribeEmitCleanup_GatewayOrigin)
     std::this_thread::sleep_for(std::chrono::milliseconds(80));
 
     EXPECT_EQ(Core::ERROR_NONE,
-        impl.Cleanup(300, APP_NOTIFICATIONS_GATEWAY_CALLSIGN));
+        impl.Cleanup(300, APP_GATEWAY_CALLSIGN));
     EXPECT_FALSE(impl.mSubMap.Exists("e2eevent"));
 
     gatewayMock->Release();
@@ -945,7 +943,7 @@ TEST_F(AppNotificationsTest, EndToEnd_MultipleSubscribersEmitOneAppId)
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
 
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -953,8 +951,8 @@ TEST_F(AppNotificationsTest, EndToEnd_MultipleSubscribersEmitOneAppId)
         }));
     EXPECT_CALL(*gatewayMock, Emit(_, _, _)).Times(AnyNumber());
 
-    auto ctx1 = MakeContext(1, 100, "appAlpha", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 101, "appBeta",  APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx1 = MakeContext(1, 100, "appAlpha", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 101, "appBeta",  APP_GATEWAY_CALLSIGN);
 
     impl.Subscribe(ctx1, true, "org.rdk.Plugin", "multiEvent");
     impl.Subscribe(ctx2, true, "org.rdk.Plugin", "multiEvent");
@@ -977,7 +975,7 @@ TEST_F(AppNotificationsTest, Subscribe_EmptyModule_Listen_True_ReturnsNoneAndAdd
     // Empty module string is valid — Subscribe must still return ERROR_NONE and
     // add the context to the subscriber map (the SubscriberJob will be dispatched
     // with an empty module, which is the caller's concern).
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     EXPECT_EQ(Core::ERROR_NONE,
         impl.Subscribe(ctx, true, "", "emptyModuleEvent"));
 
@@ -988,7 +986,7 @@ TEST_F(AppNotificationsTest, Subscribe_EmptyEvent_Listen_True_ReturnsNoneAndAdds
 {
     // An empty event string produces an empty lowercase key in the map.
     // Subscribe must return ERROR_NONE and the context must be retrievable.
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     EXPECT_EQ(Core::ERROR_NONE,
         impl.Subscribe(ctx, true, "org.rdk.Plugin", ""));
 
@@ -1003,8 +1001,8 @@ TEST_F(AppNotificationsTest, Subscribe_PartialUnsubscribe_ThenResubscribe_Works)
 {
     // Subscribe two contexts, unsubscribe the first — key must persist.
     // Then subscribe the first context again — key must still exist with both.
-    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 101, "app2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx1 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 101, "app2", APP_GATEWAY_CALLSIGN);
 
     impl.Subscribe(ctx1, true, "org.rdk.Plugin", "partialEvt");
     impl.Subscribe(ctx2, true, "org.rdk.Plugin", "partialEvt");
@@ -1025,7 +1023,7 @@ TEST_F(AppNotificationsTest, Subscribe_PartialUnsubscribe_ThenResubscribe_Works)
 TEST_F(AppNotificationsTest, Subscribe_Listen_False_EmptyEvent_NoEntry_ReturnsNone)
 {
     // Unsubscribing a never-added empty event must not crash.
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     EXPECT_EQ(Core::ERROR_NONE,
         impl.Subscribe(ctx, false, "org.rdk.Plugin", ""));
     EXPECT_FALSE(impl.mSubMap.Exists(""));
@@ -1044,14 +1042,14 @@ TEST_F(AppNotificationsTest, Emit_AfterCleanup_NoDispatch)
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
     // The gateway/delegate interfaces must never be acquired (no subscribers).
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(0);
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(0);
 
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     impl.Subscribe(ctx, true, "org.rdk.Plugin", "cleanedEvent");
-    impl.Cleanup(100, APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.Cleanup(100, APP_GATEWAY_CALLSIGN);
     EXPECT_FALSE(impl.mSubMap.Exists("cleanedevent"));
 
     EXPECT_EQ(Core::ERROR_NONE,
@@ -1068,7 +1066,7 @@ TEST_F(AppNotificationsTest, Emit_EmptyAppId_DispatchesToAllSubscribers)
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -1078,8 +1076,8 @@ TEST_F(AppNotificationsTest, Emit_EmptyAppId_DispatchesToAllSubscribers)
     // Both app1 and app2 subscribers must receive the Emit call.
     EXPECT_CALL(*gatewayMock, Emit(_, _, _)).Times(::testing::AtLeast(2));
 
-    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 101, "app2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx1 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 101, "app2", APP_GATEWAY_CALLSIGN);
     impl.Subscribe(ctx1, true, "org.rdk.Plugin", "broadcastEvt");
     impl.Subscribe(ctx2, true, "org.rdk.Plugin", "broadcastEvt");
 
@@ -1099,7 +1097,7 @@ TEST_F(AppNotificationsTest, Emit_AppIdNoMatch_NoDispatch)
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -1109,7 +1107,7 @@ TEST_F(AppNotificationsTest, Emit_AppIdNoMatch_NoDispatch)
     // No matching appId — Emit on the gateway mock must never be called.
     EXPECT_CALL(*gatewayMock, Emit(_, _, _)).Times(0);
 
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     impl.Subscribe(ctx, true, "org.rdk.Plugin", "noMatchEvt");
 
     EXPECT_EQ(Core::ERROR_NONE,
@@ -1128,7 +1126,7 @@ TEST_F(AppNotificationsTest, Cleanup_EmptyOrigin_OnlyRemovesEmptyOriginContexts)
 {
     // Context with empty origin — Cleanup with empty origin must only remove it.
     auto ctxEmpty  = MakeContext(1, 100, "app1", "");
-    auto ctxGw     = MakeContext(2, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctxGw     = MakeContext(2, 100, "app1", APP_GATEWAY_CALLSIGN);
 
     impl.mSubMap.Add("mixedOriginKey", ctxEmpty);
     impl.mSubMap.Add("mixedOriginKey", ctxGw);
@@ -1139,19 +1137,19 @@ TEST_F(AppNotificationsTest, Cleanup_EmptyOrigin_OnlyRemovesEmptyOriginContexts)
     EXPECT_TRUE(impl.mSubMap.Exists("mixedoriginkey"));
     auto vec = impl.mSubMap.Get("mixedoriginkey");
     ASSERT_EQ(1u, vec.size());
-    EXPECT_EQ(APP_NOTIFICATIONS_GATEWAY_CALLSIGN, vec[0].origin);
+    EXPECT_EQ(APP_GATEWAY_CALLSIGN, vec[0].origin);
 }
 
 TEST_F(AppNotificationsTest, Cleanup_ZeroConnectionId_OnlyRemovesMatchingConnId)
 {
     // Contexts with connectionId=0 must be cleaned up when Cleanup(0, origin) is called.
-    auto ctxZero = MakeContext(1, 0,   "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctxNonZ = MakeContext(2, 100, "app2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctxZero = MakeContext(1, 0,   "app1", APP_GATEWAY_CALLSIGN);
+    auto ctxNonZ = MakeContext(2, 100, "app2", APP_GATEWAY_CALLSIGN);
 
     impl.mSubMap.Add("zeroConnKey", ctxZero);
     impl.mSubMap.Add("zeroConnKey", ctxNonZ);
 
-    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(0, APP_NOTIFICATIONS_GATEWAY_CALLSIGN));
+    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(0, APP_GATEWAY_CALLSIGN));
 
     EXPECT_TRUE(impl.mSubMap.Exists("zeroconnkey"));
     auto vec = impl.mSubMap.Get("zeroconnkey");
@@ -1163,7 +1161,7 @@ TEST_F(AppNotificationsTest, Cleanup_BothOriginAndConnIdMustMatch_ConnIdMatchOnl
 {
     // Context with connId=100 and origin=GATEWAY_CALLSIGN.
     // Cleanup with connId=100 but wrong origin must NOT remove the context.
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("bothMatchKey", ctx);
 
     EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(100, "org.rdk.SomeOtherOrigin"));
@@ -1178,7 +1176,7 @@ TEST_F(AppNotificationsTest, Cleanup_BothOriginAndConnIdMustMatch_ConnIdMatchOnl
 TEST_F(AppNotificationsTest, SubscriberMap_Remove_OnlyRemovesOneMatchingContext_WhenMultipleSameKey)
 {
     // Add two identical contexts (same requestId, connId, appId, origin, version).
-    auto ctx = MakeContext(1, 10, "appA", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 10, "appA", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("dupKey", ctx);
     impl.mSubMap.Add("dupKey", ctx);
 
@@ -1195,7 +1193,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_CleanupNotifications_ConnIdMatchOnly_
 {
     // Add context with origin=GATEWAY_CALLSIGN.
     // CleanupNotifications with same connId but different origin must not remove it.
-    auto ctx = MakeContext(1, 55, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 55, "app1", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("cleanMismatch", ctx);
 
     impl.mSubMap.CleanupNotifications(55, "wrongOrigin");
@@ -1214,7 +1212,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_DispatchToGateway_CachesInterface_Que
         .WillRepeatedly(Return(nullptr));
 
     // Exactly one QueryInterfaceByCallsign call for the gateway callsign.
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(1)
         .WillOnce(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -1223,7 +1221,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_DispatchToGateway_CachesInterface_Que
 
     EXPECT_CALL(*gatewayMock, Emit(_, _, _)).Times(2);
 
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
 
     // Call DispatchToGateway directly twice — second call must reuse cached mAppGateway.
     impl.mSubMap.DispatchToGateway("cacheEvt", ctx, "{}");
@@ -1242,7 +1240,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_DispatchToGateway_NullGateway_DoesNot
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
 
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     // Must not crash.
     EXPECT_NO_THROW(impl.mSubMap.DispatchToGateway("nullGwEvt", ctx, "{}"));
 }
@@ -1254,7 +1252,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_DispatchToLaunchDelegate_NullDelegate
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
 
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", GATEWAY_AUTHENTICATOR_CALLSIGN);
     EXPECT_NO_THROW(impl.mSubMap.DispatchToLaunchDelegate("nullDelegEvt", ctx, "{}"));
 }
 
@@ -1267,7 +1265,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_DispatchToLaunchDelegate_CachesInterf
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
 
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(1)
         .WillOnce(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             delegateMock->AddRef();
@@ -1276,7 +1274,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_DispatchToLaunchDelegate_CachesInterf
 
     EXPECT_CALL(*delegateMock, Emit(_, _, _)).Times(2);
 
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", GATEWAY_AUTHENTICATOR_CALLSIGN);
 
     impl.mSubMap.DispatchToLaunchDelegate("cacheDeleg", ctx, "{}");
     impl.mSubMap.DispatchToLaunchDelegate("cacheDeleg", ctx, "{}");
@@ -1292,7 +1290,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_EventUpdate_AppIdEmpty_DispatchesToAl
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -1301,9 +1299,9 @@ TEST_F(AppNotificationsTest, SubscriberMap_EventUpdate_AppIdEmpty_DispatchesToAl
 
     EXPECT_CALL(*gatewayMock, Emit(_, _, _)).Times(3);
 
-    auto ctx1 = MakeContext(1, 100, "a1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 101, "a2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx3 = MakeContext(3, 102, "a3", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx1 = MakeContext(1, 100, "a1", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 101, "a2", APP_GATEWAY_CALLSIGN);
+    auto ctx3 = MakeContext(3, 102, "a3", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("evtAll", ctx1);
     impl.mSubMap.Add("evtAll", ctx2);
     impl.mSubMap.Add("evtAll", ctx3);
@@ -1322,7 +1320,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_EventUpdate_AppIdNonMatch_NoDispatch)
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -1331,7 +1329,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_EventUpdate_AppIdNonMatch_NoDispatch)
 
     EXPECT_CALL(*gatewayMock, Emit(_, _, _)).Times(0);
 
-    auto ctx = MakeContext(1, 100, "realApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "realApp", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("evtNoMatch", ctx);
 
     impl.mSubMap.EventUpdate("evtNoMatch", "{}", "ghostApp");
@@ -1342,9 +1340,9 @@ TEST_F(AppNotificationsTest, SubscriberMap_EventUpdate_AppIdNonMatch_NoDispatch)
 TEST_F(AppNotificationsTest, SubscriberMap_EventUpdate_NoSubscribersForKey_NoDispatch)
 {
     // EventUpdate for an event with no subscribers — no crash, no dispatch.
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(0);
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(0);
 
     EXPECT_NO_THROW(impl.mSubMap.EventUpdate("unknownEvt", "{}", ""));
@@ -1537,11 +1535,11 @@ TEST_F(AppNotificationsTest, ThunderManager_HandleNotifier_HandlerReturnsErrorNo
 TEST_F(AppNotificationsTest, Notification_EmitterEmit_WithSubscriber_GatewayOrigin_DispatchesViaGateway)
 {
     // Arrange: subscriber with gateway origin.
-    auto ctx = MakeContext(1, 100, "notifyApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "notifyApp", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("notifyEvt", ctx);
 
     auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -1566,14 +1564,14 @@ TEST_F(AppNotificationsTest, Notification_EmitterEmit_WithSubscriber_GatewayOrig
 TEST_F(AppNotificationsTest, Notification_EmitterEmit_WithSubscriber_NonGatewayOrigin_DispatchesViaLaunchDelegate)
 {
     // Arrange: subscriber with non-gateway origin (Launch Delegate path).
-    auto ctx = MakeContext(1, 200, "delegateApp", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    auto ctx = MakeContext(1, 200, "delegateApp", GATEWAY_AUTHENTICATOR_CALLSIGN);
     impl.mSubMap.Add("delegateNotifyEvt", ctx);
 
     auto delegateMock = new NiceMock<AppGatewayResponderMock>();
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             delegateMock->AddRef();
@@ -1594,9 +1592,9 @@ TEST_F(AppNotificationsTest, Notification_EmitterEmit_WithSubscriber_NonGatewayO
 TEST_F(AppNotificationsTest, Notification_EmitterEmit_NoSubscribers_NoDispatch)
 {
     // Emitter::Emit for an event with no subscribers — gateway must not be queried.
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(0);
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(0);
 
     impl.mEmitter.Emit("orphanEvt", "{}", "anyApp");
@@ -1607,13 +1605,13 @@ TEST_F(AppNotificationsTest, Notification_EmitterEmit_NoSubscribers_NoDispatch)
 TEST_F(AppNotificationsTest, Notification_EmitterEmit_EmptyAppId_BroadcastsToAllSubscribers)
 {
     // Empty appId → EventUpdate dispatches to ALL subscribers for the event.
-    auto ctx1 = MakeContext(1, 10, "appOne", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 11, "appTwo", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx1 = MakeContext(1, 10, "appOne", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 11, "appTwo", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("broadcastEvt", ctx1);
     impl.mSubMap.Add("broadcastEvt", ctx2);
 
     auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -1635,13 +1633,13 @@ TEST_F(AppNotificationsTest, Notification_EmitterEmit_EmptyAppId_BroadcastsToAll
 TEST_F(AppNotificationsTest, Notification_EmitterEmit_AppIdFiltered_OnlyMatchingSubscriberDispatched)
 {
     // Only the subscriber whose appId matches the emitted appId receives the event.
-    auto ctx1 = MakeContext(1, 10, "targetApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 11, "otherApp",  APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx1 = MakeContext(1, 10, "targetApp", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 11, "otherApp",  APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("filteredEvt", ctx1);
     impl.mSubMap.Add("filteredEvt", ctx2);
 
     auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -1764,11 +1762,11 @@ TEST_F(AppNotificationsTest, Notification_HandleNotifier_EmitterCanBeInvokedByHa
     // When the external handler calls back through the emitter it was given,
     // the EmitJob is submitted and EventUpdate is eventually invoked.
     // Set up a subscriber so EventUpdate reaches DispatchToGateway.
-    auto ctx = MakeContext(1, 300, "cbApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 300, "cbApp", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("cbEvent", ctx);
 
     auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -1847,7 +1845,7 @@ TEST_F(AppNotificationsTest, Notification_EndToEnd_SubscribeEmitViaEmitter_Gatew
         .WillRepeatedly(Return(nullptr));
 
     // DispatchToGateway calls QueryInterfaceByCallsign for the AppGateway callsign.
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -1857,7 +1855,7 @@ TEST_F(AppNotificationsTest, Notification_EndToEnd_SubscribeEmitViaEmitter_Gatew
         .Times(1)
         .WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(42, 500, "pipelineApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(42, 500, "pipelineApp", APP_GATEWAY_CALLSIGN);
     EXPECT_EQ(Core::ERROR_NONE, impl.Subscribe(ctx, true, "org.rdk.Pipeline", "pipelineEvt"));
 
     // Use the plugin's own Emitter (the object passed to HandleAppEventNotifier).
@@ -1885,7 +1883,7 @@ TEST_F(AppNotificationsTest, Notification_EndToEnd_SubscribeEmitViaEmitter_Launc
         .WillRepeatedly(Return(nullptr));
 
     // DispatchToLaunchDelegate calls QueryInterfaceByCallsign for the delegate callsign.
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             ldMock->AddRef();
@@ -1895,7 +1893,7 @@ TEST_F(AppNotificationsTest, Notification_EndToEnd_SubscribeEmitViaEmitter_Launc
         .Times(1)
         .WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(43, 501, "ldApp", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    auto ctx = MakeContext(43, 501, "ldApp", GATEWAY_AUTHENTICATOR_CALLSIGN);
     EXPECT_EQ(Core::ERROR_NONE, impl.Subscribe(ctx, true, "org.rdk.LD", "ldEvt"));
 
     impl.mEmitter.Emit("ldEvt", "{\"ld\":1}", "ldApp");
@@ -1913,11 +1911,11 @@ TEST_F(AppNotificationsTest, Notification_DispatchToGateway_GatewayContextFields
 {
     // Verify that the GatewayContext passed to AppGatewayResponder::Emit contains
     // the requestId/connectionId/appId from the subscriber's AppNotificationContext.
-    auto ctx = MakeContext(77, 888, "fieldApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(77, 888, "fieldApp", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("ctxFieldEvt", ctx);
 
     auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -1947,14 +1945,14 @@ TEST_F(AppNotificationsTest, Notification_DispatchToGateway_GatewayContextFields
 TEST_F(AppNotificationsTest, Notification_DispatchToLaunchDelegate_GatewayContextFields_MatchSubscriberContext)
 {
     // Same field verification for the LaunchDelegate path.
-    auto ctx = MakeContext(55, 999, "ldFieldApp", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    auto ctx = MakeContext(55, 999, "ldFieldApp", GATEWAY_AUTHENTICATOR_CALLSIGN);
     impl.mSubMap.Add("ldFieldEvt", ctx);
 
     auto ldMock = new NiceMock<AppGatewayResponderMock>();
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             ldMock->AddRef();
@@ -2029,43 +2027,43 @@ namespace WPEFramework { namespace Exchange {
 
 TEST_F(AppNotificationsTest, AppNotificationContext_Equality_AllFieldsMatch_ReturnsTrue)
 {
-    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "0");
-    auto ctx2 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "0");
+    auto ctx1 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN, "0");
+    auto ctx2 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN, "0");
     EXPECT_TRUE(Exchange::operator==(ctx1, ctx2));
 }
 
 TEST_F(AppNotificationsTest, AppNotificationContext_Equality_RequestIdDiffers_ReturnsFalse)
 {
-    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "0");
-    auto ctx2 = MakeContext(2, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "0");
+    auto ctx1 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN, "0");
+    auto ctx2 = MakeContext(2, 100, "app1", APP_GATEWAY_CALLSIGN, "0");
     EXPECT_FALSE(Exchange::operator==(ctx1, ctx2));
 }
 
 TEST_F(AppNotificationsTest, AppNotificationContext_Equality_ConnectionIdDiffers_ReturnsFalse)
 {
-    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "0");
-    auto ctx2 = MakeContext(1, 200, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "0");
+    auto ctx1 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN, "0");
+    auto ctx2 = MakeContext(1, 200, "app1", APP_GATEWAY_CALLSIGN, "0");
     EXPECT_FALSE(Exchange::operator==(ctx1, ctx2));
 }
 
 TEST_F(AppNotificationsTest, AppNotificationContext_Equality_AppIdDiffers_ReturnsFalse)
 {
-    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "0");
-    auto ctx2 = MakeContext(1, 100, "app2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "0");
+    auto ctx1 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN, "0");
+    auto ctx2 = MakeContext(1, 100, "app2", APP_GATEWAY_CALLSIGN, "0");
     EXPECT_FALSE(Exchange::operator==(ctx1, ctx2));
 }
 
 TEST_F(AppNotificationsTest, AppNotificationContext_Equality_OriginDiffers_ReturnsFalse)
 {
-    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "0");
-    auto ctx2 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_DELEGATE_CALLSIGN, "0");
+    auto ctx1 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN, "0");
+    auto ctx2 = MakeContext(1, 100, "app1", GATEWAY_AUTHENTICATOR_CALLSIGN, "0");
     EXPECT_FALSE(Exchange::operator==(ctx1, ctx2));
 }
 
 TEST_F(AppNotificationsTest, AppNotificationContext_Equality_VersionDiffers_ReturnsFalse)
 {
-    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "0");
-    auto ctx2 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "8");
+    auto ctx1 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN, "0");
+    auto ctx2 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN, "8");
     EXPECT_FALSE(Exchange::operator==(ctx1, ctx2));
 }
 
@@ -2080,7 +2078,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_Destructor_ReleasesCachedAppGateway)
     // the mock ref-count check will detect a leak.
     auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
 
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(1)
         .WillOnce(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -2088,7 +2086,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_Destructor_ReleasesCachedAppGateway)
         }));
     EXPECT_CALL(*gatewayMock, Emit(_, _, _)).Times(1).WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.DispatchToGateway("cacheDestructEvt", ctx, "{}");
 
     // The SubscriberMap destructor (called from fixture teardown) should Release mAppGateway.
@@ -2103,7 +2101,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_Destructor_ReleasesCachedLaunchDelega
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(1)
         .WillOnce(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             delegateMock->AddRef();
@@ -2111,7 +2109,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_Destructor_ReleasesCachedLaunchDelega
         }));
     EXPECT_CALL(*delegateMock, Emit(_, _, _)).Times(1).WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", GATEWAY_AUTHENTICATOR_CALLSIGN);
     impl.mSubMap.DispatchToLaunchDelegate("cacheDestructDelegEvt", ctx, "{}");
 
     delegateMock->Release();
@@ -2175,7 +2173,7 @@ TEST_F(AppNotificationsTest, SubscriberJob_Dispatch_Subscribe_True_CallsThunderM
             ::testing::SetArgReferee<3>(true),
             Return(Core::ERROR_NONE)));
 
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     impl.Subscribe(ctx, true, "org.rdk.JobMod", "jobEvt");
 
     // Wait for the worker pool to process the SubscriberJob.
@@ -2205,7 +2203,7 @@ TEST_F(AppNotificationsTest, SubscriberJob_Dispatch_Subscribe_False_CallsThunder
             ::testing::SetArgReferee<3>(true),
             Return(Core::ERROR_NONE)));
 
-    auto ctx = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
     impl.Subscribe(ctx, true, "org.rdk.UnsubJobMod", "unsubJobEvt");
     std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
@@ -2234,7 +2232,7 @@ TEST_F(AppNotificationsTest, EmitJob_Dispatch_CallsEventUpdate)
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -2245,7 +2243,7 @@ TEST_F(AppNotificationsTest, EmitJob_Dispatch_CallsEventUpdate)
         .Times(1)
         .WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(1, 100, "emitJobApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "emitJobApp", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("emitjobevt", ctx);
 
     // Submit an EmitJob via the public Emit API.
@@ -2267,7 +2265,7 @@ TEST_F(AppNotificationsTest, EventUpdate_VersionedEventKey_V8Suffix_StrippedForD
     // event name without the suffix.
     auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
 
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -2279,7 +2277,7 @@ TEST_F(AppNotificationsTest, EventUpdate_VersionedEventKey_V8Suffix_StrippedForD
         .Times(1)
         .WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(1, 100, "v8App", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "v8App", APP_GATEWAY_CALLSIGN);
     // Add with the versioned key (lowercase as it would be stored).
     impl.mSubMap.Add("myevent.v8", ctx);
 
@@ -2294,7 +2292,7 @@ TEST_F(AppNotificationsTest, EventUpdate_NonVersionedEventKey_DispatchedAsIs)
     // EventUpdate for an event WITHOUT ".v8" suffix — clearKey equals the original key.
     auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
 
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -2305,7 +2303,7 @@ TEST_F(AppNotificationsTest, EventUpdate_NonVersionedEventKey_DispatchedAsIs)
         .Times(1)
         .WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(1, 100, "regApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "regApp", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("regularevent", ctx);
 
     impl.mSubMap.EventUpdate("regularevent", "{}", "regApp");
@@ -2324,7 +2322,7 @@ TEST_F(AppNotificationsTest, Dispatch_GatewayOrigin_RoutesToDispatchToGateway)
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(1)
         .WillOnce(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -2335,7 +2333,7 @@ TEST_F(AppNotificationsTest, Dispatch_GatewayOrigin_RoutesToDispatchToGateway)
         .Times(1)
         .WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(1, 100, "routeApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "routeApp", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Dispatch("dispRouteEvt", ctx, "{\"route\":\"gw\"}");
 
     gatewayMock->Release();
@@ -2348,7 +2346,7 @@ TEST_F(AppNotificationsTest, Dispatch_NonGatewayOrigin_RoutesToDispatchToLaunchD
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(1)
         .WillOnce(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             delegateMock->AddRef();
@@ -2359,7 +2357,7 @@ TEST_F(AppNotificationsTest, Dispatch_NonGatewayOrigin_RoutesToDispatchToLaunchD
         .Times(1)
         .WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(1, 100, "routeApp", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "routeApp", GATEWAY_AUTHENTICATOR_CALLSIGN);
     impl.mSubMap.Dispatch("dispRouteEvt", ctx, "{\"route\":\"ld\"}");
 
     delegateMock->Release();
@@ -2373,7 +2371,7 @@ TEST_F(AppNotificationsTest, Dispatch_CustomOrigin_RoutesToLaunchDelegate)
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(1)
         .WillOnce(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             delegateMock->AddRef();
@@ -2402,13 +2400,13 @@ TEST_F(AppNotificationsTest, EventUpdate_MixedOrigins_DispatchesToCorrectRespond
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
             return static_cast<void*>(gatewayMock);
         }));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             delegateMock->AddRef();
@@ -2424,8 +2422,8 @@ TEST_F(AppNotificationsTest, EventUpdate_MixedOrigins_DispatchesToCorrectRespond
         .Times(1)
         .WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctxGw = MakeContext(1, 100, "appGw", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctxLd = MakeContext(2, 101, "appLd", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    auto ctxGw = MakeContext(1, 100, "appGw", APP_GATEWAY_CALLSIGN);
+    auto ctxLd = MakeContext(2, 101, "appLd", GATEWAY_AUTHENTICATOR_CALLSIGN);
     impl.mSubMap.Add("mixedoriginevt", ctxGw);
     impl.mSubMap.Add("mixedoriginevt", ctxLd);
 
@@ -2444,8 +2442,8 @@ TEST_F(AppNotificationsTest, EventUpdate_NoSubscribers_WarningLoggedAndNoDispatc
 {
     // EventUpdate for a key not in the map hits the LOGWARN branch.
     // No dispatch should happen. No crash expected.
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN))).Times(0);
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN))).Times(0);
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN))).Times(0);
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN))).Times(0);
 
     EXPECT_NO_THROW(impl.mSubMap.EventUpdate("nonExistentEvt", "{}", "someApp"));
 }
@@ -2552,14 +2550,14 @@ TEST_F(AppNotificationsTest, Cleanup_LastSubscriberRemoved_TriggersUnsubscribeJo
             ::testing::SetArgReferee<3>(true),
             Return(Core::ERROR_NONE)));
 
-    auto ctx = MakeContext(1, 100, "cleanApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "cleanApp", APP_GATEWAY_CALLSIGN);
     impl.Subscribe(ctx, true, "org.rdk.CleanupMod", "cleanupModEvt");
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     EXPECT_TRUE(impl.mSubMap.Exists("cleanupmodevt"));
 
     // Cleanup removes the subscriber.
-    impl.Cleanup(100, APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.Cleanup(100, APP_GATEWAY_CALLSIGN);
     EXPECT_FALSE(impl.mSubMap.Exists("cleanupmodevt"));
 
     // A fresh subscribe should work and submit a new SubscriberJob.
@@ -2579,8 +2577,8 @@ TEST_F(AppNotificationsTest, Cleanup_LargeNumberOfEventsAndConnections_AllCleare
     // Subscribe multiple connections to many events, then cleanup one connection.
     const int numEvents = 10;
 
-    auto ctx1 = MakeContext(1, 500, "bulkApp1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 501, "bulkApp2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx1 = MakeContext(1, 500, "bulkApp1", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 501, "bulkApp2", APP_GATEWAY_CALLSIGN);
 
     for (int i = 0; i < numEvents; ++i) {
         // Use lowercase event names directly since SubscriberMap stores keys lowered.
@@ -2590,7 +2588,7 @@ TEST_F(AppNotificationsTest, Cleanup_LargeNumberOfEventsAndConnections_AllCleare
     }
 
     // Cleanup connection 500 — all events should lose ctx1 but keep ctx2.
-    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(500, APP_NOTIFICATIONS_GATEWAY_CALLSIGN));
+    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(500, APP_GATEWAY_CALLSIGN));
 
     for (int i = 0; i < numEvents; ++i) {
         std::string event = "bulkevent" + std::to_string(i);
@@ -2601,7 +2599,7 @@ TEST_F(AppNotificationsTest, Cleanup_LargeNumberOfEventsAndConnections_AllCleare
     }
 
     // Cleanup connection 501 — all events should now be empty/erased.
-    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(501, APP_NOTIFICATIONS_GATEWAY_CALLSIGN));
+    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(501, APP_GATEWAY_CALLSIGN));
 
     for (int i = 0; i < numEvents; ++i) {
         std::string event = "bulkevent" + std::to_string(i);
@@ -2616,7 +2614,7 @@ TEST_F(AppNotificationsTest, Cleanup_LargeNumberOfEventsAndConnections_AllCleare
 TEST_F(AppNotificationsTest, SubscriberMap_Add_DuplicateContext_BothStored)
 {
     // Adding the exact same context twice should result in two entries.
-    auto ctx = MakeContext(1, 100, "dupApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "dupApp", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("dupAddKey", ctx);
     impl.mSubMap.Add("dupAddKey", ctx);
 
@@ -2632,7 +2630,7 @@ TEST_F(AppNotificationsTest, EventUpdate_CaseInsensitiveKey_DispatchesCorrectly)
 {
     auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
 
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -2643,7 +2641,7 @@ TEST_F(AppNotificationsTest, EventUpdate_CaseInsensitiveKey_DispatchesCorrectly)
         .Times(1)
         .WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(1, 100, "caseApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "caseApp", APP_GATEWAY_CALLSIGN);
     // Add with lowercase key (as Add() lowercases).
     impl.mSubMap.Add("CaseTestEvent", ctx);
 
@@ -2659,7 +2657,7 @@ TEST_F(AppNotificationsTest, EventUpdate_CaseInsensitiveKey_DispatchesCorrectly)
 
 TEST_F(AppNotificationsTest, Subscribe_RDK8Version_AddsContextWithVersionField)
 {
-    auto ctx = MakeContext(1, 100, "v8App", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "8");
+    auto ctx = MakeContext(1, 100, "v8App", APP_GATEWAY_CALLSIGN, "8");
     EXPECT_EQ(Core::ERROR_NONE,
         impl.Subscribe(ctx, true, "org.rdk.Plugin", "v8Event"));
 
@@ -2675,11 +2673,11 @@ TEST_F(AppNotificationsTest, Subscribe_RDK8Version_AddsContextWithVersionField)
 
 TEST_F(AppNotificationsTest, Notification_DispatchToGateway_GatewayContextVersion_MatchesSubscriberVersion)
 {
-    auto ctx = MakeContext(99, 777, "verApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "8");
+    auto ctx = MakeContext(99, 777, "verApp", APP_GATEWAY_CALLSIGN, "8");
     impl.mSubMap.Add("verFieldEvt", ctx);
 
     auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -2714,7 +2712,7 @@ TEST_F(AppNotificationsTest, DispatchToGateway_PayloadIsForwardedCorrectly)
 {
     auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
 
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -2726,7 +2724,7 @@ TEST_F(AppNotificationsTest, DispatchToGateway_PayloadIsForwardedCorrectly)
         .Times(1)
         .WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(1, 100, "payApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "payApp", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.DispatchToGateway("payloadEvt", ctx, expectedPayload);
 
     gatewayMock->Release();
@@ -2739,7 +2737,7 @@ TEST_F(AppNotificationsTest, DispatchToLaunchDelegate_PayloadIsForwardedCorrectl
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             delegateMock->AddRef();
@@ -2751,7 +2749,7 @@ TEST_F(AppNotificationsTest, DispatchToLaunchDelegate_PayloadIsForwardedCorrectl
         .Times(1)
         .WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(1, 100, "ldPayApp", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "ldPayApp", GATEWAY_AUTHENTICATOR_CALLSIGN);
     impl.mSubMap.DispatchToLaunchDelegate("ldPayEvt", ctx, expectedPayload);
 
     delegateMock->Release();
@@ -2765,7 +2763,7 @@ TEST_F(AppNotificationsTest, DispatchToGateway_EmitReturnsError_DoesNotCrash)
 {
     auto gatewayMock = new NiceMock<AppGatewayResponderMock>();
 
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -2776,7 +2774,7 @@ TEST_F(AppNotificationsTest, DispatchToGateway_EmitReturnsError_DoesNotCrash)
         .Times(1)
         .WillOnce(Return(Core::ERROR_GENERAL));
 
-    auto ctx = MakeContext(1, 100, "errEmitApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "errEmitApp", APP_GATEWAY_CALLSIGN);
     EXPECT_NO_THROW(impl.mSubMap.DispatchToGateway("errEmitEvt", ctx, "{}"));
 
     gatewayMock->Release();
@@ -2789,7 +2787,7 @@ TEST_F(AppNotificationsTest, DispatchToLaunchDelegate_EmitReturnsError_DoesNotCr
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             delegateMock->AddRef();
@@ -2800,7 +2798,7 @@ TEST_F(AppNotificationsTest, DispatchToLaunchDelegate_EmitReturnsError_DoesNotCr
         .Times(1)
         .WillOnce(Return(Core::ERROR_GENERAL));
 
-    auto ctx = MakeContext(1, 100, "errLdApp", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "errLdApp", GATEWAY_AUTHENTICATOR_CALLSIGN);
     EXPECT_NO_THROW(impl.mSubMap.DispatchToLaunchDelegate("errLdEvt", ctx, "{}"));
 
     delegateMock->Release();
@@ -2901,7 +2899,7 @@ TEST_F(AppNotificationsTest, Emit_MultipleTimes_AllDispatchedCorrectly)
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -2913,7 +2911,7 @@ TEST_F(AppNotificationsTest, Emit_MultipleTimes_AllDispatchedCorrectly)
         .Times(3)
         .WillRepeatedly(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(1, 100, "multiApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "multiApp", APP_GATEWAY_CALLSIGN);
     impl.mSubMap.Add("multiemitevt", ctx);
 
     impl.Emit("multiEmitEvt", "{\"seq\":1}", "multiApp");
@@ -2931,7 +2929,7 @@ TEST_F(AppNotificationsTest, Emit_MultipleTimes_AllDispatchedCorrectly)
 
 TEST_F(AppNotificationsTest, Subscribe_EventWithSpecialChars_WorksCorrectly)
 {
-    auto ctx = MakeContext(1, 100, "specialApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(1, 100, "specialApp", APP_GATEWAY_CALLSIGN);
     EXPECT_EQ(Core::ERROR_NONE,
         impl.Subscribe(ctx, true, "org.rdk.Plugin", "event.with.dots"));
 
@@ -2965,8 +2963,8 @@ TEST_F(AppNotificationsTest, Notification_NotificationHandler_AddRefRelease_RefC
 
 TEST_F(AppNotificationsTest, Subscribe_MultipleVersions_BothStoredCorrectly)
 {
-    auto ctxV0 = MakeContext(1, 100, "v0App", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "0");
-    auto ctxV8 = MakeContext(2, 101, "v8App", APP_NOTIFICATIONS_GATEWAY_CALLSIGN, "8");
+    auto ctxV0 = MakeContext(1, 100, "v0App", APP_GATEWAY_CALLSIGN, "0");
+    auto ctxV8 = MakeContext(2, 101, "v8App", APP_GATEWAY_CALLSIGN, "8");
 
     impl.Subscribe(ctxV0, true, "org.rdk.Plugin", "versionEvt");
     impl.Subscribe(ctxV8, true, "org.rdk.Plugin", "versionEvt");
@@ -2990,22 +2988,22 @@ TEST_F(AppNotificationsTest, Subscribe_MultipleVersions_BothStoredCorrectly)
 
 TEST_F(AppNotificationsTest, Cleanup_SameConnectionId_DifferentOrigins_OnlyMatchingOriginRemoved)
 {
-    auto ctxGw = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctxLd = MakeContext(2, 100, "app1", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    auto ctxGw = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
+    auto ctxLd = MakeContext(2, 100, "app1", GATEWAY_AUTHENTICATOR_CALLSIGN);
 
     impl.mSubMap.Add("multiOriginClean", ctxGw);
     impl.mSubMap.Add("multiOriginClean", ctxLd);
 
     // Cleanup for gateway origin only.
-    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(100, APP_NOTIFICATIONS_GATEWAY_CALLSIGN));
+    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(100, APP_GATEWAY_CALLSIGN));
 
     EXPECT_TRUE(impl.mSubMap.Exists("multioriginclean"));
     auto subs = impl.mSubMap.Get("multioriginclean");
     ASSERT_EQ(1u, subs.size());
-    EXPECT_EQ(APP_NOTIFICATIONS_DELEGATE_CALLSIGN, subs[0].origin);
+    EXPECT_EQ(GATEWAY_AUTHENTICATOR_CALLSIGN, subs[0].origin);
 
     // Cleanup for delegate origin.
-    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(100, APP_NOTIFICATIONS_DELEGATE_CALLSIGN));
+    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(100, GATEWAY_AUTHENTICATOR_CALLSIGN));
     EXPECT_FALSE(impl.mSubMap.Exists("multioriginclean"));
 }
 
@@ -3020,7 +3018,7 @@ TEST_F(AppNotificationsTest, EndToEnd_SubscribeEmitCleanup_LaunchDelegateOrigin)
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_DELEGATE_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             ldMock->AddRef();
@@ -3028,7 +3026,7 @@ TEST_F(AppNotificationsTest, EndToEnd_SubscribeEmitCleanup_LaunchDelegateOrigin)
         }));
     EXPECT_CALL(*ldMock, Emit(_, StrEq("e2eLdEvt"), _)).Times(1).WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(20, 400, "e2eLdApp", APP_NOTIFICATIONS_DELEGATE_CALLSIGN);
+    auto ctx = MakeContext(20, 400, "e2eLdApp", GATEWAY_AUTHENTICATOR_CALLSIGN);
 
     EXPECT_EQ(Core::ERROR_NONE,
         impl.Subscribe(ctx, true, "org.rdk.Plugin", "e2eLdEvt"));
@@ -3038,7 +3036,7 @@ TEST_F(AppNotificationsTest, EndToEnd_SubscribeEmitCleanup_LaunchDelegateOrigin)
     std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
     EXPECT_EQ(Core::ERROR_NONE,
-        impl.Cleanup(400, APP_NOTIFICATIONS_DELEGATE_CALLSIGN));
+        impl.Cleanup(400, GATEWAY_AUTHENTICATOR_CALLSIGN));
     EXPECT_FALSE(impl.mSubMap.Exists("e2eldevt"));
 
     ldMock->Release();
@@ -3059,7 +3057,7 @@ TEST_F(AppNotificationsTest, EndToEnd_SubscribeWithHandler_EmitViaEmitter_Cleanu
             handlerMock->AddRef();
             return static_cast<void*>(handlerMock);
         }));
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_NOTIFICATIONS_GATEWAY_CALLSIGN)))
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(APP_GATEWAY_CALLSIGN)))
         .Times(AnyNumber())
         .WillRepeatedly(::testing::Invoke([&](const uint32_t, const string&) -> void* {
             gatewayMock->AddRef();
@@ -3074,7 +3072,7 @@ TEST_F(AppNotificationsTest, EndToEnd_SubscribeWithHandler_EmitViaEmitter_Cleanu
         .Times(1)
         .WillOnce(Return(Core::ERROR_NONE));
 
-    auto ctx = MakeContext(50, 600, "e2eFullApp", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx = MakeContext(50, 600, "e2eFullApp", APP_GATEWAY_CALLSIGN);
 
     // Subscribe triggers SubscriberJob → ThunderManager::Subscribe → RegisterNotification.
     EXPECT_EQ(Core::ERROR_NONE,
@@ -3089,7 +3087,7 @@ TEST_F(AppNotificationsTest, EndToEnd_SubscribeWithHandler_EmitViaEmitter_Cleanu
     std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
     // Cleanup.
-    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(600, APP_NOTIFICATIONS_GATEWAY_CALLSIGN));
+    EXPECT_EQ(Core::ERROR_NONE, impl.Cleanup(600, APP_GATEWAY_CALLSIGN));
     EXPECT_FALSE(impl.mSubMap.Exists("e2efullevt"));
 
     handlerMock->Release();
@@ -3102,8 +3100,8 @@ TEST_F(AppNotificationsTest, EndToEnd_SubscribeWithHandler_EmitViaEmitter_Cleanu
 
 TEST_F(AppNotificationsTest, SubscriberMap_Remove_NonMatchingContext_NoRemoval)
 {
-    auto ctx1 = MakeContext(1, 100, "app1", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 200, "app2", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx1 = MakeContext(1, 100, "app1", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 200, "app2", APP_GATEWAY_CALLSIGN);
 
     impl.mSubMap.Add("noRemoveKey", ctx1);
 
@@ -3122,8 +3120,8 @@ TEST_F(AppNotificationsTest, SubscriberMap_Remove_NonMatchingContext_NoRemoval)
 
 TEST_F(AppNotificationsTest, SubscriberMap_CleanupNotifications_MultipleKeys_SomeEmptied)
 {
-    auto ctx1 = MakeContext(1, 50, "appA", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
-    auto ctx2 = MakeContext(2, 51, "appB", APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    auto ctx1 = MakeContext(1, 50, "appA", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 51, "appB", APP_GATEWAY_CALLSIGN);
 
     impl.mSubMap.Add("cleanMulti1", ctx1);
     impl.mSubMap.Add("cleanMulti1", ctx2);
@@ -3131,7 +3129,7 @@ TEST_F(AppNotificationsTest, SubscriberMap_CleanupNotifications_MultipleKeys_Som
     impl.mSubMap.Add("cleanMulti3", ctx2);
 
     // Cleanup connId=50 — removes ctx1 from cleanMulti1 and cleanMulti2.
-    impl.mSubMap.CleanupNotifications(50, APP_NOTIFICATIONS_GATEWAY_CALLSIGN);
+    impl.mSubMap.CleanupNotifications(50, APP_GATEWAY_CALLSIGN);
 
     // cleanMulti1: ctx2 remains.
     EXPECT_TRUE(impl.mSubMap.Exists("cleanmulti1"));
