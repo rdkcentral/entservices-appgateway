@@ -45,11 +45,16 @@ namespace WPEFramework
 
         AppNotificationsImplementation::~AppNotificationsImplementation()
         {
-            // Cleanup resources if needed
+            // Release our reference to mShell but do NOT set mShell = nullptr here.
+            // ThunderSubscriptionManager::~ThunderSubscriptionManager() (a member
+            // destructor that runs after this body) iterates mRegisteredNotifications
+            // and calls mShell->QueryInterfaceByCallsign() to unsubscribe.  Nulling
+            // mShell before those member destructors execute causes a null dereference.
+            // The framework keeps the IShell alive until all references are released,
+            // so the pointer remains valid throughout the member-destructor sequence.
             if (mShell != nullptr)
             {
                 mShell->Release();
-                mShell = nullptr;
             }
         }
 
