@@ -254,8 +254,6 @@ int main()
         failures += f;
     }
 
-    WPEFramework::Core::Singleton::Dispose();
-
     L0Test::PrintTotals(std::cerr, "AppNotifications l0test", failures);
     return L0Test::ResultToExitCode(failures);
 }

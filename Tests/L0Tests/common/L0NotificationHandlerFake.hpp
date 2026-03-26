@@ -76,11 +76,13 @@ public:
         bool listen,
         bool& status) override
     {
-        lastEmitter = emitCb;
-        lastEvent = event;
-        lastListen = listen;
-        handleCount++;
-
+        {
+            std::lock_guard<std::mutex> lock(_observableMutex);
+            lastEmitter = emitCb;
+            lastEvent = event;
+            lastListen = listen;
+        }
+        handleCount.fetch_add(1, std::memory_order_relaxed);
         status = _statusResult;
         return _handleRc;
     }
@@ -90,7 +92,8 @@ public:
     void SetHandleRc(uint32_t rc) { _handleRc = rc; }
     void Reset()
     {
-        handleCount = 0;
+        std::lock_guard<std::mutex> lock(_observableMutex);
+        handleCount.store(0, std::memory_order_relaxed);
         lastEmitter = nullptr;
         lastEvent.clear();
         lastListen = false;
@@ -129,8 +132,9 @@ public:
         _releaseCount.store(0, std::memory_order_release);
     }
 
-    // Observable state
-    uint32_t handleCount{0};
+    // Observable state: handleCount is atomic for safe lockless reads;
+    // lastEmitter/lastEvent/lastListen are guarded by _observableMutex.
+    std::atomic<uint32_t> handleCount{0};
     IEmitter* lastEmitter{nullptr};
     std::string lastEvent;
     bool lastListen{false};
@@ -140,6 +144,7 @@ private:
     bool _statusResult;
     uint32_t _handleRc;
 
+    mutable std::mutex _observableMutex;
     mutable std::atomic<uint32_t> _releaseCount;
     mutable std::mutex _releaseMutex;
     mutable std::condition_variable _releaseCv;
