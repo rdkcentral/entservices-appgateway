@@ -27,15 +27,7 @@
 #include <AppNotifications.h>
 
 #include "L0TestTypes.hpp"
-
-// Callsign constants (mirrors helpers/UtilsCallsign.h; redefined here to avoid
-// pulling in UtilsfileExists.h which requires the real filesystem Utils class).
-#ifndef APP_GATEWAY_CALLSIGN
-#  define APP_GATEWAY_CALLSIGN "org.rdk.AppGateway"
-#endif
-#ifndef INTERNAL_GATEWAY_CALLSIGN
-#  define INTERNAL_GATEWAY_CALLSIGN "org.rdk.LaunchDelegate"
-#endif
+#include "UtilsCallsign.h"
 
 namespace L0Test {
 
