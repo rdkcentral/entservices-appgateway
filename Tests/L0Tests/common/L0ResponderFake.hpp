@@ -64,9 +64,10 @@ public:
     WPEFramework::Core::hresult Respond(const WPEFramework::Exchange::GatewayContext& context,
                                         const std::string& payload) override
     {
+        std::lock_guard<std::mutex> lock(_mutex);
         lastRespondContext = context;
         lastRespondPayload = payload;
-        respondCount++;
+        respondCount.fetch_add(1, std::memory_order_relaxed);
         return _transportEnabled ? WPEFramework::Core::ERROR_NONE : WPEFramework::Core::ERROR_UNAVAILABLE;
     }
 
@@ -74,10 +75,11 @@ public:
                                      const std::string& method,
                                      const std::string& payload) override
     {
+        std::lock_guard<std::mutex> lock(_mutex);
         lastEmitContext = context;
         lastEmitMethod = method;
         lastEmitPayload = payload;
-        emitCount++;
+        emitCount.fetch_add(1, std::memory_order_relaxed);
         return _transportEnabled ? WPEFramework::Core::ERROR_NONE : WPEFramework::Core::ERROR_UNAVAILABLE;
     }
 
@@ -86,11 +88,12 @@ public:
                                         const std::string& method,
                                         const std::string& params) override
     {
+        std::lock_guard<std::mutex> lock(_mutex);
         lastRequestConnectionId = connectionId;
         lastRequestId = id;
         lastRequestMethod = method;
         lastRequestParams = params;
-        requestCount++;
+        requestCount.fetch_add(1, std::memory_order_relaxed);
         return _transportEnabled ? WPEFramework::Core::ERROR_NONE : WPEFramework::Core::ERROR_UNAVAILABLE;
     }
 
@@ -122,9 +125,10 @@ public:
     void SetTransportEnabled(bool enabled) { _transportEnabled = enabled; }
     void Reset()
     {
-        respondCount = 0;
-        emitCount = 0;
-        requestCount = 0;
+        std::lock_guard<std::mutex> lock(_mutex);
+        respondCount.store(0, std::memory_order_relaxed);
+        emitCount.store(0, std::memory_order_relaxed);
+        requestCount.store(0, std::memory_order_relaxed);
         lastRespondPayload.clear();
         lastEmitMethod.clear();
         lastEmitPayload.clear();
@@ -132,10 +136,11 @@ public:
         lastRequestParams.clear();
     }
 
-    // Observable state
-    uint32_t respondCount{0};
-    uint32_t emitCount{0};
-    uint32_t requestCount{0};
+    // Observable state: counters are atomic for safe lockless reads;
+    // last* string/context fields are guarded by _mutex.
+    std::atomic<uint32_t> respondCount{0};
+    std::atomic<uint32_t> emitCount{0};
+    std::atomic<uint32_t> requestCount{0};
     WPEFramework::Exchange::GatewayContext lastRespondContext{};
     std::string lastRespondPayload;
     WPEFramework::Exchange::GatewayContext lastEmitContext{};
@@ -149,6 +154,7 @@ public:
 private:
     mutable std::atomic<uint32_t> _refCount;
     bool _transportEnabled;
+    mutable std::mutex _mutex;
 };
 
 } // namespace L0Test
