@@ -82,6 +82,7 @@ public:
     WPEFramework::Core::hresult Respond(const WPEFramework::Exchange::GatewayContext& /*ctx*/,
                                         const string& payload) override
     {
+        std::lock_guard<std::mutex> lock(_mutex);
         respondCount++;
         lastRespondPayload = payload;
         return WPEFramework::Core::ERROR_NONE;
@@ -91,6 +92,7 @@ public:
                                      const string& method,
                                      const string& payload) override
     {
+        std::lock_guard<std::mutex> lock(_mutex);
         emitCount++;
         lastEmitMethod  = method;
         lastEmitPayload = payload;
@@ -103,6 +105,7 @@ public:
                                         const string& method,
                                         const string& params) override
     {
+        std::lock_guard<std::mutex> lock(_mutex);
         requestCount++;
         lastRequestMethod = method;
         lastRequestParams = params;
@@ -133,7 +136,7 @@ public:
         return WPEFramework::Core::ERROR_NONE;
     }
 
-    // Observable state
+    // Observable state (access under _mutex for thread safety)
     uint32_t emitCount{0};
     uint32_t respondCount{0};
     uint32_t requestCount{0};
@@ -143,6 +146,8 @@ public:
     string lastRequestParams;
     string lastRespondPayload;
     WPEFramework::Exchange::GatewayContext lastEmitContext{};
+
+    mutable std::mutex _mutex;
 
 private:
     mutable std::atomic<uint32_t> _refCount;
@@ -196,6 +201,7 @@ public:
         bool listen,
         bool& status) override
     {
+        std::lock_guard<std::mutex> lock(_mutex);
         handleCount++;
         lastEmitter = emitCb;
         lastEvent   = event;
@@ -205,14 +211,24 @@ public:
     }
 
     // Test helpers
-    void SetStatusResult(bool s) { _statusResult = s; }
-    void SetHandleRc(uint32_t rc) { _handleRc = rc; }
+    void SetStatusResult(bool s)
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        _statusResult = s;
+    }
+    void SetHandleRc(uint32_t rc)
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        _handleRc = rc;
+    }
 
-    // Observable state
+    // Observable state (access under _mutex for thread safety)
     uint32_t handleCount{0};
     IEmitter* lastEmitter{nullptr};
     string lastEvent;
     bool lastListen{false};
+
+    mutable std::mutex _mutex;
 
 private:
     mutable std::atomic<uint32_t> _refCount;
@@ -423,7 +439,15 @@ public:
     bool Background() const override { return false; }
     string Accessor() const override { return "127.0.0.1:9998"; }
     string WebPrefix() const override { return "/jsonrpc"; }
-    string Locator() const override { return "libWPEFrameworkAppNotifications.so"; }
+    string Locator() const override
+    {
+        string locator;
+        WPEFramework::Core::SystemInfo::GetEnvironment(_T("APPNOTIFICATIONS_LOCATOR"), locator);
+        if (false == locator.empty()) {
+            return locator;
+        }
+        return "libWPEFrameworkAppNotifications.so";
+    }
     string ClassName() const override { return "AppNotificationsImplementation"; }
     string Versions() const override { return "1.0.0"; }
     string Callsign() const override { return "org.rdk.AppNotifications"; }
@@ -637,7 +661,7 @@ struct ANPluginAndService {
     WPEFramework::PluginHost::IPlugin* plugin{nullptr};
 
     explicit ANPluginAndService(const AppNotificationsServiceMock::Config& cfg = AppNotificationsServiceMock::Config())
-        : service(new AppNotificationsServiceMock(cfg))
+        : service(new AppNotificationsServiceMock(cfg, true))
         , plugin(WPEFramework::Core::Service<WPEFramework::Plugin::AppNotifications>::Create<WPEFramework::PluginHost::IPlugin>())
     {
     }

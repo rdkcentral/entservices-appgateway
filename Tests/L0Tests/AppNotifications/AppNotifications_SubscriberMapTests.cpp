@@ -760,7 +760,7 @@ uint32_t Test_AN_EventUpdate_AppId_NonMatch_Skipped()
 // ---------------------------------------------------------------------------
 // AN-L0-088: DispatchToGateway reuses cached responder on second dispatch
 // ---------------------------------------------------------------------------
-uint32_t Test_AN_DispatchToGateway_CachedRespnder_Reuse()
+uint32_t Test_AN_DispatchToGateway_CachedResponder_Reuse()
 {
     /** DispatchToGateway lazy-acquires on first call, then reuses the cached
      *  pointer on subsequent calls. */

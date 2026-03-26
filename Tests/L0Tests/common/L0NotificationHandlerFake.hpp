@@ -99,9 +99,9 @@ public:
     /**
      * WaitForHandlerRelease: block until the background thread has called
      * internalNotifier->Release() (i.e. refcount drops back to 1), or until
-     * the timeout expires.  Call this after WaitForJobs() in tests that use
-     * SetHandleRc(ERROR_GENERAL) or SetStatusResult(false) to guarantee the
-     * background SubscriberJob has fully completed before service is destroyed.
+     * the timeout expires.  Call this after the worker pool has drained in tests
+     * that use SetHandleRc(ERROR_GENERAL) or SetStatusResult(false) to guarantee
+     * the background SubscriberJob has fully completed before service is destroyed.
      *
      * @param expectedReleases  How many Release-to-1 signals to wait for (total cumulative).
      * @param timeoutMs         Timeout in milliseconds (default 5000).

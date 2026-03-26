@@ -26,13 +26,19 @@ namespace L0Test {
 IAppNotifications* CreateConfiguredImpl(AppNotificationsServiceMock* shell)
 {
     auto* impl = WPEFramework::Core::Service<AppNotificationsImplementation>::Create<IAppNotifications>();
-    if (impl == nullptr) {
+    if (nullptr == impl) {
         return nullptr;
     }
     auto* cfg = impl->QueryInterface<IConfiguration>();
-    if (cfg != nullptr) {
-        cfg->Configure(shell);
-        cfg->Release();
+    if (nullptr == cfg) {
+        impl->Release();
+        return nullptr;
+    }
+    const uint32_t result = cfg->Configure(shell);
+    cfg->Release();
+    if (WPEFramework::Core::ERROR_NONE != result) {
+        impl->Release();
+        return nullptr;
     }
     return impl;
 }
