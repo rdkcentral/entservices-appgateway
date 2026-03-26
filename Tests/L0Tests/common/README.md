@@ -1,4 +1,4 @@
-# Shared L0 test utilities (`tests/l0/common`)
+# Shared L0 test utilities (`Tests/L0Tests/common`)
 
 This folder contains reusable, plugin-agnostic helpers for L0 test executables:
 

@@ -78,7 +78,7 @@ extern uint32_t Test_AN_DispatchToLaunchDelegate_LazyAcquire_Success();
 extern uint32_t Test_AN_DispatchToLaunchDelegate_LazyAcquire_Failure();
 extern uint32_t Test_AN_EventUpdate_VersionedEventName();
 extern uint32_t Test_AN_EventUpdate_AppId_NonMatch_Skipped();
-extern uint32_t Test_AN_DispatchToGateway_CachedRespnder_Reuse();
+extern uint32_t Test_AN_DispatchToGateway_CachedResponder_Reuse();
 extern uint32_t Test_AN_DispatchToLaunchDelegate_CachedResponder_Reuse();
 extern uint32_t Test_AN_SubscriberMap_Destructor_ReleasesResponders();
 extern uint32_t Test_AN_Emit_MixedOrigins_DispatchBoth();
@@ -195,7 +195,7 @@ int main()
         { "AN_DispatchToLaunchDelegate_LazyAcquire_Failure", Test_AN_DispatchToLaunchDelegate_LazyAcquire_Failure  },
         { "AN_EventUpdate_VersionedEventName",               Test_AN_EventUpdate_VersionedEventName                },
         { "AN_EventUpdate_AppId_NonMatch_Skipped",           Test_AN_EventUpdate_AppId_NonMatch_Skipped            },
-        { "AN_DispatchToGateway_CachedResponder_Reuse",      Test_AN_DispatchToGateway_CachedRespnder_Reuse        },
+        { "AN_DispatchToGateway_CachedResponder_Reuse",      Test_AN_DispatchToGateway_CachedResponder_Reuse        },
         { "AN_DispatchToLaunchDelegate_CachedResponder_Reuse", Test_AN_DispatchToLaunchDelegate_CachedResponder_Reuse },
         { "AN_SubscriberMap_Destructor_ReleasesResponders",  Test_AN_SubscriberMap_Destructor_ReleasesResponders   },
         { "AN_Emit_MixedOrigins_DispatchBoth",               Test_AN_Emit_MixedOrigins_DispatchBoth                },
@@ -256,6 +256,6 @@ int main()
 
     WPEFramework::Core::Singleton::Dispose();
 
-    L0Test::PrintTotals(std::cerr, "AppNotifications L0", failures);
+    L0Test::PrintTotals(std::cerr, "AppNotifications l0test", failures);
     return L0Test::ResultToExitCode(failures);
 }
