@@ -1368,10 +1368,8 @@ TEST_F(AppNotificationsTest, ThunderManager_HandleNotifier_ThrowsException_Propa
 
     EXPECT_CALL(*handlerMock, HandleAppEventNotifier(_, StrEq("throwEvt"), true, _))
         .WillOnce(::testing::Invoke(
-            [&](Exchange::IAppNotificationHandler::IEmitter*, const string&, bool, bool& status) -> Core::hresult {
+            [&](Exchange::IAppNotificationHandler::IEmitter*, const string&, bool, bool&) -> Core::hresult {
                 throw std::runtime_error("Test exception");
-                status = false;
-                return Core::ERROR_NONE;
             }));
 
     EXPECT_THROW(
@@ -1399,10 +1397,8 @@ TEST_F(AppNotificationsTest, ThunderManager_RegisterNotification_ThrowsException
 
     EXPECT_CALL(*handlerMock, HandleAppEventNotifier(_, StrEq("regThrowEvt"), true, _))
         .WillOnce(::testing::Invoke(
-            [&](Exchange::IAppNotificationHandler::IEmitter*, const string&, bool, bool& status) -> Core::hresult {
+            [&](Exchange::IAppNotificationHandler::IEmitter*, const string&, bool, bool&) -> Core::hresult {
                 throw std::runtime_error("register exception");
-                status = false;
-                return Core::ERROR_NONE;
             }));
 
     EXPECT_THROW(
