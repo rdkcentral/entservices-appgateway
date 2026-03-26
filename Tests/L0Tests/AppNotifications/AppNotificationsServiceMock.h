@@ -29,6 +29,9 @@
 #include "L0TestTypes.hpp"
 #include "UtilsCallsign.h"
 
+// Test-local callsign — no production macro exists in UtilsCallsign.h for this.
+#define FB_SETTINGS_CALLSIGN "org.rdk.FbSettings"
+
 namespace L0Test {
 
 using string = std::string;
@@ -354,7 +357,7 @@ public:
             : provideImplementation(impl)
             , provideAppGateway(gw)
             , provideInternalGateway(igw)
-            , notificationHandlerCallsign("org.rdk.FbSettings")
+            , notificationHandlerCallsign(FB_SETTINGS_CALLSIGN)
             , provideNotificationHandler(handler)
             , handlerStatusResult(handlerStatus)
             , handlerReturnCode(handlerRc)
@@ -442,7 +445,7 @@ public:
     }
     string ClassName() const override { return "AppNotificationsImplementation"; }
     string Versions() const override { return "1.0.0"; }
-    string Callsign() const override { return "org.rdk.AppNotifications"; }
+    string Callsign() const override { return APP_NOTIFICATIONS_CALLSIGN; }
 
     string PersistentPath() const override { return "/tmp"; }
     string VolatilePath() const override { return "/tmp"; }

@@ -88,8 +88,8 @@ uint32_t Test_AN_SubscriberMap_Add_NewKey()
     L0Test::ExpectTrue(tr, impl != nullptr, "SubscriberMap_Add_NewKey: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    const uint32_t rc = impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onTestEvent");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    const uint32_t rc = impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onTestEvent");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "SubscriberMap_Add_NewKey: Subscribe returns ERROR_NONE");
 
@@ -97,8 +97,8 @@ uint32_t Test_AN_SubscriberMap_Add_NewKey()
 
     // Verify the key is now in the map by subscribing again (second sub should not
     // enqueue a new SubscriberJob, which means Exists() returned true)
-    auto ctx2 = MakeContext(2, 101, "com.app2", "org.rdk.AppGateway");
-    const uint32_t rc2 = impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onTestEvent");
+    auto ctx2 = MakeContext(2, 101, "com.app2", APP_GATEWAY_CALLSIGN);
+    const uint32_t rc2 = impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onTestEvent");
     L0Test::ExpectEqU32(tr, rc2, static_cast<uint32_t>(ERROR_NONE),
         "SubscriberMap_Add_NewKey: second Subscribe also returns ERROR_NONE");
 
@@ -119,12 +119,12 @@ uint32_t Test_AN_SubscriberMap_Add_ExistingKey()
     L0Test::ExpectTrue(tr, impl != nullptr, "SubscriberMap_Add_ExistingKey: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx1 = MakeContext(10, 1000, "com.app.one", "org.rdk.AppGateway");
-    auto ctx2 = MakeContext(11, 1001, "com.app.two", "org.rdk.AppGateway");
+    auto ctx1 = MakeContext(10, 1000, "com.app.one", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(11, 1001, "com.app.two", APP_GATEWAY_CALLSIGN);
 
-    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onSharedEvent");
+    impl->Subscribe(ctx1, true, FB_SETTINGS_CALLSIGN, "onSharedEvent");
     YieldToWorkerPool();
-    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onSharedEvent");
+    impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onSharedEvent");
     YieldToWorkerPool();
 
     // Both subscribed — emit and verify both responders receive it
@@ -154,15 +154,15 @@ uint32_t Test_AN_SubscriberMap_Remove_ExistingContext()
     L0Test::ExpectTrue(tr, impl != nullptr, "SubscriberMap_Remove_ExistingContext: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx1 = MakeContext(10, 1000, "com.app.one", "org.rdk.AppGateway");
-    auto ctx2 = MakeContext(11, 1001, "com.app.two", "org.rdk.AppGateway");
+    auto ctx1 = MakeContext(10, 1000, "com.app.one", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(11, 1001, "com.app.two", APP_GATEWAY_CALLSIGN);
 
-    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onRemoveTest");
-    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onRemoveTest");
+    impl->Subscribe(ctx1, true, FB_SETTINGS_CALLSIGN, "onRemoveTest");
+    impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onRemoveTest");
     YieldToWorkerPool();
 
     // Remove ctx1 only (key still has ctx2 — no SubscriberJob enqueued for unsub)
-    const uint32_t rc = impl->Subscribe(ctx1, false, "org.rdk.FbSettings", "onRemoveTest");
+    const uint32_t rc = impl->Subscribe(ctx1, false, FB_SETTINGS_CALLSIGN, "onRemoveTest");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "SubscriberMap_Remove_ExistingContext: returns ERROR_NONE");
     YieldToWorkerPool();
@@ -194,13 +194,13 @@ uint32_t Test_AN_SubscriberMap_Remove_LastContext_ErasesKey()
     L0Test::ExpectTrue(tr, impl != nullptr, "SubscriberMap_Remove_LastContext_ErasesKey: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(20, 2000, "com.app", "org.rdk.AppGateway");
+    auto ctx = MakeContext(20, 2000, "com.app", APP_GATEWAY_CALLSIGN);
 
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onSoloEvent");
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onSoloEvent");
     YieldToWorkerPool();
 
     // Remove the only context — key should be erased
-    const uint32_t rc = impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onSoloEvent");
+    const uint32_t rc = impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "onSoloEvent");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "SubscriberMap_Remove_LastContext_ErasesKey: returns ERROR_NONE");
     YieldToWorkerPool();
@@ -228,10 +228,10 @@ uint32_t Test_AN_SubscriberMap_Remove_NonExistent_NoCrash()
     L0Test::ExpectTrue(tr, impl != nullptr, "SubscriberMap_Remove_NonExistent_NoCrash: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(99, 9999, "com.ghost.app", "org.rdk.AppGateway");
+    auto ctx = MakeContext(99, 9999, "com.ghost.app", APP_GATEWAY_CALLSIGN);
 
     // Remove without ever subscribing — should not crash
-    const uint32_t rc = impl->Subscribe(ctx, false, "org.rdk.FbSettings", "ghostEvent");
+    const uint32_t rc = impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "ghostEvent");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "SubscriberMap_Remove_NonExistent_NoCrash: returns ERROR_NONE");
 
@@ -254,8 +254,8 @@ uint32_t Test_AN_SubscriberMap_Get_Existing()
     L0Test::ExpectTrue(tr, impl != nullptr, "SubscriberMap_Get_Existing: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(5, 500, "com.app.test", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onGetTest");
+    auto ctx = MakeContext(5, 500, "com.app.test", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onGetTest");
     YieldToWorkerPool();
 
     // Emit — EventUpdate calls Get() internally; if dispatched, Get() worked
@@ -313,14 +313,14 @@ uint32_t Test_AN_SubscriberMap_Exists_True()
     L0Test::ExpectTrue(tr, impl != nullptr, "SubscriberMap_Exists_True: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onExistsTrue");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onExistsTrue");
     YieldToWorkerPool();
 
     // Second Subscribe for the same event does NOT enqueue a new SubscriberJob
     // (because Exists returns true). We verify this by checking subscribe returns OK.
-    auto ctx2 = MakeContext(2, 200, "com.app2", "org.rdk.AppGateway");
-    const uint32_t rc = impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onExistsTrue");
+    auto ctx2 = MakeContext(2, 200, "com.app2", APP_GATEWAY_CALLSIGN);
+    const uint32_t rc = impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onExistsTrue");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "SubscriberMap_Exists_True: second Subscribe returns ERROR_NONE");
 
@@ -342,8 +342,8 @@ uint32_t Test_AN_SubscriberMap_Exists_False()
     if (impl == nullptr) { return tr.failures; }
 
     // Subscribe to a different event
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onEventA");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onEventA");
     YieldToWorkerPool();
 
     // Emit for a non-subscribed event — Exists returns false for this key
@@ -369,12 +369,12 @@ uint32_t Test_AN_SubscriberMap_Exists_CaseInsensitive()
     L0Test::ExpectTrue(tr, impl != nullptr, "SubscriberMap_Exists_CaseInsensitive: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onMixedCaseEvent");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onMixedCaseEvent");
     YieldToWorkerPool();
 
     // Unsubscribe with UPPERCASE variant — should find the lowercase key
-    const uint32_t rc = impl->Subscribe(ctx, false, "org.rdk.FbSettings", "ONMIXEDCASEEVENT");
+    const uint32_t rc = impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "ONMIXEDCASEEVENT");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "SubscriberMap_Exists_CaseInsensitive: uppercase unsubscribe returns ERROR_NONE");
     YieldToWorkerPool();
@@ -396,13 +396,13 @@ uint32_t Test_AN_EventUpdate_DispatchToAll_EmptyAppId()
     L0Test::ExpectTrue(tr, impl != nullptr, "EventUpdate_DispatchToAll_EmptyAppId: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx1 = MakeContext(10, 1001, "com.app.alpha", "org.rdk.AppGateway");
-    auto ctx2 = MakeContext(11, 1002, "com.app.beta",  "org.rdk.AppGateway");
-    auto ctx3 = MakeContext(12, 1003, "com.app.gamma", "org.rdk.AppGateway");
+    auto ctx1 = MakeContext(10, 1001, "com.app.alpha", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(11, 1002, "com.app.beta",  APP_GATEWAY_CALLSIGN);
+    auto ctx3 = MakeContext(12, 1003, "com.app.gamma", APP_GATEWAY_CALLSIGN);
 
-    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onBroadcast");
-    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onBroadcast");
-    impl->Subscribe(ctx3, true, "org.rdk.FbSettings", "onBroadcast");
+    impl->Subscribe(ctx1, true, FB_SETTINGS_CALLSIGN, "onBroadcast");
+    impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onBroadcast");
+    impl->Subscribe(ctx3, true, FB_SETTINGS_CALLSIGN, "onBroadcast");
     YieldToWorkerPool();
 
     // Emit with empty appId → all 3 receive it
@@ -433,11 +433,11 @@ uint32_t Test_AN_EventUpdate_FilterByAppId()
     L0Test::ExpectTrue(tr, impl != nullptr, "EventUpdate_FilterByAppId: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctxTarget  = MakeContext(10, 1001, "com.app.target",  "org.rdk.AppGateway");
-    auto ctxOther   = MakeContext(11, 1002, "com.app.other",   "org.rdk.AppGateway");
+    auto ctxTarget  = MakeContext(10, 1001, "com.app.target",  APP_GATEWAY_CALLSIGN);
+    auto ctxOther   = MakeContext(11, 1002, "com.app.other",   APP_GATEWAY_CALLSIGN);
 
-    impl->Subscribe(ctxTarget, true, "org.rdk.FbSettings", "onFilteredEvent");
-    impl->Subscribe(ctxOther,  true, "org.rdk.FbSettings", "onFilteredEvent");
+    impl->Subscribe(ctxTarget, true, FB_SETTINGS_CALLSIGN, "onFilteredEvent");
+    impl->Subscribe(ctxOther,  true, FB_SETTINGS_CALLSIGN, "onFilteredEvent");
     YieldToWorkerPool();
 
     // Emit with specific appId — only ctxTarget should be dispatched
@@ -489,7 +489,7 @@ uint32_t Test_AN_EventUpdate_NoListeners_LogWarning()
 // ---------------------------------------------------------------------------
 uint32_t Test_AN_Dispatch_OriginGateway()
 {
-    /** Dispatch calls DispatchToGateway when context.origin == "org.rdk.AppGateway". */
+    /** Dispatch calls DispatchToGateway when context.origin == APP_GATEWAY_CALLSIGN. */
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock shell(MakeSafeConfig());
@@ -497,8 +497,8 @@ uint32_t Test_AN_Dispatch_OriginGateway()
     L0Test::ExpectTrue(tr, impl != nullptr, "Dispatch_OriginGateway: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(5, 500, "com.app.gw", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onGatewayEvent");
+    auto ctx = MakeContext(5, 500, "com.app.gw", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onGatewayEvent");
     YieldToWorkerPool();
 
     impl->Emit("onGatewayEvent", R"({"gw":true})", "");
@@ -530,8 +530,8 @@ uint32_t Test_AN_Dispatch_OriginNonGateway()
     if (impl == nullptr) { return tr.failures; }
 
     // Use LaunchDelegate as origin
-    auto ctx = MakeContext(5, 500, "com.app.ld", "org.rdk.LaunchDelegate");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onLaunchDelegateEvent");
+    auto ctx = MakeContext(5, 500, "com.app.ld", GATEWAY_AUTHENTICATOR_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onLaunchDelegateEvent");
     YieldToWorkerPool();
 
     impl->Emit("onLaunchDelegateEvent", R"({"ld":true})", "");
@@ -566,8 +566,8 @@ uint32_t Test_AN_DispatchToGateway_LazyAcquire_Success()
     L0Test::ExpectTrue(tr, shell.GetAppGatewayFake() == nullptr,
         "DispatchToGateway_LazyAcquire_Success: gw not acquired before first dispatch");
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onLazyAcquireEvent");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onLazyAcquireEvent");
     YieldToWorkerPool();
 
     impl->Emit("onLazyAcquireEvent", R"({"lazy":true})", "");
@@ -600,8 +600,8 @@ uint32_t Test_AN_DispatchToGateway_LazyAcquire_Failure()
     L0Test::ExpectTrue(tr, impl != nullptr, "DispatchToGateway_LazyAcquire_Failure: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onNoGwEvent");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onNoGwEvent");
     YieldToWorkerPool();
 
     // Emit — DispatchToGateway will fail to acquire, log error, and return
@@ -633,8 +633,8 @@ uint32_t Test_AN_DispatchToLaunchDelegate_LazyAcquire_Success()
     L0Test::ExpectTrue(tr, shell.GetInternalGatewayFake() == nullptr,
         "DispatchToLaunchDelegate_LazyAcquire_Success: ld not acquired before first dispatch");
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.LaunchDelegate");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onLdLazyEvent");
+    auto ctx = MakeContext(1, 100, "com.app", GATEWAY_AUTHENTICATOR_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onLdLazyEvent");
     YieldToWorkerPool();
 
     impl->Emit("onLdLazyEvent", R"({"x":1})", "");
@@ -666,8 +666,8 @@ uint32_t Test_AN_DispatchToLaunchDelegate_LazyAcquire_Failure()
     L0Test::ExpectTrue(tr, impl != nullptr, "DispatchToLaunchDelegate_LazyAcquire_Failure: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.LaunchDelegate");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onNoLdEvent");
+    auto ctx = MakeContext(1, 100, "com.app", GATEWAY_AUTHENTICATOR_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onNoLdEvent");
     YieldToWorkerPool();
 
     const uint32_t rc = impl->Emit("onNoLdEvent", R"({"fail":true})", "");
@@ -697,8 +697,8 @@ uint32_t Test_AN_EventUpdate_VersionedEventName()
     if (impl == nullptr) { return tr.failures; }
 
     // Subscribe with the versioned event name (key stored as lowercase of "onevent.v8")
-    auto ctx = MakeContext(10, 1001, "com.app.v8", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onEvent.v8");
+    auto ctx = MakeContext(10, 1001, "com.app.v8", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onEvent.v8");
     YieldToWorkerPool();
 
     // Emit using the same versioned key — EventUpdate will call
@@ -737,11 +737,11 @@ uint32_t Test_AN_EventUpdate_AppId_NonMatch_Skipped()
         "EventUpdate_AppId_NonMatch_Skipped: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx1 = MakeContext(10, 1001, "com.app.alpha", "org.rdk.AppGateway");
-    auto ctx2 = MakeContext(11, 1002, "com.app.beta",  "org.rdk.AppGateway");
+    auto ctx1 = MakeContext(10, 1001, "com.app.alpha", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(11, 1002, "com.app.beta",  APP_GATEWAY_CALLSIGN);
 
-    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onTargetedEvent");
-    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onTargetedEvent");
+    impl->Subscribe(ctx1, true, FB_SETTINGS_CALLSIGN, "onTargetedEvent");
+    impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onTargetedEvent");
     YieldToWorkerPool();
 
     // Emit with appId that matches neither subscriber
@@ -772,8 +772,8 @@ uint32_t Test_AN_DispatchToGateway_CachedResponder_Reuse()
         "DispatchToGateway_CachedReuse: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onCachedGwEvent");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onCachedGwEvent");
     YieldToWorkerPool();
 
     // First Emit — lazy-acquires AppGateway responder
@@ -818,8 +818,8 @@ uint32_t Test_AN_DispatchToLaunchDelegate_CachedResponder_Reuse()
         "DispatchToLaunchDelegate_CachedReuse: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.LaunchDelegate");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onCachedLdEvent");
+    auto ctx = MakeContext(1, 100, "com.app", GATEWAY_AUTHENTICATOR_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onCachedLdEvent");
     YieldToWorkerPool();
 
     // First Emit — lazy-acquires InternalGateway responder
@@ -865,15 +865,15 @@ uint32_t Test_AN_SubscriberMap_Destructor_ReleasesResponders()
     if (impl == nullptr) { return tr.failures; }
 
     // Subscribe with gateway origin and emit to acquire mAppGateway
-    auto ctxGw = MakeContext(1, 100, "com.app.gw", "org.rdk.AppGateway");
-    impl->Subscribe(ctxGw, true, "org.rdk.FbSettings", "onDestrGwEvent");
+    auto ctxGw = MakeContext(1, 100, "com.app.gw", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctxGw, true, FB_SETTINGS_CALLSIGN, "onDestrGwEvent");
     YieldToWorkerPool();
     impl->Emit("onDestrGwEvent", R"({"gw":1})", "");
     YieldToWorkerPool();
 
     // Subscribe with LaunchDelegate origin and emit to acquire mInternalGatewayNotifier
-    auto ctxLd = MakeContext(2, 200, "com.app.ld", "org.rdk.LaunchDelegate");
-    impl->Subscribe(ctxLd, true, "org.rdk.FbSettings", "onDestrLdEvent");
+    auto ctxLd = MakeContext(2, 200, "com.app.ld", GATEWAY_AUTHENTICATOR_CALLSIGN);
+    impl->Subscribe(ctxLd, true, FB_SETTINGS_CALLSIGN, "onDestrLdEvent");
     YieldToWorkerPool();
     impl->Emit("onDestrLdEvent", R"({"ld":1})", "");
     YieldToWorkerPool();
@@ -907,11 +907,11 @@ uint32_t Test_AN_Emit_MixedOrigins_DispatchBoth()
         "Emit_MixedOrigins_DispatchBoth: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctxGw = MakeContext(10, 1001, "com.app.gw", "org.rdk.AppGateway");
-    auto ctxLd = MakeContext(11, 1002, "com.app.ld", "org.rdk.LaunchDelegate");
+    auto ctxGw = MakeContext(10, 1001, "com.app.gw", APP_GATEWAY_CALLSIGN);
+    auto ctxLd = MakeContext(11, 1002, "com.app.ld", GATEWAY_AUTHENTICATOR_CALLSIGN);
 
-    impl->Subscribe(ctxGw, true, "org.rdk.FbSettings", "onMixedOriginEvent");
-    impl->Subscribe(ctxLd, true, "org.rdk.FbSettings", "onMixedOriginEvent");
+    impl->Subscribe(ctxGw, true, FB_SETTINGS_CALLSIGN, "onMixedOriginEvent");
+    impl->Subscribe(ctxLd, true, FB_SETTINGS_CALLSIGN, "onMixedOriginEvent");
     YieldToWorkerPool();
 
     // Emit to both — should dispatch to both responders
@@ -945,8 +945,8 @@ uint32_t Test_AN_EventUpdate_NonVersionedEventName()
         "EventUpdate_NonVersionedEventName: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(10, 1001, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onregularevent");
+    auto ctx = MakeContext(10, 1001, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onregularevent");
     YieldToWorkerPool();
 
     impl->Emit("onRegularEvent", R"({"regular":true})", "");
@@ -979,13 +979,13 @@ uint32_t Test_AN_Emit_SpecificAppId_MatchesOne()
         "Emit_SpecificAppId_MatchesOne: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx1 = MakeContext(10, 1001, "com.app.target",  "org.rdk.AppGateway");
-    auto ctx2 = MakeContext(11, 1002, "com.app.bystander", "org.rdk.AppGateway");
-    auto ctx3 = MakeContext(12, 1003, "com.app.other",   "org.rdk.AppGateway");
+    auto ctx1 = MakeContext(10, 1001, "com.app.target",  APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(11, 1002, "com.app.bystander", APP_GATEWAY_CALLSIGN);
+    auto ctx3 = MakeContext(12, 1003, "com.app.other",   APP_GATEWAY_CALLSIGN);
 
-    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onSelectiveEvent");
-    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onSelectiveEvent");
-    impl->Subscribe(ctx3, true, "org.rdk.FbSettings", "onSelectiveEvent");
+    impl->Subscribe(ctx1, true, FB_SETTINGS_CALLSIGN, "onSelectiveEvent");
+    impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onSelectiveEvent");
+    impl->Subscribe(ctx3, true, FB_SETTINGS_CALLSIGN, "onSelectiveEvent");
     YieldToWorkerPool();
 
     // Emit targeting only "com.app.target"

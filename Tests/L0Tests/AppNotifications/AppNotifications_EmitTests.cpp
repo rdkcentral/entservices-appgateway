@@ -80,8 +80,8 @@ uint32_t Test_AN_Emit_SubmitsJob()
     if (impl == nullptr) { return tr.failures; }
 
     // Subscribe a context so EventUpdate has something to dispatch to
-    auto ctx = MakeContext(10, 1001, "com.test.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onVolumeChanged");
+    auto ctx = MakeContext(10, 1001, "com.test.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onVolumeChanged");
     YieldToWorkerPool();
 
     // Emit the event
@@ -143,10 +143,10 @@ uint32_t Test_AN_Emit_EmptyAppId()
     if (impl == nullptr) { return tr.failures; }
 
     // Subscribe two different app contexts to the same event
-    auto ctx1 = MakeContext(10, 1001, "com.app.one", "org.rdk.AppGateway");
-    auto ctx2 = MakeContext(11, 1002, "com.app.two", "org.rdk.AppGateway");
-    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onBroadcastEvent");
-    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onBroadcastEvent");
+    auto ctx1 = MakeContext(10, 1001, "com.app.one", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(11, 1002, "com.app.two", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx1, true, FB_SETTINGS_CALLSIGN, "onBroadcastEvent");
+    impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onBroadcastEvent");
     YieldToWorkerPool();
 
     // Emit with empty appId — both should be dispatched

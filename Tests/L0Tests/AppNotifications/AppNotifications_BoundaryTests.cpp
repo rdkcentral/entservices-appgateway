@@ -72,10 +72,10 @@ uint32_t Test_AN_Boundary_Subscribe_EmptyEvent()
     L0Test::ExpectTrue(tr, impl != nullptr, "Boundary_Subscribe_EmptyEvent: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
 
     // Empty event string — should not crash
-    const uint32_t rc = impl->Subscribe(ctx, true, "org.rdk.FbSettings", "");
+    const uint32_t rc = impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "Boundary_Subscribe_EmptyEvent: returns ERROR_NONE");
 
@@ -98,8 +98,8 @@ uint32_t Test_AN_Boundary_Emit_LargePayload()
     L0Test::ExpectTrue(tr, impl != nullptr, "Boundary_Emit_LargePayload: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onLargePayloadEvent");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onLargePayloadEvent");
     YieldToWorkerPool();
 
     // Construct a large JSON payload (~64 KB)
@@ -131,11 +131,11 @@ uint32_t Test_AN_Boundary_Cleanup_ZeroConnectionId()
     if (impl == nullptr) { return tr.failures; }
 
     // Subscribe a context with connectionId=0
-    auto ctx = MakeContext(0, 0, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onZeroConnEvent");
+    auto ctx = MakeContext(0, 0, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onZeroConnEvent");
     YieldToWorkerPool();
 
-    const uint32_t rc = impl->Cleanup(0, "org.rdk.AppGateway");
+    const uint32_t rc = impl->Cleanup(0, APP_GATEWAY_CALLSIGN);
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "Boundary_Cleanup_ZeroConnectionId: returns ERROR_NONE");
 
@@ -157,16 +157,16 @@ uint32_t Test_AN_Boundary_MaxUint32_ConnectionId()
     if (impl == nullptr) { return tr.failures; }
 
     const uint32_t maxId = std::numeric_limits<uint32_t>::max();
-    auto ctx = MakeContext(maxId, maxId, "com.max.app", "org.rdk.AppGateway");
+    auto ctx = MakeContext(maxId, maxId, "com.max.app", APP_GATEWAY_CALLSIGN);
 
-    const uint32_t rc = impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onMaxConnEvent");
+    const uint32_t rc = impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onMaxConnEvent");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "Boundary_MaxUint32_ConnectionId: returns ERROR_NONE");
 
     YieldToWorkerPool();
 
     // Cleanup with the same max connectionId
-    const uint32_t rcClean = impl->Cleanup(maxId, "org.rdk.AppGateway");
+    const uint32_t rcClean = impl->Cleanup(maxId, APP_GATEWAY_CALLSIGN);
     L0Test::ExpectEqU32(tr, rcClean, static_cast<uint32_t>(ERROR_NONE),
         "Boundary_MaxUint32_ConnectionId: Cleanup returns ERROR_NONE");
 
@@ -188,9 +188,9 @@ uint32_t Test_AN_Boundary_MaxUint32_RequestId()
     if (impl == nullptr) { return tr.failures; }
 
     const uint32_t maxId = std::numeric_limits<uint32_t>::max();
-    auto ctx = MakeContext(1, maxId, "com.max.app", "org.rdk.AppGateway");
+    auto ctx = MakeContext(1, maxId, "com.max.app", APP_GATEWAY_CALLSIGN);
 
-    const uint32_t rc = impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onMaxReqEvent");
+    const uint32_t rc = impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onMaxReqEvent");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "Boundary_MaxUint32_RequestId: returns ERROR_NONE");
 
@@ -262,7 +262,7 @@ uint32_t Test_AN_Subscribe_EmptyModule()
         "Subscribe_EmptyModule: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
 
     // Empty module string
     const uint32_t rc = impl->Subscribe(ctx, true, "", "onEmptyModuleEvent");

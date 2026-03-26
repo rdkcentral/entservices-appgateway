@@ -80,7 +80,7 @@ uint32_t Test_AN_ThunderMgr_Subscribe_NewEvent()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = true;
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -88,8 +88,8 @@ uint32_t Test_AN_ThunderMgr_Subscribe_NewEvent()
     L0Test::ExpectTrue(tr, impl != nullptr, "ThunderMgr_Subscribe_NewEvent: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onVoiceGuidanceChanged");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onVoiceGuidanceChanged");
     YieldToWorkerPool();
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
@@ -105,7 +105,7 @@ uint32_t Test_AN_ThunderMgr_Subscribe_NewEvent()
     }
 
     // Unsubscribe before release to clear mRegisteredNotifications.
-    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onVoiceGuidanceChanged");
+    impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "onVoiceGuidanceChanged");
     YieldToWorkerPool();
 
     impl->Release();
@@ -121,7 +121,7 @@ uint32_t Test_AN_ThunderMgr_Subscribe_AlreadyRegistered()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = true;
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -129,11 +129,11 @@ uint32_t Test_AN_ThunderMgr_Subscribe_AlreadyRegistered()
     L0Test::ExpectTrue(tr, impl != nullptr, "ThunderMgr_Subscribe_AlreadyRegistered: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx1 = MakeContext(1, 100, "com.app.one", "org.rdk.AppGateway");
-    auto ctx2 = MakeContext(2, 200, "com.app.two", "org.rdk.AppGateway");
+    auto ctx1 = MakeContext(1, 100, "com.app.one", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 200, "com.app.two", APP_GATEWAY_CALLSIGN);
 
     // First Subscribe — registers the event
-    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onRepeatEvent");
+    impl->Subscribe(ctx1, true, FB_SETTINGS_CALLSIGN, "onRepeatEvent");
     YieldToWorkerPool();
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
@@ -141,7 +141,7 @@ uint32_t Test_AN_ThunderMgr_Subscribe_AlreadyRegistered()
 
     // Second Subscribe for SAME event key — SubscriberMap already has the key,
     // so no new SubscriberJob is enqueued; handler should NOT be called again.
-    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onRepeatEvent");
+    impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onRepeatEvent");
     YieldToWorkerPool();
 
     if (handler != nullptr) {
@@ -152,9 +152,9 @@ uint32_t Test_AN_ThunderMgr_Subscribe_AlreadyRegistered()
     // Unsubscribe both contexts before release to clear mRegisteredNotifications.
     // Both ctx1 and ctx2 are in the SubscriberMap for this key; unsubscribe ctx1
     // first (ctx2 still present → no SubscriberJob); then ctx2 (last → SubscriberJob).
-    impl->Subscribe(ctx1, false, "org.rdk.FbSettings", "onRepeatEvent");
+    impl->Subscribe(ctx1, false, FB_SETTINGS_CALLSIGN, "onRepeatEvent");
     YieldToWorkerPool();
-    impl->Subscribe(ctx2, false, "org.rdk.FbSettings", "onRepeatEvent");
+    impl->Subscribe(ctx2, false, FB_SETTINGS_CALLSIGN, "onRepeatEvent");
     YieldToWorkerPool();
 
     impl->Release();
@@ -170,7 +170,7 @@ uint32_t Test_AN_ThunderMgr_Unsubscribe_RegisteredEvent()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = true;
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -178,13 +178,13 @@ uint32_t Test_AN_ThunderMgr_Unsubscribe_RegisteredEvent()
     L0Test::ExpectTrue(tr, impl != nullptr, "ThunderMgr_Unsubscribe_RegisteredEvent: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onUnsubEvent");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onUnsubEvent");
     YieldToWorkerPool();
 
     // Unsubscribe — SubscriberMap is now empty for this key, triggers SubscriberJob(unsub)
     // This also clears mRegisteredNotifications (HandleNotifier returns true for unsub).
-    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onUnsubEvent");
+    impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "onUnsubEvent");
     YieldToWorkerPool();
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
@@ -215,8 +215,8 @@ uint32_t Test_AN_ThunderMgr_Unsubscribe_NotRegistered()
     if (impl == nullptr) { return tr.failures; }
 
     // Unsubscribe without subscribing first — Unsubscribe logs LOGERR
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    const uint32_t rc = impl->Subscribe(ctx, false, "org.rdk.FbSettings", "neverSubscribedEvent");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    const uint32_t rc = impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "neverSubscribedEvent");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "ThunderMgr_Unsubscribe_NotRegistered: returns ERROR_NONE");
     YieldToWorkerPool();
@@ -237,7 +237,7 @@ uint32_t Test_AN_HandleNotifier_Success()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = true;
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -245,8 +245,8 @@ uint32_t Test_AN_HandleNotifier_Success()
     L0Test::ExpectTrue(tr, impl != nullptr, "HandleNotifier_Success: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onHandlerTest");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onHandlerTest");
     YieldToWorkerPool();
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
@@ -260,7 +260,7 @@ uint32_t Test_AN_HandleNotifier_Success()
     }
 
     // Unsubscribe before release to clear mRegisteredNotifications.
-    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onHandlerTest");
+    impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "onHandlerTest");
     YieldToWorkerPool();
 
     impl->Release();
@@ -282,9 +282,9 @@ uint32_t Test_AN_HandleNotifier_HandlerNotAvailable()
     L0Test::ExpectTrue(tr, impl != nullptr, "HandleNotifier_HandlerNotAvailable: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
     // Subscribe — SubscriberJob will run and try HandleNotifier; handler unavailable
-    const uint32_t rc = impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onNoHandlerEvent");
+    const uint32_t rc = impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onNoHandlerEvent");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "HandleNotifier_HandlerNotAvailable: Subscribe returns ERROR_NONE");
     YieldToWorkerPool();
@@ -308,7 +308,7 @@ uint32_t Test_AN_HandleNotifier_HandlerReturnsError()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = false;           // status = false
     cfg.handlerReturnCode           = WPEFramework::Core::ERROR_GENERAL;  // return error
@@ -317,8 +317,8 @@ uint32_t Test_AN_HandleNotifier_HandlerReturnsError()
     L0Test::ExpectTrue(tr, impl != nullptr, "HandleNotifier_HandlerReturnsError: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onErrorHandlerEvent");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onErrorHandlerEvent");
     YieldToWorkerPool();
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
@@ -344,7 +344,7 @@ uint32_t Test_AN_RegisterNotification_HandleNotifier_ReturnsTrue()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = true;
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -352,16 +352,16 @@ uint32_t Test_AN_RegisterNotification_HandleNotifier_ReturnsTrue()
     L0Test::ExpectTrue(tr, impl != nullptr, "RegisterNotification_True: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onRegisteredEvent");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onRegisteredEvent");
     YieldToWorkerPool();
 
     // If registered successfully, a second Subscribe for same event+key from the SubscriberMap
     // side would not enqueue another SubscriberJob (Exists returns true).
-    // The ThunderManager side: IsNotificationRegistered("org.rdk.FbSettings", "onRegisteredEvent")
+    // The ThunderManager side: IsNotificationRegistered(FB_SETTINGS_CALLSIGN, "onRegisteredEvent")
     // returns true → subsequent Subscribe call logs LOGTRACE and skips.
     // We verify via a second unsubscribe path (which also clears mRegisteredNotifications):
-    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onRegisteredEvent");
+    impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "onRegisteredEvent");
     YieldToWorkerPool();
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
@@ -388,7 +388,7 @@ uint32_t Test_AN_RegisterNotification_HandleNotifier_ReturnsFalse()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = false;  // handler returns false → not registered
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -396,8 +396,8 @@ uint32_t Test_AN_RegisterNotification_HandleNotifier_ReturnsFalse()
     L0Test::ExpectTrue(tr, impl != nullptr, "RegisterNotification_False: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onFalseHandlerEvent");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onFalseHandlerEvent");
     YieldToWorkerPool();
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
@@ -425,7 +425,7 @@ uint32_t Test_AN_UnregisterNotification_HandleNotifier_ReturnsTrue()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = true;
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -433,14 +433,14 @@ uint32_t Test_AN_UnregisterNotification_HandleNotifier_ReturnsTrue()
     L0Test::ExpectTrue(tr, impl != nullptr, "UnregisterNotification_True: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
 
     // Subscribe → registers (adds to mRegisteredNotifications)
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onUnregEvent");
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onUnregEvent");
     YieldToWorkerPool();
 
     // Unsubscribe → unregisters (removes from mRegisteredNotifications)
-    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onUnregEvent");
+    impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "onUnregEvent");
     YieldToWorkerPool();
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
@@ -473,7 +473,7 @@ uint32_t Test_AN_UnregisterNotification_HandleNotifier_ReturnsFalse()
     // To avoid crash on impl->Release(), we do a final cleanup pass:
     // switch back to status=true and unsubscribe again to clear the list.
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = true;  // first call succeeds
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -481,15 +481,15 @@ uint32_t Test_AN_UnregisterNotification_HandleNotifier_ReturnsFalse()
     L0Test::ExpectTrue(tr, impl != nullptr, "UnregisterNotification_False: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onFlipEvent");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onFlipEvent");
     YieldToWorkerPool();
 
     // Switch handler to return false for next call (unsubscribe path)
     shell.SetHandlerStatusResult(false);
 
     // Unsubscribe — handler returns false → entry NOT removed from mRegisteredNotifications
-    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onFlipEvent");
+    impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "onFlipEvent");
     YieldToWorkerPool();
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
@@ -525,9 +525,9 @@ uint32_t Test_AN_UnregisterNotification_HandleNotifier_ReturnsFalse()
     //   2. Subscribe(false) → removes from SubscriberMap, dispatches SubscriberJob(unsub)
     //      → ThunderMgr::Unsubscribe → IsNotificationRegistered=true → UnregisterNotification
     //      → HandleNotifier(false, status=true) → erase from list.
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onFlipEvent");
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onFlipEvent");
     YieldToWorkerPool();
-    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onFlipEvent");
+    impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "onFlipEvent");
     YieldToWorkerPool();
 
     impl->Release();
@@ -543,7 +543,7 @@ uint32_t Test_AN_IsNotificationRegistered_Exists()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = true;
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -551,15 +551,15 @@ uint32_t Test_AN_IsNotificationRegistered_Exists()
     L0Test::ExpectTrue(tr, impl != nullptr, "IsNotificationRegistered_Exists: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onRegisteredCheck");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onRegisteredCheck");
     YieldToWorkerPool();
 
     // The event is registered — if we subscribe a SECOND listener for same event key,
     // SubscriberMap.Exists returns true → no SubscriberJob enqueued
     // ThunderManager.IsNotificationRegistered also returns true → Subscribe logs LOGTRACE
-    auto ctx2 = MakeContext(2, 200, "com.app2", "org.rdk.AppGateway");
-    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onRegisteredCheck");
+    auto ctx2 = MakeContext(2, 200, "com.app2", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onRegisteredCheck");
     YieldToWorkerPool();
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
@@ -575,9 +575,9 @@ uint32_t Test_AN_IsNotificationRegistered_Exists()
     // Unsubscribe both contexts to drain mRegisteredNotifications before release.
     // The destructor will also safely drain any remaining entries via
     // ~ThunderSubscriptionManager, but explicit cleanup keeps test intent clear.
-    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onRegisteredCheck");
+    impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "onRegisteredCheck");
     YieldToWorkerPool();
-    impl->Subscribe(ctx2, false, "org.rdk.FbSettings", "onRegisteredCheck");
+    impl->Subscribe(ctx2, false, FB_SETTINGS_CALLSIGN, "onRegisteredCheck");
     YieldToWorkerPool();
 
     impl->Release();
@@ -593,7 +593,7 @@ uint32_t Test_AN_IsNotificationRegistered_NotExists()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = true;
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -619,7 +619,7 @@ uint32_t Test_AN_IsNotificationRegistered_CaseInsensitive()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = true;
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -628,13 +628,13 @@ uint32_t Test_AN_IsNotificationRegistered_CaseInsensitive()
     if (impl == nullptr) { return tr.failures; }
 
     // Subscribe with lowercase event
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onCaseEvent");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onCaseEvent");
     YieldToWorkerPool();
 
     // Unsubscribe with UPPERCASE — IsNotificationRegistered should find it (lowercase stored)
     // This also drains mRegisteredNotifications (unsubscribe succeeds, status=true).
-    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "ONCASEEVENT");
+    impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "ONCASEEVENT");
     YieldToWorkerPool();
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
@@ -668,7 +668,7 @@ uint32_t Test_AN_ThunderMgr_Destructor_UnsubscribesAll()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = true;
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -676,12 +676,12 @@ uint32_t Test_AN_ThunderMgr_Destructor_UnsubscribesAll()
     L0Test::ExpectTrue(tr, impl != nullptr, "ThunderMgr_Destructor_UnsubscribesAll: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx1 = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    auto ctx2 = MakeContext(2, 200, "com.app2", "org.rdk.AppGateway");
+    auto ctx1 = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(2, 200, "com.app2", APP_GATEWAY_CALLSIGN);
 
     // Register multiple events
-    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onDestrEvent1");
-    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onDestrEvent2");
+    impl->Subscribe(ctx1, true, FB_SETTINGS_CALLSIGN, "onDestrEvent1");
+    impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onDestrEvent2");
     YieldToWorkerPool();
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
@@ -694,9 +694,9 @@ uint32_t Test_AN_ThunderMgr_Destructor_UnsubscribesAll()
     // and confirm mRegisteredNotifications is correctly maintained.
     // Note: impl->Release() with a non-empty list is also safe because the fixed
     // destructor keeps mShell valid during ~ThunderSubscriptionManager execution.
-    impl->Subscribe(ctx1, false, "org.rdk.FbSettings", "onDestrEvent1");
+    impl->Subscribe(ctx1, false, FB_SETTINGS_CALLSIGN, "onDestrEvent1");
     YieldToWorkerPool();
-    impl->Subscribe(ctx2, false, "org.rdk.FbSettings", "onDestrEvent2");
+    impl->Subscribe(ctx2, false, FB_SETTINGS_CALLSIGN, "onDestrEvent2");
     YieldToWorkerPool();
 
     if (handler != nullptr) {
@@ -723,7 +723,7 @@ uint32_t Test_AN_Emitter_Emit_Callback()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = true;
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -733,8 +733,8 @@ uint32_t Test_AN_Emitter_Emit_Callback()
     if (impl == nullptr) { return tr.failures; }
 
     // Subscribe a context so there's a listener for the emitter to target
-    auto ctx = MakeContext(10, 1001, "com.emitter.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onEmitterTestEvent");
+    auto ctx = MakeContext(10, 1001, "com.emitter.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onEmitterTestEvent");
     YieldToWorkerPool();
 
     // Get the handler fake to access the emitter callback
@@ -760,7 +760,7 @@ uint32_t Test_AN_Emitter_Emit_Callback()
     }
 
     // Unsubscribe to clear mRegisteredNotifications before release
-    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onEmitterTestEvent");
+    impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "onEmitterTestEvent");
     YieldToWorkerPool();
 
     impl->Release();
@@ -777,7 +777,7 @@ uint32_t Test_AN_SubscriberJob_Dispatch_Subscribe()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = true;
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -786,8 +786,8 @@ uint32_t Test_AN_SubscriberJob_Dispatch_Subscribe()
         "SubscriberJob_Dispatch_Subscribe: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onJobSubEvent");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onJobSubEvent");
     YieldToWorkerPool();
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
@@ -799,7 +799,7 @@ uint32_t Test_AN_SubscriberJob_Dispatch_Subscribe()
     }
 
     // Cleanup: unsubscribe to verify SubscriberJob round-trip.
-    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onJobSubEvent");
+    impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "onJobSubEvent");
     YieldToWorkerPool();
 
     impl->Release();
@@ -816,7 +816,7 @@ uint32_t Test_AN_SubscriberJob_Dispatch_Unsubscribe()
     L0Test::TestResult tr;
 
     L0Test::AppNotificationsServiceMock::Config cfg;
-    cfg.notificationHandlerCallsign = "org.rdk.FbSettings";
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
     cfg.provideNotificationHandler  = true;
     cfg.handlerStatusResult         = true;
     L0Test::AppNotificationsServiceMock shell(cfg);
@@ -825,17 +825,17 @@ uint32_t Test_AN_SubscriberJob_Dispatch_Unsubscribe()
         "SubscriberJob_Dispatch_Unsubscribe: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(1, 100, "com.app", "org.rdk.AppGateway");
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
 
     // Subscribe first
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onJobUnsubEvent");
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onJobUnsubEvent");
     YieldToWorkerPool();
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
     uint32_t countAfterSub = handler ? handler->handleCount : 0u;
 
     // Unsubscribe — last listener, so SubscriberJob(unsub) is enqueued
-    impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onJobUnsubEvent");
+    impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "onJobUnsubEvent");
     YieldToWorkerPool();
 
     if (handler != nullptr) {

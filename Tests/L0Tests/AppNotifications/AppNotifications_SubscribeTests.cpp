@@ -84,8 +84,8 @@ uint32_t Test_AN_Subscribe_FirstListener_TriggersThunderSub()
     L0Test::ExpectTrue(tr, impl != nullptr, "Subscribe_FirstListener: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(10, 1001, "com.test.app", "org.rdk.AppGateway");
-    const uint32_t rc = impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onVoiceGuidanceChanged");
+    auto ctx = MakeContext(10, 1001, "com.test.app", APP_GATEWAY_CALLSIGN);
+    const uint32_t rc = impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onVoiceGuidanceChanged");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "Subscribe_FirstListener: Subscribe should return ERROR_NONE");
 
@@ -94,8 +94,8 @@ uint32_t Test_AN_Subscribe_FirstListener_TriggersThunderSub()
     // The context should now exist in the impl's subscriber map.
     // We verify indirectly: subscribe a second time for the SAME event key —
     // the second call should NOT enqueue a second SubscriberJob (no crash, no double-register).
-    auto ctx2 = MakeContext(11, 1002, "com.test.app2", "org.rdk.AppGateway");
-    const uint32_t rc2 = impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onVoiceGuidanceChanged");
+    auto ctx2 = MakeContext(11, 1002, "com.test.app2", APP_GATEWAY_CALLSIGN);
+    const uint32_t rc2 = impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onVoiceGuidanceChanged");
     L0Test::ExpectEqU32(tr, rc2, static_cast<uint32_t>(ERROR_NONE),
         "Subscribe_FirstListener: second Subscribe should also return ERROR_NONE");
 
@@ -120,14 +120,14 @@ uint32_t Test_AN_Subscribe_SecondListener_NoThunderSub()
     L0Test::ExpectTrue(tr, impl != nullptr, "Subscribe_SecondListener: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx1 = MakeContext(10, 1001, "com.test.app1", "org.rdk.AppGateway");
-    auto ctx2 = MakeContext(11, 1002, "com.test.app2", "org.rdk.AppGateway");
+    auto ctx1 = MakeContext(10, 1001, "com.test.app1", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(11, 1002, "com.test.app2", APP_GATEWAY_CALLSIGN);
 
-    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onPowerStateChanged");
+    impl->Subscribe(ctx1, true, FB_SETTINGS_CALLSIGN, "onPowerStateChanged");
     YieldToWorkerPool();
 
     // Second Subscribe for the same event - key already exists, so no SubscriberJob
-    const uint32_t rc = impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onPowerStateChanged");
+    const uint32_t rc = impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onPowerStateChanged");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "Subscribe_SecondListener: second Subscribe should return ERROR_NONE");
 
@@ -152,15 +152,15 @@ uint32_t Test_AN_Subscribe_CaseInsensitive()
     L0Test::ExpectTrue(tr, impl != nullptr, "Subscribe_CaseInsensitive: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx1 = MakeContext(10, 1001, "com.test.app1", "org.rdk.AppGateway");
-    auto ctx2 = MakeContext(11, 1002, "com.test.app2", "org.rdk.AppGateway");
+    auto ctx1 = MakeContext(10, 1001, "com.test.app1", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(11, 1002, "com.test.app2", APP_GATEWAY_CALLSIGN);
 
     // Subscribe with mixed case
-    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onAudioDescriptionChanged");
+    impl->Subscribe(ctx1, true, FB_SETTINGS_CALLSIGN, "onAudioDescriptionChanged");
     YieldToWorkerPool();
 
     // Subscribe with UPPERCASE — should map to the same key (no new SubscriberJob)
-    const uint32_t rc = impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "ONAUDIODESCRIPTIONCHANGED");
+    const uint32_t rc = impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "ONAUDIODESCRIPTIONCHANGED");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "Subscribe_CaseInsensitive: uppercase Subscribe returns ERROR_NONE");
 
@@ -185,13 +185,13 @@ uint32_t Test_AN_Unsubscribe_LastListener_TriggersThunderUnsub()
     L0Test::ExpectTrue(tr, impl != nullptr, "Unsubscribe_LastListener: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(10, 1001, "com.test.app", "org.rdk.AppGateway");
+    auto ctx = MakeContext(10, 1001, "com.test.app", APP_GATEWAY_CALLSIGN);
 
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onPreferredAudioLanguagesChanged");
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onPreferredAudioLanguagesChanged");
     YieldToWorkerPool();
 
     // Now unsubscribe — key should be removed, SubscriberJob (unsub) enqueued
-    const uint32_t rc = impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onPreferredAudioLanguagesChanged");
+    const uint32_t rc = impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "onPreferredAudioLanguagesChanged");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "Unsubscribe_LastListener: Unsubscribe should return ERROR_NONE");
 
@@ -216,15 +216,15 @@ uint32_t Test_AN_Unsubscribe_NotLastListener_NoThunderUnsub()
     L0Test::ExpectTrue(tr, impl != nullptr, "Unsubscribe_NotLastListener: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx1 = MakeContext(10, 1001, "com.test.app1", "org.rdk.AppGateway");
-    auto ctx2 = MakeContext(11, 1002, "com.test.app2", "org.rdk.AppGateway");
+    auto ctx1 = MakeContext(10, 1001, "com.test.app1", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(11, 1002, "com.test.app2", APP_GATEWAY_CALLSIGN);
 
-    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onResolutionChanged");
-    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onResolutionChanged");
+    impl->Subscribe(ctx1, true, FB_SETTINGS_CALLSIGN, "onResolutionChanged");
+    impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onResolutionChanged");
     YieldToWorkerPool();
 
     // Unsubscribe ctx1 only; ctx2 still subscribed — no SubscriberJob for unsub
-    const uint32_t rc = impl->Subscribe(ctx1, false, "org.rdk.FbSettings", "onResolutionChanged");
+    const uint32_t rc = impl->Subscribe(ctx1, false, FB_SETTINGS_CALLSIGN, "onResolutionChanged");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "Unsubscribe_NotLastListener: returns ERROR_NONE");
 
@@ -249,10 +249,10 @@ uint32_t Test_AN_Unsubscribe_NonExistent_NoCrash()
     L0Test::ExpectTrue(tr, impl != nullptr, "Unsubscribe_NonExistent: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(99, 9999, "com.test.app", "org.rdk.AppGateway");
+    auto ctx = MakeContext(99, 9999, "com.test.app", APP_GATEWAY_CALLSIGN);
 
     // Unsubscribe without ever subscribing
-    const uint32_t rc = impl->Subscribe(ctx, false, "org.rdk.FbSettings", "nonExistentEvent");
+    const uint32_t rc = impl->Subscribe(ctx, false, FB_SETTINGS_CALLSIGN, "nonExistentEvent");
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "Unsubscribe_NonExistent: returns ERROR_NONE even for non-existent event");
 
@@ -277,15 +277,15 @@ uint32_t Test_AN_Cleanup_RemovesMatchingSubscribers()
     L0Test::ExpectTrue(tr, impl != nullptr, "Cleanup_RemovesMatchingSubscribers: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx1 = MakeContext(42, 1001, "com.test.app1", "org.rdk.AppGateway");
-    auto ctx2 = MakeContext(43, 1002, "com.test.app2", "org.rdk.AppGateway");  // different connId
+    auto ctx1 = MakeContext(42, 1001, "com.test.app1", APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(43, 1002, "com.test.app2", APP_GATEWAY_CALLSIGN);  // different connId
 
-    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onEvent1");
-    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onEvent1");
+    impl->Subscribe(ctx1, true, FB_SETTINGS_CALLSIGN, "onEvent1");
+    impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onEvent1");
     YieldToWorkerPool();
 
     // Cleanup only for connId=42
-    const uint32_t rc = impl->Cleanup(42, "org.rdk.AppGateway");
+    const uint32_t rc = impl->Cleanup(42, APP_GATEWAY_CALLSIGN);
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "Cleanup_RemovesMatchingSubscribers: Cleanup returns ERROR_NONE");
 
@@ -308,12 +308,12 @@ uint32_t Test_AN_Cleanup_EmptiesEntireKey()
     L0Test::ExpectTrue(tr, impl != nullptr, "Cleanup_EmptiesEntireKey: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(55, 1001, "com.test.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onSingleEvent");
+    auto ctx = MakeContext(55, 1001, "com.test.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onSingleEvent");
     YieldToWorkerPool();
 
     // Cleanup for the same connId + origin — the entire key should be erased
-    const uint32_t rc = impl->Cleanup(55, "org.rdk.AppGateway");
+    const uint32_t rc = impl->Cleanup(55, APP_GATEWAY_CALLSIGN);
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "Cleanup_EmptiesEntireKey: Cleanup returns ERROR_NONE");
 
@@ -336,12 +336,12 @@ uint32_t Test_AN_Cleanup_NoMatch_NoCrash()
     L0Test::ExpectTrue(tr, impl != nullptr, "Cleanup_NoMatch_NoCrash: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(10, 1001, "com.test.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onEvent");
+    auto ctx = MakeContext(10, 1001, "com.test.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onEvent");
     YieldToWorkerPool();
 
     // Cleanup for a connId that doesn't match
-    const uint32_t rc = impl->Cleanup(999, "org.rdk.LaunchDelegate");
+    const uint32_t rc = impl->Cleanup(999, GATEWAY_AUTHENTICATOR_CALLSIGN);
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "Cleanup_NoMatch_NoCrash: Cleanup returns ERROR_NONE");
 
@@ -364,15 +364,15 @@ uint32_t Test_AN_Cleanup_MultipleEvents()
     L0Test::ExpectTrue(tr, impl != nullptr, "Cleanup_MultipleEvents: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(77, 2001, "com.test.app", "org.rdk.AppGateway");
+    auto ctx = MakeContext(77, 2001, "com.test.app", APP_GATEWAY_CALLSIGN);
 
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "eventA");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "eventB");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "eventC");
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "eventA");
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "eventB");
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "eventC");
     YieldToWorkerPool();
 
     // Cleanup for connId=77 — all three keys should have their ctx removed
-    const uint32_t rc = impl->Cleanup(77, "org.rdk.AppGateway");
+    const uint32_t rc = impl->Cleanup(77, APP_GATEWAY_CALLSIGN);
     L0Test::ExpectEqU32(tr, rc, static_cast<uint32_t>(ERROR_NONE),
         "Cleanup_MultipleEvents: Cleanup returns ERROR_NONE");
 
@@ -398,17 +398,17 @@ uint32_t Test_AN_Cleanup_PartialMatch_KeepsOthers()
     if (impl == nullptr) { return tr.failures; }
 
     // Subscribe 3 contexts: 2 with matching connectionId+origin, 1 with different
-    auto ctx1 = MakeContext(50, 1001, "com.app.one",   "org.rdk.AppGateway");
-    auto ctx2 = MakeContext(50, 1002, "com.app.two",   "org.rdk.AppGateway");
-    auto ctx3 = MakeContext(51, 1003, "com.app.three", "org.rdk.AppGateway");
+    auto ctx1 = MakeContext(50, 1001, "com.app.one",   APP_GATEWAY_CALLSIGN);
+    auto ctx2 = MakeContext(50, 1002, "com.app.two",   APP_GATEWAY_CALLSIGN);
+    auto ctx3 = MakeContext(51, 1003, "com.app.three", APP_GATEWAY_CALLSIGN);
 
-    impl->Subscribe(ctx1, true, "org.rdk.FbSettings", "onPartialClean");
-    impl->Subscribe(ctx2, true, "org.rdk.FbSettings", "onPartialClean");
-    impl->Subscribe(ctx3, true, "org.rdk.FbSettings", "onPartialClean");
+    impl->Subscribe(ctx1, true, FB_SETTINGS_CALLSIGN, "onPartialClean");
+    impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onPartialClean");
+    impl->Subscribe(ctx3, true, FB_SETTINGS_CALLSIGN, "onPartialClean");
     YieldToWorkerPool();
 
     // Cleanup connectionId=50 — ctx1 and ctx2 removed, ctx3 remains
-    const uint32_t rcClean = impl->Cleanup(50, "org.rdk.AppGateway");
+    const uint32_t rcClean = impl->Cleanup(50, APP_GATEWAY_CALLSIGN);
     L0Test::ExpectEqU32(tr, rcClean, static_cast<uint32_t>(ERROR_NONE),
         "Cleanup_PartialMatch_KeepsOthers: Cleanup returns ERROR_NONE");
 
@@ -446,12 +446,12 @@ uint32_t Test_AN_Cleanup_DifferentOrigin_NoMatch()
         "Cleanup_DifferentOrigin_NoMatch: impl creation");
     if (impl == nullptr) { return tr.failures; }
 
-    auto ctx = MakeContext(60, 1001, "com.app", "org.rdk.AppGateway");
-    impl->Subscribe(ctx, true, "org.rdk.FbSettings", "onOriginTest");
+    auto ctx = MakeContext(60, 1001, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onOriginTest");
     YieldToWorkerPool();
 
     // Cleanup with matching connId but different origin — should NOT remove
-    const uint32_t rcClean = impl->Cleanup(60, "org.rdk.LaunchDelegate");
+    const uint32_t rcClean = impl->Cleanup(60, GATEWAY_AUTHENTICATOR_CALLSIGN);
     L0Test::ExpectEqU32(tr, rcClean, static_cast<uint32_t>(ERROR_NONE),
         "Cleanup_DifferentOrigin_NoMatch: returns ERROR_NONE");
 
@@ -484,7 +484,7 @@ uint32_t Test_AN_Cleanup_EmptyMap_NoCrash()
     if (impl == nullptr) { return tr.failures; }
 
     // No Subscribe calls — map is completely empty
-    const uint32_t rcClean = impl->Cleanup(1, "org.rdk.AppGateway");
+    const uint32_t rcClean = impl->Cleanup(1, APP_GATEWAY_CALLSIGN);
     L0Test::ExpectEqU32(tr, rcClean, static_cast<uint32_t>(ERROR_NONE),
         "Cleanup_EmptyMap_NoCrash: returns ERROR_NONE");
 
