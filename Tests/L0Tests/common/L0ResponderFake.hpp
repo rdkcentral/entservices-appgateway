@@ -8,6 +8,11 @@
  * calls to IAppGatewayResponder::Emit(), Respond(), Request(), etc.
  * Placed in common/ so it is available to AppGateway, AppNotifications,
  * and any future plugin L0 tests.
+ *
+ * Note: This type is named CommonResponderFake to avoid a name collision
+ * with the L0Test::ResponderFake already defined in
+ * Tests/L0Tests/AppGateway/ServiceMock.h which is a richer fake that also
+ * implements IConfiguration and exposes a custom QueryInterface ID.
  */
 
 #include <atomic>
@@ -20,15 +25,15 @@
 
 namespace L0Test {
 
-class ResponderFake final : public WPEFramework::Exchange::IAppGatewayResponder {
+class CommonResponderFake final : public WPEFramework::Exchange::IAppGatewayResponder {
 public:
-    explicit ResponderFake(const bool transportEnabled = true)
+    explicit CommonResponderFake(const bool transportEnabled = true)
         : _refCount(1)
         , _transportEnabled(transportEnabled)
     {
     }
 
-    ~ResponderFake() override = default;
+    ~CommonResponderFake() override = default;
 
     // Core::IUnknown
     void AddRef() const override

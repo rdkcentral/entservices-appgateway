@@ -18,16 +18,15 @@
  *   For RegisterNotification/UnregisterNotification path the handler fake
  *   records HandleAppEventNotifier calls.
  *
- * IMPORTANT — destructor-ordering bug in AppNotificationsImplementation:
- *   ~AppNotificationsImplementation sets mShell=nullptr BEFORE member
- *   destructors run.  ~ThunderSubscriptionManager (a member) then iterates
- *   mRegisteredNotifications and calls mShell->QueryInterfaceByCallsign →
- *   null dereference (segfault).
- *   Workaround: for any test that subscribes with handlerStatusResult=true
- *   (which populates mRegisteredNotifications), explicitly unsubscribe with
- *   handlerStatusResult=true before calling impl->Release(), so the list is
- *   empty when the destructor runs.
- *   See comments per-test below.
+ * IMPORTANT — destructor ordering:
+ *   AppNotificationsImplementation::~AppNotificationsImplementation() releases
+ *   mShell (decrements refcount) but intentionally does NOT null the pointer.
+ *   ThunderSubscriptionManager::~ThunderSubscriptionManager() (a member
+ *   destructor) iterates mRegisteredNotifications and calls
+ *   mShell->QueryInterfaceByCallsign() to clean up subscriptions, so mShell
+ *   must remain non-null until after all member destructors have run.
+ *   Tests can therefore allow impl->Release() with non-empty
+ *   mRegisteredNotifications — the destructor will safely drain the list.
  */
 
 #include <iostream>
@@ -105,8 +104,7 @@ uint32_t Test_AN_ThunderMgr_Subscribe_NewEvent()
             "ThunderMgr_Subscribe_NewEvent: event name should match");
     }
 
-    // Unsubscribe before release to clear mRegisteredNotifications
-    // (avoids destructor null-mShell crash — known plugin bug).
+    // Unsubscribe before release to clear mRegisteredNotifications.
     impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onVoiceGuidanceChanged");
     YieldToWorkerPool();
 
@@ -575,6 +573,8 @@ uint32_t Test_AN_IsNotificationRegistered_Exists()
     }
 
     // Unsubscribe both contexts to drain mRegisteredNotifications before release.
+    // The destructor will also safely drain any remaining entries via
+    // ~ThunderSubscriptionManager, but explicit cleanup keeps test intent clear.
     impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onRegisteredCheck");
     YieldToWorkerPool();
     impl->Subscribe(ctx2, false, "org.rdk.FbSettings", "onRegisteredCheck");
@@ -657,14 +657,13 @@ uint32_t Test_AN_IsNotificationRegistered_CaseInsensitive()
 // ---------------------------------------------------------------------------
 uint32_t Test_AN_ThunderMgr_Destructor_UnsubscribesAll()
 {
-    /** ThunderSubscriptionManager::~ThunderSubscriptionManager does not crash when
-     *  mRegisteredNotifications is empty at destroy time.
-     *
-     *  Note: The plugin has a known destructor-ordering bug where
-     *  ~AppNotificationsImplementation nulls mShell before member destructors run,
-     *  causing a null-ptr crash if mRegisteredNotifications is non-empty.
-     *  This test verifies the safe (empty-list) path and also verifies that
-     *  subscribe+unsubscribe correctly populates and drains mRegisteredNotifications.
+    /** ThunderSubscriptionManager::~ThunderSubscriptionManager safely drains
+     *  mRegisteredNotifications even when the list is non-empty at destroy time.
+     *  The destructor calls HandleNotifier(listen=false) for each registered event,
+     *  which requires mShell to remain valid — the fixed AppNotificationsImplementation
+     *  destructor no longer nulls mShell before member destructors run.
+     *  This test also verifies that subscribe+unsubscribe correctly populates and
+     *  drains mRegisteredNotifications.
      */
     L0Test::TestResult tr;
 
@@ -691,8 +690,10 @@ uint32_t Test_AN_ThunderMgr_Destructor_UnsubscribesAll()
     L0Test::ExpectTrue(tr, handleCountAfterSub >= 2u,
         "ThunderMgr_Destructor_UnsubscribesAll: at least 2 registrations");
 
-    // Unsubscribe all events before release to drain mRegisteredNotifications,
-    // avoiding the known null-mShell crash in ~ThunderSubscriptionManager.
+    // Unsubscribe all events before release to verify subscribe+unsubscribe round-trip
+    // and confirm mRegisteredNotifications is correctly maintained.
+    // Note: impl->Release() with a non-empty list is also safe because the fixed
+    // destructor keeps mShell valid during ~ThunderSubscriptionManager execution.
     impl->Subscribe(ctx1, false, "org.rdk.FbSettings", "onDestrEvent1");
     YieldToWorkerPool();
     impl->Subscribe(ctx2, false, "org.rdk.FbSettings", "onDestrEvent2");
@@ -797,7 +798,7 @@ uint32_t Test_AN_SubscriberJob_Dispatch_Subscribe()
             "SubscriberJob_Dispatch_Subscribe: last call should be listen=true");
     }
 
-    // Cleanup: unsubscribe to drain mRegisteredNotifications
+    // Cleanup: unsubscribe to verify SubscriberJob round-trip.
     impl->Subscribe(ctx, false, "org.rdk.FbSettings", "onJobSubEvent");
     YieldToWorkerPool();
 
