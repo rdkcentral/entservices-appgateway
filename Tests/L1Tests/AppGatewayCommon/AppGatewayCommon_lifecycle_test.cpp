@@ -34,7 +34,6 @@
 #include "ThunderPortability.h"
 #include "WorkerPoolImplementation.h"
 
-#include <sys/stat.h>
 #include <cstdio>
 #include <unistd.h>
 
@@ -42,17 +41,16 @@ using namespace WPEFramework;
 
 namespace {
 // Removes /opt/ai2managers whether it is a file or a directory.
-// std::remove() only works on files; a stale directory would be
-// silently left behind, causing subsequent tests to malfunction.
+// Uses unlink/rmdir directly instead of stat() + branch to avoid
+// a TOCTOU (time-of-check time-of-use) filesystem race condition.
 inline void RemoveAi2managers()
 {
     const char* path = "/opt/ai2managers";
-    struct stat st;
-    if (stat(path, &st) != 0) return;          // nothing to remove
-    if (S_ISDIR(st.st_mode)) {
-        rmdir(path);                           // empty directory
-    } else {
-        std::remove(path);                     // regular file
+    // unlink() removes files; fails harmlessly with EISDIR/EPERM on directories.
+    // rmdir() removes empty directories; fails harmlessly with ENOTDIR on files.
+    // If the path does not exist, both fail silently (ENOENT).
+    if (0 != unlink(path)) {
+        (void)rmdir(path);
     }
 }
 } // anonymous namespace
