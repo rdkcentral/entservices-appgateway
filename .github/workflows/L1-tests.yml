@@ -485,19 +485,23 @@ jobs:
           cmake --build build/entservices-appgateway-l1tests-only -- -j"$(nproc)"
           cmake --build build/entservices-appgateway-l1tests-only --target AppGatewayL1Test -- -j"$(nproc)"
           cmake --build build/entservices-appgateway-l1tests-only --target AppGatewayCommonL1Test -- -j"$(nproc)"
+          cmake --build build/entservices-appgateway-l1tests-only --target AppNotificationsL1Test -- -j"$(nproc)"
 
           cmake --build build/entservices-appgateway-l1tests-only --target AppGateway -- -j"$(nproc)" || true
           cmake --build build/entservices-appgateway-l1tests-only --target AppGatewayCommon -- -j"$(nproc)" || true
+          cmake --build build/entservices-appgateway-l1tests-only --target AppNotifications -- -j"$(nproc)" || true
           cmake --build build/entservices-appgateway-l1tests-only --target L1TestsIN -- -j"$(nproc)" || true
 
           mkdir -p "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins"
           find build/entservices-appgateway-l1tests-only/AppGateway -maxdepth 1 -type f -name "*.so*" -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
           find build/entservices-appgateway-l1tests-only/AppGatewayCommon -maxdepth 1 -type f -name "*.so*" -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
+          find build/entservices-appgateway-l1tests-only/AppNotifications -maxdepth 1 -type f -name "*.so*" -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
           find build/entservices-appgateway-l1tests-only -maxdepth 1 -type f -name "*.so*" -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
 
           ls -la "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins" || true
           test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppGateway.so" || (echo "Missing libAppGateway.so in staged plugin dir" && exit 1)
           test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppGatewayCommon.so" || (echo "Missing libAppGatewayCommon.so in staged plugin dir" && exit 1)
+          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppNotifications.so" || (echo "Missing libAppNotifications.so in staged plugin dir" && exit 1)
 
       - name: Copy required mock headers into install prefix include/Tests/mocks
         run: |
@@ -505,14 +509,16 @@ jobs:
           cp -f "$GITHUB_WORKSPACE/Tests/mocks/Module.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/Module.h"
           cp -f "$GITHUB_WORKSPACE/Tests/mocks/ServiceMock.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/ServiceMock.h"
           cp -f "$GITHUB_WORKSPACE/Tests/mocks/ThunderPortability.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/ThunderPortability.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/WorkerPoolImplementation.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/WorkerPoolImplementation.h"
           cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockEmitter.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockEmitter.h"
           cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockSharedStorage.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockSharedStorage.h"
-          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockUserSettings.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockUserSettings.h"
-          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockNetworkManager.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockNetworkManager.h"
-          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockLifecycleManagerState.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockLifecycleManagerState.h"
-          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockRDKWindowManager.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockRDKWindowManager.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockInterfaceDetailsIterator.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockInterfaceDetailsIterator.h"
           cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockTextToSpeech.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockTextToSpeech.h"
           cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockJSONRPCDirectLink.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockJSONRPCDirectLink.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/NetworkManagerMock.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/NetworkManagerMock.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/LifecycleManagerMock.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/LifecycleManagerMock.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/WindowManagerMock.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/WindowManagerMock.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/UserSettingMock.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/UserSettingMock.h"
 
       - name: Stage AppGateway resolution.base.json into config root (avoid /etc)
         run: |
@@ -577,6 +583,7 @@ jobs:
 
           test_bin_appgateway="build/entservices-appgateway-l1tests-only/AppGatewayL1Test"
           test_bin_appgatewaycommon="build/entservices-appgateway-l1tests-only/AppGatewayCommonL1Test"
+          test_bin_appnotifications="build/entservices-appgateway-l1tests-only/AppNotificationsL1Test"
 
           if [ "${ENABLE_GDB:-0}" = "1" ]; then
             echo "ENABLE_GDB=1 -> running unit tests under gdb (batch mode)."
@@ -590,10 +597,17 @@ jobs:
               -ex "run" \
               -ex "bt full" \
               --args "${test_bin_appgatewaycommon}"
+
+            gdb -q -batch \
+              -ex "set pagination off" \
+              -ex "run" \
+              -ex "bt full" \
+              --args "${test_bin_appnotifications}"
           else
             echo "ENABLE_GDB!=1 -> running unit tests normally (default behavior)."
             "${test_bin_appgateway}"
             "${test_bin_appgatewaycommon}"
+            "${test_bin_appnotifications}"
           fi
 
           cp -rf "$(pwd)/rdkL1TestResults.json" "$GITHUB_WORKSPACE/rdkL1TestResultsWithoutValgrind.json"
@@ -633,6 +647,15 @@ jobs:
             --track-fds=yes \
             --fair-sched=try \
             build/entservices-appgateway-l1tests-only/AppGatewayCommonL1Test
+
+          valgrind \
+            --tool=memcheck \
+            --log-file=valgrind_log_appnotifications \
+            --leak-check=yes \
+            --show-reachable=yes \
+            --track-fds=yes \
+            --fair-sched=try \
+            build/entservices-appgateway-l1tests-only/AppNotificationsL1Test
 
           cp -rf "$(pwd)/rdkL1TestResults.json" "$GITHUB_WORKSPACE/rdkL1TestResultsWithValgrind.json"
           rm -rf "$(pwd)/rdkL1TestResults.json"

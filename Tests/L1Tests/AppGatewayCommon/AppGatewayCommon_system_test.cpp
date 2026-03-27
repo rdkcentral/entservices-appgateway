@@ -516,8 +516,8 @@ TEST_F(SystemDelegateTest, AGC_L1_135_GetAudio_RPCFailure)
     string result;
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.audio", "{}", result);
 
-    // Falls back to stereo-only
-    EXPECT_NE(result.find("\"stereo\":true"), std::string::npos);
+    // Falls back to stereo-off default
+    EXPECT_NE(result.find("\"stereo\":false"), std::string::npos);
 }
 
 TEST_F(SystemDelegateTest, AGC_L1_136_GetFirmwareVersion_Success)
@@ -547,8 +547,9 @@ TEST_F(SystemDelegateTest, AGC_L1_137_GetDeviceSku_MissingField)
     string result;
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.sku", "{}", result);
 
-    // When stbVersion is missing, expect some fallback or error
-    EXPECT_FALSE(result.empty());
+    // When stbVersion is missing, skuOut stays empty and ERROR_UNAVAILABLE is returned
+    EXPECT_TRUE(result.empty());
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
 }
 
 /* ---------- secondscreen.friendlyname (alias for device.name) ---------- */

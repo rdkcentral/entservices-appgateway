@@ -22,19 +22,29 @@
 #include <gmock/gmock.h>
 #include <interfaces/IRDKWindowManager.h>
 
-class MockRDKWindowManager : public WPEFramework::Exchange::IRDKWindowManager {
+using ::WPEFramework::Exchange::IRDKWindowManager;
+
+/**
+ * WindowManagerMock — aligned with entservices-testframework naming.
+ *
+ * The test framework's WindowManagerMock cannot be used directly because
+ * our interface version (RDKEMW-13978) has different signatures for
+ * AddKeyIntercepts (2 params vs 1) and RemoveKeyIntercept (3 params vs 1),
+ * and adds GetVisibility and GetScreenshot which are absent from the
+ * framework mock. This version keeps the framework class name and style
+ * while providing the correct signatures for our interfaces.
+ */
+class WindowManagerMock : public IRDKWindowManager {
 public:
-    ~MockRDKWindowManager() override = default;
+    WindowManagerMock() = default;
+    virtual ~WindowManagerMock() = default;
 
-    MOCK_METHOD(void, AddRef, (), (const, override));
-    MOCK_METHOD(uint32_t, Release, (), (const, override));
-
-    MOCK_METHOD(WPEFramework::Core::hresult, Register, (INotification * notification), (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, Unregister, (INotification * notification), (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, Initialize, (WPEFramework::PluginHost::IShell * service), (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, Deinitialize, (WPEFramework::PluginHost::IShell * service), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, Register, (INotification *notification), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, Unregister, (INotification *notification), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, Initialize, (WPEFramework::PluginHost::IShell* service), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, Deinitialize, (WPEFramework::PluginHost::IShell* service), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, CreateDisplay, (const string& displayParams), (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, GetApps, (string & appsIds), (const, override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetApps, (string& appsIds), (const, override));
     MOCK_METHOD(WPEFramework::Core::hresult, SetFocus, (const string& client), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, SetVisible, (const std::string& client, bool visible), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, GetVisibility, (const std::string& client, bool& visible), (override));
@@ -62,7 +72,17 @@ public:
     MOCK_METHOD(WPEFramework::Core::hresult, StopVncServer, (), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, GetScreenshot, (), (override));
 
-    BEGIN_INTERFACE_MAP(MockRDKWindowManager)
-    INTERFACE_ENTRY(WPEFramework::Exchange::IRDKWindowManager)
-    END_INTERFACE_MAP
+    MOCK_METHOD(void, AddRef, (), (const, override));
+    MOCK_METHOD(uint32_t, Release, (), (const, override));
+    MOCK_METHOD(void*, QueryInterface, (const uint32_t interfaceNumber), (override));
+};
+
+class WindowManagerNotificationMock : public IRDKWindowManager::INotification {
+public:
+    WindowManagerNotificationMock() = default;
+    virtual ~WindowManagerNotificationMock() = default;
+
+    MOCK_METHOD(void, OnUserInactivity, (const double minutes), (override));
+    MOCK_METHOD(void, OnDisconnected, (const std::string& client), (override));
+    MOCK_METHOD(void, OnReady, (const std::string& client), (override));
 };

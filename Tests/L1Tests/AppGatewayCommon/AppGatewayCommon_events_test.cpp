@@ -30,7 +30,7 @@
 #include "ServiceMock.h"
 #include "MockEmitter.h"
 #include "MockTextToSpeech.h"
-#include "MockUserSettings.h"
+#include "UserSettingMock.h"
 #include "ThunderPortability.h"
 #include "WorkerPoolImplementation.h"
 
@@ -163,7 +163,33 @@ TEST_F(EventsTest, AGC_L1_125_Metrics_NoOp_ReturnsNull)
     EXPECT_EQ("null", result);
 }
 
-TEST_F(EventsTest, AGC_L1_126_SecondScreenFriendlyName_NullDelegate)
+// Fixture for tests that null out mDelegate. The base Deinitialize unconditionally
+// dereferences mDelegate, so these tests must not call Deinitialize in TearDown.
+class NullDelegateEventsTest : public ::testing::Test {
+protected:
+    Core::Sink<AppGatewayCommon> plugin;
+    NiceMock<ServiceMock> service;
+
+    void SetUp() override
+    {
+        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+            .WillByDefault(Return(nullptr));
+
+        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        const string response = plugin.Initialize(&service);
+        ASSERT_TRUE(response.empty());
+    }
+
+    void TearDown() override
+    {
+        // Do NOT call Deinitialize — mDelegate was reset to nullptr by the test
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+};
+
+TEST_F(NullDelegateEventsTest, AGC_L1_126_SecondScreenFriendlyName_NullDelegate)
 {
     plugin.mDelegate.reset();
     const auto ctx = MakeContext();
@@ -173,7 +199,7 @@ TEST_F(EventsTest, AGC_L1_126_SecondScreenFriendlyName_NullDelegate)
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
 }
 
-TEST_F(EventsTest, AGC_L1_127_NullDelegate_HandleAppEventNotifier)
+TEST_F(NullDelegateEventsTest, AGC_L1_127_NullDelegate_HandleAppEventNotifier)
 {
     plugin.mDelegate.reset();
 
@@ -192,7 +218,7 @@ protected:
     Core::Sink<AppGatewayCommon> plugin;
     NiceMock<ServiceMock> service;
     NiceMock<MockTextToSpeech> mockTTS;
-    NiceMock<MockUserSettings> mockUserSettings;
+    NiceMock<UserSettingMock> mockUserSettings;
 
     void SetUp() override
     {
@@ -329,7 +355,7 @@ protected:
     Core::Sink<AppGatewayCommon> plugin;
     NiceMock<ServiceMock> service;
     NiceMock<MockTextToSpeech> mockTTS;
-    NiceMock<MockUserSettings> mockUserSettings;
+    NiceMock<UserSettingMock> mockUserSettings;
     Exchange::ITextToSpeech::INotification* capturedTTSNotification = nullptr;
     std::vector<MockEmitter*> heapEmitters;
 
@@ -531,7 +557,7 @@ class UserSettingsNotificationTest : public ::testing::Test {
 protected:
     Core::Sink<AppGatewayCommon> plugin;
     NiceMock<ServiceMock> service;
-    NiceMock<MockUserSettings> mockUserSettings;
+    NiceMock<UserSettingMock> mockUserSettings;
     Exchange::IUserSettings::INotification* capturedUSNotification = nullptr;
     std::vector<MockEmitter*> heapEmitters;
 

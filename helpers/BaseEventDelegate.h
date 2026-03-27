@@ -69,9 +69,7 @@ public:
 
     ~BaseEventDelegate()
     {
-        // Cleanup registered notifications under lock to prevent races
-        // with concurrent AddNotification / RemoveNotification calls.
-        std::lock_guard<std::mutex> lock(mRegisterMutex);
+        // Cleanup registered notifications
         for (auto &entry : mRegisteredNotifications)
         {
             for (auto emitter : entry.second)

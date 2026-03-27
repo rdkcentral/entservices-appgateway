@@ -30,7 +30,8 @@
 #undef private
 
 #include "ServiceMock.h"
-#include "MockNetworkManager.h"
+#include "NetworkManagerMock.h"
+#include "MockInterfaceDetailsIterator.h"
 #include "MockEmitter.h"
 #include "ThunderPortability.h"
 #include "WorkerPoolImplementation.h"
@@ -90,7 +91,7 @@ class NetworkDelegateTest : public ::testing::Test {
 protected:
     Core::Sink<AppGatewayCommon> plugin;
     NiceMock<ServiceMock> service;
-    NiceMock<MockNetworkManager> mockNetwork;
+    NiceMock<MockINetworkManager> mockNetwork;
 
     void SetUp() override
     {
@@ -377,7 +378,7 @@ class NetworkNotificationTest : public ::testing::Test {
 protected:
     Core::Sink<AppGatewayCommon> plugin;
     NiceMock<ServiceMock> service;
-    NiceMock<MockNetworkManager> mockNetwork;
+    NiceMock<MockINetworkManager> mockNetwork;
     Exchange::INetworkManager::INotification* capturedNotification = nullptr;
     std::vector<MockEmitter*> heapEmitters;
 

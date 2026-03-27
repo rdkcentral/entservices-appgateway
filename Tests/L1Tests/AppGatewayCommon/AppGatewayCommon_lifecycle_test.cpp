@@ -28,8 +28,8 @@
 #undef private
 
 #include "ServiceMock.h"
-#include "MockLifecycleManagerState.h"
-#include "MockRDKWindowManager.h"
+#include "LifecycleManagerMock.h"
+#include "WindowManagerMock.h"
 #include "MockEmitter.h"
 #include "ThunderPortability.h"
 #include "WorkerPoolImplementation.h"
@@ -106,8 +106,8 @@ class LifecycleDelegateTest : public ::testing::Test {
 protected:
     Core::Sink<AppGatewayCommon> plugin;
     NiceMock<ServiceMock> service;
-    NiceMock<MockLifecycleManagerState> mockLifecycle;
-    NiceMock<MockRDKWindowManager> mockWindowMgr;
+    NiceMock<LifecycleManagerStateMock> mockLifecycle;
+    NiceMock<WindowManagerMock> mockWindowMgr;
     Exchange::ILifecycleManagerState::INotification* capturedNotification = nullptr;
     Exchange::IRDKWindowManager::INotification* capturedWMNotification = nullptr;
     std::vector<MockEmitter*> heapEmitters;

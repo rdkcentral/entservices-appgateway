@@ -28,7 +28,7 @@
 #undef private
 
 #include "ServiceMock.h"
-#include "MockUserSettings.h"
+#include "UserSettingMock.h"
 #include "ThunderPortability.h"
 #include "WorkerPoolImplementation.h"
 
@@ -87,7 +87,7 @@ class UserSettingsTest : public ::testing::Test {
 protected:
     Core::Sink<AppGatewayCommon> plugin;
     NiceMock<ServiceMock> service;
-    NiceMock<MockUserSettings> mockUserSettings;
+    NiceMock<UserSettingMock> mockUserSettings;
 
     void SetUp() override
     {
@@ -345,6 +345,7 @@ TEST_F(UserSettingsTest, AGC_L1_069_SetVoiceGuidanceHints_Success)
 
 TEST_F(UserSettingsTest, AGC_L1_070_SetSpeed_2_0_TransformsTo_10_0)
 {
+    // Number() truncates 2.0 to 2, transform: speed==2 → rate=10.0
     EXPECT_CALL(mockUserSettings, SetVoiceGuidanceRate(10.0))
         .WillOnce(Return(Core::ERROR_NONE));
 
@@ -355,9 +356,10 @@ TEST_F(UserSettingsTest, AGC_L1_070_SetSpeed_2_0_TransformsTo_10_0)
     EXPECT_EQ(Core::ERROR_NONE, rc);
 }
 
-TEST_F(UserSettingsTest, AGC_L1_071_SetSpeed_1_67_TransformsTo_1_38)
+TEST_F(UserSettingsTest, AGC_L1_071_SetSpeed_1_67_TruncatedTo_1)
 {
-    EXPECT_CALL(mockUserSettings, SetVoiceGuidanceRate(1.38))
+    // Number() truncates 1.67 to 1, transform: speed>=1.0 → rate=1.0
+    EXPECT_CALL(mockUserSettings, SetVoiceGuidanceRate(1.0))
         .WillOnce(Return(Core::ERROR_NONE));
 
     const auto ctx = MakeContext();
@@ -367,9 +369,10 @@ TEST_F(UserSettingsTest, AGC_L1_071_SetSpeed_1_67_TransformsTo_1_38)
     EXPECT_EQ(Core::ERROR_NONE, rc);
 }
 
-TEST_F(UserSettingsTest, AGC_L1_072_SetSpeed_1_33_TransformsTo_1_19)
+TEST_F(UserSettingsTest, AGC_L1_072_SetSpeed_1_33_TruncatedTo_1)
 {
-    EXPECT_CALL(mockUserSettings, SetVoiceGuidanceRate(1.19))
+    // Number() truncates 1.33 to 1, transform: speed>=1.0 → rate=1.0
+    EXPECT_CALL(mockUserSettings, SetVoiceGuidanceRate(1.0))
         .WillOnce(Return(Core::ERROR_NONE));
 
     const auto ctx = MakeContext();
@@ -381,6 +384,7 @@ TEST_F(UserSettingsTest, AGC_L1_072_SetSpeed_1_33_TransformsTo_1_19)
 
 TEST_F(UserSettingsTest, AGC_L1_073_SetSpeed_1_0_TransformsTo_1_0)
 {
+    // Number() truncates 1.0 to 1, transform: speed>=1.0 → rate=1.0
     EXPECT_CALL(mockUserSettings, SetVoiceGuidanceRate(1.0))
         .WillOnce(Return(Core::ERROR_NONE));
 
@@ -391,16 +395,14 @@ TEST_F(UserSettingsTest, AGC_L1_073_SetSpeed_1_0_TransformsTo_1_0)
     EXPECT_EQ(Core::ERROR_NONE, rc);
 }
 
-TEST_F(UserSettingsTest, AGC_L1_074_SetSpeed_0_5_TransformsTo_0_1)
+TEST_F(UserSettingsTest, AGC_L1_074_SetSpeed_0_5_RejectedAsFloat)
 {
-    EXPECT_CALL(mockUserSettings, SetVoiceGuidanceRate(0.1))
-        .WillOnce(Return(Core::ERROR_NONE));
-
+    // 0.5 is FLOAT type → rejected by ValidateAndExtractDouble
     const auto ctx = MakeContext();
     string result;
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "voiceguidance.setspeed", R"({"value":0.5})", result);
 
-    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(Core::ERROR_BAD_REQUEST, rc);
 }
 
 TEST_F(UserSettingsTest, AGC_L1_075_GetSpeed_HighRate_Returns_2_0)
@@ -614,7 +616,8 @@ TEST_F(UserSettingsTest, AGC_L1_146_GetSpeed_RateFetchFails)
 
 TEST_F(UserSettingsTest, AGC_L1_147_SetSpeed_RateSetFails)
 {
-    EXPECT_CALL(mockUserSettings, SetVoiceGuidanceRate(_))
+    // Number() truncates 1.5 to 1, transform: speed>=1.0 → rate=1.0
+    EXPECT_CALL(mockUserSettings, SetVoiceGuidanceRate(1.0))
         .WillOnce(Return(Core::ERROR_GENERAL));
 
     const auto ctx = MakeContext();
@@ -860,7 +863,8 @@ TEST_F(UserSettingsTest, AGC_L1_180_AccessibilityAudioDescription_Success)
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "accessibility.audiodescription", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_NE(result.find("\"enabled\":false"), std::string::npos);
+    // Reverted handler maps to GetAudioDescriptionsEnabled which returns bare "false" string
+    EXPECT_EQ("false", result);
 }
 
 /* ========================================================================

@@ -73,7 +73,7 @@ uint32_t Test_Information_ReturnsEmpty()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_018
+// TEST_ID: AGC_L0_005
 // Interface map: QueryInterface for IAppGatewayRequestHandler returns valid pointer.
 uint32_t Test_InterfaceMap_RequestHandler()
 {
@@ -92,7 +92,7 @@ uint32_t Test_InterfaceMap_RequestHandler()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_019
+// TEST_ID: AGC_L0_006
 // Interface map: QueryInterface for IAppGatewayAuthenticator returns valid pointer.
 uint32_t Test_InterfaceMap_Authenticator()
 {
@@ -111,7 +111,7 @@ uint32_t Test_InterfaceMap_Authenticator()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_087
+// TEST_ID: AGC_L0_007
 // QueryInterface for IAppNotificationHandler returns valid pointer.
 uint32_t Test_InterfaceMap_NotificationHandler()
 {
@@ -127,7 +127,7 @@ uint32_t Test_InterfaceMap_NotificationHandler()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_088
+// TEST_ID: AGC_L0_008
 // HandleAppGatewayRequest before Initialize → mDelegate is null → ERROR_UNAVAILABLE
 // Covers the null-delegate guard at the top of HandleAppGatewayRequest (lines 312-316).
 uint32_t Test_HandleRequest_BeforeInit()
@@ -145,7 +145,7 @@ uint32_t Test_HandleRequest_BeforeInit()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_090
+// TEST_ID: AGC_L0_009
 // Authenticate before Initialize → InvokeLifecycleDelegate returns ERROR_UNAVAILABLE (null delegate)
 // Covers the `if (!delegate)` guard in the InvokeLifecycleDelegate template.
 uint32_t Test_Authenticate_BeforeInit()
@@ -164,7 +164,7 @@ uint32_t Test_Authenticate_BeforeInit()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_091
+// TEST_ID: AGC_L0_010
 // HandleAppGatewayRequest after Deinitialize → mDelegate has been reset → ERROR_UNAVAILABLE
 // Real-world scenario: plugin deactivated but a pending request arrives (race condition).
 uint32_t Test_HandleRequest_AfterDeinit()
@@ -182,7 +182,7 @@ uint32_t Test_HandleRequest_AfterDeinit()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_092
+// TEST_ID: AGC_L0_011
 // Re-initialization: Init → Deinit → Init → use → Deinit on the same instance.
 // Validates that the plugin can be cleanly reactivated after deactivation.
 uint32_t Test_Reinitialize_AfterDeinit()
