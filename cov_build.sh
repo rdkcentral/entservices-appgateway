@@ -67,3 +67,4 @@ cmake -G Ninja -S "$GITHUB_WORKSPACE" -B build/entservices-appgateway \
 cmake --build build/entservices-appgateway --target install
 echo "======================================================================================"
 exit 0
+
