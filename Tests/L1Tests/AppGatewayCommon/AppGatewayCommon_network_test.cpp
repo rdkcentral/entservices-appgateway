@@ -122,7 +122,7 @@ protected:
 
 /* ---------- GetNetworkConnected ---------- */
 
-TEST_F(NetworkDelegateTest, AGC_L1_099_GetNetworkConnected_Connected)
+TEST_F(NetworkDelegateTest, AGC_L1_147_GetNetworkConnected_Connected)
 {
     EXPECT_CALL(mockNetwork, GetPrimaryInterface(_))
         .WillOnce(DoAll(SetArgReferee<0>("eth0"), Return(Core::ERROR_NONE)));
@@ -135,7 +135,7 @@ TEST_F(NetworkDelegateTest, AGC_L1_099_GetNetworkConnected_Connected)
     EXPECT_EQ("true", result);
 }
 
-TEST_F(NetworkDelegateTest, AGC_L1_100_GetNetworkConnected_Disconnected)
+TEST_F(NetworkDelegateTest, AGC_L1_148_GetNetworkConnected_Disconnected)
 {
     EXPECT_CALL(mockNetwork, GetPrimaryInterface(_))
         .WillOnce(DoAll(SetArgReferee<0>(""), Return(Core::ERROR_NONE)));
@@ -148,7 +148,7 @@ TEST_F(NetworkDelegateTest, AGC_L1_100_GetNetworkConnected_Disconnected)
     EXPECT_EQ("false", result);
 }
 
-TEST_F(NetworkDelegateTest, AGC_L1_101_GetNetworkConnected_CallFails)
+TEST_F(NetworkDelegateTest, AGC_L1_149_GetNetworkConnected_CallFails)
 {
     EXPECT_CALL(mockNetwork, GetPrimaryInterface(_))
         .WillOnce(Return(Core::ERROR_GENERAL));
@@ -162,7 +162,7 @@ TEST_F(NetworkDelegateTest, AGC_L1_101_GetNetworkConnected_CallFails)
 
 /* ---------- GetInternetConnectionStatus ---------- */
 
-TEST_F(NetworkDelegateTest, AGC_L1_102_GetInternetConnectionStatus_Ethernet)
+TEST_F(NetworkDelegateTest, AGC_L1_150_GetInternetConnectionStatus_Ethernet)
 {
     auto* mockIterator = new NiceMock<MockInterfaceDetailsIterator>();
     
@@ -189,7 +189,7 @@ TEST_F(NetworkDelegateTest, AGC_L1_102_GetInternetConnectionStatus_Ethernet)
     EXPECT_NE(result.find("connected"), std::string::npos);
 }
 
-TEST_F(NetworkDelegateTest, AGC_L1_103_GetInternetConnectionStatus_WiFi)
+TEST_F(NetworkDelegateTest, AGC_L1_151_GetInternetConnectionStatus_WiFi)
 {
     auto* mockIterator = new NiceMock<MockInterfaceDetailsIterator>();
     
@@ -215,7 +215,7 @@ TEST_F(NetworkDelegateTest, AGC_L1_103_GetInternetConnectionStatus_WiFi)
     EXPECT_NE(result.find("wifi"), std::string::npos);
 }
 
-TEST_F(NetworkDelegateTest, AGC_L1_104_GetInternetConnectionStatus_NoneConnected)
+TEST_F(NetworkDelegateTest, AGC_L1_152_GetInternetConnectionStatus_NoneConnected)
 {
     auto* mockIterator = new NiceMock<MockInterfaceDetailsIterator>();
     
@@ -241,7 +241,7 @@ TEST_F(NetworkDelegateTest, AGC_L1_104_GetInternetConnectionStatus_NoneConnected
     EXPECT_EQ("{}", result);
 }
 
-TEST_F(NetworkDelegateTest, AGC_L1_105_GetInternetConnectionStatus_NullIterator)
+TEST_F(NetworkDelegateTest, AGC_L1_153_GetInternetConnectionStatus_NullIterator)
 {
     EXPECT_CALL(mockNetwork, GetAvailableInterfaces(_))
         .WillOnce(DoAll(SetArgReferee<0>(nullptr), Return(Core::ERROR_NONE)));
@@ -254,7 +254,7 @@ TEST_F(NetworkDelegateTest, AGC_L1_105_GetInternetConnectionStatus_NullIterator)
     EXPECT_EQ("{}", result);
 }
 
-TEST_F(NetworkDelegateTest, AGC_L1_106_GetInternetConnectionStatus_CallFails)
+TEST_F(NetworkDelegateTest, AGC_L1_154_GetInternetConnectionStatus_CallFails)
 {
     EXPECT_CALL(mockNetwork, GetAvailableInterfaces(_))
         .WillOnce(Return(Core::ERROR_GENERAL));
@@ -268,7 +268,7 @@ TEST_F(NetworkDelegateTest, AGC_L1_106_GetInternetConnectionStatus_CallFails)
 
 /* ---------- Additional network error paths ---------- */
 
-TEST_F(NetworkDelegateTest, AGC_L1_173_GetNetworkConnected_EmptyPrimaryInterface)
+TEST_F(NetworkDelegateTest, AGC_L1_155_GetNetworkConnected_EmptyPrimaryInterface)
 {
     EXPECT_CALL(mockNetwork, GetPrimaryInterface(_))
         .WillOnce(DoAll(SetArgReferee<0>(string("")), Return(Core::ERROR_NONE)));
@@ -281,7 +281,7 @@ TEST_F(NetworkDelegateTest, AGC_L1_173_GetNetworkConnected_EmptyPrimaryInterface
     EXPECT_NE(result.find("false"), std::string::npos);
 }
 
-TEST_F(NetworkDelegateTest, AGC_L1_174_GetInternetConnectionStatus_BothEthernetAndWifi)
+TEST_F(NetworkDelegateTest, AGC_L1_156_GetInternetConnectionStatus_BothEthernetAndWifi)
 {
     auto* mockIterator = new NiceMock<MockInterfaceDetailsIterator>();
     
@@ -347,7 +347,7 @@ protected:
     }
 };
 
-TEST_F(NetworkNoInterfaceTest, AGC_L1_230_GetNetworkConnected_NoInterface_ReturnsUnavailable)
+TEST_F(NetworkNoInterfaceTest, AGC_L1_157_GetNetworkConnected_NoInterface_ReturnsUnavailable)
 {
     const auto ctx = MakeContext();
     string result;
@@ -357,7 +357,7 @@ TEST_F(NetworkNoInterfaceTest, AGC_L1_230_GetNetworkConnected_NoInterface_Return
     EXPECT_NE(result.find("NetworkManager not available"), std::string::npos);
 }
 
-TEST_F(NetworkNoInterfaceTest, AGC_L1_231_GetInternetConnectionStatus_NoInterface_ReturnsUnavailable)
+TEST_F(NetworkNoInterfaceTest, AGC_L1_158_GetInternetConnectionStatus_NoInterface_ReturnsUnavailable)
 {
     const auto ctx = MakeContext();
     string result;
@@ -420,7 +420,7 @@ protected:
     }
 };
 
-TEST_F(NetworkNotificationTest, AGC_L1_232_NetworkSubscription_RegistersAndCapturesNotification)
+TEST_F(NetworkNotificationTest, AGC_L1_159_NetworkSubscription_RegistersAndCapturesNotification)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -438,7 +438,7 @@ TEST_F(NetworkNotificationTest, AGC_L1_232_NetworkSubscription_RegistersAndCaptu
     EXPECT_NE(capturedNotification, nullptr);
 }
 
-TEST_F(NetworkNotificationTest, AGC_L1_233_NetworkNotification_onActiveInterfaceChange_Dispatches)
+TEST_F(NetworkNotificationTest, AGC_L1_160_NetworkNotification_onActiveInterfaceChange_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -458,7 +458,7 @@ TEST_F(NetworkNotificationTest, AGC_L1_233_NetworkNotification_onActiveInterface
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(NetworkNotificationTest, AGC_L1_234_NetworkNotification_onInternetStatusChange_Dispatches)
+TEST_F(NetworkNotificationTest, AGC_L1_161_NetworkNotification_onInternetStatusChange_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);

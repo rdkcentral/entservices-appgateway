@@ -137,7 +137,7 @@ protected:
 
 /* ---------- GetDeviceMake ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_080_GetDeviceMake_Success)
+TEST_F(SystemDelegateTest, AGC_L1_090_GetDeviceMake_Success)
 {
     systemDispatcher.SetHandler("getDeviceInfo", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"make":"Arris"})";
@@ -152,7 +152,7 @@ TEST_F(SystemDelegateTest, AGC_L1_080_GetDeviceMake_Success)
     EXPECT_NE(result.find("Arris"), std::string::npos);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_081_GetDeviceMake_MissingField_ReturnsUnknown)
+TEST_F(SystemDelegateTest, AGC_L1_091_GetDeviceMake_MissingField_ReturnsUnknown)
 {
     systemDispatcher.SetHandler("getDeviceInfo", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({})";
@@ -169,7 +169,7 @@ TEST_F(SystemDelegateTest, AGC_L1_081_GetDeviceMake_MissingField_ReturnsUnknown)
 
 /* ---------- GetDeviceName ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_082_GetDeviceName_Success)
+TEST_F(SystemDelegateTest, AGC_L1_092_GetDeviceName_Success)
 {
     systemDispatcher.SetHandler("getFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"friendlyName":"Bedroom TV"})";
@@ -186,7 +186,7 @@ TEST_F(SystemDelegateTest, AGC_L1_082_GetDeviceName_Success)
 
 /* ---------- GetDeviceSku ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_084_GetDeviceSku_Success)
+TEST_F(SystemDelegateTest, AGC_L1_093_GetDeviceSku_Success)
 {
     systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"stbVersion":"SKXI11ADS_VBN_23Q4_sprint_20240101123456","receiverVersion":"99.99.15.07"})";
@@ -203,7 +203,7 @@ TEST_F(SystemDelegateTest, AGC_L1_084_GetDeviceSku_Success)
 
 /* ---------- GetFirmwareVersion ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_085_GetFirmwareVersion_Success)
+TEST_F(SystemDelegateTest, AGC_L1_094_GetFirmwareVersion_Success)
 {
     systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"receiverVersion":"99.99.15.07","stbVersion":"SKXI11ADS_VBN_23Q4"})";
@@ -221,7 +221,7 @@ TEST_F(SystemDelegateTest, AGC_L1_085_GetFirmwareVersion_Success)
 
 /* ---------- Country Code (territory mapping) ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_086_GetCountryCode_USA_MapsToUS)
+TEST_F(SystemDelegateTest, AGC_L1_095_GetCountryCode_USA_MapsToUS)
 {
     systemDispatcher.SetHandler("getTerritory", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"territory":"USA"})";
@@ -236,7 +236,7 @@ TEST_F(SystemDelegateTest, AGC_L1_086_GetCountryCode_USA_MapsToUS)
     EXPECT_NE(result.find("US"), std::string::npos);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_087_GetCountryCode_GBR_MapsToGB)
+TEST_F(SystemDelegateTest, AGC_L1_096_GetCountryCode_GBR_MapsToGB)
 {
     systemDispatcher.SetHandler("getTerritory", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"territory":"GBR"})";
@@ -251,7 +251,7 @@ TEST_F(SystemDelegateTest, AGC_L1_087_GetCountryCode_GBR_MapsToGB)
     EXPECT_NE(result.find("GB"), std::string::npos);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_088_SetCountryCode_US_SetsUSA)
+TEST_F(SystemDelegateTest, AGC_L1_097_SetCountryCode_US_SetsUSA)
 {
     systemDispatcher.SetHandler("setTerritory", [](const std::string&, const std::string& params, std::string& resp) {
         // Verify the transformed territory is "USA"
@@ -268,7 +268,7 @@ TEST_F(SystemDelegateTest, AGC_L1_088_SetCountryCode_US_SetsUSA)
 
 /* ---------- Timezone ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_089_GetTimeZone_Success)
+TEST_F(SystemDelegateTest, AGC_L1_098_GetTimeZone_Success)
 {
     systemDispatcher.SetHandler("getTimeZoneDST", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"timeZone":"America/New_York","success":true})";
@@ -283,7 +283,7 @@ TEST_F(SystemDelegateTest, AGC_L1_089_GetTimeZone_Success)
     EXPECT_NE(result.find("America/New_York"), std::string::npos);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_090_SetTimeZone_Success)
+TEST_F(SystemDelegateTest, AGC_L1_099_SetTimeZone_Success)
 {
     systemDispatcher.SetHandler("setTimeZoneDST", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"success":true})";
@@ -299,7 +299,7 @@ TEST_F(SystemDelegateTest, AGC_L1_090_SetTimeZone_Success)
 
 /* ---------- Screen Resolution ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_091_GetScreenResolution_Success)
+TEST_F(SystemDelegateTest, AGC_L1_100_GetScreenResolution_Success)
 {
     displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"w":3840,"h":2160})";
@@ -316,7 +316,7 @@ TEST_F(SystemDelegateTest, AGC_L1_091_GetScreenResolution_Success)
 
 /* ---------- Video Resolution ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_092_GetVideoResolution_UHD)
+TEST_F(SystemDelegateTest, AGC_L1_101_GetVideoResolution_UHD)
 {
     displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"w":3840,"h":2160})";
@@ -331,7 +331,7 @@ TEST_F(SystemDelegateTest, AGC_L1_092_GetVideoResolution_UHD)
     EXPECT_EQ("[3840,2160]", result);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_093_GetVideoResolution_FHD)
+TEST_F(SystemDelegateTest, AGC_L1_102_GetVideoResolution_FHD)
 {
     displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"w":1920,"h":1080})";
@@ -348,7 +348,7 @@ TEST_F(SystemDelegateTest, AGC_L1_093_GetVideoResolution_FHD)
 
 /* ---------- HDCP ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_094_GetHdcp_HDCP14Connected)
+TEST_F(SystemDelegateTest, AGC_L1_103_GetHdcp_HDCP14Connected)
 {
     hdcpDispatcher.SetHandler("getHDCPStatus", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"HDCPStatus":{"hdcpReason":2,"currentHDCPVersion":"1.4"}})";
@@ -363,7 +363,7 @@ TEST_F(SystemDelegateTest, AGC_L1_094_GetHdcp_HDCP14Connected)
     EXPECT_EQ("{\"hdcp1.4\":true,\"hdcp2.2\":false}", result);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_095_GetHdcp_HDCP22Connected)
+TEST_F(SystemDelegateTest, AGC_L1_104_GetHdcp_HDCP22Connected)
 {
     hdcpDispatcher.SetHandler("getHDCPStatus", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"HDCPStatus":{"hdcpReason":2,"currentHDCPVersion":"2.2"}})";
@@ -380,7 +380,7 @@ TEST_F(SystemDelegateTest, AGC_L1_095_GetHdcp_HDCP22Connected)
 
 /* ---------- HDR ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_096_GetHdr_AllCapabilities)
+TEST_F(SystemDelegateTest, AGC_L1_105_GetHdr_AllCapabilities)
 {
     displayDispatcher.SetHandler("getTVHDRCapabilities", [](const std::string&, const std::string&, std::string& resp) {
         // 0x01 | 0x02 | 0x04 | 0x10 = 0x17 = 23
@@ -396,7 +396,7 @@ TEST_F(SystemDelegateTest, AGC_L1_096_GetHdr_AllCapabilities)
     EXPECT_EQ("{\"hdr10\":true,\"dolbyVision\":true,\"hlg\":true,\"hdr10Plus\":true}", result);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_097_GetHdr_NoCapabilities)
+TEST_F(SystemDelegateTest, AGC_L1_106_GetHdr_NoCapabilities)
 {
     displayDispatcher.SetHandler("getTVHDRCapabilities", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"capabilities":0,"success":true})";
@@ -413,7 +413,7 @@ TEST_F(SystemDelegateTest, AGC_L1_097_GetHdr_NoCapabilities)
 
 /* ---------- Audio ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_098_GetAudio_MultipleFlagsSet)
+TEST_F(SystemDelegateTest, AGC_L1_107_GetAudio_MultipleFlagsSet)
 {
     displayDispatcher.SetHandler("getAudioFormat", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"supportedAudioFormat":["PCM","EAC3","ATMOS"],"success":true})";
@@ -432,7 +432,7 @@ TEST_F(SystemDelegateTest, AGC_L1_098_GetAudio_MultipleFlagsSet)
 
 /* ---------- RPC failure paths ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_129_GetDeviceMake_RPCFailure)
+TEST_F(SystemDelegateTest, AGC_L1_108_GetDeviceMake_RPCFailure)
 {
     systemDispatcher.SetHandler("getDeviceInfo", [](const std::string&, const std::string&, std::string& resp) {
         resp = "{}";
@@ -447,7 +447,7 @@ TEST_F(SystemDelegateTest, AGC_L1_129_GetDeviceMake_RPCFailure)
     EXPECT_NE(result.find("unknown"), std::string::npos);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_131_GetScreenResolution_RPCFailure)
+TEST_F(SystemDelegateTest, AGC_L1_109_GetScreenResolution_RPCFailure)
 {
     displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
         resp = "{}";
@@ -462,7 +462,7 @@ TEST_F(SystemDelegateTest, AGC_L1_131_GetScreenResolution_RPCFailure)
     EXPECT_EQ("[1920,1080]", result);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_132_GetVideoResolution_RPCFailure)
+TEST_F(SystemDelegateTest, AGC_L1_110_GetVideoResolution_RPCFailure)
 {
     displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
         resp = "{}";
@@ -476,7 +476,7 @@ TEST_F(SystemDelegateTest, AGC_L1_132_GetVideoResolution_RPCFailure)
     EXPECT_EQ("[1920,1080]", result);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_133_GetHdcp_RPCFailure)
+TEST_F(SystemDelegateTest, AGC_L1_111_GetHdcp_RPCFailure)
 {
     hdcpDispatcher.SetHandler("getHDCPStatus", [](const std::string&, const std::string&, std::string& resp) {
         resp = "{}";
@@ -491,7 +491,7 @@ TEST_F(SystemDelegateTest, AGC_L1_133_GetHdcp_RPCFailure)
     EXPECT_NE(result.find("false"), std::string::npos);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_134_GetHdr_RPCFailure)
+TEST_F(SystemDelegateTest, AGC_L1_112_GetHdr_RPCFailure)
 {
     displayDispatcher.SetHandler("getTVHDRCapabilities", [](const std::string&, const std::string&, std::string& resp) {
         resp = "{}";
@@ -505,7 +505,7 @@ TEST_F(SystemDelegateTest, AGC_L1_134_GetHdr_RPCFailure)
     EXPECT_NE(result.find("false"), std::string::npos);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_135_GetAudio_RPCFailure)
+TEST_F(SystemDelegateTest, AGC_L1_113_GetAudio_RPCFailure)
 {
     displayDispatcher.SetHandler("getAudioFormat", [](const std::string&, const std::string&, std::string& resp) {
         resp = "{}";
@@ -520,7 +520,7 @@ TEST_F(SystemDelegateTest, AGC_L1_135_GetAudio_RPCFailure)
     EXPECT_NE(result.find("\"stereo\":false"), std::string::npos);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_136_GetFirmwareVersion_Success)
+TEST_F(SystemDelegateTest, AGC_L1_114_GetFirmwareVersion_Success)
 {
     systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"receiverVersion":"4.4.1","stbVersion":"SCXI11BEI_VBN_24Q2_sprint_20240611103551sdy_FG_EDGE_R4.4.1","success":true})";
@@ -536,7 +536,7 @@ TEST_F(SystemDelegateTest, AGC_L1_136_GetFirmwareVersion_Success)
     EXPECT_FALSE(result.empty());
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_137_GetDeviceSku_MissingField)
+TEST_F(SystemDelegateTest, AGC_L1_115_GetDeviceSku_MissingField)
 {
     systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"success":true})";
@@ -554,7 +554,7 @@ TEST_F(SystemDelegateTest, AGC_L1_137_GetDeviceSku_MissingField)
 
 /* ---------- secondscreen.friendlyname (alias for device.name) ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_183_SecondScreenFriendlyName_Success)
+TEST_F(SystemDelegateTest, AGC_L1_116_SecondScreenFriendlyName_Success)
 {
     systemDispatcher.SetHandler("getFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"friendlyName":"Kitchen TV","success":true})";
@@ -571,7 +571,7 @@ TEST_F(SystemDelegateTest, AGC_L1_183_SecondScreenFriendlyName_Success)
 
 /* ---------- device.setname success via JSON-RPC mock ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_184_SetDeviceName_Success)
+TEST_F(SystemDelegateTest, AGC_L1_117_SetDeviceName_Success)
 {
     systemDispatcher.SetHandler("setFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"success":true})";
@@ -588,7 +588,7 @@ TEST_F(SystemDelegateTest, AGC_L1_184_SetDeviceName_Success)
 
 /* ---------- device.setname failure via JSON-RPC mock ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_185_SetDeviceName_Failure)
+TEST_F(SystemDelegateTest, AGC_L1_118_SetDeviceName_Failure)
 {
     systemDispatcher.SetHandler("setFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"success":false})";
@@ -604,7 +604,7 @@ TEST_F(SystemDelegateTest, AGC_L1_185_SetDeviceName_Failure)
 
 /* ---------- localization.setcountrycode success ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_186_SetCountryCode_Success)
+TEST_F(SystemDelegateTest, AGC_L1_119_SetCountryCode_Success)
 {
     systemDispatcher.SetHandler("setTerritory", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"success":true})";
@@ -621,7 +621,7 @@ TEST_F(SystemDelegateTest, AGC_L1_186_SetCountryCode_Success)
 
 /* ---------- localization.settimezone success ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_187_SetTimezone_Success)
+TEST_F(SystemDelegateTest, AGC_L1_120_SetTimezone_Success)
 {
     systemDispatcher.SetHandler("setTimeZoneDST", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"success":true})";
@@ -638,7 +638,7 @@ TEST_F(SystemDelegateTest, AGC_L1_187_SetTimezone_Success)
 
 /* ---------- GetFirmwareVersion with receiverVersion parsing failure ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_188_GetFirmwareVersion_BadReceiverVersion)
+TEST_F(SystemDelegateTest, AGC_L1_121_GetFirmwareVersion_BadReceiverVersion)
 {
     systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"receiverVersion":"not-a-version","stbVersion":"NOTVALID","success":true})";
@@ -659,7 +659,7 @@ TEST_F(SystemDelegateTest, AGC_L1_188_GetFirmwareVersion_BadReceiverVersion)
 
 /* ---------- GetScreenResolution: nested result.w/h parsing ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_189_GetScreenResolution_NestedResultWH)
+TEST_F(SystemDelegateTest, AGC_L1_122_GetScreenResolution_NestedResultWH)
 {
     displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"result":{"w":3840,"h":2160}})";
@@ -674,7 +674,7 @@ TEST_F(SystemDelegateTest, AGC_L1_189_GetScreenResolution_NestedResultWH)
     EXPECT_EQ("[3840,2160]", result);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_190_GetScreenResolution_NestedResultWidthHeight)
+TEST_F(SystemDelegateTest, AGC_L1_123_GetScreenResolution_NestedResultWidthHeight)
 {
     displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"result":{"width":1280,"height":720}})";
@@ -691,7 +691,7 @@ TEST_F(SystemDelegateTest, AGC_L1_190_GetScreenResolution_NestedResultWidthHeigh
 
 /* ---------- GetVideoResolution: UHD threshold from screen resolution ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_191_GetVideoResolution_UHDFrom4KScreen)
+TEST_F(SystemDelegateTest, AGC_L1_124_GetVideoResolution_UHDFrom4KScreen)
 {
     displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"w":3840,"h":2160})";
@@ -708,7 +708,7 @@ TEST_F(SystemDelegateTest, AGC_L1_191_GetVideoResolution_UHDFrom4KScreen)
 
 /* ---------- GetHdcp: nested result path ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_192_GetHdcp_NestedResult_Hdcp22)
+TEST_F(SystemDelegateTest, AGC_L1_125_GetHdcp_NestedResult_Hdcp22)
 {
     hdcpDispatcher.SetHandler("getHDCPStatus", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"result":{"success":true,"HDCPStatus":{"hdcpReason":2,"currentHDCPVersion":"2.2"}}})";
@@ -723,7 +723,7 @@ TEST_F(SystemDelegateTest, AGC_L1_192_GetHdcp_NestedResult_Hdcp22)
     EXPECT_EQ("{\"hdcp1.4\":false,\"hdcp2.2\":true}", result);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_193_GetHdcp_NestedResult_Hdcp14)
+TEST_F(SystemDelegateTest, AGC_L1_126_GetHdcp_NestedResult_Hdcp14)
 {
     hdcpDispatcher.SetHandler("getHDCPStatus", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"result":{"success":true,"HDCPStatus":{"hdcpReason":2,"currentHDCPVersion":"1.4"}}})";
@@ -740,7 +740,7 @@ TEST_F(SystemDelegateTest, AGC_L1_193_GetHdcp_NestedResult_Hdcp14)
 
 /* ---------- GetHdcp: reason != 2 → both false ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_194_GetHdcp_ReasonNotConnected_BothFalse)
+TEST_F(SystemDelegateTest, AGC_L1_127_GetHdcp_ReasonNotConnected_BothFalse)
 {
     hdcpDispatcher.SetHandler("getHDCPStatus", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"HDCPStatus":{"hdcpReason":0,"currentHDCPVersion":"1.4"}})";
@@ -757,7 +757,7 @@ TEST_F(SystemDelegateTest, AGC_L1_194_GetHdcp_ReasonNotConnected_BothFalse)
 
 /* ---------- GetAudio: AC3 vs EAC3 disambiguation ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_195_GetAudio_EAC3NotMatchedAsAC3)
+TEST_F(SystemDelegateTest, AGC_L1_128_GetAudio_EAC3NotMatchedAsAC3)
 {
     displayDispatcher.SetHandler("getAudioFormat", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"supportedAudioFormat":["EAC3"]})";
@@ -774,7 +774,7 @@ TEST_F(SystemDelegateTest, AGC_L1_195_GetAudio_EAC3NotMatchedAsAC3)
     EXPECT_NE(result.find("\"dolbyDigital5.1\":false"), std::string::npos);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_196_GetAudio_StandaloneAC3MatchesDolbyDigital)
+TEST_F(SystemDelegateTest, AGC_L1_129_GetAudio_StandaloneAC3MatchesDolbyDigital)
 {
     displayDispatcher.SetHandler("getAudioFormat", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"supportedAudioFormat":["AC3"]})";
@@ -790,7 +790,7 @@ TEST_F(SystemDelegateTest, AGC_L1_196_GetAudio_StandaloneAC3MatchesDolbyDigital)
     EXPECT_NE(result.find("\"dolbyDigital5.1\":true"), std::string::npos);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_197_GetAudio_AtmosDetection)
+TEST_F(SystemDelegateTest, AGC_L1_130_GetAudio_AtmosDetection)
 {
     displayDispatcher.SetHandler("getAudioFormat", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"supportedAudioFormat":["DOLBY ATMOS","PCM"]})";
@@ -806,7 +806,7 @@ TEST_F(SystemDelegateTest, AGC_L1_197_GetAudio_AtmosDetection)
     EXPECT_NE(result.find("\"stereo\":true"), std::string::npos);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_198_GetAudio_NestedResultSupportedAudioFormat)
+TEST_F(SystemDelegateTest, AGC_L1_131_GetAudio_NestedResultSupportedAudioFormat)
 {
     displayDispatcher.SetHandler("getAudioFormat", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"result":{"supportedAudioFormat":["PCM","AC4"]}})";
@@ -824,7 +824,7 @@ TEST_F(SystemDelegateTest, AGC_L1_198_GetAudio_NestedResultSupportedAudioFormat)
 
 /* ---------- GetDeviceName: missing friendlyName -> falls back ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_199_GetDeviceName_MissingFriendlyName)
+TEST_F(SystemDelegateTest, AGC_L1_132_GetDeviceName_MissingFriendlyName)
 {
     systemDispatcher.SetHandler("getFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({})";
@@ -842,7 +842,7 @@ TEST_F(SystemDelegateTest, AGC_L1_199_GetDeviceName_MissingFriendlyName)
 
 /* ---------- GetFirmwareVersion: cached response second call ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_200_GetFirmwareVersion_CacheHitOnSecondCall)
+TEST_F(SystemDelegateTest, AGC_L1_133_GetFirmwareVersion_CacheHitOnSecondCall)
 {
     int callCount = 0;
     systemDispatcher.SetHandler("getSystemVersions", [&callCount](const std::string&, const std::string&, std::string& resp) {
@@ -868,7 +868,7 @@ TEST_F(SystemDelegateTest, AGC_L1_200_GetFirmwareVersion_CacheHitOnSecondCall)
 
 /* ---------- GetHdr: single HLG-only capability ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_201_GetHdr_HlgOnly)
+TEST_F(SystemDelegateTest, AGC_L1_134_GetHdr_HlgOnly)
 {
     displayDispatcher.SetHandler("getTVHDRCapabilities", [](const std::string&, const std::string&, std::string& resp) {
         // capabilities=2 → only HDRSTANDARD_HLG bit set
@@ -886,7 +886,7 @@ TEST_F(SystemDelegateTest, AGC_L1_201_GetHdr_HlgOnly)
 
 /* ---------- GetCountryCode: non-US/GB territory mapping ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_202_GetCountryCode_ItalyMapping)
+TEST_F(SystemDelegateTest, AGC_L1_135_GetCountryCode_ItalyMapping)
 {
     systemDispatcher.SetHandler("getTerritory", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"territory":"ITA"})";
@@ -903,7 +903,7 @@ TEST_F(SystemDelegateTest, AGC_L1_202_GetCountryCode_ItalyMapping)
 
 /* ---------- GetFirmwareVersion: missing stbVersion ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_203_GetFirmwareVersion_MissingStbVersion)
+TEST_F(SystemDelegateTest, AGC_L1_136_GetFirmwareVersion_MissingStbVersion)
 {
     systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"receiverVersion":"99.88.77.66","stbVersion":"","success":true})";
@@ -919,7 +919,7 @@ TEST_F(SystemDelegateTest, AGC_L1_203_GetFirmwareVersion_MissingStbVersion)
 
 /* ---------- SetCountryCode: RPC failure ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_204_SetCountryCode_Failure)
+TEST_F(SystemDelegateTest, AGC_L1_137_SetCountryCode_Failure)
 {
     systemDispatcher.SetHandler("setTerritory", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"success":false})";
@@ -935,7 +935,7 @@ TEST_F(SystemDelegateTest, AGC_L1_204_SetCountryCode_Failure)
 
 /* ---------- SetTimeZone: RPC failure ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_205_SetTimeZone_Failure)
+TEST_F(SystemDelegateTest, AGC_L1_138_SetTimeZone_Failure)
 {
     systemDispatcher.SetHandler("setTimeZoneDST", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"success":false})";
@@ -951,7 +951,7 @@ TEST_F(SystemDelegateTest, AGC_L1_205_SetTimeZone_Failure)
 
 /* ---------- GetTimeZone: success=true but missing timeZone field ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_206_GetTimeZone_MissingTimeZoneField)
+TEST_F(SystemDelegateTest, AGC_L1_139_GetTimeZone_MissingTimeZoneField)
 {
     systemDispatcher.SetHandler("getTimeZoneDST", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"success":true})";
@@ -1049,7 +1049,7 @@ protected:
     }
 };
 
-TEST_F(SystemDelegateEmitTest, AGC_L1_255_EmitOnScreenResolutionChanged_DispatchesToEmitter)
+TEST_F(SystemDelegateEmitTest, AGC_L1_140_EmitOnScreenResolutionChanged_DispatchesToEmitter)
 {
     displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"resolution":"3840x2160"})";
@@ -1068,7 +1068,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_255_EmitOnScreenResolutionChanged_Dispatch
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
-TEST_F(SystemDelegateEmitTest, AGC_L1_256_EmitOnVideoResolutionChanged_DispatchesToEmitter)
+TEST_F(SystemDelegateEmitTest, AGC_L1_141_EmitOnVideoResolutionChanged_DispatchesToEmitter)
 {
     displayDispatcher.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"resolution":"3840x2160"})";
@@ -1087,7 +1087,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_256_EmitOnVideoResolutionChanged_Dispatche
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
-TEST_F(SystemDelegateEmitTest, AGC_L1_257_EmitOnHdcpChanged_DispatchesToEmitter)
+TEST_F(SystemDelegateEmitTest, AGC_L1_142_EmitOnHdcpChanged_DispatchesToEmitter)
 {
     hdcpDispatcher.SetHandler("getHDCPStatus", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"HDCPStatus":{"isConnected":true,"isHDCPCompliant":true,"isHDCPEnabled":true,"hdcpReason":1,"supportedHDCPVersion":"2.2","receiverHDCPVersion":"1.4","currentHDCPVersion":"1.4"}})";
@@ -1106,7 +1106,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_257_EmitOnHdcpChanged_DispatchesToEmitter)
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
-TEST_F(SystemDelegateEmitTest, AGC_L1_258_EmitOnHdrChanged_DispatchesToEmitter)
+TEST_F(SystemDelegateEmitTest, AGC_L1_143_EmitOnHdrChanged_DispatchesToEmitter)
 {
     displayDispatcher.SetHandler("getTVHDRCapabilities", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"capabilities":23,"success":true})";
@@ -1125,7 +1125,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_258_EmitOnHdrChanged_DispatchesToEmitter)
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
-TEST_F(SystemDelegateEmitTest, AGC_L1_259_EmitOnAudioChanged_DispatchesToEmitter)
+TEST_F(SystemDelegateEmitTest, AGC_L1_144_EmitOnAudioChanged_DispatchesToEmitter)
 {
     displayDispatcher.SetHandler("getAudioFormat", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"supportedAudioFormat":["PCM","DOLBY DIGITAL 5.1"]})";
@@ -1144,7 +1144,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_259_EmitOnAudioChanged_DispatchesToEmitter
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
-TEST_F(SystemDelegateEmitTest, AGC_L1_260_EmitOnNameChanged_DispatchesToEmitter)
+TEST_F(SystemDelegateEmitTest, AGC_L1_145_EmitOnNameChanged_DispatchesToEmitter)
 {
     systemDispatcher.SetHandler("getFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"friendlyName":"Living Room TV"})";
@@ -1170,7 +1170,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_260_EmitOnNameChanged_DispatchesToEmitter)
  * emitter from the notification map via RemoveNotification.
  * ================================================================ */
 
-TEST_F(SystemDelegateEmitTest, AGC_L1_266_HandleEvent_Unsubscribe_RemovesEmitter)
+TEST_F(SystemDelegateEmitTest, AGC_L1_146_HandleEvent_Unsubscribe_RemovesEmitter)
 {
     auto systemDelegate = plugin.mDelegate->getSystemDelegate();
     ASSERT_NE(systemDelegate, nullptr);

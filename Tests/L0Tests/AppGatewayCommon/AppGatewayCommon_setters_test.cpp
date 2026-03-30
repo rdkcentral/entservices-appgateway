@@ -1,6 +1,6 @@
 #include "AppGatewayCommon_common_test.h"
 
-// TEST_ID: AGC_L0_012
+// TEST_ID: AGC_L0_057
 // Setter with invalid payload returns ERROR_BAD_REQUEST.
 uint32_t Test_HandleRequest_SetterInvalidPayload()
 {
@@ -21,7 +21,7 @@ uint32_t Test_HandleRequest_SetterInvalidPayload()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_013
+// TEST_ID: AGC_L0_058
 // Setter with valid payload but no backing plugin returns ERROR_GENERAL (delegate unavailable).
 uint32_t Test_HandleRequest_SetterValidPayload_DelegateUnavailable()
 {
@@ -45,7 +45,7 @@ uint32_t Test_HandleRequest_SetterValidPayload_DelegateUnavailable()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_016
+// TEST_ID: AGC_L0_059
 // HandleAppGatewayRequest for "voiceguidance.setenabled" with invalid non-bool payload
 // returns ERROR_BAD_REQUEST.
 uint32_t Test_HandleRequest_BoolSetterInvalidPayload()
@@ -67,7 +67,7 @@ uint32_t Test_HandleRequest_BoolSetterInvalidPayload()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_059
+// TEST_ID: AGC_L0_060
 // localization.setcountrycode with invalid payload (missing value) → ERROR_BAD_REQUEST
 uint32_t Test_HandleRequest_SetCountryCode_InvalidPayload()
 {
@@ -83,7 +83,7 @@ uint32_t Test_HandleRequest_SetCountryCode_InvalidPayload()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_060
+// TEST_ID: AGC_L0_061
 // localization.setcountrycode with valid payload → delegate unavailable
 uint32_t Test_HandleRequest_SetCountryCode_ValidPayload()
 {
@@ -100,7 +100,7 @@ uint32_t Test_HandleRequest_SetCountryCode_ValidPayload()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_061
+// TEST_ID: AGC_L0_062
 // localization.settimezone with invalid payload (missing value) → ERROR_BAD_REQUEST
 uint32_t Test_HandleRequest_SetTimezone_InvalidPayload()
 {
@@ -116,7 +116,7 @@ uint32_t Test_HandleRequest_SetTimezone_InvalidPayload()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_062
+// TEST_ID: AGC_L0_063
 // localization.settimezone with valid payload → delegate unavailable
 uint32_t Test_HandleRequest_SetTimezone_ValidPayload()
 {
@@ -133,7 +133,7 @@ uint32_t Test_HandleRequest_SetTimezone_ValidPayload()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_063
+// TEST_ID: AGC_L0_064
 // localization.setlocale with invalid payload (missing value) → ERROR_BAD_REQUEST
 uint32_t Test_HandleRequest_SetLocale_InvalidPayload()
 {
@@ -149,7 +149,7 @@ uint32_t Test_HandleRequest_SetLocale_InvalidPayload()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_064
+// TEST_ID: AGC_L0_065
 // localization.setlocale with valid payload → delegate unavailable
 uint32_t Test_HandleRequest_SetLocale_ValidPayload()
 {
@@ -166,7 +166,7 @@ uint32_t Test_HandleRequest_SetLocale_ValidPayload()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_065
+// TEST_ID: AGC_L0_066
 // voiceguidance.setenabled with valid bool payload → delegate unavailable
 uint32_t Test_HandleRequest_VoiceGuidanceSetEnabled_Valid()
 {
@@ -183,7 +183,7 @@ uint32_t Test_HandleRequest_VoiceGuidanceSetEnabled_Valid()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_066
+// TEST_ID: AGC_L0_067
 // voiceguidance.speed getter → acceptable code in L0
 uint32_t Test_HandleRequest_VoiceGuidanceSpeed()
 {
@@ -200,7 +200,7 @@ uint32_t Test_HandleRequest_VoiceGuidanceSpeed()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_067
+// TEST_ID: AGC_L0_068
 // voiceguidance.rate alias → same handler as voiceguidance.speed
 uint32_t Test_HandleRequest_VoiceGuidanceRate()
 {
@@ -217,7 +217,7 @@ uint32_t Test_HandleRequest_VoiceGuidanceRate()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_068
+// TEST_ID: AGC_L0_069
 // voiceguidance.setspeed with boundary value 0.5 (FLOAT type) → rejected by ValidateAndExtractDouble
 uint32_t Test_HandleRequest_SetSpeed_MinBoundary()
 {
@@ -233,7 +233,7 @@ uint32_t Test_HandleRequest_SetSpeed_MinBoundary()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_069
+// TEST_ID: AGC_L0_070
 // voiceguidance.setspeed with 2.0 — Number() truncates to 2, passes validation, delegate unavailable
 uint32_t Test_HandleRequest_SetSpeed_MaxBoundary()
 {
@@ -250,7 +250,7 @@ uint32_t Test_HandleRequest_SetSpeed_MaxBoundary()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_070
+// TEST_ID: AGC_L0_071
 // voiceguidance.setspeed with 0.49 (below min) → ERROR_BAD_REQUEST
 uint32_t Test_HandleRequest_SetSpeed_BelowMin()
 {
@@ -266,7 +266,7 @@ uint32_t Test_HandleRequest_SetSpeed_BelowMin()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_071
+// TEST_ID: AGC_L0_072
 // voiceguidance.setspeed with 2.01 — Number() truncates to 2, passes validation, delegate unavailable
 uint32_t Test_HandleRequest_SetSpeed_AboveMax()
 {
@@ -283,7 +283,7 @@ uint32_t Test_HandleRequest_SetSpeed_AboveMax()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_072
+// TEST_ID: AGC_L0_073
 // voiceguidance.setrate alias — same handler as setspeed, 1.0 Number() truncates to 1, delegate unavailable
 uint32_t Test_HandleRequest_SetRate_Alias()
 {
@@ -300,7 +300,7 @@ uint32_t Test_HandleRequest_SetRate_Alias()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_073
+// TEST_ID: AGC_L0_074
 // voiceguidance.setnavigationhints with invalid payload (string not bool) → ERROR_BAD_REQUEST
 uint32_t Test_HandleRequest_SetNavigationHints_Invalid()
 {
@@ -316,7 +316,7 @@ uint32_t Test_HandleRequest_SetNavigationHints_Invalid()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_074
+// TEST_ID: AGC_L0_075
 // voiceguidance.setnavigationhints with valid bool payload → delegate unavailable
 uint32_t Test_HandleRequest_SetNavigationHints_Valid()
 {
@@ -333,7 +333,7 @@ uint32_t Test_HandleRequest_SetNavigationHints_Valid()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_075
+// TEST_ID: AGC_L0_076
 // audiodescriptions.setenabled with invalid payload (missing value) → ERROR_BAD_REQUEST
 uint32_t Test_HandleRequest_AudioDescSetEnabled_Invalid()
 {
@@ -349,7 +349,7 @@ uint32_t Test_HandleRequest_AudioDescSetEnabled_Invalid()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_076
+// TEST_ID: AGC_L0_077
 // audiodescriptions.setenabled with valid bool payload → delegate unavailable
 uint32_t Test_HandleRequest_AudioDescSetEnabled_Valid()
 {
@@ -366,7 +366,7 @@ uint32_t Test_HandleRequest_AudioDescSetEnabled_Valid()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_077
+// TEST_ID: AGC_L0_078
 // closedcaptions.setenabled with invalid payload (missing value) → ERROR_BAD_REQUEST
 uint32_t Test_HandleRequest_CCSetEnabled_Invalid()
 {
@@ -382,7 +382,7 @@ uint32_t Test_HandleRequest_CCSetEnabled_Invalid()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_078
+// TEST_ID: AGC_L0_079
 // closedcaptions.setenabled with valid bool payload → delegate unavailable
 uint32_t Test_HandleRequest_CCSetEnabled_Valid()
 {
@@ -399,7 +399,7 @@ uint32_t Test_HandleRequest_CCSetEnabled_Valid()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_079
+// TEST_ID: AGC_L0_080
 // closedcaptions.setpreferredlanguages with invalid payload (number, not string/array) → ERROR_BAD_REQUEST
 uint32_t Test_HandleRequest_CCSetPrefLangs_Invalid()
 {
@@ -415,7 +415,7 @@ uint32_t Test_HandleRequest_CCSetPrefLangs_Invalid()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_080
+// TEST_ID: AGC_L0_081
 // closedcaptions.setpreferredlanguages with valid string → delegate unavailable
 uint32_t Test_HandleRequest_CCSetPrefLangs_ValidString()
 {
@@ -432,7 +432,7 @@ uint32_t Test_HandleRequest_CCSetPrefLangs_ValidString()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_081
+// TEST_ID: AGC_L0_082
 // closedcaptions.setpreferredlanguages with valid array → delegate unavailable
 uint32_t Test_HandleRequest_CCSetPrefLangs_ValidArray()
 {
@@ -449,7 +449,7 @@ uint32_t Test_HandleRequest_CCSetPrefLangs_ValidArray()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_082
+// TEST_ID: AGC_L0_083
 // localization.setpreferredaudiolanguages with invalid payload (number, not string/array) → ERROR_BAD_REQUEST
 uint32_t Test_HandleRequest_SetPrefAudioLangs_Invalid()
 {
@@ -465,7 +465,7 @@ uint32_t Test_HandleRequest_SetPrefAudioLangs_Invalid()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_083
+// TEST_ID: AGC_L0_084
 // localization.setpreferredaudiolanguages with valid string → delegate unavailable
 uint32_t Test_HandleRequest_SetPrefAudioLangs_ValidString()
 {
@@ -482,7 +482,7 @@ uint32_t Test_HandleRequest_SetPrefAudioLangs_ValidString()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_084
+// TEST_ID: AGC_L0_085
 // localization.setpreferredaudiolanguages with valid array → delegate unavailable
 uint32_t Test_HandleRequest_SetPrefAudioLangs_ValidArray()
 {

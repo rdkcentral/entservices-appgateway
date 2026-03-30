@@ -120,7 +120,7 @@ protected:
 
 /* ---------- GetDeviceUID via HandleAppGatewayRequest ---------- */
 
-TEST_F(AppDelegateTest, AGC_L1_047_DeviceUID_Success_ExistingValue)
+TEST_F(AppDelegateTest, AGC_L1_018_DeviceUID_Success_ExistingValue)
 {
     EXPECT_CALL(mockStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, "fireboltDeviceUid", _, _, _))
         .WillOnce(DoAll(
@@ -137,7 +137,7 @@ TEST_F(AppDelegateTest, AGC_L1_047_DeviceUID_Success_ExistingValue)
     EXPECT_NE(result.find("existing-uid-1234"), std::string::npos);
 }
 
-TEST_F(AppDelegateTest, AGC_L1_048_DeviceUID_CreatesNewWhenNotFound)
+TEST_F(AppDelegateTest, AGC_L1_019_DeviceUID_CreatesNewWhenNotFound)
 {
     // GetValue fails -> triggers UUID creation + SetValue
     EXPECT_CALL(mockStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, "fireboltDeviceUid", _, _, _))
@@ -159,7 +159,7 @@ TEST_F(AppDelegateTest, AGC_L1_048_DeviceUID_CreatesNewWhenNotFound)
     EXPECT_FALSE(result.empty());
 }
 
-TEST_F(AppDelegateTest, AGC_L1_049_DeviceUID_SetValueFails)
+TEST_F(AppDelegateTest, AGC_L1_020_DeviceUID_SetValueFails)
 {
     EXPECT_CALL(mockStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, "fireboltDeviceUid", _, _, _))
         .WillOnce(Return(Core::ERROR_GENERAL));
@@ -180,7 +180,7 @@ TEST_F(AppDelegateTest, AGC_L1_049_DeviceUID_SetValueFails)
 
 /* ---------- GetAdvertisingId via HandleAppGatewayRequest ---------- */
 
-TEST_F(AppDelegateTest, AGC_L1_050_AdvertisingId_Success_ExistingValue)
+TEST_F(AppDelegateTest, AGC_L1_021_AdvertisingId_Success_ExistingValue)
 {
     EXPECT_CALL(mockStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, "fireboltAdvertisingId", _, _, _))
         .WillOnce(DoAll(
@@ -199,7 +199,7 @@ TEST_F(AppDelegateTest, AGC_L1_050_AdvertisingId_Success_ExistingValue)
     EXPECT_NE(result.find("ifa_type"), std::string::npos);
 }
 
-TEST_F(AppDelegateTest, AGC_L1_051_AdvertisingId_CreatesNewWhenNotFound)
+TEST_F(AppDelegateTest, AGC_L1_022_AdvertisingId_CreatesNewWhenNotFound)
 {
     EXPECT_CALL(mockStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, "fireboltAdvertisingId", _, _, _))
         .WillOnce(Return(Core::ERROR_GENERAL));
@@ -219,7 +219,7 @@ TEST_F(AppDelegateTest, AGC_L1_051_AdvertisingId_CreatesNewWhenNotFound)
     EXPECT_NE(result.find("ifa"), std::string::npos);
 }
 
-TEST_F(AppDelegateTest, AGC_L1_052_AdvertisingId_SetValueFails)
+TEST_F(AppDelegateTest, AGC_L1_023_AdvertisingId_SetValueFails)
 {
     EXPECT_CALL(mockStorage, GetValue(Exchange::ISharedStorage::DEVICE, _, "fireboltAdvertisingId", _, _, _))
         .WillOnce(Return(Core::ERROR_GENERAL));
@@ -240,7 +240,7 @@ TEST_F(AppDelegateTest, AGC_L1_052_AdvertisingId_SetValueFails)
 
 /* ---------- Routing ---------- */
 
-TEST_F(AppDelegateTest, AGC_L1_053_AppDelegate_UnrecognizedMethod)
+TEST_F(AppDelegateTest, AGC_L1_024_AppDelegate_UnrecognizedMethod)
 {
     const auto ctx = MakeContext();
     string result;
@@ -280,7 +280,7 @@ protected:
     }
 };
 
-TEST_F(AppDelegateNoStorageTest, AGC_L1_217_GetDeviceUID_NoSharedStorage_ReturnsUnavailable)
+TEST_F(AppDelegateNoStorageTest, AGC_L1_025_GetDeviceUID_NoSharedStorage_ReturnsUnavailable)
 {
     const auto ctx = MakeContext();
     string result;
@@ -290,7 +290,7 @@ TEST_F(AppDelegateNoStorageTest, AGC_L1_217_GetDeviceUID_NoSharedStorage_Returns
     EXPECT_NE(result.find("Unable to get SharedStorage interface"), std::string::npos);
 }
 
-TEST_F(AppDelegateNoStorageTest, AGC_L1_218_GetAdvertisingId_NoSharedStorage_ReturnsUnavailable)
+TEST_F(AppDelegateNoStorageTest, AGC_L1_026_GetAdvertisingId_NoSharedStorage_ReturnsUnavailable)
 {
     const auto ctx = MakeContext();
     string result;

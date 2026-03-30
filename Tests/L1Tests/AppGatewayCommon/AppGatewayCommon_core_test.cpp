@@ -116,7 +116,7 @@ protected:
     }
 };
 
-TEST_F(AppGatewayCommonTest, AGC_L1_001_002_InitializeAndDeinitialize_Success)
+TEST_F(AppGatewayCommonTest, AGC_L1_001_InitializeAndDeinitialize_Success)
 {
     NiceMock<ServiceMock> service;
 
@@ -132,7 +132,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_001_002_InitializeAndDeinitialize_Success)
     plugin.Deinitialize(&service);
 }
 
-TEST_F(AppGatewayCommonTest, DISABLED_AGC_L1_003_HandleAppEventNotifier_SubmitsJob)
+TEST_F(AppGatewayCommonTest, DISABLED_AGC_L1_002_HandleAppEventNotifier_SubmitsJob)
 {
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
@@ -156,7 +156,7 @@ TEST_F(AppGatewayCommonTest, DISABLED_AGC_L1_003_HandleAppEventNotifier_SubmitsJ
     plugin.Deinitialize(&service);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_004_UnknownMethod_ReturnsUnknownKey)
+TEST_F(AppGatewayCommonTest, AGC_L1_003_UnknownMethod_ReturnsUnknownKey)
 {
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
@@ -175,7 +175,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_004_UnknownMethod_ReturnsUnknownKey)
     plugin.Deinitialize(&service);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_009_DeviceSetName_InvalidPayload)
+TEST_F(AppGatewayCommonTest, AGC_L1_004_DeviceSetName_InvalidPayload)
 {
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
@@ -194,7 +194,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_009_DeviceSetName_InvalidPayload)
     plugin.Deinitialize(&service);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_011_013_016_018_020_022_026_027_InvalidPayloads)
+TEST_F(AppGatewayCommonTest, AGC_L1_005_InvalidPayloads)
 {
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
@@ -230,7 +230,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_011_013_016_018_020_022_026_027_InvalidPaylo
     plugin.Deinitialize(&service);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_005_006_007_010_012_014_015_017_019_021_023_024_025_NullDelegate)
+TEST_F(AppGatewayCommonTest, AGC_L1_006_NullDelegate)
 {
     plugin.mDelegate.reset();
     const auto ctx = MakeContext();
@@ -258,7 +258,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_005_006_007_010_012_014_015_017_019_021_023_
     }
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_042_DefaultCapabilityFallbacks_WhenDelegateUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_007_DefaultCapabilityFallbacks_WhenDelegateUnavailable)
 {
     plugin.mDelegate.reset();
 
@@ -280,7 +280,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_042_DefaultCapabilityFallbacks_WhenDelegateU
     EXPECT_EQ("{\"stereo\":true,\"dolbyDigital5.1\":false,\"dolbyDigital5.1+\":false,\"dolbyAtmos\":false}", result);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_038_039_VoiceGuidanceSettings_NullDelegate_ReturnsUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_008_VoiceGuidanceSettings_NullDelegate_ReturnsUnavailable)
 {
     plugin.mDelegate.reset();
 
@@ -289,7 +289,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_038_039_VoiceGuidanceSettings_NullDelegate_R
     EXPECT_EQ("{\"error\":\"couldn't get voice guidance settings\"}", result);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_040_041_ClosedCaptionsSettings_NullDelegate_ReturnsUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_009_ClosedCaptionsSettings_NullDelegate_ReturnsUnavailable)
 {
     plugin.mDelegate.reset();
 
@@ -298,7 +298,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_040_041_ClosedCaptionsSettings_NullDelegate_
     EXPECT_EQ("{\"error\":\"couldn't get closed captions settings\"}", result);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_028_GetSpeed_NullDelegate_ReturnsUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_010_GetSpeed_NullDelegate_ReturnsUnavailable)
 {
     plugin.mDelegate.reset();
 
@@ -306,7 +306,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_028_GetSpeed_NullDelegate_ReturnsUnavailable
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetSpeed(speed));
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_033_034_035_036_037_SetSpeed_NullDelegate_ReturnsUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_011_SetSpeed_NullDelegate_ReturnsUnavailable)
 {
     plugin.mDelegate.reset();
 
@@ -317,7 +317,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_033_034_035_036_037_SetSpeed_NullDelegate_Re
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(0.8));   // 037
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_044_045_LifecycleAndAuth_NullDelegate_ReturnUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_012_LifecycleAndAuth_NullDelegate_ReturnUnavailable)
 {
     plugin.mDelegate.reset();
 
@@ -338,7 +338,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_044_045_LifecycleAndAuth_NullDelegate_Return
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetLastIntent(ctx, "{}", result));
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_046_CheckPermissionGroup_DefaultAllowed)
+TEST_F(AppGatewayCommonTest, AGC_L1_013_CheckPermissionGroup_DefaultAllowed)
 {
     bool allowed = false;
     const auto rc = plugin.CheckPermissionGroup("test.app", "any.group", allowed);
@@ -347,7 +347,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_046_CheckPermissionGroup_DefaultAllowed)
     EXPECT_TRUE(allowed);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_043_FirmwareVersion_NullDelegate_ReturnsUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_014_FirmwareVersion_NullDelegate_ReturnsUnavailable)
 {
     plugin.mDelegate.reset();
 
@@ -355,7 +355,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_043_FirmwareVersion_NullDelegate_ReturnsUnav
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetFirmwareVersion(result));
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_008_DeviceSetName_ValidPayload_NoDelegate)
+TEST_F(AppGatewayCommonTest, AGC_L1_015_DeviceSetName_ValidPayload_NoDelegate)
 {
     plugin.mDelegate.reset();
 
@@ -367,7 +367,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_008_DeviceSetName_ValidPayload_NoDelegate)
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_Extra_AddAdditionalInfo_RouteSuccess)
+TEST_F(AppGatewayCommonTest, AGC_L1_016_AddAdditionalInfo_RouteSuccess)
 {
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
@@ -386,7 +386,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_Extra_AddAdditionalInfo_RouteSuccess)
     plugin.Deinitialize(&service);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_CaseInsensitiveRouting_UnknownAndKnown)
+TEST_F(AppGatewayCommonTest, AGC_L1_017_CaseInsensitiveRouting_UnknownAndKnown)
 {
     plugin.mDelegate.reset();
 

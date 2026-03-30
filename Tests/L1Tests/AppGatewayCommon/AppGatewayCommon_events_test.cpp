@@ -109,7 +109,7 @@ protected:
 
 /* ---------- HandleAppEventNotifier ---------- */
 
-TEST_F(EventsTest, AGC_L1_122_HandleAppEventNotifier_SubmitsJob)
+TEST_F(EventsTest, AGC_L1_202_HandleAppEventNotifier_SubmitsJob)
 {
     // Heap-allocated emitter: async EventRegistrationJobs hold raw pointers to
     // the emitter via AddRef/Release.  The subscribe job path involves JSON-RPC
@@ -132,7 +132,7 @@ TEST_F(EventsTest, AGC_L1_122_HandleAppEventNotifier_SubmitsJob)
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
-TEST_F(EventsTest, AGC_L1_123_HandleAppEventNotifier_NullCallback)
+TEST_F(EventsTest, AGC_L1_203_HandleAppEventNotifier_NullCallback)
 {
     bool status = false;
     const auto rc = plugin.HandleAppEventNotifier(nullptr, "Device.onHdrChanged", true, status);
@@ -143,7 +143,7 @@ TEST_F(EventsTest, AGC_L1_123_HandleAppEventNotifier_NullCallback)
 
 /* ---------- Miscellaneous handler map entries ---------- */
 
-TEST_F(EventsTest, AGC_L1_124_DiscoveryWatched_ReturnsNull)
+TEST_F(EventsTest, AGC_L1_204_DiscoveryWatched_ReturnsNull)
 {
     const auto ctx = MakeContext();
     string result;
@@ -153,7 +153,7 @@ TEST_F(EventsTest, AGC_L1_124_DiscoveryWatched_ReturnsNull)
     EXPECT_EQ("null", result);
 }
 
-TEST_F(EventsTest, AGC_L1_125_Metrics_NoOp_ReturnsNull)
+TEST_F(EventsTest, AGC_L1_205_Metrics_NoOp_ReturnsNull)
 {
     const auto ctx = MakeContext();
     string result;
@@ -189,7 +189,7 @@ protected:
     }
 };
 
-TEST_F(NullDelegateEventsTest, AGC_L1_126_SecondScreenFriendlyName_NullDelegate)
+TEST_F(NullDelegateEventsTest, AGC_L1_206_SecondScreenFriendlyName_NullDelegate)
 {
     plugin.mDelegate.reset();
     const auto ctx = MakeContext();
@@ -199,7 +199,7 @@ TEST_F(NullDelegateEventsTest, AGC_L1_126_SecondScreenFriendlyName_NullDelegate)
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
 }
 
-TEST_F(NullDelegateEventsTest, AGC_L1_127_NullDelegate_HandleAppEventNotifier)
+TEST_F(NullDelegateEventsTest, AGC_L1_207_NullDelegate_HandleAppEventNotifier)
 {
     plugin.mDelegate.reset();
 
@@ -255,7 +255,7 @@ protected:
     }
 };
 
-TEST_F(TTSEventsTest, AGC_L1_169_TTS_EventSubscription_Registers)
+TEST_F(TTSEventsTest, AGC_L1_208_TTS_EventSubscription_Registers)
 {
     // Subscribe to a TTS event — this should trigger Register on MockTextToSpeech
     EXPECT_CALL(mockTTS, Register(_)).Times(::testing::AtLeast(1));
@@ -272,7 +272,7 @@ TEST_F(TTSEventsTest, AGC_L1_169_TTS_EventSubscription_Registers)
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 }
 
-TEST_F(TTSEventsTest, AGC_L1_170_TTS_EventUnsubscription)
+TEST_F(TTSEventsTest, AGC_L1_209_TTS_EventUnsubscription)
 {
     MockEmitter* emitter = new MockEmitter();
     emitter->AddRef();
@@ -292,7 +292,7 @@ TEST_F(TTSEventsTest, AGC_L1_170_TTS_EventUnsubscription)
     EXPECT_TRUE(status);
 }
 
-TEST_F(TTSEventsTest, AGC_L1_171_UserSettings_EventSubscription_Registers)
+TEST_F(TTSEventsTest, AGC_L1_210_UserSettings_EventSubscription_Registers)
 {
     // Subscribe to a UserSettings event
     EXPECT_CALL(mockUserSettings, Register(_)).Times(::testing::AtLeast(1));
@@ -310,7 +310,7 @@ TEST_F(TTSEventsTest, AGC_L1_171_UserSettings_EventSubscription_Registers)
 
 /* ---------- Deactivated ---------- */
 
-TEST_F(EventsTest, AGC_L1_172_Deactivated_NonMatchingConnectionId)
+TEST_F(EventsTest, AGC_L1_211_Deactivated_NonMatchingConnectionId)
 {
     // mConnectionId is 0 by default after Initialize, create a mock connection with non-zero ID
     // This tests that Deactivated does NOT submit a job when connection IDs don't match
@@ -405,7 +405,7 @@ protected:
     }
 };
 
-TEST_F(TTSNotificationTest, AGC_L1_235_TTS_OnSpeechComplete_Dispatches)
+TEST_F(TTSNotificationTest, AGC_L1_212_TTS_OnSpeechComplete_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -424,7 +424,7 @@ TEST_F(TTSNotificationTest, AGC_L1_235_TTS_OnSpeechComplete_Dispatches)
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(TTSNotificationTest, AGC_L1_236_TTS_OnPlaybackError_Dispatches)
+TEST_F(TTSNotificationTest, AGC_L1_213_TTS_OnPlaybackError_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -441,7 +441,7 @@ TEST_F(TTSNotificationTest, AGC_L1_236_TTS_OnPlaybackError_Dispatches)
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(TTSNotificationTest, AGC_L1_237_TTS_OnTTSStateChanged_Dispatches)
+TEST_F(TTSNotificationTest, AGC_L1_214_TTS_OnTTSStateChanged_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -458,7 +458,7 @@ TEST_F(TTSNotificationTest, AGC_L1_237_TTS_OnTTSStateChanged_Dispatches)
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(TTSNotificationTest, AGC_L1_238_TTS_OnVoiceChanged_Dispatches)
+TEST_F(TTSNotificationTest, AGC_L1_215_TTS_OnVoiceChanged_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -475,7 +475,7 @@ TEST_F(TTSNotificationTest, AGC_L1_238_TTS_OnVoiceChanged_Dispatches)
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(TTSNotificationTest, AGC_L1_239_TTS_OnSpeechStarted_Dispatches)
+TEST_F(TTSNotificationTest, AGC_L1_216_TTS_OnSpeechStarted_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -527,7 +527,7 @@ protected:
     }
 };
 
-TEST_F(TTSNoInterfaceTest, AGC_L1_240_TTS_Subscription_NoInterface_StatusFalse)
+TEST_F(TTSNoInterfaceTest, AGC_L1_217_TTS_Subscription_NoInterface_StatusFalse)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -599,7 +599,7 @@ protected:
     }
 };
 
-TEST_F(UserSettingsNotificationTest, AGC_L1_241_UserSettings_OnAudioDescriptionChanged_Dispatches)
+TEST_F(UserSettingsNotificationTest, AGC_L1_218_UserSettings_OnAudioDescriptionChanged_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -616,7 +616,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_241_UserSettings_OnAudioDescriptionC
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(UserSettingsNotificationTest, AGC_L1_242_UserSettings_OnCaptionsChanged_Dispatches)
+TEST_F(UserSettingsNotificationTest, AGC_L1_219_UserSettings_OnCaptionsChanged_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -633,7 +633,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_242_UserSettings_OnCaptionsChanged_D
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(UserSettingsNotificationTest, AGC_L1_243_UserSettings_OnHighContrastChanged_Dispatches)
+TEST_F(UserSettingsNotificationTest, AGC_L1_220_UserSettings_OnHighContrastChanged_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -650,7 +650,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_243_UserSettings_OnHighContrastChang
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(UserSettingsNotificationTest, AGC_L1_244_UserSettings_OnVoiceGuidanceChanged_Dispatches)
+TEST_F(UserSettingsNotificationTest, AGC_L1_221_UserSettings_OnVoiceGuidanceChanged_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -667,7 +667,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_244_UserSettings_OnVoiceGuidanceChan
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(UserSettingsNotificationTest, AGC_L1_245_UserSettings_OnPreferredAudioLanguagesChanged_Dispatches)
+TEST_F(UserSettingsNotificationTest, AGC_L1_222_UserSettings_OnPreferredAudioLanguagesChanged_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -684,7 +684,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_245_UserSettings_OnPreferredAudioLan
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(UserSettingsNotificationTest, AGC_L1_246_UserSettings_OnPresentationLanguageChanged_Dispatches)
+TEST_F(UserSettingsNotificationTest, AGC_L1_223_UserSettings_OnPresentationLanguageChanged_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -709,7 +709,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_246_UserSettings_OnPresentationLangu
  * event that apps can subscribe to.
  * ================================================================ */
 
-TEST_F(TTSNotificationTest, AGC_L1_247_TTS_OnSpeechReady_Dispatches)
+TEST_F(TTSNotificationTest, AGC_L1_224_TTS_OnSpeechReady_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -726,7 +726,7 @@ TEST_F(TTSNotificationTest, AGC_L1_247_TTS_OnSpeechReady_Dispatches)
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(TTSNotificationTest, AGC_L1_248_TTS_OnSpeechPaused_Dispatches)
+TEST_F(TTSNotificationTest, AGC_L1_225_TTS_OnSpeechPaused_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -743,7 +743,7 @@ TEST_F(TTSNotificationTest, AGC_L1_248_TTS_OnSpeechPaused_Dispatches)
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(TTSNotificationTest, AGC_L1_249_TTS_OnSpeechResumed_Dispatches)
+TEST_F(TTSNotificationTest, AGC_L1_226_TTS_OnSpeechResumed_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -760,7 +760,7 @@ TEST_F(TTSNotificationTest, AGC_L1_249_TTS_OnSpeechResumed_Dispatches)
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(TTSNotificationTest, AGC_L1_250_TTS_OnSpeechInterrupted_Dispatches)
+TEST_F(TTSNotificationTest, AGC_L1_227_TTS_OnSpeechInterrupted_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -777,7 +777,7 @@ TEST_F(TTSNotificationTest, AGC_L1_250_TTS_OnSpeechInterrupted_Dispatches)
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(TTSNotificationTest, AGC_L1_251_TTS_OnNetworkError_Dispatches)
+TEST_F(TTSNotificationTest, AGC_L1_228_TTS_OnNetworkError_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -810,7 +810,7 @@ TEST_F(TTSNotificationTest, AGC_L1_251_TTS_OnNetworkError_Dispatches)
  * while onLocaleChanged and onPresentationLanguageChanged must still fire.
  * ================================================================ */
 
-TEST_F(UserSettingsNotificationTest, AGC_L1_265_UserSettings_OnPresentationLanguageChanged_NoHyphen)
+TEST_F(UserSettingsNotificationTest, AGC_L1_229_UserSettings_OnPresentationLanguageChanged_NoHyphen)
 {
     MockEmitter* localeEmitter = new MockEmitter();
     heapEmitters.push_back(localeEmitter);
@@ -851,7 +851,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_265_UserSettings_OnPresentationLangu
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
-TEST_F(UserSettingsNotificationTest, AGC_L1_252_UserSettings_OnPreferredCaptionsLanguagesChanged_Dispatches)
+TEST_F(UserSettingsNotificationTest, AGC_L1_230_UserSettings_OnPreferredCaptionsLanguagesChanged_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -868,7 +868,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_252_UserSettings_OnPreferredCaptions
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(UserSettingsNotificationTest, AGC_L1_253_UserSettings_OnVoiceGuidanceRateChanged_Dispatches)
+TEST_F(UserSettingsNotificationTest, AGC_L1_231_UserSettings_OnVoiceGuidanceRateChanged_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -887,7 +887,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_253_UserSettings_OnVoiceGuidanceRate
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-TEST_F(UserSettingsNotificationTest, AGC_L1_254_UserSettings_OnVoiceGuidanceHintsChanged_Dispatches)
+TEST_F(UserSettingsNotificationTest, AGC_L1_232_UserSettings_OnVoiceGuidanceHintsChanged_Dispatches)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);

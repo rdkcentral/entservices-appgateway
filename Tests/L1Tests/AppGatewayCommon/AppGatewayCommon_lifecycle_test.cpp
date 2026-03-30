@@ -179,7 +179,7 @@ protected:
 
 /* ---------- Authenticate / GetSessionId ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_107_Authenticate_NotFound)
+TEST_F(LifecycleDelegateTest, AGC_L1_162_Authenticate_NotFound)
 {
     string appId;
     const auto rc = plugin.Authenticate("unknown-session", appId);
@@ -188,7 +188,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_107_Authenticate_NotFound)
     EXPECT_TRUE(appId.empty());
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_108_GetSessionId_NotFound)
+TEST_F(LifecycleDelegateTest, AGC_L1_163_GetSessionId_NotFound)
 {
     string sessionId;
     const auto rc = plugin.GetSessionId("unknown.app", sessionId);
@@ -199,7 +199,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_108_GetSessionId_NotFound)
 
 /* ---------- LifecycleClose ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_109_LifecycleClose_UserExit)
+TEST_F(LifecycleDelegateTest, AGC_L1_164_LifecycleClose_UserExit)
 {
     EXPECT_CALL(mockLifecycle, CloseApp("test.app", Exchange::ILifecycleManagerState::USER_EXIT))
         .WillOnce(Return(Core::ERROR_NONE));
@@ -211,7 +211,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_109_LifecycleClose_UserExit)
     EXPECT_EQ(Core::ERROR_NONE, rc);
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_110_LifecycleClose_ErrorReason)
+TEST_F(LifecycleDelegateTest, AGC_L1_165_LifecycleClose_ErrorReason)
 {
     EXPECT_CALL(mockLifecycle, CloseApp("test.app", Exchange::ILifecycleManagerState::ERROR))
         .WillOnce(Return(Core::ERROR_NONE));
@@ -223,7 +223,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_110_LifecycleClose_ErrorReason)
     EXPECT_EQ(Core::ERROR_NONE, rc);
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_111_LifecycleClose_BadPayload)
+TEST_F(LifecycleDelegateTest, AGC_L1_166_LifecycleClose_BadPayload)
 {
     const auto ctx = MakeContext();
     string result;
@@ -234,7 +234,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_111_LifecycleClose_BadPayload)
 
 /* ---------- Lifecycle2Close ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_112_Lifecycle2Close_Deactivate)
+TEST_F(LifecycleDelegateTest, AGC_L1_167_Lifecycle2Close_Deactivate)
 {
     EXPECT_CALL(mockLifecycle, CloseApp("test.app", Exchange::ILifecycleManagerState::USER_EXIT))
         .WillOnce(Return(Core::ERROR_NONE));
@@ -246,7 +246,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_112_Lifecycle2Close_Deactivate)
     EXPECT_EQ(Core::ERROR_NONE, rc);
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_113_Lifecycle2Close_KillReload)
+TEST_F(LifecycleDelegateTest, AGC_L1_168_Lifecycle2Close_KillReload)
 {
     EXPECT_CALL(mockLifecycle, CloseApp("test.app", Exchange::ILifecycleManagerState::KILL_AND_RUN))
         .WillOnce(Return(Core::ERROR_NONE));
@@ -258,7 +258,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_113_Lifecycle2Close_KillReload)
     EXPECT_EQ(Core::ERROR_NONE, rc);
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_114_Lifecycle2Close_KillReactivate)
+TEST_F(LifecycleDelegateTest, AGC_L1_169_Lifecycle2Close_KillReactivate)
 {
     EXPECT_CALL(mockLifecycle, CloseApp("test.app", Exchange::ILifecycleManagerState::KILL_AND_ACTIVATE))
         .WillOnce(Return(Core::ERROR_NONE));
@@ -270,7 +270,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_114_Lifecycle2Close_KillReactivate)
     EXPECT_EQ(Core::ERROR_NONE, rc);
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_115_Lifecycle2Close_DefaultReason)
+TEST_F(LifecycleDelegateTest, AGC_L1_170_Lifecycle2Close_DefaultReason)
 {
     EXPECT_CALL(mockLifecycle, CloseApp("test.app", Exchange::ILifecycleManagerState::ERROR))
         .WillOnce(Return(Core::ERROR_NONE));
@@ -284,7 +284,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_115_Lifecycle2Close_DefaultReason)
 
 /* ---------- LifecycleReady ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_116_LifecycleReady_Success)
+TEST_F(LifecycleDelegateTest, AGC_L1_171_LifecycleReady_Success)
 {
     EXPECT_CALL(mockLifecycle, AppReady("test.app"))
         .WillOnce(Return(Core::ERROR_NONE));
@@ -298,7 +298,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_116_LifecycleReady_Success)
 
 /* ---------- LifecycleFinished ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_117_LifecycleFinished_ReturnsNull)
+TEST_F(LifecycleDelegateTest, AGC_L1_172_LifecycleFinished_ReturnsNull)
 {
     const auto ctx = MakeContext();
     string result;
@@ -310,7 +310,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_117_LifecycleFinished_ReturnsNull)
 
 /* ---------- LifecycleState / Lifecycle2State (empty state) ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_118_LifecycleState_DefaultState)
+TEST_F(LifecycleDelegateTest, AGC_L1_173_LifecycleState_DefaultState)
 {
     const auto ctx = MakeContext();
     string result;
@@ -320,7 +320,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_118_LifecycleState_DefaultState)
     EXPECT_EQ(Core::ERROR_NONE, rc);
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_119_Lifecycle2State_DefaultState)
+TEST_F(LifecycleDelegateTest, AGC_L1_174_Lifecycle2State_DefaultState)
 {
     const auto ctx = MakeContext();
     string result;
@@ -331,7 +331,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_119_Lifecycle2State_DefaultState)
 
 /* ---------- DispatchLastIntent / GetLastIntent ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_120_DispatchLastIntent_NoIntent)
+TEST_F(LifecycleDelegateTest, AGC_L1_175_DispatchLastIntent_NoIntent)
 {
     const auto ctx = MakeContext();
     string result;
@@ -341,7 +341,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_120_DispatchLastIntent_NoIntent)
     EXPECT_EQ("null", result);
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_121_GetLastIntent_NoIntent)
+TEST_F(LifecycleDelegateTest, AGC_L1_176_GetLastIntent_NoIntent)
 {
     const auto ctx = MakeContext();
     string result;
@@ -352,7 +352,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_121_GetLastIntent_NoIntent)
 
 /* ---------- Authenticate / GetSessionId success via lifecycle callback ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_161_Authenticate_Success_AfterLifecycleEvent)
+TEST_F(LifecycleDelegateTest, AGC_L1_177_Authenticate_Success_AfterLifecycleEvent)
 {
     // Fire OnAppLifecycleStateChanged with INITIALIZING to populate the map
     ASSERT_NE(capturedNotification, nullptr);
@@ -371,7 +371,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_161_Authenticate_Success_AfterLifecycleEven
     EXPECT_EQ("com.example.myapp", appId);
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_162_GetSessionId_Success_AfterLifecycleEvent)
+TEST_F(LifecycleDelegateTest, AGC_L1_178_GetSessionId_Success_AfterLifecycleEvent)
 {
     ASSERT_NE(capturedNotification, nullptr);
     capturedNotification->OnAppLifecycleStateChanged(
@@ -391,7 +391,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_162_GetSessionId_Success_AfterLifecycleEven
 
 /* ---------- LifecycleReady: AppReady failure ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_163_LifecycleReady_AppReadyFails)
+TEST_F(LifecycleDelegateTest, AGC_L1_179_LifecycleReady_AppReadyFails)
 {
     EXPECT_CALL(mockLifecycle, AppReady(_))
         .WillOnce(Return(Core::ERROR_GENERAL));
@@ -405,7 +405,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_163_LifecycleReady_AppReadyFails)
 
 /* ---------- LifecycleClose: CloseApp failure ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_164_LifecycleClose_CloseAppFails)
+TEST_F(LifecycleDelegateTest, AGC_L1_180_LifecycleClose_CloseAppFails)
 {
     EXPECT_CALL(mockLifecycle, CloseApp(_, _))
         .WillOnce(Return(Core::ERROR_GENERAL));
@@ -419,7 +419,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_164_LifecycleClose_CloseAppFails)
 
 /* ---------- Lifecycle2Close: CloseApp failure ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_165_Lifecycle2Close_CloseAppFails)
+TEST_F(LifecycleDelegateTest, AGC_L1_181_Lifecycle2Close_CloseAppFails)
 {
     EXPECT_CALL(mockLifecycle, CloseApp(_, _))
         .WillOnce(Return(Core::ERROR_GENERAL));
@@ -433,7 +433,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_165_Lifecycle2Close_CloseAppFails)
 
 /* ---------- Lifecycle2Close: bad payload ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_166_Lifecycle2Close_BadPayload)
+TEST_F(LifecycleDelegateTest, AGC_L1_182_Lifecycle2Close_BadPayload)
 {
     const auto ctx = MakeContext();
     string result;
@@ -444,7 +444,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_166_Lifecycle2Close_BadPayload)
 
 /* ---------- LifecycleState with populated map ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_167_LifecycleState_AfterLifecycleEvent)
+TEST_F(LifecycleDelegateTest, AGC_L1_183_LifecycleState_AfterLifecycleEvent)
 {
     ASSERT_NE(capturedNotification, nullptr);
     capturedNotification->OnAppLifecycleStateChanged(
@@ -466,7 +466,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_167_LifecycleState_AfterLifecycleEvent)
 
 /* ---------- DispatchLastIntent with navigation intent ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_168_DispatchLastIntent_WithIntent)
+TEST_F(LifecycleDelegateTest, AGC_L1_184_DispatchLastIntent_WithIntent)
 {
     ASSERT_NE(capturedNotification, nullptr);
     capturedNotification->OnAppLifecycleStateChanged(
@@ -486,7 +486,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_168_DispatchLastIntent_WithIntent)
 
 /* ---------- Lifecycle2State with populated registry ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_181_Lifecycle2State_AfterLifecycleEvent)
+TEST_F(LifecycleDelegateTest, AGC_L1_185_Lifecycle2State_AfterLifecycleEvent)
 {
     ASSERT_NE(capturedNotification, nullptr);
     capturedNotification->OnAppLifecycleStateChanged(
@@ -507,7 +507,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_181_Lifecycle2State_AfterLifecycleEvent)
 
 /* ---------- GetLastIntent with populated intent ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_182_GetLastIntent_WithIntent)
+TEST_F(LifecycleDelegateTest, AGC_L1_186_GetLastIntent_WithIntent)
 {
     ASSERT_NE(capturedNotification, nullptr);
     capturedNotification->OnAppLifecycleStateChanged(
@@ -561,7 +561,7 @@ protected:
     }
 };
 
-TEST_F(LifecycleNoInterfaceTest, AGC_L1_219_LifecycleClose_NullInterface_ReturnsError)
+TEST_F(LifecycleNoInterfaceTest, AGC_L1_187_LifecycleClose_NullInterface_ReturnsError)
 {
     const auto ctx = MakeContext();
     string result;
@@ -571,7 +571,7 @@ TEST_F(LifecycleNoInterfaceTest, AGC_L1_219_LifecycleClose_NullInterface_Returns
     EXPECT_NE(result.find("LifecycleManager not available"), std::string::npos);
 }
 
-TEST_F(LifecycleNoInterfaceTest, AGC_L1_220_Lifecycle2Close_NullInterface_ReturnsError)
+TEST_F(LifecycleNoInterfaceTest, AGC_L1_188_Lifecycle2Close_NullInterface_ReturnsError)
 {
     const auto ctx = MakeContext();
     string result;
@@ -581,7 +581,7 @@ TEST_F(LifecycleNoInterfaceTest, AGC_L1_220_Lifecycle2Close_NullInterface_Return
     EXPECT_NE(result.find("LifecycleManager not available"), std::string::npos);
 }
 
-TEST_F(LifecycleNoInterfaceTest, AGC_L1_221_LifecycleReady_NullInterface_ReturnsOK)
+TEST_F(LifecycleNoInterfaceTest, AGC_L1_189_LifecycleReady_NullInterface_ReturnsOK)
 {
     // LifecycleReady with null mLifecycleManagerState returns ERROR_NONE silently
     const auto ctx = MakeContext();
@@ -598,7 +598,7 @@ TEST_F(LifecycleNoInterfaceTest, AGC_L1_221_LifecycleReady_NullInterface_Returns
  * OnAppLifecycleStateChanged and verify lifecycle events dispatch.
  * ================================================================ */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_222_LifecycleNotification_ActiveState_DispatchesForegroundOrBackground)
+TEST_F(LifecycleDelegateTest, AGC_L1_190_LifecycleNotification_ActiveState_DispatchesForegroundOrBackground)
 {
     ASSERT_NE(capturedNotification, nullptr);
 
@@ -627,7 +627,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_222_LifecycleNotification_ActiveState_Dispa
     EXPECT_NE(result.find("active"), std::string::npos);
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_223_LifecycleNotification_PausedState)
+TEST_F(LifecycleDelegateTest, AGC_L1_191_LifecycleNotification_PausedState)
 {
     ASSERT_NE(capturedNotification, nullptr);
 
@@ -654,7 +654,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_223_LifecycleNotification_PausedState)
     EXPECT_NE(result.find("inactive"), std::string::npos);
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_224_LifecycleNotification_SuspendedState)
+TEST_F(LifecycleDelegateTest, AGC_L1_192_LifecycleNotification_SuspendedState)
 {
     ASSERT_NE(capturedNotification, nullptr);
 
@@ -680,7 +680,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_224_LifecycleNotification_SuspendedState)
     EXPECT_NE(result.find("suspended"), std::string::npos);
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_225_LifecycleNotification_TerminatingState)
+TEST_F(LifecycleDelegateTest, AGC_L1_193_LifecycleNotification_TerminatingState)
 {
     ASSERT_NE(capturedNotification, nullptr);
 
@@ -706,7 +706,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_225_LifecycleNotification_TerminatingState)
     EXPECT_NE(result.find("terminating"), std::string::npos);
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_226_LifecycleNotification_ActiveWithIntent_DispatchesLastIntent)
+TEST_F(LifecycleDelegateTest, AGC_L1_194_LifecycleNotification_ActiveWithIntent_DispatchesLastIntent)
 {
     ASSERT_NE(capturedNotification, nullptr);
 
@@ -735,7 +735,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_226_LifecycleNotification_ActiveWithIntent_
 
 /* ---------- HandleEvent / HandleSubscription ---------- */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_227_HandleEvent_InvalidEvent_NotHandled)
+TEST_F(LifecycleDelegateTest, AGC_L1_195_HandleEvent_InvalidEvent_NotHandled)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -748,7 +748,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_227_HandleEvent_InvalidEvent_NotHandled)
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_228_HandleEvent_ValidLifecycleEvent_Subscription)
+TEST_F(LifecycleDelegateTest, AGC_L1_196_HandleEvent_ValidLifecycleEvent_Subscription)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -762,7 +762,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_228_HandleEvent_ValidLifecycleEvent_Subscri
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_229_HandleEvent_ValidLifecycleEvent_Unsubscription)
+TEST_F(LifecycleDelegateTest, AGC_L1_197_HandleEvent_ValidLifecycleEvent_Unsubscription)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);
@@ -791,7 +791,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_229_HandleEvent_ValidLifecycleEvent_Unsubsc
  * background transitions when the app is ACTIVE.
  * ================================================================ */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_261_OnFocus_DispatchesFocusedChanged_And_Foreground)
+TEST_F(LifecycleDelegateTest, AGC_L1_198_OnFocus_DispatchesFocusedChanged_And_Foreground)
 {
     ASSERT_NE(capturedNotification, nullptr);
     ASSERT_NE(capturedWMNotification, nullptr);
@@ -835,7 +835,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_261_OnFocus_DispatchesFocusedChanged_And_Fo
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_262_OnBlur_DispatchesFocusedChanged_And_Background)
+TEST_F(LifecycleDelegateTest, AGC_L1_199_OnBlur_DispatchesFocusedChanged_And_Background)
 {
     ASSERT_NE(capturedNotification, nullptr);
     ASSERT_NE(capturedWMNotification, nullptr);
@@ -888,7 +888,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_262_OnBlur_DispatchesFocusedChanged_And_Bac
  * Lifecycle 1 Lifecycle.onUnloading event is dispatched.
  * ================================================================ */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_263_Terminating_DispatchesOnUnloading)
+TEST_F(LifecycleDelegateTest, AGC_L1_200_Terminating_DispatchesOnUnloading)
 {
     ASSERT_NE(capturedNotification, nullptr);
 
@@ -930,7 +930,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_263_Terminating_DispatchesOnUnloading)
  * correctly recorded via AddNotification/RemoveNotification.
  * ================================================================ */
 
-TEST_F(LifecycleDelegateTest, AGC_L1_264_HandleEvent_PresentationFocusedChanged_SubscribeUnsubscribe)
+TEST_F(LifecycleDelegateTest, AGC_L1_201_HandleEvent_PresentationFocusedChanged_SubscribeUnsubscribe)
 {
     MockEmitter* emitter = new MockEmitter();
     heapEmitters.push_back(emitter);

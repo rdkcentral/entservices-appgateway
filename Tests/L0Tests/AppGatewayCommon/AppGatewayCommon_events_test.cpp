@@ -1,6 +1,6 @@
 #include "AppGatewayCommon_common_test.h"
 
-// TEST_ID: AGC_L0_009
+// TEST_ID: AGC_L0_086
 // CheckPermissionGroup always returns allowed=true (no permission groups defined yet).
 uint32_t Test_CheckPermissionGroup_DefaultAllowed()
 {
@@ -19,7 +19,7 @@ uint32_t Test_CheckPermissionGroup_DefaultAllowed()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_010
+// TEST_ID: AGC_L0_087
 // Authenticate delegates to LifecycleDelegate via InvokeLifecycleDelegate.
 // In L0 mDelegate and lifecycleDelegate are both non-null (created in Initialize),
 // so LifecycleDelegate::Authenticate is reached.  The session ID is not in the
@@ -40,7 +40,7 @@ uint32_t Test_Authenticate_DelegateUnavailable()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_011
+// TEST_ID: AGC_L0_088
 // GetSessionId delegates to LifecycleDelegate via InvokeLifecycleDelegate.
 // In L0 the delegate chain is non-null, so LifecycleDelegate::GetSessionId is reached.
 // The appId is not in the map → GetAppInstanceId returns empty → ERROR_GENERAL.
@@ -60,7 +60,7 @@ uint32_t Test_GetSessionId_DelegateUnavailable()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_085
+// TEST_ID: AGC_L0_089
 // HandleAppEventNotifier with null cb → ERROR_GENERAL, status==false
 uint32_t Test_HandleAppEventNotifier_NullCb()
 {
@@ -76,7 +76,7 @@ uint32_t Test_HandleAppEventNotifier_NullCb()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_086
+// TEST_ID: AGC_L0_090
 // HandleAppEventNotifier with valid emitter → ERROR_NONE, status==true; exercise listen and unlisten
 uint32_t Test_HandleAppEventNotifier_ValidCb()
 {
@@ -108,7 +108,7 @@ uint32_t Test_HandleAppEventNotifier_ValidCb()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_089
+// TEST_ID: AGC_L0_091
 // HandleAppEventNotifier before Initialize → SafeSubmitEventRegistrationJob hits null mDelegate → ERROR_GENERAL
 // Covers the mDelegate null-check branch inside SafeSubmitEventRegistrationJob (lines 481-483).
 uint32_t Test_HandleAppEventNotifier_BeforeInit()
@@ -140,7 +140,7 @@ uint32_t Test_HandleAppEventNotifier_BeforeInit()
 // The API-level return is always ERROR_NONE/status=true when cb and mDelegate are
 // non-null; the coverage gain is from the async dispatch exercising delegate code.
 
-// TEST_ID: AGC_L0_093
+// TEST_ID: AGC_L0_092
 // Gap 1: HandleAppEventNotifier with a completely unrecognized event name.
 // → SettingsDelegate iterates all 5 delegates (userSettings, systemDelegate,
 //   networkDelegate, lifecycleDelegate, ttsDelegate); none matches.
@@ -168,7 +168,7 @@ uint32_t Test_HandleAppEventNotifier_UnrecognizedEvent()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_094
+// TEST_ID: AGC_L0_093
 // Gap 2: NetworkDelegate::HandleEvent + HandleSubscription(listen=true) with null interface.
 // Event "network.onconnectedchanged" is in VALID_NETWORK_EVENT.
 // → SettingsDelegate iterates: userSettings(false) → systemDelegate(false)
@@ -197,7 +197,7 @@ uint32_t Test_HandleAppEventNotifier_NetworkEvent_ListenTrue()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_095
+// TEST_ID: AGC_L0_094
 // Gap 3: UserSettingsDelegate::HandleEvent + HandleSubscription(listen=true) with null interface.
 // Event "localization.onlanguagechanged" is in VALID_USER_SETTINGS_EVENT.
 // → SettingsDelegate iterates: userSettings::HandleEvent(true)
@@ -225,7 +225,7 @@ uint32_t Test_HandleAppEventNotifier_UserSettingsEvent_ListenTrue()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_096
+// TEST_ID: AGC_L0_095
 // Gap 4: TTSDelegate::HandleEvent + HandleSubscription + Register() + GetTTS() null path.
 // Event "TextToSpeech.onVoiceChanged" matches the "TextToSpeech." prefix.
 // → SettingsDelegate iterates: userSettings(false) → systemDelegate(false)
@@ -256,7 +256,7 @@ uint32_t Test_HandleAppEventNotifier_TTSEvent_ListenTrue()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_097
+// TEST_ID: AGC_L0_096
 // Gap 5: SystemDelegate::HandleEvent success path for recognized device events.
 // Event "device.onvideoresolutionchanged" matches SystemDelegate's event set.
 // → SettingsDelegate iterates: userSettings(false) → systemDelegate::HandleEvent(true)
@@ -293,7 +293,7 @@ uint32_t Test_HandleAppEventNotifier_SystemDeviceEvent()
     return tr.failures;
 }
 
-// TEST_ID: AGC_L0_098
+// TEST_ID: AGC_L0_097
 // Gap 7: NetworkDelegate::HandleSubscription(listen=false) without prior listen=true.
 // Event "device.onnetworkchanged" is in VALID_NETWORK_EVENT.
 // → SettingsDelegate iterates: userSettings(false) → systemDelegate(false)

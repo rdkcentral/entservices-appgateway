@@ -128,25 +128,25 @@ int main()
     };
 
     const Case cases[] = {
+        // --- Lifecycle tests (AGC_L0_001–AGC_L0_011) ---
         { "Initialize_Deinitialize_Lifecycle",           Test_Initialize_Deinitialize_Lifecycle },
         { "Initialize_Twice_Idempotent",                 Test_Initialize_Twice_Idempotent },
         { "Deinitialize_Twice_NoCrash",                  Test_Deinitialize_Twice_NoCrash },
         { "Information_ReturnsEmpty",                     Test_Information_ReturnsEmpty },
+        { "InterfaceMap_RequestHandler",                  Test_InterfaceMap_RequestHandler },
+        { "InterfaceMap_Authenticator",                   Test_InterfaceMap_Authenticator },
+        { "InterfaceMap_NotificationHandler",             Test_InterfaceMap_NotificationHandler },
+        { "HandleRequest_BeforeInit",                     Test_HandleRequest_BeforeInit },
+        { "Authenticate_BeforeInit",                      Test_Authenticate_BeforeInit },
+        { "HandleRequest_AfterDeinit",                    Test_HandleRequest_AfterDeinit },
+        { "Reinitialize_AfterDeinit",                     Test_Reinitialize_AfterDeinit },
+        // --- Routing tests (AGC_L0_012–AGC_L0_056) ---
         { "HandleRequest_UnknownMethod",                  Test_HandleRequest_UnknownMethod },
         { "HandleRequest_DeviceMake_DelegateUnavailable", Test_HandleRequest_DeviceMake_DelegateUnavailable },
         { "HandleRequest_MetricsPassthrough",             Test_HandleRequest_MetricsPassthrough },
         { "HandleRequest_DiscoveryWatched",               Test_HandleRequest_DiscoveryWatched },
-        { "CheckPermissionGroup_DefaultAllowed",          Test_CheckPermissionGroup_DefaultAllowed },
-        { "Authenticate_DelegateUnavailable",             Test_Authenticate_DelegateUnavailable },
-        { "GetSessionId_DelegateUnavailable",             Test_GetSessionId_DelegateUnavailable },
-        { "HandleRequest_SetterInvalidPayload",           Test_HandleRequest_SetterInvalidPayload },
-        { "HandleRequest_SetterValidPayload_DelegateUnavailable", Test_HandleRequest_SetterValidPayload_DelegateUnavailable },
         { "HandleRequest_CaseInsensitiveMethod",          Test_HandleRequest_CaseInsensitiveMethod },
-        { "HandleRequest_BoolSetterInvalidPayload",       Test_HandleRequest_BoolSetterInvalidPayload },
         { "HandleRequest_LifecycleReady",                 Test_HandleRequest_LifecycleReady },
-        { "InterfaceMap_RequestHandler",                  Test_InterfaceMap_RequestHandler },
-        { "InterfaceMap_Authenticator",                   Test_InterfaceMap_Authenticator },
-        // AGC_L0_020–087 — handler-map getters
         { "HandleRequest_DeviceName",                     Test_HandleRequest_DeviceName },
         { "HandleRequest_DeviceSku",                      Test_HandleRequest_DeviceSku },
         { "HandleRequest_DeviceNetwork",                  Test_HandleRequest_DeviceNetwork },
@@ -186,7 +186,10 @@ int main()
         { "HandleRequest_AdvertisingId",                  Test_HandleRequest_AdvertisingId },
         { "HandleRequest_DeviceUid",                      Test_HandleRequest_DeviceUid },
         { "HandleRequest_NetworkConnected",               Test_HandleRequest_NetworkConnected },
-        // AGC_L0_059–084 — setter validation
+        // --- Setters tests (AGC_L0_057–AGC_L0_085) ---
+        { "HandleRequest_SetterInvalidPayload",           Test_HandleRequest_SetterInvalidPayload },
+        { "HandleRequest_SetterValidPayload_DelegateUnavailable", Test_HandleRequest_SetterValidPayload_DelegateUnavailable },
+        { "HandleRequest_BoolSetterInvalidPayload",       Test_HandleRequest_BoolSetterInvalidPayload },
         { "SetCountryCode_InvalidPayload",                Test_HandleRequest_SetCountryCode_InvalidPayload },
         { "SetCountryCode_ValidPayload",                  Test_HandleRequest_SetCountryCode_ValidPayload },
         { "SetTimezone_InvalidPayload",                   Test_HandleRequest_SetTimezone_InvalidPayload },
@@ -213,23 +216,19 @@ int main()
         { "SetPrefAudioLangs_Invalid",                    Test_HandleRequest_SetPrefAudioLangs_Invalid },
         { "SetPrefAudioLangs_ValidString",                Test_HandleRequest_SetPrefAudioLangs_ValidString },
         { "SetPrefAudioLangs_ValidArray",                 Test_HandleRequest_SetPrefAudioLangs_ValidArray },
-        // AGC_L0_085–087 — HandleAppEventNotifier & QueryInterface
+        // --- Events tests (AGC_L0_086–AGC_L0_097) ---
+        { "CheckPermissionGroup_DefaultAllowed",          Test_CheckPermissionGroup_DefaultAllowed },
+        { "Authenticate_DelegateUnavailable",             Test_Authenticate_DelegateUnavailable },
+        { "GetSessionId_DelegateUnavailable",             Test_GetSessionId_DelegateUnavailable },
         { "HandleAppEventNotifier_NullCb",                Test_HandleAppEventNotifier_NullCb },
         { "HandleAppEventNotifier_ValidCb",               Test_HandleAppEventNotifier_ValidCb },
-        { "InterfaceMap_NotificationHandler",             Test_InterfaceMap_NotificationHandler },
-                // AGC_L0_088–092 — Pre-init / post-deinit guards and re-initialization
-        { "HandleRequest_BeforeInit",                     Test_HandleRequest_BeforeInit },
         { "HandleAppEventNotifier_BeforeInit",            Test_HandleAppEventNotifier_BeforeInit },
-        // AGC_L0_093–098 — Gap 1–7 delegate event subscription contract tests
         { "EventNotifier_UnrecognizedEvent",              Test_HandleAppEventNotifier_UnrecognizedEvent },
         { "EventNotifier_NetworkEvent_ListenTrue",        Test_HandleAppEventNotifier_NetworkEvent_ListenTrue },
         { "EventNotifier_UserSettingsEvent_ListenTrue",   Test_HandleAppEventNotifier_UserSettingsEvent_ListenTrue },
         { "EventNotifier_TTSEvent_ListenTrue",            Test_HandleAppEventNotifier_TTSEvent_ListenTrue },
         { "EventNotifier_SystemDeviceEvent",              Test_HandleAppEventNotifier_SystemDeviceEvent },
         { "EventNotifier_NetworkEvent_UnsubscribeOnly",   Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly },
-        { "Authenticate_BeforeInit",                      Test_Authenticate_BeforeInit },
-        { "HandleRequest_AfterDeinit",                    Test_HandleRequest_AfterDeinit },
-        { "Reinitialize_AfterDeinit",                     Test_Reinitialize_AfterDeinit },
     };
 
     uint32_t failures = 0;
