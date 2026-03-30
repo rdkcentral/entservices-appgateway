@@ -535,6 +535,11 @@ jobs:
           # but pre-creating it here avoids permission issues on some CI environments.
           # Must be a file (not a directory) because the test's SetUp uses fopen().
           sudo touch /opt/ai2managers
+          # Ensure the file is writable by the non-root test runner so that
+          # fopen("/opt/ai2managers", "w") in the lifecycle L1 test SetUp()
+          # does not fail and cause GTEST_SKIP.
+          sudo chmod 0666 /opt/ai2managers
+          ls -l /opt/ai2managers || true
 
       - name: Run unit tests without valgrind (optionally under gdb)
         run: |
@@ -745,7 +750,7 @@ jobs:
             coverage.info
             filtered_coverage.info
             coverage/
-            valgrind_log
+            valgrind_log*
             rdkL1TestResultsWithoutValgrind.json
             rdkL1TestResultsWithValgrind.json
           if-no-files-found: warn

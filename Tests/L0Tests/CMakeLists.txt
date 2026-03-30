@@ -10,7 +10,7 @@ option(APPGW_TEST_ENABLE_WARNINGS "Enable additional compiler warnings for appga
 option(APPGW_ENABLE_COVERAGE "Enable coverage flags for appgateway_l0test" ON)
 option(APPNOTIF_ENABLE_COVERAGE "Enable coverage flags for appnotifications_l0test" ON)
 option(APPGW_L0_ENABLE_APPGATEWAY "Build AppGateway L0 test target" ON)
-option(APPGW_L0_ENABLE_APPGATEWAYCOMMON "Build AppGatewayCommon L0 test target (when sources are added)" OFF)
+option(APPGW_L0_ENABLE_APPGATEWAYCOMMON "Build AppGatewayCommon L0 test target" ON)
 option(APPGW_L0_ENABLE_APPNOTIFICATIONS "Build AppNotifications L0 test target" ON)
 
 if(NOT DEFINED PREFIX OR "${PREFIX}" STREQUAL "")
@@ -71,8 +71,8 @@ else()
     message(STATUS "APPGW_L0_ENABLE_APPGATEWAY=OFF; skipping appgateway_l0test target")
 endif()
 
-if(APPGW_L0_ENABLE_APPGATEWAYCOMMON)
-    message(WARNING "APPGW_L0_ENABLE_APPGATEWAYCOMMON=ON but no L0 AppGatewayCommon source set is defined yet. Add Tests/L0Tests/AppGatewayCommon sources and target wiring.")
+if(NOT APPGW_L0_ENABLE_APPGATEWAYCOMMON)
+    message(STATUS "APPGW_L0_ENABLE_APPGATEWAYCOMMON=OFF; skipping appgatewaycommon_l0test target")
 endif()
 
 if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
@@ -398,6 +398,7 @@ endif()
 # ---------------------------------------------------------------------------
 # AppGatewayCommon L0 test
 # ---------------------------------------------------------------------------
+if(APPGW_L0_ENABLE_APPGATEWAYCOMMON)
 
 set(APPGWC_L0_SOURCES
     ${CMAKE_SOURCE_DIR}/../../AppGatewayCommon/Module.cpp
@@ -459,12 +460,15 @@ endif()
 if(EXISTS "${PREFIX}/lib")
     target_link_directories(appgatewaycommon_l0test PRIVATE "${PREFIX}/lib")
 endif()
-if(EXISTS "${PREFIX}/lib/wpeframework/plugins")
-    target_link_directories(appgatewaycommon_l0test PRIVATE "${PREFIX}/lib/wpeframework/plugins")
-endif()
 if(EXISTS "${PREFIX}/lib/plugins")
     target_link_directories(appgatewaycommon_l0test PRIVATE "${PREFIX}/lib/plugins")
 endif()
+# Add namespace-derived link directories (same logic as appgateway/appnotifications targets).
+foreach(_rdir IN LISTS APPGW_RPATH_DIRS)
+    if(EXISTS "${_rdir}")
+        target_link_directories(appgatewaycommon_l0test PRIVATE "${_rdir}")
+    endif()
+endforeach()
 
 # Link Thunder/WPEFramework libraries: prefer namespace targets found earlier,
 # fall back to find_library results for standalone CI layouts.
@@ -513,8 +517,8 @@ else()
 endif()
 
 set_target_properties(appgatewaycommon_l0test PROPERTIES
-    BUILD_RPATH "$ORIGIN;${PREFIX}/lib;${PREFIX}/lib/wpeframework;${PREFIX}/lib/wpeframework/plugins;${PREFIX}/lib/plugins"
-    INSTALL_RPATH "${PREFIX}/lib;${PREFIX}/lib/wpeframework;${PREFIX}/lib/wpeframework/plugins;${PREFIX}/lib/plugins"
+    BUILD_RPATH "${APPGW_BUILD_RPATH}"
+    INSTALL_RPATH "${APPGW_INSTALL_RPATH}"
 )
 
 add_custom_target(run_appgatewaycommon
@@ -523,6 +527,8 @@ add_custom_target(run_appgatewaycommon
     COMMENT "Running appgatewaycommon_l0test"
     VERBATIM
 )
+
+endif() # APPGW_L0_ENABLE_APPGATEWAYCOMMON
 
 # ---------------------------------------------------------------------------
 # Coverage target (collects data from all L0 test targets)

@@ -17,6 +17,8 @@
  * limitations under the License.
  */
 
+#pragma once
+
 #include <gmock/gmock.h>
 #include <interfaces/INetworkManager.h>
 

@@ -55,14 +55,14 @@ public:
         if (Core::IWorkerPool::IsAvailable() == false) {
             Core::IWorkerPool::Assign(&mPool);
             mAssigned = true;
+            mPool.Run();
         }
-        mPool.Run();
     }
 
     ~WorkerPoolGuard()
     {
-        mPool.Stop();
         if (mAssigned) {
+            mPool.Stop();
             Core::IWorkerPool::Assign(nullptr);
         }
     }
