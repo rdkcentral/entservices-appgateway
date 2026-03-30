@@ -28,16 +28,17 @@ class MockINetworkManager : public INetworkManager
 {
 public:
     MOCK_METHOD(uint32_t, GetAvailableInterfaces, (WPEFramework::Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces), (override));
-    MOCK_METHOD(uint32_t, GetPrimaryInterface, (string& interface), (override));                                              MOCK_METHOD(uint32_t, SetInterfaceState, (const string& interface, const bool enabled), (override));
+    MOCK_METHOD(uint32_t, GetPrimaryInterface, (string& interface), (override));
+    MOCK_METHOD(uint32_t, SetInterfaceState, (const string& interface, const bool enabled), (override));
     MOCK_METHOD(uint32_t, GetInterfaceState, (const string& interface, bool& enabled), (override));
     MOCK_METHOD(uint32_t, GetIPSettings, (string& interface, const string& ipversion, IPAddress& address), (override));
     MOCK_METHOD(uint32_t, SetIPSettings, (const string& interface, const IPAddress& address), (override));
-    MOCK_METHOD(uint32_t, GetStunEndpoint, (string& endpoint, uint32_t& port, uint32_t& timeout, uint32_t& cacheLifetime), (const));
+    MOCK_METHOD(uint32_t, GetStunEndpoint, (string& endpoint, uint32_t& port, uint32_t& timeout, uint32_t& cacheLifetime), (const, override));
     MOCK_METHOD(uint32_t, SetStunEndpoint, (string const endpoint, const uint32_t port, const uint32_t timeout, const uint32_t cacheLifetime), (override));
-    MOCK_METHOD(uint32_t, GetConnectivityTestEndpoints, (IStringIterator*& endpoints), (const));
+    MOCK_METHOD(uint32_t, GetConnectivityTestEndpoints, (IStringIterator*& endpoints), (const, override));
     MOCK_METHOD(uint32_t, SetConnectivityTestEndpoints, (IStringIterator* const endpoints), (override));
     MOCK_METHOD(uint32_t, IsConnectedToInternet, (string& ipversion, string& interface, WPEFramework::Exchange::INetworkManager::InternetStatus& status), (override));
-    MOCK_METHOD(uint32_t, GetCaptivePortalURI, (string& uri), (const));
+    MOCK_METHOD(uint32_t, GetCaptivePortalURI, (string& uri), (const, override));
     MOCK_METHOD(uint32_t, GetPublicIP, (string& interface, string& ipversion, string& ipaddress), (override));
     MOCK_METHOD(uint32_t, Ping, (const string ipversion, const string endpoint, const uint32_t count, const uint16_t timeout, const string guid, string& response), (override));
     MOCK_METHOD(uint32_t, Trace, (const string ipversion, const string endpoint, const uint32_t nqueries, const string guid, string& response), (override));
@@ -53,7 +54,7 @@ public:
     MOCK_METHOD(uint32_t, StopWPS, (), (override));
     MOCK_METHOD(uint32_t, GetWifiState, (WPEFramework::Exchange::INetworkManager::WiFiState& state), (override));
     MOCK_METHOD(uint32_t, GetWiFiSignalQuality, (string& ssid, int& strength, int& noise, int& snr, WPEFramework::Exchange::INetworkManager::WiFiSignalQuality& quality), (override));
-    MOCK_METHOD(uint32_t, GetSupportedSecurityModes, (ISecurityModeIterator*& modes), (const));
+    MOCK_METHOD(uint32_t, GetSupportedSecurityModes, (ISecurityModeIterator*& modes), (const, override));
     MOCK_METHOD(uint32_t, SetLogLevel, (const Logging& level), (override));
     MOCK_METHOD(uint32_t, SetHostname, (const string& hostname), (override));
     MOCK_METHOD(uint32_t, GetLogLevel, (Logging& level), (override));
