@@ -21,6 +21,9 @@ on:
       RDKCM_RDKE:
         required: true
 
+permissions:
+  contents: read
+
 env:
   BUILD_TYPE: Debug
   THUNDER_REF: "R4.4.1"
@@ -39,7 +42,7 @@ env:
 jobs:
   L1-tests:
     name: Build and run unit tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         compiler: [ gcc, clang ]
@@ -507,6 +510,16 @@ jobs:
           cp -f "$GITHUB_WORKSPACE/Tests/mocks/Module.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/Module.h"
           cp -f "$GITHUB_WORKSPACE/Tests/mocks/ServiceMock.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/ServiceMock.h"
           cp -f "$GITHUB_WORKSPACE/Tests/mocks/ThunderPortability.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/ThunderPortability.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/WorkerPoolImplementation.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/WorkerPoolImplementation.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockEmitter.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockEmitter.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockSharedStorage.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockSharedStorage.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockInterfaceDetailsIterator.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockInterfaceDetailsIterator.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockTextToSpeech.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockTextToSpeech.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/MockJSONRPCDirectLink.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/MockJSONRPCDirectLink.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/NetworkManagerMock.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/NetworkManagerMock.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/LifecycleManagerMock.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/LifecycleManagerMock.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/WindowManagerMock.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/WindowManagerMock.h"
+          cp -f "$GITHUB_WORKSPACE/Tests/mocks/UserSettingMock.h" "$GITHUB_WORKSPACE/install/usr/include/Tests/mocks/UserSettingMock.h"
 
       - name: Stage AppGateway resolution.base.json into config root (avoid /etc)
         run: |
@@ -514,6 +527,19 @@ jobs:
           cp -f "$GITHUB_WORKSPACE/AppGateway/resolutions/resolution.base.json" /tmp/app-gateway/resolution.base.json
           echo "APPGATEWAY_CONFIG_PATH=/tmp/app-gateway" >> "$GITHUB_ENV"
           ls -la /tmp/app-gateway || true
+
+      - name: Ensure /opt/ai2managers exists for lifecycle tests
+        run: |
+          # LifecycleDelegate only registers notifications when ConfigUtils::useAppManagers()
+          # returns true, which checks for /opt/ai2managers. The test SetUp creates it too,
+          # but pre-creating it here avoids permission issues on some CI environments.
+          # Must be a file (not a directory) because the test's SetUp uses fopen().
+          sudo touch /opt/ai2managers
+          # Ensure the file is writable by the non-root test runner so that
+          # fopen("/opt/ai2managers", "w") in the lifecycle L1 test SetUp()
+          # does not fail and cause GTEST_SKIP.
+          sudo chmod 0666 /opt/ai2managers
+          ls -l /opt/ai2managers || true
 
       - name: Run unit tests without valgrind (optionally under gdb)
         run: |
@@ -572,7 +598,6 @@ jobs:
               -ex "run" \
               -ex "bt full" \
               --args "${test_bin_appgateway}"
-
             gdb -q -batch \
               -ex "set pagination off" \
               -ex "run" \
@@ -583,7 +608,7 @@ jobs:
               -ex "set pagination off" \
               -ex "run" \
               -ex "bt full" \
-              --args "${test_bin_appnotifications}"              
+              --args "${test_bin_appnotifications}"
           else
             echo "ENABLE_GDB!=1 -> running unit tests normally (default behavior)."
             "${test_bin_appgateway}"
@@ -622,7 +647,7 @@ jobs:
 
           valgrind \
             --tool=memcheck \
-            --log-file=valgrind_log_appgatewaycommon \
+            --log-file=valgrind_log_common \
             --leak-check=yes \
             --show-reachable=yes \
             --track-fds=yes \
@@ -676,20 +701,9 @@ jobs:
           # "notes file" and "stamp mismatch" errors.
           # GCC 13/geninfo can emit occasional end-line mismatch metadata for gtest TU symbols.
           # Keep report generation best-effort by tolerating mismatch while still producing output.
-          # --ignore-errors mismatch was added in lcov 1.16; only pass it on supported versions.
-          lcov_version=$(lcov --version 2>&1 | grep -oP '(?<=LCOV version )\S+' | head -1)
-          lcov_version="${lcov_version:-0.0}"
-          lcov_major=$(echo "${lcov_version}" | cut -d. -f1)
-          lcov_minor=$(echo "${lcov_version}" | cut -d. -f2)
-          lcov_major="${lcov_major:-0}"
-          lcov_minor="${lcov_minor:-0}"
-          lcov_ignore_flag=""
-          if [ "${lcov_major}" -gt 1 ] || { [ "${lcov_major}" -eq 1 ] && [ "${lcov_minor}" -ge 16 ]; }; then
-            lcov_ignore_flag="--ignore-errors mismatch"
-          fi
           lcov -c \
             --rc geninfo_unexecuted_blocks=1 \
-            ${lcov_ignore_flag} \
+            --ignore-errors mismatch \
             -o coverage.info \
             -d "${build_dir}" || true
 
@@ -706,6 +720,7 @@ jobs:
             '*/Tests/headers/*' \
             '*/Tests/mocks/*' \
             '*/Tests/L1Tests/tests/*' \
+            '*/Tests/L1Tests/AppGatewayCommon/*' \
             '*/Thunder/*' \
             -o filtered_coverage.info || true
 
@@ -735,9 +750,7 @@ jobs:
             coverage.info
             filtered_coverage.info
             coverage/
-            valgrind_log
-            valgrind_log_appgatewaycommon
-            valgrind_log_appnotifications
+            valgrind_log*
             rdkL1TestResultsWithoutValgrind.json
             rdkL1TestResultsWithValgrind.json
           if-no-files-found: warn

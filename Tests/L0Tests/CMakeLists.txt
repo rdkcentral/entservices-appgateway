@@ -10,7 +10,7 @@ option(APPGW_TEST_ENABLE_WARNINGS "Enable additional compiler warnings for appga
 option(APPGW_ENABLE_COVERAGE "Enable coverage flags for appgateway_l0test" ON)
 option(APPNOTIF_ENABLE_COVERAGE "Enable coverage flags for appnotifications_l0test" ON)
 option(APPGW_L0_ENABLE_APPGATEWAY "Build AppGateway L0 test target" ON)
-option(APPGW_L0_ENABLE_APPGATEWAYCOMMON "Build AppGatewayCommon L0 test target (when sources are added)" OFF)
+option(APPGW_L0_ENABLE_APPGATEWAYCOMMON "Build AppGatewayCommon L0 test target" ON)
 option(APPGW_L0_ENABLE_APPNOTIFICATIONS "Build AppNotifications L0 test target" ON)
 
 if(NOT DEFINED PREFIX OR "${PREFIX}" STREQUAL "")
@@ -71,8 +71,8 @@ else()
     message(STATUS "APPGW_L0_ENABLE_APPGATEWAY=OFF; skipping appgateway_l0test target")
 endif()
 
-if(APPGW_L0_ENABLE_APPGATEWAYCOMMON)
-    message(WARNING "APPGW_L0_ENABLE_APPGATEWAYCOMMON=ON but no L0 AppGatewayCommon source set is defined yet. Add Tests/L0Tests/AppGatewayCommon sources and target wiring.")
+if(NOT APPGW_L0_ENABLE_APPGATEWAYCOMMON)
+    message(STATUS "APPGW_L0_ENABLE_APPGATEWAYCOMMON=OFF; skipping appgatewaycommon_l0test target")
 endif()
 
 if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
@@ -394,6 +394,145 @@ if(APPGW_L0_ENABLE_APPGATEWAY)
         VERBATIM
     )
 endif()
+
+# ---------------------------------------------------------------------------
+# AppGatewayCommon L0 test
+# ---------------------------------------------------------------------------
+if(APPGW_L0_ENABLE_APPGATEWAYCOMMON)
+
+set(APPGWC_L0_SOURCES
+    ${CMAKE_SOURCE_DIR}/../../AppGatewayCommon/Module.cpp
+    ${CMAKE_SOURCE_DIR}/../../AppGatewayCommon/AppGatewayCommon.cpp
+    AppGatewayCommon/AppGatewayCommon_lifecycle_test.cpp
+    AppGatewayCommon/AppGatewayCommon_routing_test.cpp
+    AppGatewayCommon/AppGatewayCommon_setters_test.cpp
+    AppGatewayCommon/AppGatewayCommon_events_test.cpp
+    AppGatewayCommon/AppGatewayCommon_main_test.cpp
+    common/L0Bootstrap.cpp
+)
+
+add_executable(appgatewaycommon_l0test ${APPGWC_L0_SOURCES})
+
+target_compile_definitions(appgatewaycommon_l0test PRIVATE
+    MODULE_NAME=AppGatewayCommon_L0Test
+    APPGATEWAYCOMMON_MAJOR_VERSION=1
+    APPGATEWAYCOMMON_MINOR_VERSION=0
+    APPGATEWAYCOMMON_PATCH_VERSION=0
+    LEGACY_FIREBOLT_VERSION="0"
+    RDK8_FIREBOLT_VERSION="8"
+    ENABLE_DEBUG_FOR_CONNECTION="enableDebugForConnection"
+    DISABLE_DEBUG_FOR_CONNECTION="disableDebugForConnection"
+    DISABLE_SECURITY_TOKEN
+    USE_THUNDER_R4
+)
+
+if(APPGW_ENABLE_COVERAGE)
+    target_compile_options(appgatewaycommon_l0test PRIVATE -O0 -g --coverage)
+    target_link_options(appgatewaycommon_l0test PRIVATE --coverage)
+endif()
+
+if(APPGW_TEST_ENABLE_WARNINGS)
+    target_compile_options(appgatewaycommon_l0test PRIVATE -Wall -Wextra -Wno-unused-parameter)
+endif()
+
+target_include_directories(appgatewaycommon_l0test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/AppGatewayCommon
+    ${CMAKE_CURRENT_SOURCE_DIR}/common
+    ${CMAKE_SOURCE_DIR}/../..
+    ${CMAKE_SOURCE_DIR}/../../AppGatewayCommon
+    ${CMAKE_SOURCE_DIR}/../../helpers
+    ${PREFIX}/include
+    ${PREFIX}/include/WPEFramework
+)
+
+if(CMAKE_PREFIX_PATH)
+    foreach(_prefix IN LISTS CMAKE_PREFIX_PATH)
+        if(EXISTS "${_prefix}/include")
+            target_include_directories(appgatewaycommon_l0test PRIVATE "${_prefix}/include")
+        endif()
+        if(EXISTS "${_prefix}/include/WPEFramework")
+            target_include_directories(appgatewaycommon_l0test PRIVATE "${_prefix}/include/WPEFramework")
+        endif()
+    endforeach()
+endif()
+
+if(EXISTS "${PREFIX}/lib")
+    target_link_directories(appgatewaycommon_l0test PRIVATE "${PREFIX}/lib")
+endif()
+if(EXISTS "${PREFIX}/lib/plugins")
+    target_link_directories(appgatewaycommon_l0test PRIVATE "${PREFIX}/lib/plugins")
+endif()
+# Add namespace-derived link directories (same logic as appgateway/appnotifications targets).
+foreach(_rdir IN LISTS APPGW_RPATH_DIRS)
+    if(EXISTS "${_rdir}")
+        target_link_directories(appgatewaycommon_l0test PRIVATE "${_rdir}")
+    endif()
+endforeach()
+
+# Link Thunder/WPEFramework libraries: prefer namespace targets found earlier,
+# fall back to find_library results for standalone CI layouts.
+if(APPGW_HAVE_CORE_TARGET)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${APPGW_NAMESPACE}Core::${APPGW_NAMESPACE}Core)
+elseif(WPEFRAMEWORK_CORE_LIB)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${WPEFRAMEWORK_CORE_LIB})
+endif()
+if(APPGW_HAVE_MESSAGING_TARGET)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${APPGW_NAMESPACE}Messaging::${APPGW_NAMESPACE}Messaging)
+elseif(WPEFRAMEWORK_MESSAGING_LIB)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${WPEFRAMEWORK_MESSAGING_LIB})
+endif()
+if(APPGW_HAVE_PLUGINS_TARGET)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${APPGW_NAMESPACE}Plugins::${APPGW_NAMESPACE}Plugins)
+elseif(WPEFRAMEWORK_PLUGINS_LIB)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${WPEFRAMEWORK_PLUGINS_LIB})
+endif()
+if(APPGW_HAVE_WEBSOCKET_TARGET)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${APPGW_NAMESPACE}WebSocket::${APPGW_NAMESPACE}WebSocket)
+elseif(WPEFRAMEWORK_WEBSOCKET_LIB)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${WPEFRAMEWORK_WEBSOCKET_LIB})
+endif()
+
+find_library(UUID_LIB NAMES uuid)
+if(NOT UUID_LIB)
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(UUID QUIET uuid)
+    endif()
+endif()
+
+target_link_libraries(appgatewaycommon_l0test PRIVATE
+    Threads::Threads
+    m
+    dl
+)
+
+if(UUID_LIB)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${UUID_LIB})
+elseif(UUID_FOUND)
+    target_link_libraries(appgatewaycommon_l0test PRIVATE ${UUID_LINK_LIBRARIES})
+    target_include_directories(appgatewaycommon_l0test PRIVATE ${UUID_INCLUDE_DIRS})
+else()
+    target_link_libraries(appgatewaycommon_l0test PRIVATE uuid)
+endif()
+
+set_target_properties(appgatewaycommon_l0test PROPERTIES
+    BUILD_RPATH "${APPGW_BUILD_RPATH}"
+    INSTALL_RPATH "${APPGW_INSTALL_RPATH}"
+)
+
+add_custom_target(run_appgatewaycommon
+    DEPENDS appgatewaycommon_l0test
+    COMMAND $<TARGET_FILE:appgatewaycommon_l0test>
+    COMMENT "Running appgatewaycommon_l0test"
+    VERBATIM
+)
+
+endif() # APPGW_L0_ENABLE_APPGATEWAYCOMMON
+
+# ---------------------------------------------------------------------------
+# Coverage target (collects data from all L0 test targets)
+# ---------------------------------------------------------------------------
 
 find_program(LCOV_EXECUTABLE lcov)
 find_program(GENHTML_EXECUTABLE genhtml)
