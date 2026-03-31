@@ -131,7 +131,7 @@ protected:
     void TearDown() override
     {
         plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 };
 
@@ -1021,7 +1021,7 @@ protected:
         plugin.Deinitialize(&service);
         // Wait for any pending async dispatch jobs to complete before
         // destroying emitters to prevent use-after-free.
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
         for (auto* e : heapEmitters) {
             testing::Mock::VerifyAndClearExpectations(e);
             delete e;
@@ -1065,7 +1065,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_140_EmitOnScreenResolutionChanged_Dispatch
     ASSERT_NE(systemDelegate, nullptr);
     systemDelegate->EmitOnScreenResolutionChanged();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 TEST_F(SystemDelegateEmitTest, AGC_L1_141_EmitOnVideoResolutionChanged_DispatchesToEmitter)
@@ -1084,7 +1084,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_141_EmitOnVideoResolutionChanged_Dispatche
     ASSERT_NE(systemDelegate, nullptr);
     systemDelegate->EmitOnVideoResolutionChanged();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 TEST_F(SystemDelegateEmitTest, AGC_L1_142_EmitOnHdcpChanged_DispatchesToEmitter)
@@ -1103,7 +1103,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_142_EmitOnHdcpChanged_DispatchesToEmitter)
     ASSERT_NE(systemDelegate, nullptr);
     systemDelegate->EmitOnHdcpChanged();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 TEST_F(SystemDelegateEmitTest, AGC_L1_143_EmitOnHdrChanged_DispatchesToEmitter)
@@ -1122,7 +1122,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_143_EmitOnHdrChanged_DispatchesToEmitter)
     ASSERT_NE(systemDelegate, nullptr);
     systemDelegate->EmitOnHdrChanged();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 TEST_F(SystemDelegateEmitTest, AGC_L1_144_EmitOnAudioChanged_DispatchesToEmitter)
@@ -1141,7 +1141,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_144_EmitOnAudioChanged_DispatchesToEmitter
     ASSERT_NE(systemDelegate, nullptr);
     systemDelegate->EmitOnAudioChanged();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 TEST_F(SystemDelegateEmitTest, AGC_L1_145_EmitOnNameChanged_DispatchesToEmitter)
@@ -1160,7 +1160,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_145_EmitOnNameChanged_DispatchesToEmitter)
     ASSERT_NE(systemDelegate, nullptr);
     systemDelegate->EmitOnNameChanged();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 /* ================================================================

@@ -116,7 +116,7 @@ protected:
     void TearDown() override
     {
         plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 };
 
@@ -343,7 +343,7 @@ protected:
     void TearDown() override
     {
         plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 };
 
@@ -411,7 +411,7 @@ protected:
     void TearDown() override
     {
         plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
         for (auto* e : heapEmitters) {
             testing::Mock::VerifyAndClearExpectations(e);
             delete e;
@@ -432,7 +432,7 @@ TEST_F(NetworkNotificationTest, AGC_L1_159_NetworkSubscription_RegistersAndCaptu
     EXPECT_TRUE(status);
 
     // Wait for the async EventRegistrationJob to complete
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     // The subscription dispatches asynchronously; verify notification was captured
     EXPECT_NE(capturedNotification, nullptr);
@@ -447,7 +447,7 @@ TEST_F(NetworkNotificationTest, AGC_L1_160_NetworkNotification_onActiveInterface
     // Subscribe to Network.onConnectedChanged
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "Network.onConnectedChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     ASSERT_NE(capturedNotification, nullptr);
 
     // Fire onActiveInterfaceChange: empty current → disconnected
@@ -455,7 +455,7 @@ TEST_F(NetworkNotificationTest, AGC_L1_160_NetworkNotification_onActiveInterface
     capturedNotification->onActiveInterfaceChange("eth0", "");
 
     // Give worker pool time to dispatch
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
 }
 
 TEST_F(NetworkNotificationTest, AGC_L1_161_NetworkNotification_onInternetStatusChange_Dispatches)
@@ -467,7 +467,7 @@ TEST_F(NetworkNotificationTest, AGC_L1_161_NetworkNotification_onInternetStatusC
     // Subscribe to device.onNetworkChanged
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "device.onNetworkChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     ASSERT_NE(capturedNotification, nullptr);
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("device.onNetworkChanged"), _, _)).Times(::testing::AtLeast(1));
@@ -477,7 +477,7 @@ TEST_F(NetworkNotificationTest, AGC_L1_161_NetworkNotification_onInternetStatusC
         "eth0"
     );
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
 }
 
 } // namespace

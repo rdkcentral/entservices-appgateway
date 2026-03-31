@@ -511,6 +511,23 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS)
         endif()
 
         install(TARGETS AppGatewayCommonL1Test RUNTIME DESTINATION bin)
+
+        # Precompiled headers: cache expensive gtest/gmock and Thunder headers
+        # to reduce per-TU parse time (requires CMake >= 3.16).
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.16")
+            target_precompile_headers(AppGatewayCommonL1Test PRIVATE
+                <gmock/gmock.h>
+                <gtest/gtest.h>
+                <core/core.h>
+                <plugins/plugins.h>
+                <string>
+                <map>
+                <mutex>
+                <memory>
+                <functional>
+                <unordered_map>
+            )
+        endif()
     endif()
 
     if(PLUGIN_APPNOTIFICATIONS)

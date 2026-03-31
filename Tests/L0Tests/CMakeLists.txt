@@ -521,6 +521,21 @@ set_target_properties(appgatewaycommon_l0test PROPERTIES
     INSTALL_RPATH "${APPGW_INSTALL_RPATH}"
 )
 
+# Precompiled headers: cache expensive Thunder framework and STL headers
+# to reduce per-TU parse time (requires CMake >= 3.16).
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.16")
+    target_precompile_headers(appgatewaycommon_l0test PRIVATE
+        <core/core.h>
+        <plugins/plugins.h>
+        <string>
+        <map>
+        <mutex>
+        <memory>
+        <functional>
+        <unordered_map>
+    )
+endif()
+
 add_custom_target(run_appgatewaycommon
     DEPENDS appgatewaycommon_l0test
     COMMAND $<TARGET_FILE:appgatewaycommon_l0test>

@@ -167,7 +167,7 @@ protected:
     {
         if (!initialized_) return;
         plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
         for (auto* e : heapEmitters) {
             testing::Mock::VerifyAndClearExpectations(e);
             delete e;
@@ -557,7 +557,7 @@ protected:
     void TearDown() override
     {
         plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 };
 
@@ -745,7 +745,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_195_HandleEvent_InvalidEvent_NotHandled)
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     // Event is not recognized by any delegate — status should reflect unsuccessful match
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
 }
 
 TEST_F(LifecycleDelegateTest, AGC_L1_196_HandleEvent_ValidLifecycleEvent_Subscription)
@@ -759,7 +759,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_196_HandleEvent_ValidLifecycleEvent_Subscri
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
 }
 
 TEST_F(LifecycleDelegateTest, AGC_L1_197_HandleEvent_ValidLifecycleEvent_Unsubscription)
@@ -771,13 +771,13 @@ TEST_F(LifecycleDelegateTest, AGC_L1_197_HandleEvent_ValidLifecycleEvent_Unsubsc
     // Subscribe first
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "Lifecycle.onBackground", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
     EXPECT_TRUE(status);
 
     // Now unsubscribe
     status = false;
     const auto rc = plugin.HandleAppEventNotifier(emitter, "Lifecycle.onBackground", false, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
@@ -832,7 +832,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_198_OnFocus_DispatchesFocusedChanged_And_Fo
     // Fire OnFocus
     capturedWMNotification->OnFocus("instance-focus-001");
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 TEST_F(LifecycleDelegateTest, AGC_L1_199_OnBlur_DispatchesFocusedChanged_And_Background)
@@ -855,7 +855,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_199_OnBlur_DispatchesFocusedChanged_And_Bac
     );
     // Focus the app so blur will clear it
     capturedWMNotification->OnFocus("instance-blur-001");
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
     auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
     ASSERT_NE(lifecycleDelegate, nullptr);
@@ -878,7 +878,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_199_OnBlur_DispatchesFocusedChanged_And_Bac
     // Fire OnBlur
     capturedWMNotification->OnBlur("instance-blur-001");
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 /* ================================================================
@@ -920,7 +920,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_200_Terminating_DispatchesOnUnloading)
         ""
     );
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 /* ================================================================
@@ -939,13 +939,13 @@ TEST_F(LifecycleDelegateTest, AGC_L1_201_HandleEvent_PresentationFocusedChanged_
     // Subscribe
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "Presentation.onFocusedChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
     EXPECT_TRUE(status);
 
     // Unsubscribe
     status = false;
     const auto rc = plugin.HandleAppEventNotifier(emitter, "Presentation.onFocusedChanged", false, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);

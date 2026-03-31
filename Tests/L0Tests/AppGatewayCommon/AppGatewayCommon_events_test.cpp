@@ -101,7 +101,7 @@ uint32_t Test_HandleAppEventNotifier_ValidCb()
     // Best-effort drain: give the WorkerPool time to dispatch the two async
     // EventRegistrationJobs before teardown, preventing use-after-free.
     // The jobs are trivial (single delegate call), so 100ms is generous.
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     emitter->Release(); // drop our initial ref
     ps.plugin->Deinitialize(ps.service);
@@ -161,7 +161,7 @@ uint32_t Test_HandleAppEventNotifier_UnrecognizedEvent()
     ExpectTrue(tr, status, "Gap1: status is true (async job submitted successfully)");
 
     // Wait for async EventRegistrationJob to dispatch and exercise the delegate routing.
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     emitter->Release();
     ps.plugin->Deinitialize(ps.service);
@@ -190,7 +190,7 @@ uint32_t Test_HandleAppEventNotifier_NetworkEvent_ListenTrue()
     ExpectEqU32(tr, rc, ERROR_NONE, "Gap2: network event listen=true returns ERROR_NONE (job submitted)");
     ExpectTrue(tr, status, "Gap2: status is true (async job submitted successfully)");
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     emitter->Release();
     ps.plugin->Deinitialize(ps.service);
@@ -218,7 +218,7 @@ uint32_t Test_HandleAppEventNotifier_UserSettingsEvent_ListenTrue()
     ExpectEqU32(tr, rc, ERROR_NONE, "Gap3: usersettings event listen=true returns ERROR_NONE (job submitted)");
     ExpectTrue(tr, status, "Gap3: status is true (async job submitted successfully)");
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     emitter->Release();
     ps.plugin->Deinitialize(ps.service);
@@ -249,7 +249,7 @@ uint32_t Test_HandleAppEventNotifier_TTSEvent_ListenTrue()
     ExpectEqU32(tr, rc, ERROR_NONE, "Gap4: TTS event listen=true returns ERROR_NONE (job submitted)");
     ExpectTrue(tr, status, "Gap4: status is true (async job submitted successfully)");
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     emitter->Release();
     ps.plugin->Deinitialize(ps.service);
@@ -286,7 +286,7 @@ uint32_t Test_HandleAppEventNotifier_SystemDeviceEvent()
     ExpectTrue(tr, status2, "Gap5: status is true (unlisten job submitted)");
 
     // Wait for both async EventRegistrationJobs to dispatch.
-    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    std::this_thread::sleep_for(std::chrono::milliseconds(15));
 
     emitter->Release();
     ps.plugin->Deinitialize(ps.service);
@@ -315,7 +315,7 @@ uint32_t Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly()
     ExpectEqU32(tr, rc, ERROR_NONE, "Gap7: network event listen=false returns ERROR_NONE (job submitted)");
     ExpectTrue(tr, status, "Gap7: status is true (async job submitted successfully)");
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     emitter->Release();
     ps.plugin->Deinitialize(ps.service);
