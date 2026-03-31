@@ -4,6 +4,11 @@ on:
   pull_request_review:
     types: [submitted, edited, dismissed]
 
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+
 env:
   QA_TEAM: 'app-infrastructure-qa'
   DEV_TEAM: 'app-infrastructure-dev'
@@ -22,7 +27,7 @@ jobs:
       id: check_reviews
       uses: actions/github-script@v7
       with:
-        github-token: ${{ secrets.TEAM_CHECK }}
+        github-token: ${{ secrets.TEAM_CHECK || secrets.GITHUB_TOKEN }}
         retries: 3
         script: |
           // Enhanced error handling and retry logic
@@ -228,19 +233,19 @@ jobs:
       if: success()
       uses: ./.github/actions/cleanup-review-comments
       with:
-        github-token: ${{ secrets.TEAM_CHECK }}
+        github-token: ${{ secrets.TEAM_CHECK || secrets.GITHUB_TOKEN }}
 
     - name: Clean up old review comments before adding new one
       if: failure()
       uses: ./.github/actions/cleanup-review-comments
       with:
-        github-token: ${{ secrets.TEAM_CHECK }}
+        github-token: ${{ secrets.TEAM_CHECK || secrets.GITHUB_TOKEN }}
 
     - name: Add review status comment
       if: failure()
       uses: actions/github-script@v7
       with:
-        github-token: ${{ secrets.TEAM_CHECK }}
+        github-token: ${{ secrets.TEAM_CHECK || secrets.GITHUB_TOKEN }}
         script: |
           // Create new comment
           console.log('💬 Adding new review status comment...');
@@ -267,7 +272,7 @@ jobs:
       if: always()
       uses: actions/github-script@v7
       with:
-        github-token: ${{ secrets.TEAM_CHECK }}
+        github-token: ${{ secrets.TEAM_CHECK || secrets.GITHUB_TOKEN }}
         script: |
           const state = '${{ job.status }}' === 'success' ? 'success' : 'failure';
           const description = state === 'success' 
