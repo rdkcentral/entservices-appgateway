@@ -1,0 +1,285 @@
+name: PR Review Check
+
+on:
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+env:
+  QA_TEAM: 'app-infrastructure-qa'
+  DEV_TEAM: 'app-infrastructure-dev'
+  
+jobs:
+  check-reviews:
+    runs-on: Comcast-ubuntu-latest
+    # Skip checks for draft PRs
+    if: github.event.pull_request.draft == false
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check PR reviews
+      id: check_reviews
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.TEAM_CHECK }}
+        retries: 3
+        script: |
+          // Enhanced error handling and retry logic
+          async function safeApiCall(apiCall, description) {
+            try {
+              return await apiCall();
+            } catch (error) {
+              console.log(`⚠️  Failed to ${description}: ${error.message}`);
+              return null;
+            }
+          }
+
+          // Get PR details with error handling
+          let prNumber;
+          try {
+            prNumber = context.payload.pull_request?.number;
+            if (!prNumber) {
+              throw new Error('Could not determine PR number from context');
+            }
+            console.log(`🔍 Checking reviews for PR #${prNumber}`);
+          } catch (error) {
+            core.setFailed(`Failed to get PR context: ${error.message}`);
+            return;
+          }
+
+          const prAuthor = context.payload.pull_request?.user?.login;
+          console.log(`👤 PR author: ${prAuthor}`);
+          if (!prAuthor) {
+            core.warning('⚠️ Could not determine PR author — author exclusion will not apply');
+          }
+
+          // Get reviews with enhanced error handling
+          const reviews = await safeApiCall(async () => {
+            const { data } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+            return data;
+          }, 'fetch PR reviews');
+
+          if (!reviews) {
+            core.setFailed('Unable to fetch PR reviews');
+            return;
+          }
+
+          console.log(`📋 Found ${reviews.length} total reviews`);
+
+          // Primary: Fetch team members from GitHub Teams API
+          const qaGroup = process.env.QA_TEAM || 'App-Infrastructure-QA';
+          const devGroup = process.env.DEV_TEAM || 'App-Infrastructure-DEV';
+          
+          // Convert to team slugs (GitHub API expects lowercase)
+          const qaGroupSlug = qaGroup.toLowerCase();
+          const devGroupSlug = devGroup.toLowerCase();
+          
+          let qaLogins = new Set();
+          let devLogins = new Set();
+          let useTeamsApi = false;
+
+          console.log(`🔍 Fetching team members from GitHub Teams API for ${qaGroupSlug} and ${devGroupSlug}...`);
+          
+          // Fetch QA team members
+          const qaMembers = await safeApiCall(async () => {
+            return await github.paginate(
+              github.rest.teams.listMembersInOrg,
+              {
+                org: context.repo.owner,
+                team_slug: qaGroupSlug,
+                per_page: 100
+              }
+            );
+          }, `fetch ${qaGroup} team members`);
+
+          if (qaMembers) {
+            qaLogins = new Set(qaMembers.map(member => member.login));
+            console.log(`✅ Found ${qaMembers.length} QA team members: [${Array.from(qaLogins).join(', ')}]`);
+            useTeamsApi = true;
+          }
+
+          // Fetch DEV team members
+          const devMembers = await safeApiCall(async () => {
+            return await github.paginate(
+              github.rest.teams.listMembersInOrg,
+              {
+                org: context.repo.owner,
+                team_slug: devGroupSlug,
+                per_page: 100
+              }
+            );
+          }, `fetch ${devGroup} team members`);
+
+          if (devMembers) {
+            devLogins = new Set(devMembers.map(member => member.login));
+            console.log(`✅ Found ${devMembers.length} DEV team members: [${Array.from(devLogins).join(', ')}]`);
+            useTeamsApi = true;
+          }
+
+          // Require both teams to be accessible via API
+          if (!qaLogins.size || !devLogins.size) {
+            const missingTeams = [];
+            if (!qaLogins.size) missingTeams.push(qaGroup);
+            if (!devLogins.size) missingTeams.push(devGroup);
+            
+            core.setFailed(
+              `❌ Unable to fetch team members for: ${missingTeams.join(', ')}. ` +
+              `Teams API access is required for review validation. ` +
+              `Check token permissions (read:org scope) and team existence.`
+            );
+            return;
+          }
+
+          console.log('🎯 Using GitHub Teams API for review validation');
+
+          // Determine the latest review state per user
+          // Sort reviews by submission time to ensure we get the actual latest review
+          const sortedReviews = reviews
+            .filter(review => review.user && review.user.login)
+            .sort((a, b) => new Date(a.submitted_at) - new Date(b.submitted_at));
+          
+          const latestReviewStateByUser = new Map();
+          
+          // Process reviews in chronological order, so later reviews overwrite earlier ones
+          for (const review of sortedReviews) {
+            const login = review.user.login;
+            latestReviewStateByUser.set(login, review.state);
+            console.log(`   📝 ${login} review: ${review.state} (${review.submitted_at})`);
+          }
+
+          // Enhanced reviewer lookup with debugging
+          console.log(`👥 Reviewers found: [${Array.from(latestReviewStateByUser.keys()).join(', ')}]`);
+          console.log(`📊 Final review states after processing all reviews:`);
+          
+          // Log review states for debugging
+          for (const [login, state] of latestReviewStateByUser.entries()) {
+            console.log(`   - ${login}: ${state}`);
+          }
+
+          let hasQaApproval = false;
+          let hasDevApproval = false;
+
+          // Check QA team approvals - only count APPROVED reviews, exclude DISMISSED
+          hasQaApproval = Array.from(latestReviewStateByUser.entries()).some(
+            ([login, state]) => {
+              const isQaMember = qaLogins.has(login);
+              const isAuthor = login === prAuthor;
+              const isApproved = state === 'APPROVED';
+              if (isQaMember && !isAuthor) {
+                console.log(`   👥 QA member ${login}: ${state} ${isApproved ? '✅' : '❌'}`);
+              }
+              if (isQaMember && isAuthor) {
+                console.log(`   👥 QA member ${login} is PR author (${state}), skipping`);
+              }
+              return isQaMember && isApproved && !isAuthor;
+            }
+          );
+
+          // Check DEV team approvals - only count APPROVED reviews, exclude DISMISSED  
+          hasDevApproval = Array.from(latestReviewStateByUser.entries()).some(
+            ([login, state]) => {
+              const isDevMember = devLogins.has(login);
+              const isAuthor = login === prAuthor;
+              const isApproved = state === 'APPROVED';
+              if (isDevMember && !isAuthor) {
+                console.log(`   👨‍💻 DEV member ${login}: ${state} ${isApproved ? '✅' : '❌'}`);
+              }
+              if (isDevMember && isAuthor) {
+                console.log(`   👨‍💻 DEV member ${login} is PR author (${state}), skipping`);
+              }
+              return isDevMember && isApproved && !isAuthor;
+            }
+          );
+          
+          console.log(`✅ QA approval status: ${hasQaApproval}`);
+          console.log(`✅ DEV approval status: ${hasDevApproval}`);
+
+          if (!hasQaApproval || !hasDevApproval) {
+            const missingTeams = [];
+            if (!hasQaApproval) {
+              missingTeams.push(qaGroup);
+            }
+            if (!hasDevApproval) {
+              missingTeams.push(devGroup);
+            }
+
+            let message;
+            if (missingTeams.length === 1) {
+              message = `PR is missing an approved review from team: ${missingTeams[0]}`;
+            } else {
+              message = `PR is missing approved reviews from teams: ${missingTeams.join(' and ')}`;
+            }
+
+            core.setFailed(message);
+          }
+
+    - name: Success message
+      if: success()
+      run: |
+        echo "✅ PR has the required reviews from both QA and DEV teams."
+        echo "🎉 Ready for merge!"
+
+    - name: Clean up old review warning comments on success
+      if: success()
+      uses: ./.github/actions/cleanup-review-comments
+      with:
+        github-token: ${{ secrets.TEAM_CHECK }}
+
+    - name: Clean up old review comments before adding new one
+      if: failure()
+      uses: ./.github/actions/cleanup-review-comments
+      with:
+        github-token: ${{ secrets.TEAM_CHECK }}
+
+    - name: Add review status comment
+      if: failure()
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.TEAM_CHECK }}
+        script: |
+          // Create new comment
+          console.log('💬 Adding new review status comment...');
+          
+          const commentBody = [
+            '<!-- AUTO-GENERATED-REVIEW-WARNING -->',
+            '⚠️ **Review Requirements Not Met**',
+            '',
+            'This PR needs approved reviews from both:',
+            `- 👥 **QA Team**: ${process.env.QA_TEAM || 'app-infrastructure-qa'}`,
+            `- 👨‍💻 **DEV Team**: ${process.env.DEV_TEAM || 'app-infrastructure-dev'}`,
+            '',
+            '🔔 Reviews have been requested from both teams. If you have not received a notification, please ping the appropriate team members.'
+          ].join('\n');
+          
+          await github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: commentBody
+          });
+
+    - name: Set status check
+      if: always()
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.TEAM_CHECK }}
+        script: |
+          const state = '${{ job.status }}' === 'success' ? 'success' : 'failure';
+          const description = state === 'success' 
+            ? 'All required reviews received' 
+            : 'Missing required team reviews';
+            
+          await github.rest.repos.createCommitStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            sha: context.sha,
+            state: state,
+            target_url: `${context.payload.repository.html_url}/actions/runs/${context.runId}`,
+            description: description,
+            context: 'pr-review-check'
+          });
