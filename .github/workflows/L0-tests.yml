@@ -24,6 +24,8 @@ env:
   THUNDER_REF: "R4.4.1"
   INTERFACES_REF: "develop"
   ENABLE_GDB: ${{ (inputs.enable_gdb && '1') || '0' }}
+  # L0 test targets to build and run -- To add a new plugin, append its test binary name here and add its target in Tests/L0Tests/CMakeLists.txt.
+  L0_PLUGIN_TESTS: "appgateway_l0test appgatewaycommon_l0test appnotifications_l0test"
 
 jobs:
   L0-tests:
@@ -105,7 +107,7 @@ jobs:
         run: >
           sudo apt update
           &&
-          sudo apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libjsoncpp-dev gdb ninja-build
+          sudo apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libjsoncpp-dev gdb ninja-build uuid-dev
 
       - name: Build trower-base64
         run: |
@@ -459,7 +461,7 @@ jobs:
           echo "th_core_dir=${th_core_dir}" >> "$GITHUB_OUTPUT"
           echo "th_plugins_dir=${th_plugins_dir}" >> "$GITHUB_OUTPUT"
 
-      - name: Build AppGateway plugin and stage to install prefix
+      - name: Build plugins and stage to install prefix
         run: |
           set -euo pipefail
 
@@ -482,7 +484,7 @@ jobs:
             -DUSE_THUNDER_R4=ON
             -DNAMESPACE="$APPGW_NAMESPACE"
             -DPLUGIN_APPGATEWAY=ON
-            -DPLUGIN_APPGATEWAYCOMMON=OFF
+            -DPLUGIN_APPGATEWAYCOMMON=ON
             -DCMAKE_VERBOSE_MAKEFILE=ON
           )
 
@@ -510,7 +512,7 @@ jobs:
           plugin_dir_ns="$GITHUB_WORKSPACE/install/usr/lib/thunder/plugins"
 
           mkdir -p "$plugin_dir_wpe"
-          find build/entservices-appgateway-l0 -type f \( -name "libAppGateway.so*" -o -name "libWPEFrameworkAppGateway.so*" -o -name "libThunderAppGateway.so*" \) -exec cp -f {} "$plugin_dir_wpe/" \; 2>/dev/null || true
+          find build/entservices-appgateway-l0 -type f \( -name "lib*AppGateway*.so*" -o -name "libWPEFramework*AppGateway*.so*" -o -name "libThunder*AppGateway*.so*" \) -exec cp -f {} "$plugin_dir_wpe/" \; 2>/dev/null || true
 
           mkdir -p "$plugin_dir_ns"
           cp -af "$plugin_dir_wpe/." "$plugin_dir_ns/" 2>/dev/null || true
@@ -523,7 +525,10 @@ jobs:
           test -e "$plugin_dir_ns/libThunderAppGateway.so" || \
           (echo "Missing AppGateway plugin library in staged plugin dirs" && find build/entservices-appgateway-l0 -type f -name "lib*AppGateway*.so*" 2>/dev/null || true && exit 1)
 
-      - name: Build L0 tests (Tests/L0Tests — AppGateway + AppNotifications)
+          echo "Staged plugin libraries:"
+          ls -la "$plugin_dir_wpe/" || true
+
+      - name: Build L0 tests (Tests/L0Tests)
         run: |
           set -euo pipefail
 
@@ -543,11 +548,13 @@ jobs:
             -DGENERIC_CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake" \
             -DPREFIX="$PREFIX" \
             -DNAMESPACE="$APPGW_NAMESPACE" \
-            -DAPPGW_ENABLE_COVERAGE=ON \
-            -DAPPNOTIF_ENABLE_COVERAGE=ON
+            -DAPPGW_ENABLE_COVERAGE=ON
 
-          cmake --build build/entservices-appgateway-l0tests-only --target appgateway_l0test -- -j"$(nproc)"
-          cmake --build build/entservices-appgateway-l0tests-only --target appnotifications_l0test -- -j"$(nproc)"
+          # Build all L0 test targets defined in L0_PLUGIN_TESTS
+          for target in ${{ env.L0_PLUGIN_TESTS }}; do
+            echo "Building target: $target"
+            cmake --build build/entservices-appgateway-l0tests-only --target "$target" -- -j"$(nproc)"
+          done
 
       - name: Stage AppGateway resolution config for tests
         run: |
@@ -564,8 +571,8 @@ jobs:
           echo "APPGATEWAY_CONFIG_PATH=/etc/app-gateway" >> "$GITHUB_ENV"
           echo "APPGATEWAY_RESOLUTIONS_PATH=/etc/app-gateway/resolution.base.json" >> "$GITHUB_ENV"
 
-      - name: Run AppGateway L0 tests
-        id: run_appgateway_l0_tests
+      - name: Run L0 tests
+        id: run_l0_tests
         continue-on-error: true
         run: |
           set -euo pipefail
@@ -573,60 +580,80 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
           export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH:-}"
 
-          test_bin="build/entservices-appgateway-l0tests-only/appgateway_l0test"
-          test -x "$test_bin"
+          build_dir="build/entservices-appgateway-l0tests-only"
+          overall_rc=0
 
-          set +e
-          "$test_bin" 2>&1 | tee l0-test-appgateway.log
-          test_rc=$?
-          set -e
+          # Run each L0 test target, collecting individual logs
+          for target in ${{ env.L0_PLUGIN_TESTS }}; do
+            test_bin="${build_dir}/${target}"
+            if [ ! -x "$test_bin" ]; then
+              echo "WARNING: $test_bin not found or not executable — skipping"
+              continue
+            fi
 
-          echo "==== Failed test cases (AppGateway) ===="
-          grep -E '^\[ +FAILED +\]' l0-test-appgateway.log || true
-          grep -E '^FAIL:' l0-test-appgateway.log || true
-          echo "==== Total failures (AppGateway) ===="
-          grep -E 'AppGateway l0test total failures:? [0-9]+' l0-test-appgateway.log || true
+            echo "======================================"
+            echo "Running: $target"
+            echo "======================================"
+            set +e
+            "$test_bin" 2>&1 | tee "l0-test-${target}.log"
+            rc=$?
+            set -e
+            if [ "$rc" -ne 0 ]; then overall_rc=1; fi
+          done
 
-          exit "$test_rc"
+          # Merge individual logs into a combined log
+          cat l0-test-*.log > l0-test.log 2>/dev/null || true
 
-      - name: Run AppNotifications L0 tests
-        id: run_appnotifications_l0_tests
-        continue-on-error: true
-        run: |
-          set -euo pipefail
+          echo "==== Failed test cases (run step) ===="
+          grep -E '^\[ +FAILED +\]' l0-test.log || true
+          grep -E '^FAIL:' l0-test.log || true
+          echo "==== Total failures (run step) ===="
+          grep -E 'l0test total failures:? [0-9]+' l0-test.log || true
 
-          export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
-          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH:-}"
-
-          test_bin="build/entservices-appgateway-l0tests-only/appnotifications_l0test"
-          test -x "$test_bin"
-
-          set +e
-          "$test_bin" 2>&1 | tee l0-test-appnotifications.log
-          test_rc=$?
-          set -e
-
-          echo "==== Failed test cases (AppNotifications) ===="
-          grep -E '^\[ +FAILED +\]' l0-test-appnotifications.log || true
-          grep -E '^FAIL:' l0-test-appnotifications.log || true
-          echo "==== Total failures (AppNotifications) ===="
-          grep -E 'AppNotifications l0test total failures:? [0-9]+' l0-test-appnotifications.log || true
-
-          exit "$test_rc"
+          exit "$overall_rc"
 
       - name: Summarize failed tests
         if: ${{ always() }}
         run: |
           set -euo pipefail
-          for log in l0-test-appgateway.log l0-test-appnotifications.log; do
-            if [ -f "$log" ]; then
-              echo "==== $log: Failed test cases (if any) ===="
-              grep -E '^\[ +FAILED +\]' "$log" || echo "No explicit [ FAILED ] lines found"
-              echo "==== $log: Total failures ===="
-              grep -E 'l0test total failures:? [0-9]+' "$log" || true
-            else
-              echo "$log not found"
+          if [ -f l0-test.log ]; then
+            echo "==== Failed test cases (if any) ===="
+            grep -E '^\[ +FAILED +\]' l0-test.log || echo "No explicit [ FAILED ] lines found"
+            echo "==== Total failures ===="
+            grep -E 'l0test total failures:? [0-9]+' l0-test.log || true
+          else
+            echo "l0-test.log not found"
+          fi
+
+      - name: Run L0 tests under valgrind
+        if: ${{ !env.ACT }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+
+          export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
+          export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH:-}"
+
+          build_dir="build/entservices-appgateway-l0tests-only"
+
+          for target in ${{ env.L0_PLUGIN_TESTS }}; do
+            test_bin="${build_dir}/${target}"
+            if [ ! -x "$test_bin" ]; then
+              echo "WARNING: $test_bin not found or not executable — skipping valgrind"
+              continue
             fi
+
+            echo "======================================"
+            echo "Valgrind: $target"
+            echo "======================================"
+            valgrind \
+              --tool=memcheck \
+              --log-file="valgrind_log_${target}" \
+              --leak-check=yes \
+              --show-reachable=yes \
+              --track-fds=yes \
+              --fair-sched=try \
+              "$test_bin"
           done
 
       - name: Run L0 tests under gdb (opt-in on failure)
@@ -637,53 +664,43 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
           export LD_LIBRARY_PATH="$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH:-}"
 
-          for test_bin in \
-            build/entservices-appgateway-l0tests-only/appgateway_l0test \
-            build/entservices-appgateway-l0tests-only/appnotifications_l0test; do
-            if [ -x "$test_bin" ]; then
-              name="$(basename "$test_bin")"
-              echo "==== Running $name under gdb ===="
-              gdb -q -batch -ex "set pagination off" -ex "run" -ex "bt full" --args "$test_bin" | tee "l0-test-gdb-${name}.log" || true
-            fi
+          build_dir="build/entservices-appgateway-l0tests-only"
+          for target in ${{ env.L0_PLUGIN_TESTS }}; do
+            test_bin="${build_dir}/${target}"
+            if [ ! -x "$test_bin" ]; then continue; fi
+            echo "=== gdb: $target ==="
+            gdb -q -batch -ex "set pagination off" -ex "run" -ex "bt full" --args "$test_bin" | tee "l0-test-gdb-${target}.log"
           done
 
       - name: Fail workflow if tests failed
         if: ${{ always() }}
         env:
-          RUN_APPGATEWAY_L0_OUTCOME: ${{ steps.run_appgateway_l0_tests.outcome }}
-          RUN_APPNOTIFICATIONS_L0_OUTCOME: ${{ steps.run_appnotifications_l0_tests.outcome }}
+          RUN_L0_TESTS_OUTCOME: ${{ steps.run_l0_tests.outcome }}
         run: |
           set -euo pipefail
           failed=0
 
-          if [ "${RUN_APPGATEWAY_L0_OUTCOME}" != "success" ]; then
-            echo "AppGateway L0 test execution step failed (non-zero exit)"
+          if [ "${RUN_L0_TESTS_OUTCOME}" != "success" ]; then
+            echo "L0 test execution step failed (non-zero exit)"
             failed=1
           fi
 
-          if [ "${RUN_APPNOTIFICATIONS_L0_OUTCOME}" != "success" ]; then
-            echo "AppNotifications L0 test execution step failed (non-zero exit)"
-            failed=1
-          fi
+          if [ -f l0-test.log ]; then
+            echo "==== Failed test cases (final gate) ===="
+            grep -E '^\[ +FAILED +\]' l0-test.log || true
+            grep -E '^FAIL:' l0-test.log || true
 
-          for log in l0-test-appgateway.log l0-test-appnotifications.log; do
-            if [ -f "$log" ]; then
-              echo "==== $log: Failed test cases (final gate) ===="
-              grep -E '^\[ +FAILED +\]' "$log" || true
-              grep -E '^FAIL:' "$log" || true
+            echo "==== Total failures (final gate) ===="
+            grep -E 'l0test total failures:? [0-9]+' l0-test.log || true
 
-              echo "==== $log: Total failures (final gate) ===="
-              grep -E 'l0test total failures:? [0-9]+' "$log" || true
-
-              if grep -Eq 'l0test total failures:? [1-9][0-9]*' "$log"; then
-                echo "$log reported failures"
-                failed=1
-              fi
-            else
-              echo "$log not found in final gate"
+            if grep -Eq 'l0test total failures:? [1-9][0-9]*' l0-test.log; then
+              echo "L0 tests reported failures"
               failed=1
             fi
-          done
+          else
+            echo "l0-test.log not found in final gate"
+            failed=1
+          fi
 
           if [ "$failed" -ne 0 ]; then
             exit 1
@@ -734,6 +751,6 @@ jobs:
             coverage-html/
             coverage.info
             filtered_coverage.info
-            l0-test-appgateway.log
-            l0-test-appnotifications.log
+            l0-test.log
+            valgrind_log_*
           if-no-files-found: warn

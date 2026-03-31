@@ -54,6 +54,10 @@ if(DISABLE_SECURITY_TOKEN)
     add_definitions(-DDISABLE_SECURITY_TOKEN)
 endif()
 
+if(USE_THUNDER_R4)
+    add_definitions(-DUSE_THUNDER_R4)
+endif()
+
 if(PLUGIN_APPGATEWAY)
     add_subdirectory(AppGateway)
 endif()

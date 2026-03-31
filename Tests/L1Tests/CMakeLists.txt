@@ -252,7 +252,15 @@ endif()
 if(PLUGIN_APPGATEWAYCOMMON)
     message(STATUS "AppGatewayCommon L1 tests: ENABLED (PLUGIN_APPGATEWAYCOMMON=ON)")
 
-    list(APPEND APPGATEWAYCOMMON_L1TEST_SRC tests/test_AppGatewayCommon.cpp)
+    list(APPEND APPGATEWAYCOMMON_L1TEST_SRC
+        AppGatewayCommon/AppGatewayCommon_core_test.cpp
+        AppGatewayCommon/AppGatewayCommon_appdelegate_test.cpp
+        AppGatewayCommon/AppGatewayCommon_usersettings_test.cpp
+        AppGatewayCommon/AppGatewayCommon_system_test.cpp
+        AppGatewayCommon/AppGatewayCommon_network_test.cpp
+        AppGatewayCommon/AppGatewayCommon_lifecycle_test.cpp
+        AppGatewayCommon/AppGatewayCommon_events_test.cpp
+    )
 
     list(APPEND APPGATEWAYCOMMON_L1TEST_INC
         ../../helpers
@@ -357,7 +365,7 @@ if(TEST_SRC)
         ${CMAKE_INSTALL_PREFIX}/include
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:include>
-        ${CMAKE_SOURCE_DIR}/Tests/mocks
+        ${CMAKE_CURRENT_SOURCE_DIR}/../mocks
         ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
     )
 
@@ -446,8 +454,7 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS)
 
         ${CMAKE_INSTALL_PREFIX}/include
 
-        ${CMAKE_SOURCE_DIR}/Tests/mocks
-        ${CMAKE_SOURCE_DIR}/../mocks
+        ${CMAKE_CURRENT_SOURCE_DIR}/../mocks
 
             ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
         )
@@ -481,8 +488,7 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS)
 
             ${CMAKE_INSTALL_PREFIX}/include
 
-            ${CMAKE_SOURCE_DIR}/Tests/mocks
-            ${CMAKE_SOURCE_DIR}/../mocks
+            ${CMAKE_CURRENT_SOURCE_DIR}/../mocks
 
             ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
         )
