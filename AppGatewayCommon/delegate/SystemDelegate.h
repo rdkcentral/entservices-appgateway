@@ -73,6 +73,7 @@ public:
         , _displayAudioSubscribed(false)
         , _hdcpSubscribed(false)
         , _systemSubscribed(false)
+        , _timezoneSubscribed(false)
     {
             LOGINFO("SystemDelegate initialized");
     }
