@@ -10,7 +10,7 @@ env:
   
 jobs:
   check-reviews:
-    runs-on: Comcast-ubuntu-latest
+    runs-on: ubuntu-22.04
     # Skip checks for draft PRs
     if: github.event.pull_request.draft == false
 
