@@ -26,7 +26,7 @@ namespace WPEFramework
     namespace Utils
     {
 
-        uint32_t GetThunderSecurityToken(PluginHost::IShell *service, std::string &token)
+        inline uint32_t GetThunderSecurityToken(PluginHost::IShell *service, std::string &token)
         {
             uint32_t result = Core::ERROR_GENERAL;
             auto security = service->QueryInterfaceByCallsign<PluginHost::IAuthenticate>("SecurityAgent");
@@ -166,7 +166,7 @@ namespace WPEFramework
             }
         };
 
-        std::shared_ptr<Utils::JSONRPCDirectLink> GetThunderControllerClient(PluginHost::IShell *service, std::string callsign="")
+        inline std::shared_ptr<Utils::JSONRPCDirectLink> GetThunderControllerClient(PluginHost::IShell *service, std::string callsign="")
         {
             static std::string sThunderSecurityToken("");
             static bool sThunderSecurityTokenAcquired(false);
