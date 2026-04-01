@@ -93,8 +93,13 @@ public:
             if (_hdcpRpc && _hdcpSubscribed) {
                 _hdcpRpc->Unsubscribe(2000, _T("onDisplayConnectionChanged"));
             }
-            if (_systemRpc && _systemSubscribed) {
-                _systemRpc->Unsubscribe(2000, _T("onFriendlyNameChanged"));
+            if (_systemRpc ) {
+                if (_systemSubscribed) {
+                    _systemRpc->Unsubscribe(2000, _T("onFriendlyNameChanged"));
+                }
+                if (_timezoneSubscribed) {
+                    _systemRpc->Unsubscribe(2000, _T("onTimeZoneChanged"));
+                }
             }
         } catch (...) {
             // Safe-guard against destructor exceptions
