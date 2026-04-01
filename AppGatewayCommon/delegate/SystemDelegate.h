@@ -98,7 +98,7 @@ public:
                     _systemRpc->Unsubscribe(2000, _T("onFriendlyNameChanged"));
                 }
                 if (_timezoneSubscribed) {
-                    _systemRpc->Unsubscribe(2000, _T("onTimeZoneChanged"));
+                    _systemRpc->Unsubscribe(2000, _T("onTimeZoneDSTChanged"));
                 }
             }
         } catch (...) {
