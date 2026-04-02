@@ -196,28 +196,28 @@ namespace WPEFramework
             
 
             // Shared pointer will automatically clean up
-            mResolverPtr.reset();
+            {
+                Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
+                mResolverPtr.reset();
+            }
         }
 
         uint32_t AppGatewayImplementation::Configure(PluginHost::IShell *shell)
         {
             LOGINFO("Configuring AppGateway");
-            uint32_t result = Core::ERROR_NONE;
             ASSERT(shell != nullptr);
             mService = shell;
             mService->AddRef();
 
-            result = InitializeResolver();
-            if (Core::ERROR_NONE != result) {
-                return result;
-            }
-            return result;
+            return InitializeResolver();
         }
         
         uint32_t AppGatewayImplementation::InitializeResolver() {
             // Initialize resolver after setting mService
             try {
-                mResolverPtr = std::make_shared<Resolver>(mService);
+                ResolverPtr newResolver = std::make_shared<Resolver>(mService);
+                Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
+                mResolverPtr = std::move(newResolver);
             } catch (const std::bad_alloc& e) {
                 LOGERR("Failed to create Resolver instance: %s", e.what());
                 return Core::ERROR_GENERAL;
@@ -387,7 +387,15 @@ namespace WPEFramework
         Core::hresult AppGatewayImplementation::FetchResolvedData(const Context &context, const string &method, const string &params, const string &origin, string& resolution) {
             JsonObject params_obj;
             Core::hresult result = Core::ERROR_NONE;
-            if (mResolverPtr == nullptr)
+
+            // Take a thread-safe local copy of mResolverPtr to avoid data races
+            ResolverPtr resolver;
+            {
+                Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
+                resolver = mResolverPtr;
+            }
+
+            if (resolver == nullptr)
             {
                 LOGERR("Resolver not initialized");
                 ErrorUtils::CustomInitialize("Resolver not initialized", resolution);
@@ -395,14 +403,14 @@ namespace WPEFramework
             }
 
             // Check if resolver has any resolutions loaded
-            if (!mResolverPtr->IsConfigured())
+            if (!resolver->IsConfigured())
             {
                 LOGERR("Resolver not configured - no resolutions loaded. Call Configure() first.");
                 ErrorUtils::CustomInitialize("Resolver not configured", resolution);
                 return Core::ERROR_GENERAL;
             }
             // Resolve the alias from the method
-            std::string alias = mResolverPtr->ResolveAlias(method);
+            std::string alias = resolver->ResolveAlias(method);
 
             if (alias.empty())
             {
@@ -412,7 +420,7 @@ namespace WPEFramework
             }
 
             std::string permissionGroup;
-            if (mResolverPtr->HasPermissionGroup(method, permissionGroup)) {
+            if (resolver->HasPermissionGroup(method, permissionGroup)) {
                 LOGTRACE("Method '%s' requires permission group '%s'", method.c_str(), permissionGroup.c_str());
                 if (nullptr != GetAppGatewayAuthenticatorInterface()) {
                     bool allowed = false;
@@ -432,16 +440,16 @@ namespace WPEFramework
             }
             LOGTRACE("Resolved method '%s' to alias '%s'", method.c_str(), alias.c_str());            
             // Check if the given method is an event
-            if (mResolverPtr->HasEvent(method)) {
+            if (resolver->HasEvent(method)) {
                 result = PreProcessEvent(context, alias, method, origin, params, resolution);
-            } else if(mResolverPtr->HasComRpcRequestSupport(method)) {
+            } else if(resolver->HasComRpcRequestSupport(method)) {
                 result = ProcessComRpcRequest(context, alias, method, params, origin, resolution);
             } else {
                 // Check if includeContext is enabled for this method
                 std::string finalParams = UpdateContext(context, method, params, origin);
                 LOGTRACE("Final Request params alias=%s Params = %s", alias.c_str(), finalParams.c_str());
 
-                result = mResolverPtr->CallThunderPlugin(alias, finalParams, resolution);
+                result = resolver->CallThunderPlugin(alias, finalParams, resolution);
                 if (result != Core::ERROR_NONE) {
                     LOGERR("Failed to retrieve resolution from Thunder method %s", alias.c_str());
                     ErrorUtils::CustomInternal("Failed with internal error", resolution);

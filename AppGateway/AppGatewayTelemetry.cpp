@@ -148,6 +148,7 @@ namespace Plugin {
 
     TelemetryFormat AppGatewayTelemetry::GetTelemetryFormat() const
     {
+        Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
         return mTelemetryFormat;
     }
 
@@ -958,7 +959,12 @@ namespace Plugin {
         }
 
         // Check if cache threshold reached and flush if needed
-        if (mCachedEventCount >= mCacheThreshold) {
+        bool shouldFlush = false;
+        {
+            Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+            shouldFlush = (mCachedEventCount >= mCacheThreshold);
+        }
+        if (shouldFlush) {
             FlushTelemetryData();
         }
 
@@ -1049,8 +1055,15 @@ namespace Plugin {
         uint32_t successfulCalls = mHealthStats.successfulCalls.load(std::memory_order_relaxed);
         uint32_t failedCalls = mHealthStats.failedCalls.load(std::memory_order_relaxed);
 
-        // All entries in mRequestStates are pending (responded entries are erased immediately)
-        uint32_t pendingCount = static_cast<uint32_t>(mRequestStates.size());
+        // Read non-atomic members under the lock
+        uint32_t pendingCount = 0;
+        uint32_t reportingInterval = 0;
+        {
+            Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+            // All entries in mRequestStates are pending (responded entries are erased immediately)
+            pendingCount = static_cast<uint32_t>(mRequestStates.size());
+            reportingInterval = mReportingIntervalSec;
+        }
 
         // Only send if there's data
         if (0 == totalCalls && 0 == wsConnections && 0 == pendingCount) {
@@ -1060,7 +1073,7 @@ namespace Plugin {
 
         // Send all health stats in a single consolidated payload to T2
         JsonObject healthPayload;
-        healthPayload["reporting_interval_sec"] = mReportingIntervalSec;
+        healthPayload["reporting_interval_sec"] = reportingInterval;
         healthPayload["websocket_connections"] = wsConnections;
         healthPayload["total_calls"] = totalCalls;
         healthPayload["total_responses"] = totalResponses;
@@ -1130,13 +1143,21 @@ namespace Plugin {
 
     void AppGatewayTelemetry::SendAggregatedMetrics()
     {
-        if (mMetricsCache.empty()) {
-            LOGTRACE("No aggregated metrics to report");
-            return;
+        // Take a guarded copy to avoid holding the lock during slow T2 sends
+        std::map<std::string, MetricData> metricsCopy;
+        uint32_t reportingInterval = 0;
+        {
+            Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+            if (mMetricsCache.empty()) {
+                LOGTRACE("No aggregated metrics to report");
+                return;
+            }
+            metricsCopy = mMetricsCache;
+            reportingInterval = mReportingIntervalSec;
         }
 
         // Send each metric with its own marker (the metric name)
-        for (const auto& item : mMetricsCache) {
+        for (const auto& item : metricsCopy) {
             const std::string& metricName = item.first;
             const MetricData& data = item.second;
             
@@ -1154,7 +1175,7 @@ namespace Plugin {
             payload["count"] = data.count;
             payload["avg"] = avgVal;
             payload["unit"] = data.unit;
-            payload["reporting_interval_sec"] = mReportingIntervalSec;
+            payload["reporting_interval_sec"] = reportingInterval;
 
             // Use the metric name as the T2 marker
             LOGINFO("Sending aggregated metric to T2: %s", metricName.c_str());
@@ -1525,7 +1546,13 @@ namespace Plugin {
 
     std::string AppGatewayTelemetry::FormatTelemetryPayload(const JsonObject& jsonPayload)
     {
-        if (mTelemetryFormat == TelemetryFormat::JSON) {
+        TelemetryFormat format;
+        {
+            Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+            format = mTelemetryFormat;
+        }
+
+        if (format == TelemetryFormat::JSON) {
             // JSON format: Return as-is
             std::string payloadStr;
             jsonPayload.ToString(payloadStr);

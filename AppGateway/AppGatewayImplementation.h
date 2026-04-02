@@ -121,6 +121,7 @@ namespace Plugin {
 
         PluginHost::IShell* mService;
         ResolverPtr mResolverPtr;
+        mutable Core::CriticalSection mResolverLock;
         mutable Core::CriticalSection mAppNotificationsLock;
         mutable Core::CriticalSection mAppGatewayResponderLock;
         mutable Core::CriticalSection mInternalGatewayResponderLock;

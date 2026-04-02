@@ -731,7 +731,7 @@ public:
                  if (token.empty()) {
                      continue;
                  }
-                 std::string u = token;
+                 std::string u = std::move(token);
                  std::transform(u.begin(), u.end(), u.begin(), [](unsigned char c){ return static_cast<char>(::toupper(c)); });
 
                  // Stereo detection
