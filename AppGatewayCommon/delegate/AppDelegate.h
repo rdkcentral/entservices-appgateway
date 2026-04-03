@@ -121,24 +121,23 @@ class AppDelegate {
                 return GetAdvertisingId(context.appId, result);
             } else if ("device.uid" == lowerMethod) {
                 return GetDeviceUID(context.appId, result);
-            } else if ("device.memoryusage" == lowerMethod) {
-                return GetDeviceMemoryUsage(context.appId, result);
+            } else if ("device.memory" == lowerMethod) {
+                return GetDeviceMemory(result);
             }
             
             ErrorUtils::CustomInternal("Not Supported", result);
             return Core::ERROR_UNAVAILABLE;
         }
 
-        Core::hresult GetDeviceMemoryUsage(const std::string &appId, string &result /* @out */) {
-            // TODO: Confirm the containerId format for this platform.
-            // The sample shows "com.sky.as.apps_<appId>" — prefix is platform-specific.
-            // Using appId directly until the mapping convention is confirmed.
-            const std::string containerId = appId;
+        Core::hresult GetDeviceMemory(string &result /* @out */) {
+            // TODO: Replace with the correct container ID once the platform-specific
+            // format is confirmed (e.g. "com.sky.as.apps_<appId>").
+            static const std::string containerId = "com.bskyb.epgui";
 
             Exchange::IOCIContainer* ociContainer = mShell->QueryInterfaceByCallsign<Exchange::IOCIContainer>("org.rdk.OCIContainer");
             if (ociContainer == nullptr)
             {
-                LOGERR("AppDelegate: OCIContainer interface not available for appId=%s", appId.c_str());
+                LOGERR("AppDelegate: OCIContainer interface not available");
                 return Core::ERROR_UNAVAILABLE;
             }
 
@@ -150,7 +149,7 @@ class AppDelegate {
             ociContainer = nullptr;
             if (rc != Core::ERROR_NONE || !success)
             {
-                LOGERR("AppDelegate: OCIContainer.getContainerInfo failed rc=%u reason=%s appId=%s", rc, errorReason.c_str(), appId.c_str());
+                LOGERR("AppDelegate: OCIContainer.getContainerInfo failed rc=%u reason=%s", rc, errorReason.c_str());
                 return Core::ERROR_GENERAL;
             }
 
@@ -159,7 +158,7 @@ class AppDelegate {
             WPEFramework::Core::JSON::VariantContainer infoObj(infoJson);
             if (!infoObj.HasLabel(_T("memory")) || !infoObj.HasLabel(_T("gpu")))
             {
-                LOGERR("AppDelegate: getContainerInfo missing info.memory or info.gpu for appId=%s", appId.c_str());
+                LOGERR("AppDelegate: getContainerInfo missing info.memory or info.gpu");
                 return Core::ERROR_GENERAL;
             }
 
@@ -167,7 +166,7 @@ class AppDelegate {
             WPEFramework::Core::JSON::VariantContainer gpuObj    = infoObj[_T("gpu")].Object();
             if (!memoryObj.HasLabel(_T("user")) || !gpuObj.HasLabel(_T("memory")))
             {
-                LOGERR("AppDelegate: getContainerInfo missing info.memory.user or info.gpu.memory for appId=%s", appId.c_str());
+                LOGERR("AppDelegate: getContainerInfo missing info.memory.user or info.gpu.memory");
                 return Core::ERROR_GENERAL;
             }
 

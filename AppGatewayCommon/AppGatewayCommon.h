@@ -168,7 +168,6 @@ namespace WPEFramework {
             Core::hresult GetDeviceUptime(string &result /* @out */);
             Core::hresult GetDeviceUserIdleTime(string &result /* @out */);
             Core::hresult GetDeviceMemory(string &result /* @out */);
-            Core::hresult GetDeviceMemoryUsage(const Exchange::GatewayContext &ctx, string &result /* @out */);
             Core::hresult LifecycleFinished(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult LifecycleClose(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);

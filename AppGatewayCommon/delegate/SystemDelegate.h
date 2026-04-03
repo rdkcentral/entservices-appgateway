@@ -936,35 +936,6 @@ public:
     }
 
     // PUBLIC_INTERFACE
-    Core::hresult GetDeviceMemory(std::string &memOut)
-    {
-        memOut.clear();
-        auto link = AcquireLink(DEVICEINFO_CALLSIGN);
-        if (!link) return Core::ERROR_UNAVAILABLE;
-
-        WPEFramework::Core::JSON::VariantContainer params;
-        WPEFramework::Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke("systeminfo", params, response);
-        if (rc != Core::ERROR_NONE || !response.HasLabel(_T("totalram")) || !response.HasLabel(_T("freeram")))
-        {
-            LOGERR("SystemDelegate: DeviceInfo.systeminfo for memory failed rc=%u", rc);
-            return Core::ERROR_GENERAL;
-        }
-
-        const uint64_t totalBytes = static_cast<uint64_t>(response[_T("totalram")].Number());
-        const uint64_t freeBytes  = static_cast<uint64_t>(response[_T("freeram")].Number());
-        const uint64_t totalKiB   = totalBytes / 1024;
-        const uint64_t usedKiB    = (totalBytes - freeBytes) / 1024;
-
-        JsonObject obj;
-        obj["totalSystemMemoryKb"] = static_cast<double>(totalKiB);
-        obj["usedSystemMemoryKb"]  = static_cast<double>(usedKiB);
-        // totalVideoMemoryKb / usedVideoMemoryKb require a device-level GPU memory
-        // source not available in Thunder; pending spec resolution.
-        obj.ToString(memOut);
-        return Core::ERROR_NONE;
-    }
-
     // ---- AppNotifications registration hook ----
     // Called by SettingsDelegate when app subscribes/unsubscribes to events.
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const std::string &event, const bool listen, bool &registrationError)

@@ -324,10 +324,6 @@ namespace Plugin {
             (void)payload;
             return self->GetDeviceMemory(result);
         }},
-        { "device.memoryusage", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)payload;
-            return self->GetDeviceMemoryUsage(ctx, result);
-        }}
     };
 
     Core::hresult AppGatewayCommon::HandleAppGatewayRequest(const Exchange::GatewayContext &context /* @in */,
@@ -1300,17 +1296,9 @@ namespace Plugin {
         Core::hresult AppGatewayCommon::GetDeviceMemory(string &result)
         {
             if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
-            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
-            return systemDelegate->GetDeviceMemory(result);
-        }
-
-        Core::hresult AppGatewayCommon::GetDeviceMemoryUsage(const Exchange::GatewayContext &ctx, string &result)
-        {
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
             auto appDelegate = mDelegate->getAppDelegate();
             if (!appDelegate) return Core::ERROR_UNAVAILABLE;
-            return appDelegate->GetDeviceMemoryUsage(ctx.appId, result);
+            return appDelegate->GetDeviceMemory(result);
         }
 
 } // namespace Plugin
