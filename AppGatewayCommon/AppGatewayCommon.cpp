@@ -298,6 +298,35 @@ namespace Plugin {
             (void)ctx;
             (void)payload;
             return self->GetNetworkConnected(result);
+        }},
+        { "device.chipset", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetDeviceChipset(result);
+        }},
+        { "device.type", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetDeviceType(result);
+        }},
+        { "device.uptime", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetDeviceUptime(result);
+        }},
+        { "device.useridletime", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetDeviceUserIdleTime(result);
+        }},
+        { "device.memory", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetDeviceMemory(result);
+        }},
+        { "device.memoryusage", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)payload;
+            return self->GetDeviceMemoryUsage(ctx, result);
         }}
     };
 
@@ -1234,6 +1263,54 @@ namespace Plugin {
 
             return appDelegate->HandleAppGatewayRequest(context, method, payload, result);
         
+        }
+
+        Core::hresult AppGatewayCommon::GetDeviceChipset(string &result)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDeviceChipset(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetDeviceType(string &result)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDeviceType(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetDeviceUptime(string &result)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDeviceUptime(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetDeviceUserIdleTime(string &result)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDeviceUserIdleTime(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetDeviceMemory(string &result)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDeviceMemory(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetDeviceMemoryUsage(const Exchange::GatewayContext &ctx, string &result)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto appDelegate = mDelegate->getAppDelegate();
+            if (!appDelegate) return Core::ERROR_UNAVAILABLE;
+            return appDelegate->GetDeviceMemoryUsage(ctx.appId, result);
         }
 
 } // namespace Plugin

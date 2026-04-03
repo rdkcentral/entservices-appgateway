@@ -47,6 +47,14 @@ using namespace WPEFramework;
 #define HDCPPROFILE_CALLSIGN "org.rdk.HdcpProfile"
 #endif
 
+#ifndef DEVICEINFO_CALLSIGN
+#define DEVICEINFO_CALLSIGN "DeviceInfo"
+#endif
+
+#ifndef POWERMANAGER_CALLSIGN
+#define POWERMANAGER_CALLSIGN "org.rdk.PowerManager"
+#endif
+
 class SystemDelegate: public BaseEventDelegate
 {
 public:
@@ -849,6 +857,114 @@ public:
         return true;
     }
 
+    // ---- New Device info APIs (Firebolt Device module) ----
+
+    // PUBLIC_INTERFACE
+    Core::hresult GetDeviceChipset(std::string &chipset)
+    {
+        chipset.clear();
+        auto link = AcquireLink(DEVICEINFO_CALLSIGN);
+        if (!link) return Core::ERROR_UNAVAILABLE;
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        WPEFramework::Core::JSON::VariantContainer response;
+        const uint32_t rc = link->Invoke("chipset", params, response);
+        if (rc != Core::ERROR_NONE || !response.HasLabel(_T("chipset")))
+        {
+            LOGERR("SystemDelegate: DeviceInfo.chipset failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        chipset = "\"" + response[_T("chipset")].String() + "\"";
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    Core::hresult GetDeviceType(std::string &typeOut)
+    {
+        typeOut.clear();
+        auto link = AcquireLink(DEVICEINFO_CALLSIGN);
+        if (!link) return Core::ERROR_UNAVAILABLE;
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        WPEFramework::Core::JSON::VariantContainer response;
+        const uint32_t rc = link->Invoke("devicetype", params, response);
+        if (rc != Core::ERROR_NONE || !response.HasLabel(_T("devicetype")))
+        {
+            LOGERR("SystemDelegate: DeviceInfo.devicetype failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        typeOut = "\"" + MapThunderDeviceTypeToFirebolt(response[_T("devicetype")].String()) + "\"";
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    Core::hresult GetDeviceUptime(std::string &uptime)
+    {
+        uptime.clear();
+        auto link = AcquireLink(DEVICEINFO_CALLSIGN);
+        if (!link) return Core::ERROR_UNAVAILABLE;
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        WPEFramework::Core::JSON::VariantContainer response;
+        const uint32_t rc = link->Invoke("systeminfo", params, response);
+        if (rc != Core::ERROR_NONE || !response.HasLabel(_T("uptime")))
+        {
+            LOGERR("SystemDelegate: DeviceInfo.systeminfo failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        uptime = std::to_string(static_cast<uint64_t>(response[_T("uptime")].Number()));
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    Core::hresult GetDeviceUserIdleTime(std::string &idleTime)
+    {
+        idleTime.clear();
+        auto link = AcquireLink(POWERMANAGER_CALLSIGN);
+        if (!link) return Core::ERROR_UNAVAILABLE;
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        WPEFramework::Core::JSON::VariantContainer response;
+        const uint32_t rc = link->Invoke("getTimeSinceWakeup", params, response);
+        if (rc != Core::ERROR_NONE || !response.HasLabel(_T("secondsSinceWakeup")))
+        {
+            LOGERR("SystemDelegate: PowerManager.getTimeSinceWakeup failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        idleTime = std::to_string(static_cast<uint64_t>(response[_T("secondsSinceWakeup")].Number()));
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    Core::hresult GetDeviceMemory(std::string &memOut)
+    {
+        memOut.clear();
+        auto link = AcquireLink(DEVICEINFO_CALLSIGN);
+        if (!link) return Core::ERROR_UNAVAILABLE;
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        WPEFramework::Core::JSON::VariantContainer response;
+        const uint32_t rc = link->Invoke("systeminfo", params, response);
+        if (rc != Core::ERROR_NONE || !response.HasLabel(_T("totalram")) || !response.HasLabel(_T("freeram")))
+        {
+            LOGERR("SystemDelegate: DeviceInfo.systeminfo for memory failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+
+        const uint64_t totalBytes = static_cast<uint64_t>(response[_T("totalram")].Number());
+        const uint64_t freeBytes  = static_cast<uint64_t>(response[_T("freeram")].Number());
+        const uint64_t totalKiB   = totalBytes / 1024;
+        const uint64_t usedKiB    = (totalBytes - freeBytes) / 1024;
+
+        JsonObject obj;
+        obj["totalSystemMemoryKb"] = static_cast<double>(totalKiB);
+        obj["usedSystemMemoryKb"]  = static_cast<double>(usedKiB);
+        // totalVideoMemoryKb / usedVideoMemoryKb require a device-level GPU memory
+        // source not available in Thunder; pending spec resolution.
+        obj.ToString(memOut);
+        return Core::ERROR_NONE;
+    }
+
     // ---- AppNotifications registration hook ----
     // Called by SettingsDelegate when app subscribes/unsubscribes to events.
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const std::string &event, const bool listen, bool &registrationError)
@@ -908,6 +1024,17 @@ private:
             out.push_back(static_cast<char>(::tolower(static_cast<unsigned char>(c))));
         }
         return out;
+    }
+
+    static std::string MapThunderDeviceTypeToFirebolt(const std::string &thunderType)
+    {
+        // IDeviceInfo enum text values (from IDeviceInfo.h): "IpTv", "IpStb", "QamIpStb"
+        // Firebolt Types.DeviceType: "tv", "stb", "ott"
+        const std::string lower = ToLower(thunderType);
+        if (lower == "iptv")     return "tv";
+        if (lower == "ipstb")    return "stb";
+        if (lower == "qamipstb") return "stb";
+        return "ott";  // fallback for OTT dongles / unrecognised types
     }
 
     static std::string TerritoryThunderToFirebolt(const std::string &terr, const std::string &deflt)

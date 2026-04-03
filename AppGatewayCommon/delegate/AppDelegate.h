@@ -27,6 +27,7 @@
 #include "UtilsLogging.h"
 #include "StringUtils.h"
 #include "UtilsFirebolt.h"
+#include "UtilsJsonrpcDirectLink.h"
 
 #define ADVERTISING_ID_KEY "fireboltAdvertisingId"
 #define ADVERTISING_TYPE "sessionid"
@@ -120,11 +121,55 @@ class AppDelegate {
                 return GetAdvertisingId(context.appId, result);
             } else if ("device.uid" == lowerMethod) {
                 return GetDeviceUID(context.appId, result);
+            } else if ("device.memoryusage" == lowerMethod) {
+                return GetDeviceMemoryUsage(context.appId, result);
             }
             
             ErrorUtils::CustomInternal("Not Supported", result);
             return Core::ERROR_UNAVAILABLE;
-        } 
+        }
+
+        Core::hresult GetDeviceMemoryUsage(const std::string &appId, string &result /* @out */) {
+            // TODO: Confirm the containerId format for this platform.
+            // The sample shows "com.sky.as.apps_<appId>" — prefix is platform-specific.
+            // Using appId directly until the mapping convention is confirmed.
+            const std::string containerId = appId;
+
+            auto link = WPEFramework::Utils::GetThunderControllerClient(mShell, "org.rdk.OCIContainer");
+            if (!link)
+            {
+                LOGERR("AppDelegate: Failed to acquire OCIContainer link for appId=%s", appId.c_str());
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            WPEFramework::Core::JSON::VariantContainer params;
+            params[_T("containerId")] = containerId;
+            WPEFramework::Core::JSON::VariantContainer response;
+            const uint32_t rc = link->Invoke("getContainerInfo", params, response);
+            if (rc != Core::ERROR_NONE || !response.HasLabel(_T("info")))
+            {
+                LOGERR("AppDelegate: OCIContainer.getContainerInfo failed rc=%u appId=%s", rc, appId.c_str());
+                return Core::ERROR_GENERAL;
+            }
+
+            const auto &info    = response[_T("info")];
+            const auto &memUser = info[_T("memory")][_T("user")];
+            const auto &gpuMem  = info[_T("gpu")][_T("memory")];
+
+            // Spec requires KiB; OCIContainer returns bytes
+            const uint64_t userUsedKiB  = static_cast<uint64_t>(memUser[_T("usage")].Number())  / 1024;
+            const uint64_t userLimitKiB = static_cast<uint64_t>(memUser[_T("limit")].Number())  / 1024;
+            const uint64_t gpuUsedKiB   = static_cast<uint64_t>(gpuMem[_T("usage")].Number())   / 1024;
+            const uint64_t gpuLimitKiB  = static_cast<uint64_t>(gpuMem[_T("limit")].Number())   / 1024;
+
+            JsonObject obj;
+            obj["userMemoryUsedKiB"]  = static_cast<double>(userUsedKiB);
+            obj["userMemoryLimitKiB"] = static_cast<double>(userLimitKiB);
+            obj["gpuMemoryUsedKiB"]   = static_cast<double>(gpuUsedKiB);
+            obj["gpuMemoryLimitKiB"]  = static_cast<double>(gpuLimitKiB);
+            obj.ToString(result);
+            return Core::ERROR_NONE;
+        }
 
         Exchange::ISharedStorage* GetSharedStorage() {
             std::lock_guard<std::mutex> lock(mSharedStorageMutex);
