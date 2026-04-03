@@ -152,15 +152,31 @@ class AppDelegate {
                 return Core::ERROR_GENERAL;
             }
 
-            const auto &info    = response[_T("info")];
-            const auto &memUser = info[_T("memory")][_T("user")];
-            const auto &gpuMem  = info[_T("gpu")][_T("memory")];
+            // Variant::Object() returns VariantContainer by value; use it to step
+            // into each nested level and validate presence before reading.
+            WPEFramework::Core::JSON::VariantContainer infoObj = response[_T("info")].Object();
+            if (!infoObj.HasLabel(_T("memory")) || !infoObj.HasLabel(_T("gpu")))
+            {
+                LOGERR("AppDelegate: getContainerInfo missing info.memory or info.gpu for appId=%s", appId.c_str());
+                return Core::ERROR_GENERAL;
+            }
+
+            WPEFramework::Core::JSON::VariantContainer memoryObj = infoObj[_T("memory")].Object();
+            WPEFramework::Core::JSON::VariantContainer gpuObj    = infoObj[_T("gpu")].Object();
+            if (!memoryObj.HasLabel(_T("user")) || !gpuObj.HasLabel(_T("memory")))
+            {
+                LOGERR("AppDelegate: getContainerInfo missing info.memory.user or info.gpu.memory for appId=%s", appId.c_str());
+                return Core::ERROR_GENERAL;
+            }
+
+            WPEFramework::Core::JSON::VariantContainer userObj   = memoryObj[_T("user")].Object();
+            WPEFramework::Core::JSON::VariantContainer gpuMemObj = gpuObj[_T("memory")].Object();
 
             // Spec requires KiB; OCIContainer returns bytes
-            const uint64_t userUsedKiB  = static_cast<uint64_t>(memUser[_T("usage")].Number())  / 1024;
-            const uint64_t userLimitKiB = static_cast<uint64_t>(memUser[_T("limit")].Number())  / 1024;
-            const uint64_t gpuUsedKiB   = static_cast<uint64_t>(gpuMem[_T("usage")].Number())   / 1024;
-            const uint64_t gpuLimitKiB  = static_cast<uint64_t>(gpuMem[_T("limit")].Number())   / 1024;
+            const uint64_t userUsedKiB  = static_cast<uint64_t>(userObj[_T("usage")].Number())   / 1024;
+            const uint64_t userLimitKiB = static_cast<uint64_t>(userObj[_T("limit")].Number())   / 1024;
+            const uint64_t gpuUsedKiB   = static_cast<uint64_t>(gpuMemObj[_T("usage")].Number()) / 1024;
+            const uint64_t gpuLimitKiB  = static_cast<uint64_t>(gpuMemObj[_T("limit")].Number()) / 1024;
 
             JsonObject obj;
             obj["userMemoryUsedKiB"]  = static_cast<double>(userUsedKiB);
