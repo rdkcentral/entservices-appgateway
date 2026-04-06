@@ -23,7 +23,7 @@
 #include <mutex>
 #include <interfaces/ISharedStorage.h>
 #include <interfaces/IAppGateway.h>
-#include <interfaces/IOCIContainer.h>
+#include "UtilsJsonrpcDirectLink.h"
 #include "UtilsUUID.h"
 #include "UtilsLogging.h"
 #include "StringUtils.h"
@@ -132,30 +132,41 @@ class AppDelegate {
         Core::hresult GetStatsMemoryUsage(string &result /* @out */) {
             // TODO: Replace with the correct container ID once the platform-specific
             // format is confirmed (e.g. "com.sky.as.apps_<appId>").
-            static const std::string containerId = "com.bskyb.epgui";
+            static const std::string containerId = "com.sky.as.apps_com.bskyb.epgui";
 
-            Exchange::IOCIContainer* ociContainer = mShell->QueryInterfaceByCallsign<Exchange::IOCIContainer>("org.rdk.OCIContainer");
-            if (ociContainer == nullptr)
+            auto link = WPEFramework::Utils::GetThunderControllerClient(mShell, "org.rdk.OCIContainer");
+            if (!link)
             {
-                LOGERR("AppDelegate: OCIContainer interface not available");
+                LOGERR("AppDelegate: Failed to get OCIContainer JSON-RPC link");
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            string infoJson;
-            bool success = false;
-            string errorReason;
-            const Core::hresult rc = ociContainer->GetContainerInfo(containerId, infoJson, success, errorReason);
-            ociContainer->Release();
-            ociContainer = nullptr;
-            if (rc != Core::ERROR_NONE || !success)
+            WPEFramework::Core::JSON::VariantContainer params;
+            params[_T("containerId")] = WPEFramework::Core::JSON::Variant(containerId);
+            WPEFramework::Core::JSON::VariantContainer response;
+            const uint32_t rc = link->Invoke("getContainerInfo", params, response);
+            if (rc != Core::ERROR_NONE)
             {
-                LOGERR("AppDelegate: OCIContainer.getContainerInfo failed rc=%u reason=%s", rc, errorReason.c_str());
+                LOGERR("AppDelegate: OCIContainer.getContainerInfo failed rc=%u", rc);
                 return Core::ERROR_GENERAL;
             }
 
-            // GetContainerInfo returns the info block as an opaque JSON string.
-            // Parse it into a VariantContainer then navigate the nested structure.
-            WPEFramework::Core::JSON::VariantContainer infoObj(infoJson);
+            if (!response.HasLabel(_T("success")) || !response[_T("success")].Boolean())
+            {
+                LOGERR("AppDelegate: OCIContainer.getContainerInfo returned success=false: %s",
+                    response.HasLabel(_T("errorReason")) ? response[_T("errorReason")].String().c_str() : "");
+                return Core::ERROR_GENERAL;
+            }
+
+            if (!response.HasLabel(_T("info")))
+            {
+                LOGERR("AppDelegate: OCIContainer.getContainerInfo missing info field");
+                return Core::ERROR_GENERAL;
+            }
+
+            // Use explicit local VariantContainer variables with .Object() at each level
+            // to avoid chaining operator[] on Variant (which is not supported).
+            WPEFramework::Core::JSON::VariantContainer infoObj   = response[_T("info")].Object();
             if (!infoObj.HasLabel(_T("memory")) || !infoObj.HasLabel(_T("gpu")))
             {
                 LOGERR("AppDelegate: getContainerInfo missing info.memory or info.gpu");
