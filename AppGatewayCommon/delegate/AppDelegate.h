@@ -122,17 +122,22 @@ class AppDelegate {
             } else if ("device.uid" == lowerMethod) {
                 return GetDeviceUID(context.appId, result);
             } else if ("stats.memoryusage" == lowerMethod) {
-                return GetStatsMemoryUsage(result);
+                return GetStatsMemoryUsage(context.appId, result);
             }
             
             ErrorUtils::CustomInternal("Not Supported", result);
             return Core::ERROR_UNAVAILABLE;
         }
 
-        Core::hresult GetStatsMemoryUsage(string &result /* @out */) {
-            // TODO: Replace with the correct container ID once the platform-specific
-            // format is confirmed (e.g. "com.sky.as.apps_<appId>").
-            static const std::string containerId = "com.sky.as.apps_com.bskyb.epgui";
+        // Returns the OCI container ID for the given Firebolt appId.
+        // TODO: Derive dynamically once the platform-specific format is confirmed.
+        std::string GetContainerId(const std::string &appId) const {
+            (void)appId;
+            return "com.sky.as.apps_com.bskyb.epgui";
+        }
+
+        Core::hresult GetStatsMemoryUsage(const std::string &appId, string &result /* @out */) {
+            const std::string containerId = GetContainerId(appId);
 
             auto link = WPEFramework::Utils::GetThunderControllerClient(mShell, "org.rdk.OCIContainer");
             if (!link)

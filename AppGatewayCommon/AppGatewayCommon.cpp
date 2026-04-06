@@ -320,9 +320,8 @@ namespace Plugin {
             return self->GetDeviceTimeInActiveState(result);
         }},
         { "stats.memoryusage", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
             (void)payload;
-            return self->GetStatsMemoryUsage(result);
+            return self->GetStatsMemoryUsage(ctx.appId, result);
         }},
     };
 
@@ -1293,12 +1292,12 @@ namespace Plugin {
             return systemDelegate->GetDeviceTimeInActiveState(result);
         }
 
-        Core::hresult AppGatewayCommon::GetStatsMemoryUsage(string &result)
+        Core::hresult AppGatewayCommon::GetStatsMemoryUsage(const string &appId, string &result)
         {
             if (!mDelegate) return Core::ERROR_UNAVAILABLE;
             auto appDelegate = mDelegate->getAppDelegate();
             if (!appDelegate) return Core::ERROR_UNAVAILABLE;
-            return appDelegate->GetStatsMemoryUsage(result);
+            return appDelegate->GetStatsMemoryUsage(appId, result);
         }
 
 } // namespace Plugin
