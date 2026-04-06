@@ -121,15 +121,15 @@ class AppDelegate {
                 return GetAdvertisingId(context.appId, result);
             } else if ("device.uid" == lowerMethod) {
                 return GetDeviceUID(context.appId, result);
-            } else if ("device.memory" == lowerMethod) {
-                return GetDeviceMemory(result);
+            } else if ("stats.memoryusage" == lowerMethod) {
+                return GetStatsMemoryUsage(result);
             }
             
             ErrorUtils::CustomInternal("Not Supported", result);
             return Core::ERROR_UNAVAILABLE;
         }
 
-        Core::hresult GetDeviceMemory(string &result /* @out */) {
+        Core::hresult GetStatsMemoryUsage(string &result /* @out */) {
             // TODO: Replace with the correct container ID once the platform-specific
             // format is confirmed (e.g. "com.sky.as.apps_<appId>").
             static const std::string containerId = "com.bskyb.epgui";

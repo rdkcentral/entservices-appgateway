@@ -860,7 +860,7 @@ public:
     // ---- New Device info APIs (Firebolt Device module) ----
 
     // PUBLIC_INTERFACE
-    Core::hresult GetDeviceChipset(std::string &chipset)
+    Core::hresult GetDeviceChipsetId(std::string &chipset)
     {
         chipset.clear();
         auto link = AcquireLink(DEVICEINFO_CALLSIGN);
@@ -879,7 +879,7 @@ public:
     }
 
     // PUBLIC_INTERFACE
-    Core::hresult GetDeviceType(std::string &typeOut)
+    Core::hresult GetDeviceClass(std::string &typeOut)
     {
         typeOut.clear();
         auto link = AcquireLink(DEVICEINFO_CALLSIGN);
@@ -917,9 +917,9 @@ public:
     }
 
     // PUBLIC_INTERFACE
-    Core::hresult GetDeviceUserIdleTime(std::string &idleTime)
+    Core::hresult GetDeviceTimeInActiveState(std::string &result)
     {
-        idleTime.clear();
+        result.clear();
         auto link = AcquireLink(POWERMANAGER_CALLSIGN);
         if (!link) return Core::ERROR_UNAVAILABLE;
 
@@ -931,7 +931,7 @@ public:
             LOGERR("SystemDelegate: PowerManager.getTimeSinceWakeup failed rc=%u", rc);
             return Core::ERROR_GENERAL;
         }
-        idleTime = std::to_string(static_cast<uint64_t>(response[_T("secondsSinceWakeup")].Number()));
+        result = std::to_string(static_cast<uint64_t>(response[_T("secondsSinceWakeup")].Number()));
         return Core::ERROR_NONE;
     }
 

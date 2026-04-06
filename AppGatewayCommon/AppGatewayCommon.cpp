@@ -299,30 +299,30 @@ namespace Plugin {
             (void)payload;
             return self->GetNetworkConnected(result);
         }},
-        { "device.chipset", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+        { "device.chipsetid", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
             (void)payload;
-            return self->GetDeviceChipset(result);
+            return self->GetDeviceChipsetId(result);
         }},
-        { "device.type", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+        { "device.deviceclass", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
             (void)payload;
-            return self->GetDeviceType(result);
+            return self->GetDeviceClass(result);
         }},
         { "device.uptime", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
             (void)payload;
             return self->GetDeviceUptime(result);
         }},
-        { "device.useridletime", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+        { "device.timeinactivestate", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
             (void)payload;
-            return self->GetDeviceUserIdleTime(result);
+            return self->GetDeviceTimeInActiveState(result);
         }},
-        { "device.memory", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+        { "stats.memoryusage", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
             (void)payload;
-            return self->GetDeviceMemory(result);
+            return self->GetStatsMemoryUsage(result);
         }},
     };
 
@@ -1261,20 +1261,20 @@ namespace Plugin {
         
         }
 
-        Core::hresult AppGatewayCommon::GetDeviceChipset(string &result)
+        Core::hresult AppGatewayCommon::GetDeviceChipsetId(string &result)
         {
             if (!mDelegate) return Core::ERROR_UNAVAILABLE;
             auto systemDelegate = mDelegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
-            return systemDelegate->GetDeviceChipset(result);
+            return systemDelegate->GetDeviceChipsetId(result);
         }
 
-        Core::hresult AppGatewayCommon::GetDeviceType(string &result)
+        Core::hresult AppGatewayCommon::GetDeviceClass(string &result)
         {
             if (!mDelegate) return Core::ERROR_UNAVAILABLE;
             auto systemDelegate = mDelegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
-            return systemDelegate->GetDeviceType(result);
+            return systemDelegate->GetDeviceClass(result);
         }
 
         Core::hresult AppGatewayCommon::GetDeviceUptime(string &result)
@@ -1285,20 +1285,20 @@ namespace Plugin {
             return systemDelegate->GetDeviceUptime(result);
         }
 
-        Core::hresult AppGatewayCommon::GetDeviceUserIdleTime(string &result)
+        Core::hresult AppGatewayCommon::GetDeviceTimeInActiveState(string &result)
         {
             if (!mDelegate) return Core::ERROR_UNAVAILABLE;
             auto systemDelegate = mDelegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
-            return systemDelegate->GetDeviceUserIdleTime(result);
+            return systemDelegate->GetDeviceTimeInActiveState(result);
         }
 
-        Core::hresult AppGatewayCommon::GetDeviceMemory(string &result)
+        Core::hresult AppGatewayCommon::GetStatsMemoryUsage(string &result)
         {
             if (!mDelegate) return Core::ERROR_UNAVAILABLE;
             auto appDelegate = mDelegate->getAppDelegate();
             if (!appDelegate) return Core::ERROR_UNAVAILABLE;
-            return appDelegate->GetDeviceMemory(result);
+            return appDelegate->GetStatsMemoryUsage(result);
         }
 
 } // namespace Plugin

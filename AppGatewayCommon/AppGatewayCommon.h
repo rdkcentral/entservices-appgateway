@@ -163,11 +163,11 @@ namespace WPEFramework {
             Core::hresult GetHdr(string &result /* @out */);
             Core::hresult GetAudio(string &result /* @out */);
             // Helper methods for Device info APIs - called by HandleAppGatewayRequest
-            Core::hresult GetDeviceChipset(string &result /* @out */);
-            Core::hresult GetDeviceType(string &result /* @out */);
+            Core::hresult GetDeviceChipsetId(string &result /* @out */);
+            Core::hresult GetDeviceClass(string &result /* @out */);
             Core::hresult GetDeviceUptime(string &result /* @out */);
-            Core::hresult GetDeviceUserIdleTime(string &result /* @out */);
-            Core::hresult GetDeviceMemory(string &result /* @out */);
+            Core::hresult GetDeviceTimeInActiveState(string &result /* @out */);
+            Core::hresult GetStatsMemoryUsage(string &result /* @out */);
             Core::hresult LifecycleFinished(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult LifecycleClose(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
