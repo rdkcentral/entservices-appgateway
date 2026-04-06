@@ -38,11 +38,11 @@ using namespace WPEFramework;
 
 // Define a callsign constant to match the AUTHSERVICE_CALLSIGN-style pattern.
 #ifndef SYSTEM_CALLSIGN
-#define SYSTEM_CALLSIGN "org.rdk.System.2"
+#define SYSTEM_CALLSIGN "org.rdk.System"
 #endif
 
 #ifndef DISPLAYSETTINGS_CALLSIGN
-#define DISPLAYSETTINGS_CALLSIGN "org.rdk.DisplaySettings.2"
+#define DISPLAYSETTINGS_CALLSIGN "org.rdk.DisplaySettings"
 #endif
 
 #ifndef HDCPPROFILE_CALLSIGN
@@ -1089,7 +1089,7 @@ private:
         if (isSystemSubscribed()) return;
         try {
             if (!_systemRpc) {
-                _systemRpc = ::Utils::getThunderControllerClient(SYSTEM_CALLSIGN);
+                _systemRpc = std::make_shared<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>>((_T(SYSTEM_CALLSIGN)), (_T(SYSTEM_CALLSIGN)), false);
             }
             if (_systemRpc) {
                 const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
@@ -1111,7 +1111,7 @@ private:
         if (isTimezoneSubscribed()) return;
         try {
             if (!_systemRpc) {
-                _systemRpc = ::Utils::getThunderControllerClient(SYSTEM_CALLSIGN);
+                _systemRpc = std::make_shared<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>>((_T(SYSTEM_CALLSIGN)), (_T(SYSTEM_CALLSIGN)), false);
             }
             if (_systemRpc) {
                 const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
