@@ -45,6 +45,7 @@ using namespace WPEFramework;
 
 #ifndef HDCPPROFILE_CALLSIGN
 #define HDCPPROFILE_CALLSIGN "org.rdk.HdcpProfile"
+#define DISPLAYINFO_CALLSIGN "DisplayInfo"
 #endif
 
 class SystemDelegate: public BaseEventDelegate
@@ -886,8 +887,420 @@ public:
         return false;
     }
 
+    // ---- Display APIs (Firebolt Display module) ----
+
+    // PUBLIC_INTERFACE
+    // Display.edid — reads EDID from org.rdk.DisplaySettings.readEDID, returns Base64 string.
+    // Returns "" when no display is connected (STB/OTT).
+    Core::hresult GetDisplayEdid(std::string &result)
+    {
+        result = "\"\"";
+        auto link = AcquireLink(DISPLAYSETTINGS_CALLSIGN);
+        if (!link)
+        {
+            LOGERR("SystemDelegate: DisplaySettings link unavailable for readEDID");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        WPEFramework::Core::JSON::VariantContainer response;
+        const uint32_t rc = link->Invoke("readEDID", params, response);
+        if (rc != Core::ERROR_NONE || !response.HasLabel(_T("EDID")))
+        {
+            LOGERR("SystemDelegate: DisplaySettings.readEDID failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+
+        std::string edid = response[_T("EDID")].String();
+
+        // Normalize: some Thunder versions JSON-escape forward slashes as \/ inside the EDID
+        // Base64 string. Replace \/ -> / to produce canonical standard Base64
+        // (RFC 4648 Base64 alphabet uses plain '/', not '\/').
+        std::string normalized;
+        normalized.reserve(edid.size());
+        for (size_t i = 0; i < edid.size(); ++i)
+        {
+            if (edid[i] == '\\' && (i + 1) < edid.size() && edid[i + 1] == '/')
+            {
+                normalized += '/';
+                ++i;
+            }
+            else if (edid[i] != '\r' && edid[i] != '\n' && edid[i] != ' ')
+            {
+                normalized += edid[i];
+            }
+        }
+
+        LogEdidInfo(normalized);
+        result = "\"" + normalized + "\"";
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    // Display.size — reads widthincentimeters / heightincentimeters from DisplayInfo.
+    // Returns {"width":0,"height":0} when no display is connected (STB/OTT).
+    Core::hresult GetDisplaySize(std::string &result)
+    {
+        result = "{\"width\":0,\"height\":0}";
+        auto link = AcquireLink(DISPLAYINFO_CALLSIGN);
+        if (!link)
+        {
+            LOGERR("SystemDelegate: DisplayInfo link unavailable for size");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        WPEFramework::Core::JSON::VariantContainer wResponse;
+        WPEFramework::Core::JSON::VariantContainer hResponse;
+
+        const uint32_t wRc = link->Invoke("widthincentimeters", params, wResponse);
+        const uint32_t hRc = link->Invoke("heightincentimeters", params, hResponse);
+
+        const int width  = (wRc == Core::ERROR_NONE && wResponse.HasLabel(_T("result")))
+                           ? static_cast<int>(wResponse[_T("result")].Number()) : 0;
+        const int height = (hRc == Core::ERROR_NONE && hResponse.HasLabel(_T("result")))
+                           ? static_cast<int>(hResponse[_T("result")].Number()) : 0;
+
+        JsonObject obj;
+        obj["width"]  = width;
+        obj["height"] = height;
+        obj.ToString(result);
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    // Display.maxResolution — reads width / height (pixels) from DisplayInfo.
+    // Returns {"width":0,"height":0} when no display is connected (STB/OTT).
+    Core::hresult GetDisplayMaxResolution(std::string &result)
+    {
+        result = "{\"width\":0,\"height\":0}";
+        auto link = AcquireLink(DISPLAYINFO_CALLSIGN);
+        if (!link)
+        {
+            LOGERR("SystemDelegate: DisplayInfo link unavailable for maxResolution");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        WPEFramework::Core::JSON::VariantContainer wResponse;
+        WPEFramework::Core::JSON::VariantContainer hResponse;
+
+        const uint32_t wRc = link->Invoke("width", params, wResponse);
+        const uint32_t hRc = link->Invoke("height", params, hResponse);
+
+        const int width  = (wRc == Core::ERROR_NONE && wResponse.HasLabel(_T("result")))
+                           ? static_cast<int>(wResponse[_T("result")].Number()) : 0;
+        const int height = (hRc == Core::ERROR_NONE && hResponse.HasLabel(_T("result")))
+                           ? static_cast<int>(hResponse[_T("result")].Number()) : 0;
+
+        JsonObject obj;
+        obj["width"]  = width;
+        obj["height"] = height;
+        obj.ToString(result);
+        return Core::ERROR_NONE;
+    }
+
 
 private:
+    // Decode a single Base64 character to its 6-bit value; returns -1 for padding/invalid.
+    static int B64CharVal(char c)
+    {
+        if (c >= 'A' && c <= 'Z') return c - 'A';
+        if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+        if (c >= '0' && c <= '9') return c - '0' + 52;
+        if (c == '+') return 62;
+        if (c == '/') return 63;
+        return -1;
+    }
+
+    // Decode a Base64 string (already normalized, no escaped slashes) into raw bytes.
+    // Returns number of bytes written into out[0..outMax-1].
+    static size_t Base64Decode(const std::string& in, uint8_t* out, size_t outMax)
+    {
+        size_t outLen = 0;
+        int acc = 0, bits = 0;
+        for (char c : in)
+        {
+            const int val = B64CharVal(c);
+            if (val < 0) continue;
+            acc = (acc << 6) | val;
+            bits += 6;
+            if (bits >= 8)
+            {
+                bits -= 8;
+                if (outLen < outMax)
+                    out[outLen++] = static_cast<uint8_t>((acc >> bits) & 0xFF);
+            }
+        }
+        return outLen;
+    }
+
+    // Parse the normalized Base64 EDID string and log display information via LOGINFO
+    // in a tabular ASCII format. Collects base-block fields (manufacturer, product, year,
+    // interface, physical size, monitor name, checksum) and CEA-861 extension capabilities
+    // (audio flags, video SVDs, colorimetry, HDR EOTFs), then prints them as a single table.
+    // Fully failsafe: all accesses are bounds-checked; any unexpected input is caught
+    // by the outer try/catch and logged without crashing.
+    static void LogEdidInfo(const std::string& base64edid)
+    {
+        if (base64edid.empty()) return;
+
+        try
+        {
+            uint8_t raw[512] = {};
+            const size_t rawLen = Base64Decode(base64edid, raw, sizeof(raw));
+            if (rawLen < 128)
+            {
+                LOGERR("SystemDelegate: [EDID] Too short to parse (%zu bytes)", rawLen);
+                return;
+            }
+
+            // cap to avoid arithmetic overflows; rawLen is at most sizeof(raw)==512
+            const size_t safeLen = (rawLen < sizeof(raw)) ? rawLen : sizeof(raw);
+            const uint8_t* e = raw;
+
+            // Validate magic header: 00 FF FF FF FF FF FF 00
+            static const uint8_t kHdr[8] = { 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00 };
+            for (int i = 0; i < 8; ++i)
+            {
+                if (e[i] != kHdr[i])
+                {
+                    LOGERR("SystemDelegate: [EDID] Invalid header byte[%d]=0x%02X — not a valid EDID", i, e[i]);
+                    return;
+                }
+            }
+
+            // ---- Collect base-block fields ----
+
+            // Manufacturer ID: 3 letters packed in 2 big-endian bytes (each field 1-26 → A-Z)
+            const uint16_t mfrRaw = static_cast<uint16_t>((e[8] << 8) | e[9]);
+            char mfr[4] = { '?', '?', '?', '\0' };
+            {
+                const uint8_t f0 = (mfrRaw >> 10) & 0x1F;
+                const uint8_t f1 = (mfrRaw >>  5) & 0x1F;
+                const uint8_t f2 =  mfrRaw        & 0x1F;
+                if (f0 >= 1 && f0 <= 26) mfr[0] = static_cast<char>(f0 + 'A' - 1);
+                if (f1 >= 1 && f1 <= 26) mfr[1] = static_cast<char>(f1 + 'A' - 1);
+                if (f2 >= 1 && f2 <= 26) mfr[2] = static_cast<char>(f2 + 'A' - 1);
+            }
+
+            char prodStr[12];
+            snprintf(prodStr, sizeof(prodStr), "0x%04X",
+                     static_cast<unsigned>(e[10] | (e[11] << 8)));
+
+            char yearStr[20];
+            snprintf(yearStr, sizeof(yearStr), "%d / Week %d", 1990 + (int)e[17], (int)e[16]);
+
+            char edidVerStr[8];
+            snprintf(edidVerStr, sizeof(edidVerStr), "%d.%d", (int)e[18], (int)e[19]);
+
+            // Interface type
+            const uint8_t inp      = e[20];
+            const bool    isDigital = (inp & 0x80) != 0;
+            const char*   ifaceStr  = "Analog";
+            if (isDigital)
+            {
+                static const char* kIface[] = { "undef","DVI","HDMIa","HDMIb","MDDI","DisplayPort" };
+                const uint8_t idx = inp & 0x0F;
+                ifaceStr = (idx < 6) ? kIface[idx] : "Digital";
+            }
+            static const char* kBpc[] = { "undef","6bpc","8bpc","10bpc","12bpc","14bpc","16bpc" };
+            const uint8_t bpcIdx = (inp >> 4) & 0x07;
+            const char*   bpcStr = (bpcIdx < 7) ? kBpc[bpcIdx] : "undef";
+            char ifaceFullStr[24];
+            snprintf(ifaceFullStr, sizeof(ifaceFullStr), "%s / %s", ifaceStr, bpcStr);
+
+            char sizeStr[20];
+            snprintf(sizeStr, sizeof(sizeStr), "%d x %d cm", (int)e[21], (int)e[22]);
+
+            const int numExts = static_cast<int>(e[126]);
+            char numExtsStr[8];
+            snprintf(numExtsStr, sizeof(numExtsStr), "%d", numExts);
+
+            // Base checksum
+            uint32_t baseSum = 0;
+            for (int i = 0; i < 128; ++i) baseSum += e[i];
+            const char* baseCsumStr = (baseSum % 256 == 0) ? "OK" : "FAIL";
+
+            // Monitor name from descriptor blocks (tag 0xFC)
+            char monName[14] = {};
+            bool foundMonName = false;
+            for (int d = 0; d < 4; ++d)
+            {
+                const int descOff = 54 + d * 18;
+                if (descOff + 18 > 128) break;
+                const uint8_t* desc = e + descOff;
+                if (desc[0] == 0 && desc[1] == 0 && desc[3] == 0xFC)
+                {
+                    int ni = 0;
+                    for (int j = 5; j < 18 && ni < 13; ++j)
+                    {
+                        if (desc[j] == 0x0A || desc[j] == 0x00) break;
+                        const uint8_t ch = desc[j];
+                        monName[ni++] = (ch >= 0x20 && ch <= 0x7E) ? static_cast<char>(ch) : '?';
+                    }
+                    monName[ni] = '\0';
+                    foundMonName = true;
+                    break;
+                }
+            }
+            const char* monNameDisp = foundMonName ? monName : "(not found)";
+
+            // ---- Collect CEA-861 extension fields (first CEA block only) ----
+            bool        hasCea     = false;
+            int         ceaRev     = 0;
+            bool        underscan  = false;
+            bool        basicAudio = false;
+            bool        ycbcr444   = false;
+            bool        ycbcr422   = false;
+            int         videoSVDs  = 0;
+            char        nativeVicStr[28] = "N/A";
+            bool        has4k      = false;
+            std::string colorimetry = "none";
+            std::string hdrEotfs    = "none";
+            const char* extCsumStr  = "N/A";
+
+            for (int xi = 0; xi < numExts; ++xi)
+            {
+                const size_t extBase = 128 + static_cast<size_t>(xi) * 128;
+                if (extBase + 128 > safeLen) break;
+                const uint8_t* ext = raw + extBase;
+                if (ext[0] != 0x02) continue;  // only CEA-861 extensions
+
+                hasCea     = true;
+                ceaRev     = static_cast<int>(ext[1]);
+                const uint8_t flags = ext[3];
+                underscan  = (flags & 0x80) != 0;
+                basicAudio = (flags & 0x40) != 0;
+                ycbcr444   = (flags & 0x20) != 0;
+                ycbcr422   = (flags & 0x10) != 0;
+
+                uint32_t extSumLocal = 0;
+                for (int i = 0; i < 128; ++i) extSumLocal += ext[i];
+                extCsumStr = (extSumLocal % 256 == 0) ? "OK" : "FAIL";
+
+                // dtdOff: valid range 4..127; clamp to [4,127]
+                const int dtdOff = (ext[2] >= 4 && ext[2] <= 127) ? static_cast<int>(ext[2])
+                                 : (ext[2] == 0 ? 4 : 127);
+
+                // Walk CEA data blocks (int arithmetic avoids uint8_t wrap-around)
+                int pos = 4;
+                while (pos < dtdOff && pos < 127)
+                {
+                    const uint8_t blkHdr = ext[pos];
+                    const int     blkTag = (blkHdr >> 5) & 0x07;
+                    const int     blkLen =  blkHdr       & 0x1F;
+                    if (pos + 1 + blkLen > 127) break;
+                    const uint8_t* bd = ext + pos + 1;
+                    pos += 1 + blkLen;
+
+                    if (blkTag == 2 && blkLen > 0)
+                    {
+                        // Video Data Block
+                        videoSVDs = blkLen;
+                        const int nativeVIC = static_cast<int>(bd[0] & 0x7F);
+                        for (int vi = 0; vi < blkLen; ++vi)
+                        {
+                            const uint8_t vic = bd[vi] & 0x7F;
+                            if (vic == 95 || vic == 96 || vic == 97) has4k = true;
+                        }
+                        // VIC → timing name lookup (common VICs)
+                        const char* vicName = nullptr;
+                        if      (nativeVIC == 1)  vicName = "640x480p@60";
+                        else if (nativeVIC == 4)  vicName = "1280x720p@60";
+                        else if (nativeVIC == 16) vicName = "1920x1080p@60";
+                        else if (nativeVIC == 17) vicName = "720x576p@50";
+                        else if (nativeVIC == 19) vicName = "1280x720p@50";
+                        else if (nativeVIC == 31) vicName = "1920x1080p@50";
+                        else if (nativeVIC == 32) vicName = "1920x1080p@24";
+                        else if (nativeVIC == 95) vicName = "3840x2160p@30";
+                        else if (nativeVIC == 96) vicName = "3840x2160p@50";
+                        else if (nativeVIC == 97) vicName = "3840x2160p@60";
+                        if (vicName)
+                            snprintf(nativeVicStr, sizeof(nativeVicStr), "%d (%s)", nativeVIC, vicName);
+                        else
+                            snprintf(nativeVicStr, sizeof(nativeVicStr), "%d", nativeVIC);
+                    }
+                    else if (blkTag == 7 && blkLen >= 1)
+                    {
+                        const uint8_t etag = bd[0];
+                        if (etag == 13 && blkLen >= 3)
+                        {
+                            // Colorimetry Data Block — CEA-861-F §7.5.5
+                            const uint8_t m1 = bd[1];
+                            const uint8_t m2 = bd[2];
+                            std::string cmts;
+                            if (m1 & 0x01) cmts += "xvYCC601 ";
+                            if (m1 & 0x02) cmts += "xvYCC709 ";
+                            if (m1 & 0x04) cmts += "sYCC601 ";
+                            if (m1 & 0x08) cmts += "opYCC601 ";
+                            if (m1 & 0x10) cmts += "opRGB ";
+                            if (m1 & 0x20) cmts += "BT2020cYCC ";
+                            if (m1 & 0x40) cmts += "BT2020YCC ";
+                            if (m1 & 0x80) cmts += "BT2020RGB ";
+                            if (m2 & 0x80) cmts += "DCI-P3 ";
+                            if (!cmts.empty() && cmts.back() == ' ') cmts.pop_back();
+                            colorimetry = cmts.empty() ? "none" : cmts;
+                        }
+                        else if (etag == 14 && blkLen >= 2)
+                        {
+                            // HDR Static Metadata Block — CEA-861-3 §4.2
+                            const uint8_t ef = bd[1];
+                            std::string eotfs;
+                            if (ef & 0x01) eotfs += "SDR ";
+                            if (ef & 0x02) eotfs += "HDR ";
+                            if (ef & 0x04) eotfs += "HDR10/ST2084 ";
+                            if (ef & 0x08) eotfs += "HLG ";
+                            if (!eotfs.empty() && eotfs.back() == ' ') eotfs.pop_back();
+                            hdrEotfs = eotfs.empty() ? "none" : eotfs;
+                        }
+                    }
+                }
+                break;  // process only the first CEA-861 extension
+            }
+
+            // ---- Print ASCII table ----
+            // Layout: | %-22s | %-30s |
+            //         +------------------------+--------------------------------+
+            //          ^24 dashes               ^32 dashes  (total row = 59 chars)
+            const char* kDiv = "+------------------------+--------------------------------+";
+            LOGINFO("SystemDelegate: [EDID] %s", kDiv);
+            LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Field",               "Value");
+            LOGINFO("SystemDelegate: [EDID] %s", kDiv);
+            LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Manufacturer",         mfr);
+            LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Product Code",          prodStr);
+            LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Year / Week",           yearStr);
+            LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "EDID Version",          edidVerStr);
+            LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Interface",             ifaceFullStr);
+            LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Physical Size (cm)",    sizeStr);
+            LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Extensions",            numExtsStr);
+            LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Base Checksum",         baseCsumStr);
+            LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Monitor Name",          monNameDisp);
+            if (hasCea)
+            {
+                char ceaRevStr[8]; snprintf(ceaRevStr, sizeof(ceaRevStr), "%d", ceaRev);
+                char svdStr[8];    snprintf(svdStr,    sizeof(svdStr),    "%d", videoSVDs);
+                LOGINFO("SystemDelegate: [EDID] %s", kDiv);
+                LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "CEA-861 Revision",  ceaRevStr);
+                LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Underscan",         underscan  ? "Yes" : "No");
+                LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Basic Audio",       basicAudio ? "Yes" : "No");
+                LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "YCbCr 4:4:4",      ycbcr444   ? "Yes" : "No");
+                LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "YCbCr 4:2:2",      ycbcr422   ? "Yes" : "No");
+                LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Video SVDs",        svdStr);
+                LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Native VIC",        nativeVicStr);
+                LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "4K Support",        has4k ? "Yes" : "No");
+                LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Colorimetry",       colorimetry.c_str());
+                LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "HDR EOTFs",         hdrEotfs.c_str());
+                LOGINFO("SystemDelegate: [EDID] | %-22s | %-30s |", "Ext Checksum",      extCsumStr);
+            }
+            LOGINFO("SystemDelegate: [EDID] %s", kDiv);
+        }
+        catch (...)
+        {
+            LOGERR("SystemDelegate: [EDID] LogEdidInfo caught unexpected exception — skipping EDID logging");
+        }
+    }
+
     inline std::shared_ptr<WPEFramework::Utils::JSONRPCDirectLink> AcquireLink(const std::string& callsign) const
     {
         // Create a direct JSON-RPC link to the specified Thunder plugin using the Supporting_Files helper.

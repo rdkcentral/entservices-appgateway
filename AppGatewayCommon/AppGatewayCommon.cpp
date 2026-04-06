@@ -298,6 +298,21 @@ namespace Plugin {
             (void)ctx;
             (void)payload;
             return self->GetNetworkConnected(result);
+        }},
+        { "display.edid", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetDisplayEdid(result);
+        }},
+        { "display.size", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetDisplaySize(result);
+        }},
+        { "display.maxresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetDisplayMaxResolution(result);
         }}
     };
 
@@ -1234,6 +1249,30 @@ namespace Plugin {
 
             return appDelegate->HandleAppGatewayRequest(context, method, payload, result);
         
+        }
+
+        Core::hresult AppGatewayCommon::GetDisplayEdid(string &result)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDisplayEdid(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetDisplaySize(string &result)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDisplaySize(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetDisplayMaxResolution(string &result)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDisplayMaxResolution(result);
         }
 
 } // namespace Plugin
