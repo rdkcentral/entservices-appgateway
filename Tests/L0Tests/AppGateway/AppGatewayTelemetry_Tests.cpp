@@ -619,3 +619,128 @@ uint32_t Test_Telemetry_RecordTelemetryEvent_WhenNotInitialized()
 
     return tr.failures;
 }
+
+// ---------------------------------------------------------------------------
+// Test 18: RecordTelemetryMetric with AGW_MARKER_BOOTSTRAP_DURATION
+//          Covers lines 929-932 (bootstrap duration handler path)
+// ---------------------------------------------------------------------------
+uint32_t Test_Telemetry_RecordBootstrapDuration()
+{
+    TestResult tr;
+    TelemetryGuard guard;
+
+    auto& t = AppGatewayTelemetry::getInstance();
+    const auto ctx = MakeCtx(190, 190, "com.test.bootstrap");
+
+    // This metric name matches AGW_MARKER_BOOTSTRAP_DURATION ("ENTS_INFO_AppGwBootstrap"),
+    // so RecordTelemetryMetric hits the "bootstrap duration" branch (lines 929-932)
+    auto rc = t.RecordTelemetryMetric(ctx, AGW_MARKER_BOOTSTRAP_DURATION, 1500.0, "ms");
+    ExpectEqU32(tr, rc, ERROR_NONE, "RecordBootstrapDuration returns ERROR_NONE");
+
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// Test 19: RecordTelemetryEvent with RESPONSE_PAYLOAD_TRACKING and error JSON
+//          Covers lines 327-329 (RecordResponse(false) when code+message are set)
+// ---------------------------------------------------------------------------
+uint32_t Test_Telemetry_ResponsePayloadTracking_ErrorResponse()
+{
+    TestResult tr;
+    TelemetryGuard guard;
+
+    auto& t = AppGatewayTelemetry::getInstance();
+    const auto ctx = MakeCtx(191, 191, "com.test.resptrack");
+
+    // Create a map entry so RecordResponse doesn't log "unknown key"
+    t.IncrementTotalCalls(ctx);
+
+    // Payload with "code" and "message" makes Core::JSONRPC::Message::Info::Code and
+    // Text both IsSet() → hits RecordResponse(context, false) at lines 327-329
+    auto rc = t.RecordTelemetryEvent(ctx,
+                                     AGW_MARKER_RESPONSE_PAYLOAD_TRACKING,
+                                     "{\"code\":1,\"message\":\"internal error\"}");
+    ExpectEqU32(tr, rc, ERROR_NONE, "ResponsePayloadTracking error response returns ERROR_NONE");
+
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// Test 20: RecordTelemetryEvent with AGW_MARKER_PLUGIN_API_ERROR and non-JSON data
+//          Covers line 1439 (non-JSON payload falls back to contextPayload["data"])
+// ---------------------------------------------------------------------------
+uint32_t Test_Telemetry_SendT2Event_NonJsonPayload()
+{
+    TestResult tr;
+    TelemetryGuard guard;
+
+    auto& t = AppGatewayTelemetry::getInstance();
+    const auto ctx = MakeCtx(192, 192, "com.test.nonjson");
+
+    // Sending a non-JSON string as event data:
+    //   data.FromString(eventData) succeeds but HasLabel("api") is false for non-JSON,
+    //   then SendT2Event(marker, eventData, ctx) is called with "not-json-text".
+    //   Inside SendT2Event, payloadObj.FromString("not-json-text") fails → line 1439 hit.
+    auto rc = t.RecordTelemetryEvent(ctx, AGW_MARKER_PLUGIN_API_ERROR, "not-json-text");
+    ExpectEqU32(tr, rc, ERROR_NONE, "RecordTelemetryEvent with non-JSON data returns ERROR_NONE");
+
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// Test 21: FormatTelemetryPayload COMPACT with float average and boolean field
+//          Covers line 1599 (float non-integer value) and line 1602 (BOOLEAN)
+// ---------------------------------------------------------------------------
+uint32_t Test_Telemetry_Compact_FloatAndBoolean()
+{
+    TestResult tr;
+    TelemetryGuard guard;
+
+    auto& t = AppGatewayTelemetry::getInstance();
+    const auto ctx = MakeCtx(193, 193, "com.test.compactfb");
+
+    t.SetTelemetryFormat(TelemetryFormat::COMPACT);
+
+    // Record two values that produce a non-integer average (1.0 + 2.0) / 2 = 1.5
+    // This triggers the float branch (line 1599) in FormatTelemetryPayload COMPACT mode
+    t.RecordTelemetryMetric(ctx, "ENTS_INFO_AppGwFloatTest", 1.0, AGW_UNIT_COUNT);
+    t.RecordTelemetryMetric(ctx, "ENTS_INFO_AppGwFloatTest", 2.0, AGW_UNIT_COUNT);
+
+    // SendT2Event with a boolean in the JSON triggers line 1602 (BOOLEAN branch)
+    // AGW_MARKER_PLUGIN_API_ERROR handler parses the JSON, copies all fields into contextPayload
+    t.RecordTelemetryEvent(ctx, AGW_MARKER_PLUGIN_API_ERROR,
+                           "{\"api\":\"testApi\",\"active\":true}");
+
+    // Flush so FormatTelemetryPayload is called with COMPACT format on the float avg payload
+    t.FlushTelemetryData();
+
+    t.SetTelemetryFormat(TelemetryFormat::JSON);
+
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// Test 22: FormatTelemetryPayload COMPACT with array payload
+//          Covers lines 1547-1590 (array handling in COMPACT format)
+// ---------------------------------------------------------------------------
+uint32_t Test_Telemetry_Compact_ArrayPayload()
+{
+    TestResult tr;
+    TelemetryGuard guard;
+
+    auto& t = AppGatewayTelemetry::getInstance();
+    const auto ctx = MakeCtx(194, 194, "com.test.compactarr");
+
+    t.SetTelemetryFormat(TelemetryFormat::COMPACT);
+
+    // Pass an event data JSON that contains an array field.
+    // SendT2Event receives the parsed JSON which includes an ARRAY variant.
+    // → FormatTelemetryPayload in COMPACT mode hits the ARRAY branch (lines 1547-1590)
+    t.RecordTelemetryEvent(ctx, AGW_MARKER_PLUGIN_API_ERROR,
+                           "{\"api\":\"testApi\","
+                           "\"items\":[{\"k\":\"v1\"},{\"k\":\"v2\"}]}");
+
+    t.SetTelemetryFormat(TelemetryFormat::JSON);
+
+    return tr.failures;
+}

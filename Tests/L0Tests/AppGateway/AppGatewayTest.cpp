@@ -69,6 +69,7 @@ extern uint32_t Test_AppGatewayImplementation_ComRpc_HandleRequestFails();
 extern uint32_t Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery();
 extern uint32_t Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey();
 extern uint32_t Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps();
+extern uint32_t Test_AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash();
 
 // AppGatewayTelemetry coverage tests
 extern uint32_t Test_Telemetry_SettersAndConfig();
@@ -88,6 +89,19 @@ extern uint32_t Test_Telemetry_Flush_WithAggregatedMetrics();
 extern uint32_t Test_Telemetry_FormatTelemetryPayload_CompactFormat();
 extern uint32_t Test_Telemetry_RecordTelemetryMetric_WhenNotInitialized();
 extern uint32_t Test_Telemetry_RecordTelemetryEvent_WhenNotInitialized();
+// New telemetry coverage tests
+extern uint32_t Test_Telemetry_RecordBootstrapDuration();
+extern uint32_t Test_Telemetry_ResponsePayloadTracking_ErrorResponse();
+extern uint32_t Test_Telemetry_SendT2Event_NonJsonPayload();
+extern uint32_t Test_Telemetry_Compact_FloatAndBoolean();
+extern uint32_t Test_Telemetry_Compact_ArrayPayload();
+// New AppGatewayImplementation coverage tests
+extern uint32_t Test_AppGatewayImplementation_Event_MissingListenParam();
+extern uint32_t Test_AppGatewayImplementation_UpdateContext_NonJsonParams();
+extern uint32_t Test_AppGatewayImplementation_ComRpc_AdditionalContext_NotObject();
+extern uint32_t Test_AppGatewayImplementation_Resolve_BeforeShellConfigure();
+extern uint32_t Test_AppGatewayImplementation_Resolve_NotConfigured();
+extern uint32_t Test_AppGatewayImplementation_RegionalConfig();
 
 namespace {
 
@@ -441,6 +455,7 @@ int main()
         { "AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery", Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery },
         { "AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey", Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey },
         { "AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps", Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps },
+        { "AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash", Test_AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash },
 
         // AppGatewayTelemetry coverage tests
         { "Telemetry_SettersAndConfig", Test_Telemetry_SettersAndConfig },
@@ -460,6 +475,19 @@ int main()
         { "Telemetry_FormatTelemetryPayload_CompactFormat", Test_Telemetry_FormatTelemetryPayload_CompactFormat },
         { "Telemetry_RecordTelemetryMetric_WhenNotInitialized", Test_Telemetry_RecordTelemetryMetric_WhenNotInitialized },
         { "Telemetry_RecordTelemetryEvent_WhenNotInitialized", Test_Telemetry_RecordTelemetryEvent_WhenNotInitialized },
+        // New telemetry coverage tests
+        { "Telemetry_RecordBootstrapDuration", Test_Telemetry_RecordBootstrapDuration },
+        { "Telemetry_ResponsePayloadTracking_ErrorResponse", Test_Telemetry_ResponsePayloadTracking_ErrorResponse },
+        { "Telemetry_SendT2Event_NonJsonPayload", Test_Telemetry_SendT2Event_NonJsonPayload },
+        { "Telemetry_Compact_FloatAndBoolean", Test_Telemetry_Compact_FloatAndBoolean },
+        { "Telemetry_Compact_ArrayPayload", Test_Telemetry_Compact_ArrayPayload },
+        // New AppGatewayImplementation coverage tests
+        { "AppGatewayImplementation_Event_MissingListenParam", Test_AppGatewayImplementation_Event_MissingListenParam },
+        { "AppGatewayImplementation_UpdateContext_NonJsonParams", Test_AppGatewayImplementation_UpdateContext_NonJsonParams },
+        { "AppGatewayImplementation_ComRpc_AdditionalContext_NotObject", Test_AppGatewayImplementation_ComRpc_AdditionalContext_NotObject },
+        { "AppGatewayImplementation_Resolve_BeforeShellConfigure", Test_AppGatewayImplementation_Resolve_BeforeShellConfigure },
+        { "AppGatewayImplementation_Resolve_NotConfigured", Test_AppGatewayImplementation_Resolve_NotConfigured },
+        { "AppGatewayImplementation_RegionalConfig", Test_AppGatewayImplementation_RegionalConfig },
     };
 
     uint32_t failures = 0;
