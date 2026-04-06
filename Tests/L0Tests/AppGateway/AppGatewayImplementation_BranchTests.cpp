@@ -910,6 +910,10 @@ uint32_t Test_AppGatewayImplementation_Resolve_NotConfigured()
                     "Resolve without path configuration returns ERROR_GENERAL");
         ExpectTrue(tr, !resolution.empty(), "Resolution contains not-configured error message");
 
+        // Drain async respond jobs before releasing; in CI the fallback config loads
+        // successfully so Resolve() triggers an async socket response via the responder.
+        // Without this drain the WorkerPool job fires after impl is freed → UAF crash.
+        DrainAsyncRespondJobs();
         impl->Release();
         service->Release();
     }
