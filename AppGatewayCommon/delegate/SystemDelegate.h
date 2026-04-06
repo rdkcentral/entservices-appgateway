@@ -38,11 +38,11 @@ using namespace WPEFramework;
 
 // Define a callsign constant to match the AUTHSERVICE_CALLSIGN-style pattern.
 #ifndef SYSTEM_CALLSIGN
-#define SYSTEM_CALLSIGN "org.rdk.System.2"
+#define SYSTEM_CALLSIGN "org.rdk.System.1"
 #endif
 
 #ifndef DISPLAYSETTINGS_CALLSIGN
-#define DISPLAYSETTINGS_CALLSIGN "org.rdk.DisplaySettings.2"
+#define DISPLAYSETTINGS_CALLSIGN "org.rdk.DisplaySettings.1"
 #endif
 
 #ifndef HDCPPROFILE_CALLSIGN
