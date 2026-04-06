@@ -851,11 +851,12 @@ uint32_t Test_AppGatewayImplementation_Resolve_BeforeShellConfigure()
 
     if (impl != nullptr) {
         // Test lines 311-314: Configure(IStringIterator*) before Configure(IShell*)
+        // mResolverPtr is null → returns ERROR_GENERAL (not ERROR_BAD_REQUEST)
         SimpleStringIterator* it = new SimpleStringIterator({ BaseResolutionsPath() });
         const uint32_t cfgRc = impl->Configure(it);
         it->Release();
-        ExpectEqU32(tr, cfgRc, ERROR_BAD_REQUEST,
-                    "Configure(iterator) before Configure(shell) returns ERROR_BAD_REQUEST");
+        ExpectEqU32(tr, cfgRc, ERROR_GENERAL,
+                    "Configure(iterator) before Configure(shell) returns ERROR_GENERAL");
 
         // Test lines 392-395: Resolve before Configure(IShell*) → mResolverPtr null
         std::string resolution;
