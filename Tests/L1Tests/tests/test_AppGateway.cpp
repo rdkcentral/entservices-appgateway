@@ -39,6 +39,7 @@
 #include "ServiceMock.h"
 #include "COMLinkMock.h"
 #include "DispatcherMock.h"
+#include "WorkerPoolImplementation.h"
 
 using namespace WPEFramework;
 using namespace WPEFramework::Plugin;
@@ -47,6 +48,40 @@ using ::testing::NiceMock;
 using ::testing::Return;
 
 namespace {
+
+// Many Thunder subsystems (Respond/Emit/Request job submission, AppGatewayImplementation
+// destructor, etc.) call Core::IWorkerPool::Instance() which segfaults when no pool
+// is assigned.  This guard creates and assigns a pool for the lifetime of the process.
+class WorkerPoolGuard final {
+public:
+    WorkerPoolGuard(const WorkerPoolGuard&) = delete;
+    WorkerPoolGuard& operator=(const WorkerPoolGuard&) = delete;
+
+    WorkerPoolGuard()
+        : mPool(2, 0, 64)
+        , mAssigned(false)
+    {
+        if (Core::IWorkerPool::IsAvailable() == false) {
+            Core::IWorkerPool::Assign(&mPool);
+            mAssigned = true;
+            mPool.Run();
+        }
+    }
+
+    ~WorkerPoolGuard()
+    {
+        if (mAssigned) {
+            mPool.Stop();
+            Core::IWorkerPool::Assign(nullptr);
+        }
+    }
+
+private:
+    WorkerPoolImplementation mPool;
+    bool mAssigned;
+};
+
+static WorkerPoolGuard gWorkerPool;
 
 class TestAppGateway final : public AppGateway {
 public:
