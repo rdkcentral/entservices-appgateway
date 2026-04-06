@@ -5,9 +5,7 @@
 uint32_t Test_CheckPermissionGroup_DefaultAllowed()
 {
     TestResult tr;
-    PluginAndService ps;
-
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
 
     QIGuard<Exchange::IAppGatewayAuthenticator> auth(ps.plugin);
     bool allowed = false;
@@ -15,7 +13,6 @@ uint32_t Test_CheckPermissionGroup_DefaultAllowed()
     ExpectEqU32(tr, rc, ERROR_NONE, "CheckPermissionGroup returns ERROR_NONE");
     ExpectTrue(tr, allowed, "CheckPermissionGroup defaults to allowed=true");
 
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -27,16 +24,13 @@ uint32_t Test_CheckPermissionGroup_DefaultAllowed()
 uint32_t Test_Authenticate_DelegateUnavailable()
 {
     TestResult tr;
-    PluginAndService ps;
-
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
 
     QIGuard<Exchange::IAppGatewayAuthenticator> auth(ps.plugin);
     std::string appId;
     const uint32_t rc = auth->Authenticate("test-session-id", appId);
     ExpectEqU32(tr, rc, ERROR_GENERAL, "Authenticate returns ERROR_GENERAL in L0 (session not in map)");
 
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -47,16 +41,13 @@ uint32_t Test_Authenticate_DelegateUnavailable()
 uint32_t Test_GetSessionId_DelegateUnavailable()
 {
     TestResult tr;
-    PluginAndService ps;
-
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
 
     QIGuard<Exchange::IAppGatewayAuthenticator> auth(ps.plugin);
     std::string sessionId;
     const uint32_t rc = auth->GetSessionId("com.test.app", sessionId);
     ExpectEqU32(tr, rc, ERROR_GENERAL, "GetSessionId returns ERROR_GENERAL in L0 (appId not in map)");
 
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -65,14 +56,12 @@ uint32_t Test_GetSessionId_DelegateUnavailable()
 uint32_t Test_HandleAppEventNotifier_NullCb()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
     bool status = true;
     const uint32_t rc = notif->HandleAppEventNotifier(nullptr, "lifecycle.onbackground", true, status);
     ExpectEqU32(tr, rc, ERROR_GENERAL, "HandleAppEventNotifier with null cb returns ERROR_GENERAL");
     ExpectTrue(tr, false == status, "HandleAppEventNotifier with null cb sets status false");
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -81,8 +70,7 @@ uint32_t Test_HandleAppEventNotifier_NullCb()
 uint32_t Test_HandleAppEventNotifier_ValidCb()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
     auto* emitter = new StubEmitter(); // refcount=1
 
@@ -104,7 +92,6 @@ uint32_t Test_HandleAppEventNotifier_ValidCb()
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     emitter->Release(); // drop our initial ref
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -150,8 +137,7 @@ uint32_t Test_HandleAppEventNotifier_BeforeInit()
 uint32_t Test_HandleAppEventNotifier_UnrecognizedEvent()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
     auto* emitter = new StubEmitter();
 
@@ -164,7 +150,6 @@ uint32_t Test_HandleAppEventNotifier_UnrecognizedEvent()
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     emitter->Release();
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -180,8 +165,7 @@ uint32_t Test_HandleAppEventNotifier_UnrecognizedEvent()
 uint32_t Test_HandleAppEventNotifier_NetworkEvent_ListenTrue()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
     auto* emitter = new StubEmitter();
 
@@ -193,7 +177,6 @@ uint32_t Test_HandleAppEventNotifier_NetworkEvent_ListenTrue()
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     emitter->Release();
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -208,8 +191,7 @@ uint32_t Test_HandleAppEventNotifier_NetworkEvent_ListenTrue()
 uint32_t Test_HandleAppEventNotifier_UserSettingsEvent_ListenTrue()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
     auto* emitter = new StubEmitter();
 
@@ -221,7 +203,6 @@ uint32_t Test_HandleAppEventNotifier_UserSettingsEvent_ListenTrue()
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     emitter->Release();
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -239,8 +220,7 @@ uint32_t Test_HandleAppEventNotifier_UserSettingsEvent_ListenTrue()
 uint32_t Test_HandleAppEventNotifier_TTSEvent_ListenTrue()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
     auto* emitter = new StubEmitter();
 
@@ -252,7 +232,6 @@ uint32_t Test_HandleAppEventNotifier_TTSEvent_ListenTrue()
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     emitter->Release();
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -268,8 +247,7 @@ uint32_t Test_HandleAppEventNotifier_TTSEvent_ListenTrue()
 uint32_t Test_HandleAppEventNotifier_SystemDeviceEvent()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
     auto* emitter = new StubEmitter();
 
@@ -289,7 +267,6 @@ uint32_t Test_HandleAppEventNotifier_SystemDeviceEvent()
     std::this_thread::sleep_for(std::chrono::milliseconds(15));
 
     emitter->Release();
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -305,8 +282,7 @@ uint32_t Test_HandleAppEventNotifier_SystemDeviceEvent()
 uint32_t Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
     auto* emitter = new StubEmitter();
 
@@ -318,6 +294,5 @@ uint32_t Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly()
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     emitter->Release();
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
