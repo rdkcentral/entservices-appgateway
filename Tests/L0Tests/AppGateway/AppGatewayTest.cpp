@@ -70,6 +70,25 @@ extern uint32_t Test_AppGatewayResponderImplementation_Register_Unregister_And_C
 extern uint32_t Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey();
 extern uint32_t Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps();
 
+// AppGatewayTelemetry coverage tests
+extern uint32_t Test_Telemetry_SettersAndConfig();
+extern uint32_t Test_Telemetry_HealthStatCounters_And_RecordResponse();
+extern uint32_t Test_Telemetry_HandleHealthStatsMarkers();
+extern uint32_t Test_Telemetry_RecordTelemetryMetric_ApiMethodParse();
+extern uint32_t Test_Telemetry_RecordTelemetryMetric_ApiLatencyParse();
+extern uint32_t Test_Telemetry_RecordTelemetryMetric_ServiceLatencyParse();
+extern uint32_t Test_Telemetry_RecordTelemetryMetric_ServiceMethodParse();
+extern uint32_t Test_Telemetry_RecordTelemetryEvent_ApiError();
+extern uint32_t Test_Telemetry_RecordTelemetryEvent_ExtServiceError();
+extern uint32_t Test_Telemetry_RecordTelemetryEvent_NonImmediate_CacheThreshold();
+extern uint32_t Test_Telemetry_Flush_WithHealthData();
+extern uint32_t Test_Telemetry_Flush_WithApiAndServiceStats();
+extern uint32_t Test_Telemetry_Flush_WithApiAndServiceErrorCounts();
+extern uint32_t Test_Telemetry_Flush_WithAggregatedMetrics();
+extern uint32_t Test_Telemetry_FormatTelemetryPayload_CompactFormat();
+extern uint32_t Test_Telemetry_RecordTelemetryMetric_WhenNotInitialized();
+extern uint32_t Test_Telemetry_RecordTelemetryEvent_WhenNotInitialized();
+
 namespace {
 
 struct PluginAndService {
@@ -422,6 +441,25 @@ int main()
         { "AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery", Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery },
         { "AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey", Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey },
         { "AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps", Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps },
+
+        // AppGatewayTelemetry coverage tests
+        { "Telemetry_SettersAndConfig", Test_Telemetry_SettersAndConfig },
+        { "Telemetry_HealthStatCounters_And_RecordResponse", Test_Telemetry_HealthStatCounters_And_RecordResponse },
+        { "Telemetry_HandleHealthStatsMarkers", Test_Telemetry_HandleHealthStatsMarkers },
+        { "Telemetry_RecordTelemetryMetric_ApiMethodParse", Test_Telemetry_RecordTelemetryMetric_ApiMethodParse },
+        { "Telemetry_RecordTelemetryMetric_ApiLatencyParse", Test_Telemetry_RecordTelemetryMetric_ApiLatencyParse },
+        { "Telemetry_RecordTelemetryMetric_ServiceLatencyParse", Test_Telemetry_RecordTelemetryMetric_ServiceLatencyParse },
+        { "Telemetry_RecordTelemetryMetric_ServiceMethodParse", Test_Telemetry_RecordTelemetryMetric_ServiceMethodParse },
+        { "Telemetry_RecordTelemetryEvent_ApiError", Test_Telemetry_RecordTelemetryEvent_ApiError },
+        { "Telemetry_RecordTelemetryEvent_ExtServiceError", Test_Telemetry_RecordTelemetryEvent_ExtServiceError },
+        { "Telemetry_RecordTelemetryEvent_NonImmediate_CacheThreshold", Test_Telemetry_RecordTelemetryEvent_NonImmediate_CacheThreshold },
+        { "Telemetry_Flush_WithHealthData", Test_Telemetry_Flush_WithHealthData },
+        { "Telemetry_Flush_WithApiAndServiceStats", Test_Telemetry_Flush_WithApiAndServiceStats },
+        { "Telemetry_Flush_WithApiAndServiceErrorCounts", Test_Telemetry_Flush_WithApiAndServiceErrorCounts },
+        { "Telemetry_Flush_WithAggregatedMetrics", Test_Telemetry_Flush_WithAggregatedMetrics },
+        { "Telemetry_FormatTelemetryPayload_CompactFormat", Test_Telemetry_FormatTelemetryPayload_CompactFormat },
+        { "Telemetry_RecordTelemetryMetric_WhenNotInitialized", Test_Telemetry_RecordTelemetryMetric_WhenNotInitialized },
+        { "Telemetry_RecordTelemetryEvent_WhenNotInitialized", Test_Telemetry_RecordTelemetryEvent_WhenNotInitialized },
     };
 
     uint32_t failures = 0;
