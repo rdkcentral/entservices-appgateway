@@ -939,6 +939,8 @@ public:
     // PUBLIC_INTERFACE
     // Display.size — reads widthincentimeters / heightincentimeters from DisplayInfo.
     // Returns {"width":0,"height":0} when no display is connected (STB/OTT).
+    // DisplayInfo returns a plain integer result (e.g. {"result":48}), so we invoke
+    // with std::string response and parse the integer instead of using HasLabel().
     Core::hresult GetDisplaySize(std::string &result)
     {
         result = "{\"width\":0,\"height\":0}";
@@ -949,17 +951,18 @@ public:
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        WPEFramework::Core::JSON::VariantContainer wResponse;
-        WPEFramework::Core::JSON::VariantContainer hResponse;
+        const std::string emptyParams = "{}";
+        std::string wStr, hStr;
+        const uint32_t wRc = link->Invoke<std::string, std::string>("widthincentimeters", emptyParams, wStr);
+        const uint32_t hRc = link->Invoke<std::string, std::string>("heightincentimeters", emptyParams, hStr);
 
-        const uint32_t wRc = link->Invoke("widthincentimeters", params, wResponse);
-        const uint32_t hRc = link->Invoke("heightincentimeters", params, hResponse);
+        int width  = 0;
+        int height = 0;
+        try { if (wRc == Core::ERROR_NONE && !wStr.empty()) width  = std::stoi(wStr); } catch (...) {}
+        try { if (hRc == Core::ERROR_NONE && !hStr.empty()) height = std::stoi(hStr); } catch (...) {}
 
-        const int width  = (wRc == Core::ERROR_NONE && wResponse.HasLabel(_T("result")))
-                           ? static_cast<int>(wResponse[_T("result")].Number()) : 0;
-        const int height = (hRc == Core::ERROR_NONE && hResponse.HasLabel(_T("result")))
-                           ? static_cast<int>(hResponse[_T("result")].Number()) : 0;
+        LOGDBG("SystemDelegate: GetDisplaySize widthincentimeters=%s(%d) heightincentimeters=%s(%d)",
+               wStr.c_str(), width, hStr.c_str(), height);
 
         JsonObject obj;
         obj["width"]  = width;
@@ -971,6 +974,8 @@ public:
     // PUBLIC_INTERFACE
     // Display.maxResolution — reads width / height (pixels) from DisplayInfo.
     // Returns {"width":0,"height":0} when no display is connected (STB/OTT).
+    // DisplayInfo returns a plain integer result (e.g. {"result":1920}), so we invoke
+    // with std::string response and parse the integer instead of using HasLabel().
     Core::hresult GetDisplayMaxResolution(std::string &result)
     {
         result = "{\"width\":0,\"height\":0}";
@@ -981,17 +986,18 @@ public:
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        WPEFramework::Core::JSON::VariantContainer wResponse;
-        WPEFramework::Core::JSON::VariantContainer hResponse;
+        const std::string emptyParams = "{}";
+        std::string wStr, hStr;
+        const uint32_t wRc = link->Invoke<std::string, std::string>("width", emptyParams, wStr);
+        const uint32_t hRc = link->Invoke<std::string, std::string>("height", emptyParams, hStr);
 
-        const uint32_t wRc = link->Invoke("width", params, wResponse);
-        const uint32_t hRc = link->Invoke("height", params, hResponse);
+        int width  = 0;
+        int height = 0;
+        try { if (wRc == Core::ERROR_NONE && !wStr.empty()) width  = std::stoi(wStr); } catch (...) {}
+        try { if (hRc == Core::ERROR_NONE && !hStr.empty()) height = std::stoi(hStr); } catch (...) {}
 
-        const int width  = (wRc == Core::ERROR_NONE && wResponse.HasLabel(_T("result")))
-                           ? static_cast<int>(wResponse[_T("result")].Number()) : 0;
-        const int height = (hRc == Core::ERROR_NONE && hResponse.HasLabel(_T("result")))
-                           ? static_cast<int>(hResponse[_T("result")].Number()) : 0;
+        LOGDBG("SystemDelegate: GetDisplayMaxResolution width=%s(%d) height=%s(%d)",
+               wStr.c_str(), width, hStr.c_str(), height);
 
         JsonObject obj;
         obj["width"]  = width;
