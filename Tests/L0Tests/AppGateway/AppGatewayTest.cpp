@@ -60,10 +60,15 @@ extern uint32_t Test_AppGatewayImplementation_PermissionGroup_Allowed_ComRpcDisa
 extern uint32_t Test_AppGatewayImplementation_EventListen_TriggersNotify();
 extern uint32_t Test_AppGatewayImplementation_IncludeContext_Path_Executes();
 extern uint32_t Test_AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAdditionalContext();
+extern uint32_t Test_AppGatewayImplementation_Configure_NullPaths_ReturnsBadRequest();
+extern uint32_t Test_AppGatewayImplementation_Configure_EmptyPaths_ReturnsBadRequest();
+extern uint32_t Test_AppGatewayImplementation_Authenticator_CheckPermission_Fails();
+extern uint32_t Test_AppGatewayImplementation_ComRpc_HandleRequestFails();
 
 // Targeted AppGatewayResponderImplementation coverage tests
 extern uint32_t Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery();
 extern uint32_t Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey();
+extern uint32_t Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps();
 
 namespace {
 
@@ -405,13 +410,18 @@ int main()
         // New AppGatewayImplementation branch/coverage tests
         { "AppGatewayImplementation_PermissionGroup_Denied", Test_AppGatewayImplementation_PermissionGroup_Denied },
         { "AppGatewayImplementation_PermissionGroup_Allowed_ComRpcDisabled", Test_AppGatewayImplementation_PermissionGroup_Allowed_ComRpcDisabled },
-       // { "AppGatewayImplementation_EventListen_TriggersNotify", Test_AppGatewayImplementation_EventListen_TriggersNotify },
+        { "AppGatewayImplementation_EventListen_TriggersNotify", Test_AppGatewayImplementation_EventListen_TriggersNotify },
         { "AppGatewayImplementation_IncludeContext_Path_Executes", Test_AppGatewayImplementation_IncludeContext_Path_Executes },
         { "AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAdditionalContext", Test_AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAdditionalContext },
+        { "AppGatewayImplementation_Configure_NullPaths_ReturnsBadRequest", Test_AppGatewayImplementation_Configure_NullPaths_ReturnsBadRequest },
+        { "AppGatewayImplementation_Configure_EmptyPaths_ReturnsBadRequest", Test_AppGatewayImplementation_Configure_EmptyPaths_ReturnsBadRequest },
+        { "AppGatewayImplementation_Authenticator_CheckPermission_Fails", Test_AppGatewayImplementation_Authenticator_CheckPermission_Fails },
+        { "AppGatewayImplementation_ComRpc_HandleRequestFails", Test_AppGatewayImplementation_ComRpc_HandleRequestFails },
 
         // Targeted AppGatewayResponderImplementation coverage tests
-       // { "AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery", Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery },
+        { "AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery", Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery },
         { "AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey", Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey },
+        { "AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps", Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps },
     };
 
     uint32_t failures = 0;

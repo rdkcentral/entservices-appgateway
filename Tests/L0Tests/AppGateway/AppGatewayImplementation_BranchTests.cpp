@@ -445,6 +445,182 @@ uint32_t Test_AppGatewayImplementation_IncludeContext_Path_Executes()
 }
 
 // PUBLIC_INTERFACE
+uint32_t Test_AppGatewayImplementation_Configure_NullPaths_ReturnsBadRequest()
+{
+    /** Exercise Configure(nullptr) early-exit path which returns ERROR_BAD_REQUEST. */
+    TestResult tr;
+
+    auto* impl = WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ExpectTrue(tr, impl != nullptr, "Create AppGatewayImplementation instance");
+
+    if (impl != nullptr) {
+        L0Test::ServiceMock::Config cfg;
+        auto* service = new L0Test::ServiceMock(cfg, true);
+
+        // Initialize mResolverPtr by calling IConfiguration::Configure(shell) first.
+        auto* configIfc = static_cast<WPEFramework::Exchange::IConfiguration*>(
+            impl->QueryInterface(WPEFramework::Exchange::IConfiguration::ID));
+        ExpectTrue(tr, configIfc != nullptr, "IConfiguration available on AppGatewayImplementation");
+        if (configIfc != nullptr) {
+            configIfc->Configure(service);
+            configIfc->Release();
+        }
+
+        // Now call Configure(nullptr) — should return ERROR_BAD_REQUEST.
+        const uint32_t rc = impl->Configure(nullptr);
+        ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "Configure(nullptr) returns ERROR_BAD_REQUEST");
+
+        impl->Release();
+        service->Release();
+    }
+
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
+uint32_t Test_AppGatewayImplementation_Configure_EmptyPaths_ReturnsBadRequest()
+{
+    /** Exercise Configure(empty iterator) path which returns ERROR_BAD_REQUEST when no paths are given. */
+    TestResult tr;
+
+    auto* impl = WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ExpectTrue(tr, impl != nullptr, "Create AppGatewayImplementation instance");
+
+    if (impl != nullptr) {
+        L0Test::ServiceMock::Config cfg;
+        auto* service = new L0Test::ServiceMock(cfg, true);
+
+        // Initialize mResolverPtr via IConfiguration::Configure(shell).
+        auto* configIfc = static_cast<WPEFramework::Exchange::IConfiguration*>(
+            impl->QueryInterface(WPEFramework::Exchange::IConfiguration::ID));
+        ExpectTrue(tr, configIfc != nullptr, "IConfiguration available on AppGatewayImplementation");
+        if (configIfc != nullptr) {
+            configIfc->Configure(service);
+            configIfc->Release();
+        }
+
+        // Pass an empty iterator — should return ERROR_BAD_REQUEST (no paths).
+        SimpleStringIterator* it = new SimpleStringIterator({});
+        const uint32_t rc = impl->Configure(it);
+        it->Release();
+        ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "Configure(empty iterator) returns ERROR_BAD_REQUEST");
+
+        impl->Release();
+        service->Release();
+    }
+
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
+uint32_t Test_AppGatewayImplementation_Authenticator_CheckPermission_Fails()
+{
+    /** Exercise the CheckPermissionGroup failure path (checkRc != ERROR_NONE).
+     *  authenticatorFailCheck=true makes CheckPermissionGroup return ERROR_GENERAL,
+     *  covering the error-handling block that was previously uncovered.
+     */
+    TestResult tr;
+
+    auto* impl = WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ExpectTrue(tr, impl != nullptr, "Create AppGatewayImplementation instance");
+
+    if (impl != nullptr) {
+        L0Test::ServiceMock::Config cfg;
+        cfg.provideAuthenticator = true;
+        cfg.authenticatorAllowed = false;
+        cfg.authenticatorFailCheck = true; // CheckPermissionGroup returns ERROR_GENERAL
+        cfg.provideResponder = true;
+
+        auto* service = new L0Test::ServiceMock(cfg, true);
+
+        ConfigureImplOrFail(tr, impl, service, { BaseResolutionsPath() });
+
+        std::string result;
+        const auto ctx = MakeContext();
+        // "device.setName" requires a permissionGroup check (from resolution.base.json).
+        const uint32_t rc = impl->Resolve(ctx, "org.rdk.AppGateway", "device.setName", "{}", result);
+        ExpectEqU32(tr, rc, ERROR_GENERAL, "Failed CheckPermissionGroup returns ERROR_GENERAL");
+
+        auto* auth = service->GetAuthenticatorFake();
+        ExpectTrue(tr, auth != nullptr, "AuthenticatorFake was created");
+        if (auth != nullptr) {
+            ExpectTrue(tr, auth->checkPermissionCount > 0, "CheckPermissionGroup was called");
+        }
+
+        DrainAsyncRespondJobs();
+        impl->Release();
+        service->Release();
+    }
+
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
+uint32_t Test_AppGatewayImplementation_ComRpc_HandleRequestFails()
+{
+    /** Exercise ProcessComRpcRequest failure path where HandleAppGatewayRequest returns error.
+     *  The first Resolve call creates and caches the RequestHandlerFake.
+     *  We then set the return code to ERROR_GENERAL and issue a second Resolve to cover lines 506-514.
+     */
+    TestResult tr;
+
+    EnvVarGuard guard("APPGATEWAY_L0_DISABLE_COMRPC", "0"); // ensure COM-RPC path is enabled
+
+    const std::string overridePath = ComputeRepoRoot() + "/Tests/L0Tests/l0test/config/comrpc_handle_fail.override.json";
+    const std::string overrideJson = R"JSON(
+{
+  "resolutions": {
+    "test.comrpc.fail": {
+      "alias": "org.rdk.FbSettings",
+      "useComRpc": true,
+      "additionalContext": { "scope": "l0" }
+    }
+  }
+}
+)JSON";
+    ExpectTrue(tr, WriteTextFile(overridePath, overrideJson), "Write COM-RPC fail override JSON");
+
+    auto* impl = WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ExpectTrue(tr, impl != nullptr, "Create AppGatewayImplementation instance");
+
+    if (impl != nullptr) {
+        L0Test::ServiceMock::Config cfg;
+        cfg.provideResponder = true;
+        cfg.provideRequestHandler = true;
+        cfg.requestHandlerCallsign = "org.rdk.FbSettings";
+
+        auto* service = new L0Test::ServiceMock(cfg, true);
+
+        ConfigureImplOrFail(tr, impl, service, { BaseResolutionsPath(), overridePath });
+
+        std::string resolution;
+        const auto ctx = MakeContext();
+
+        // First call creates the RequestHandlerFake (returns ERROR_NONE by default).
+        impl->Resolve(ctx, "org.rdk.AppGateway", "test.comrpc.fail", "{}", resolution);
+
+        // Retrieve the fake and configure it to fail on the next call.
+        auto* handler = service->GetRequestHandlerFake();
+        ExpectTrue(tr, handler != nullptr, "RequestHandlerFake was created");
+        if (handler != nullptr) {
+            handler->SetReturnCode(ERROR_GENERAL);
+        }
+
+        // Second call: HandleAppGatewayRequest returns ERROR_GENERAL — exercises failure path.
+        resolution.clear();
+        const uint32_t rc = impl->Resolve(ctx, "org.rdk.AppGateway", "test.comrpc.fail", "{}", resolution);
+        ExpectEqU32(tr, rc, ERROR_GENERAL, "ComRpc handler failure returns ERROR_GENERAL");
+        ExpectTrue(tr, !resolution.empty(), "Non-empty error resolution on handler failure");
+
+        DrainAsyncRespondJobs();
+        impl->Release();
+        service->Release();
+    }
+
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
 uint32_t Test_AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAdditionalContext()
 {
     /** Exercise COM-RPC handler path with UpdateContext(onlyAdditionalContext=true):
