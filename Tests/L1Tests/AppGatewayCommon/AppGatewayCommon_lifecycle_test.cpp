@@ -535,31 +535,43 @@ TEST_F(LifecycleDelegateTest, AGC_L1_186_GetLastIntent_WithIntent)
 
 class LifecycleNoInterfaceTest : public ::testing::Test {
 protected:
-    Core::Sink<AppGatewayCommon> plugin;
-    NiceMock<ServiceMock> service;
+    static Core::Sink<AppGatewayCommon>* sPlugin;
+    static NiceMock<ServiceMock>* sService;
 
-    void SetUp() override
+    Core::Sink<AppGatewayCommon>& plugin = *sPlugin;
+    NiceMock<ServiceMock>& service = *sService;
+
+    static void SetUpTestSuite()
     {
         // Ensure /opt/ai2managers does NOT exist (handles both file and directory)
         RemoveAi2managers();
 
-        // All calls return nullptr
-        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+        sService = new NiceMock<ServiceMock>();
+        sPlugin = new Core::Sink<AppGatewayCommon>();
+
+        ON_CALL(*sService, QueryInterfaceByCallsign(_, _))
             .WillByDefault(Return(nullptr));
 
-        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*sService, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(*sService, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
 
-        const string response = plugin.Initialize(&service);
+        const string response = sPlugin->Initialize(sService);
         ASSERT_TRUE(response.empty());
     }
 
-    void TearDown() override
+    static void TearDownTestSuite()
     {
-        plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        if (sPlugin && sService) {
+            sPlugin->Deinitialize(sService);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        delete sPlugin;  sPlugin = nullptr;
+        delete sService; sService = nullptr;
     }
 };
+
+Core::Sink<AppGatewayCommon>* LifecycleNoInterfaceTest::sPlugin = nullptr;
+NiceMock<ServiceMock>* LifecycleNoInterfaceTest::sService = nullptr;
 
 TEST_F(LifecycleNoInterfaceTest, AGC_L1_187_LifecycleClose_NullInterface_ReturnsError)
 {

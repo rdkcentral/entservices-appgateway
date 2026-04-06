@@ -88,35 +88,56 @@ static Exchange::GatewayContext MakeContext()
 
 class AppDelegateTest : public ::testing::Test {
 protected:
-    Core::Sink<AppGatewayCommon> plugin;
-    NiceMock<ServiceMock> service;
-    NiceMock<MockSharedStorage> mockStorage;
+    static Core::Sink<AppGatewayCommon>* sPlugin;
+    static NiceMock<ServiceMock>* sService;
+    static NiceMock<MockSharedStorage>* sMockStorage;
 
-    void SetUp() override
+    Core::Sink<AppGatewayCommon>& plugin = *sPlugin;
+    NiceMock<ServiceMock>& service = *sService;
+    NiceMock<MockSharedStorage>& mockStorage = *sMockStorage;
+
+    static void SetUpTestSuite()
     {
-        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+        sService = new NiceMock<ServiceMock>();
+        sMockStorage = new NiceMock<MockSharedStorage>();
+        sPlugin = new Core::Sink<AppGatewayCommon>();
+
+        ON_CALL(*sService, QueryInterfaceByCallsign(_, _))
             .WillByDefault(Return(nullptr));
 
-        // Return MockSharedStorage for "org.rdk.SharedStorage" callsign
-        ON_CALL(service, QueryInterfaceByCallsign(Exchange::ISharedStorage::ID, ::testing::StrEq("org.rdk.SharedStorage")))
-            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
-                mockStorage.AddRef();
-                return static_cast<Exchange::ISharedStorage*>(&mockStorage);
+        ON_CALL(*sService, QueryInterfaceByCallsign(Exchange::ISharedStorage::ID, ::testing::StrEq("org.rdk.SharedStorage")))
+            .WillByDefault(::testing::Invoke([](uint32_t, const string&) -> void* {
+                sMockStorage->AddRef();
+                return static_cast<Exchange::ISharedStorage*>(sMockStorage);
             }));
 
-        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*sService, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(*sService, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
 
-        const string response = plugin.Initialize(&service);
+        const string response = sPlugin->Initialize(sService);
         ASSERT_TRUE(response.empty());
+    }
+
+    static void TearDownTestSuite()
+    {
+        if (sPlugin && sService) {
+            sPlugin->Deinitialize(sService);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        delete sPlugin;      sPlugin = nullptr;
+        delete sMockStorage; sMockStorage = nullptr;
+        delete sService;     sService = nullptr;
     }
 
     void TearDown() override
     {
-        plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        ::testing::Mock::VerifyAndClearExpectations(sMockStorage);
     }
 };
+
+Core::Sink<AppGatewayCommon>* AppDelegateTest::sPlugin = nullptr;
+NiceMock<ServiceMock>* AppDelegateTest::sService = nullptr;
+NiceMock<MockSharedStorage>* AppDelegateTest::sMockStorage = nullptr;
 
 /* ---------- GetDeviceUID via HandleAppGatewayRequest ---------- */
 
@@ -257,28 +278,40 @@ TEST_F(AppDelegateTest, AGC_L1_024_AppDelegate_UnrecognizedMethod)
 
 class AppDelegateNoStorageTest : public ::testing::Test {
 protected:
-    Core::Sink<AppGatewayCommon> plugin;
-    NiceMock<ServiceMock> service;
+    static Core::Sink<AppGatewayCommon>* sPlugin;
+    static NiceMock<ServiceMock>* sService;
 
-    void SetUp() override
+    Core::Sink<AppGatewayCommon>& plugin = *sPlugin;
+    NiceMock<ServiceMock>& service = *sService;
+
+    static void SetUpTestSuite()
     {
-        // All QueryInterfaceByCallsign calls return nullptr – SharedStorage is NOT available
-        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+        sService = new NiceMock<ServiceMock>();
+        sPlugin = new Core::Sink<AppGatewayCommon>();
+
+        ON_CALL(*sService, QueryInterfaceByCallsign(_, _))
             .WillByDefault(Return(nullptr));
 
-        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*sService, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(*sService, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
 
-        const string response = plugin.Initialize(&service);
+        const string response = sPlugin->Initialize(sService);
         ASSERT_TRUE(response.empty());
     }
 
-    void TearDown() override
+    static void TearDownTestSuite()
     {
-        plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        if (sPlugin && sService) {
+            sPlugin->Deinitialize(sService);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        delete sPlugin;  sPlugin = nullptr;
+        delete sService; sService = nullptr;
     }
 };
+
+Core::Sink<AppGatewayCommon>* AppDelegateNoStorageTest::sPlugin = nullptr;
+NiceMock<ServiceMock>* AppDelegateNoStorageTest::sService = nullptr;
 
 TEST_F(AppDelegateNoStorageTest, AGC_L1_025_GetDeviceUID_NoSharedStorage_ReturnsUnavailable)
 {

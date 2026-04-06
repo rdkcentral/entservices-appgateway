@@ -89,36 +89,60 @@ static Exchange::GatewayContext MakeContext()
 
 class NetworkDelegateTest : public ::testing::Test {
 protected:
-    Core::Sink<AppGatewayCommon> plugin;
-    NiceMock<ServiceMock> service;
-    NiceMock<MockINetworkManager> mockNetwork;
+    static Core::Sink<AppGatewayCommon>* sPlugin;
+    static NiceMock<ServiceMock>* sService;
+    static NiceMock<MockINetworkManager>* sMockNetwork;
 
-    void SetUp() override
+    Core::Sink<AppGatewayCommon>& plugin = *sPlugin;
+    NiceMock<ServiceMock>& service = *sService;
+    NiceMock<MockINetworkManager>& mockNetwork = *sMockNetwork;
+
+    static void SetUpTestSuite()
     {
-        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+        sService = new NiceMock<ServiceMock>();
+        sMockNetwork = new NiceMock<MockINetworkManager>();
+        sPlugin = new Core::Sink<AppGatewayCommon>();
+
+        ON_CALL(*sService, QueryInterfaceByCallsign(_, _))
             .WillByDefault(Return(nullptr));
 
-        ON_CALL(service, QueryInterfaceByCallsign(Exchange::INetworkManager::ID, ::testing::StrEq("org.rdk.NetworkManager")))
-            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
-                mockNetwork.AddRef();
-                return static_cast<Exchange::INetworkManager*>(&mockNetwork);
+        ON_CALL(*sService, QueryInterfaceByCallsign(Exchange::INetworkManager::ID, ::testing::StrEq("org.rdk.NetworkManager")))
+            .WillByDefault(::testing::Invoke([](uint32_t, const string&) -> void* {
+                sMockNetwork->AddRef();
+                return static_cast<Exchange::INetworkManager*>(sMockNetwork);
             }));
 
-        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-        EXPECT_CALL(mockNetwork, Register(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-        EXPECT_CALL(mockNetwork, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*sService, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(*sService, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*sMockNetwork, Register(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*sMockNetwork, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
 
-        const string response = plugin.Initialize(&service);
+        const string response = sPlugin->Initialize(sService);
         ASSERT_TRUE(response.empty());
+    }
+
+    static void TearDownTestSuite()
+    {
+        if (sPlugin && sService) {
+            sPlugin->Deinitialize(sService);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        delete sPlugin;      sPlugin = nullptr;
+        delete sMockNetwork; sMockNetwork = nullptr;
+        delete sService;     sService = nullptr;
     }
 
     void TearDown() override
     {
-        plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        ::testing::Mock::VerifyAndClearExpectations(sMockNetwork);
+        EXPECT_CALL(*sMockNetwork, Register(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*sMockNetwork, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     }
 };
+
+Core::Sink<AppGatewayCommon>* NetworkDelegateTest::sPlugin = nullptr;
+NiceMock<ServiceMock>* NetworkDelegateTest::sService = nullptr;
+NiceMock<MockINetworkManager>* NetworkDelegateTest::sMockNetwork = nullptr;
 
 /* ---------- GetNetworkConnected ---------- */
 
@@ -325,27 +349,40 @@ TEST_F(NetworkDelegateTest, AGC_L1_156_GetInternetConnectionStatus_BothEthernetA
 
 class NetworkNoInterfaceTest : public ::testing::Test {
 protected:
-    Core::Sink<AppGatewayCommon> plugin;
-    NiceMock<ServiceMock> service;
+    static Core::Sink<AppGatewayCommon>* sPlugin;
+    static NiceMock<ServiceMock>* sService;
 
-    void SetUp() override
+    Core::Sink<AppGatewayCommon>& plugin = *sPlugin;
+    NiceMock<ServiceMock>& service = *sService;
+
+    static void SetUpTestSuite()
     {
-        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+        sService = new NiceMock<ServiceMock>();
+        sPlugin = new Core::Sink<AppGatewayCommon>();
+
+        ON_CALL(*sService, QueryInterfaceByCallsign(_, _))
             .WillByDefault(Return(nullptr));
 
-        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*sService, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(*sService, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
 
-        const string response = plugin.Initialize(&service);
+        const string response = sPlugin->Initialize(sService);
         ASSERT_TRUE(response.empty());
     }
 
-    void TearDown() override
+    static void TearDownTestSuite()
     {
-        plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        if (sPlugin && sService) {
+            sPlugin->Deinitialize(sService);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        delete sPlugin;  sPlugin = nullptr;
+        delete sService; sService = nullptr;
     }
 };
+
+Core::Sink<AppGatewayCommon>* NetworkNoInterfaceTest::sPlugin = nullptr;
+NiceMock<ServiceMock>* NetworkNoInterfaceTest::sService = nullptr;
 
 TEST_F(NetworkNoInterfaceTest, AGC_L1_157_GetNetworkConnected_NoInterface_ReturnsUnavailable)
 {

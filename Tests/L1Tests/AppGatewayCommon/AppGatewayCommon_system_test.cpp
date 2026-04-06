@@ -84,56 +84,78 @@ static Exchange::GatewayContext MakeContext()
 
 class SystemDelegateTest : public ::testing::Test {
 protected:
-    Core::Sink<AppGatewayCommon> plugin;
-    NiceMock<ServiceMock> service;
-    Core::Sink<MockJSONRPC::MockLocalDispatcher> systemDispatcher;
-    Core::Sink<MockJSONRPC::MockLocalDispatcher> displayDispatcher;
-    Core::Sink<MockJSONRPC::MockLocalDispatcher> hdcpDispatcher;
+    // Shared across all tests in this suite — initialized once in SetUpTestSuite.
+    static Core::Sink<AppGatewayCommon>* sPlugin;
+    static NiceMock<ServiceMock>* sService;
+    static Core::Sink<MockJSONRPC::MockLocalDispatcher>* sSystemDisp;
+    static Core::Sink<MockJSONRPC::MockLocalDispatcher>* sDisplayDisp;
+    static Core::Sink<MockJSONRPC::MockLocalDispatcher>* sHdcpDisp;
 
-    void SetUp() override
+    // Convenience references so existing TEST_F bodies compile unchanged.
+    Core::Sink<AppGatewayCommon>& plugin = *sPlugin;
+    NiceMock<ServiceMock>& service = *sService;
+    Core::Sink<MockJSONRPC::MockLocalDispatcher>& systemDispatcher = *sSystemDisp;
+    Core::Sink<MockJSONRPC::MockLocalDispatcher>& displayDispatcher = *sDisplayDisp;
+    Core::Sink<MockJSONRPC::MockLocalDispatcher>& hdcpDispatcher = *sHdcpDisp;
+
+    static void SetUpTestSuite()
     {
-        // Wire QueryInterfaceByCallsign to return our mock dispatchers
-        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+        sService = new NiceMock<ServiceMock>();
+        sSystemDisp = new Core::Sink<MockJSONRPC::MockLocalDispatcher>();
+        sDisplayDisp = new Core::Sink<MockJSONRPC::MockLocalDispatcher>();
+        sHdcpDisp = new Core::Sink<MockJSONRPC::MockLocalDispatcher>();
+        sPlugin = new Core::Sink<AppGatewayCommon>();
+
+        ON_CALL(*sService, QueryInterfaceByCallsign(_, _))
             .WillByDefault(Return(nullptr));
 
-        // ILocalDispatcher for "org.rdk.System"
-        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.System")))
-            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
-                systemDispatcher.AddRef();
-                return static_cast<PluginHost::ILocalDispatcher*>(&systemDispatcher);
+        ON_CALL(*sService, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.System")))
+            .WillByDefault(::testing::Invoke([](uint32_t, const string&) -> void* {
+                sSystemDisp->AddRef();
+                return static_cast<PluginHost::ILocalDispatcher*>(&*sSystemDisp);
             }));
 
-        // ILocalDispatcher for "org.rdk.DisplaySettings"
-        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.DisplaySettings")))
-            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
-                displayDispatcher.AddRef();
-                return static_cast<PluginHost::ILocalDispatcher*>(&displayDispatcher);
+        ON_CALL(*sService, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.DisplaySettings")))
+            .WillByDefault(::testing::Invoke([](uint32_t, const string&) -> void* {
+                sDisplayDisp->AddRef();
+                return static_cast<PluginHost::ILocalDispatcher*>(&*sDisplayDisp);
             }));
 
-        // ILocalDispatcher for "org.rdk.HdcpProfile"
-        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.HdcpProfile")))
-            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
-                hdcpDispatcher.AddRef();
-                return static_cast<PluginHost::ILocalDispatcher*>(&hdcpDispatcher);
+        ON_CALL(*sService, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.HdcpProfile")))
+            .WillByDefault(::testing::Invoke([](uint32_t, const string&) -> void* {
+                sHdcpDisp->AddRef();
+                return static_cast<PluginHost::ILocalDispatcher*>(&*sHdcpDisp);
             }));
 
-        // IAuthenticate for SecurityAgent (token acquisition)
-        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::IAuthenticate::ID, _))
+        ON_CALL(*sService, QueryInterfaceByCallsign(PluginHost::IAuthenticate::ID, _))
             .WillByDefault(Return(nullptr));
 
-        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*sService, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(*sService, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
 
-        const string response = plugin.Initialize(&service);
+        const string response = sPlugin->Initialize(sService);
         ASSERT_TRUE(response.empty());
     }
 
-    void TearDown() override
+    static void TearDownTestSuite()
     {
-        plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        if (sPlugin && sService) {
+            sPlugin->Deinitialize(sService);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        delete sPlugin;      sPlugin = nullptr;
+        delete sHdcpDisp;    sHdcpDisp = nullptr;
+        delete sDisplayDisp; sDisplayDisp = nullptr;
+        delete sSystemDisp;  sSystemDisp = nullptr;
+        delete sService;     sService = nullptr;
     }
 };
+
+Core::Sink<AppGatewayCommon>* SystemDelegateTest::sPlugin = nullptr;
+NiceMock<ServiceMock>* SystemDelegateTest::sService = nullptr;
+Core::Sink<MockJSONRPC::MockLocalDispatcher>* SystemDelegateTest::sSystemDisp = nullptr;
+Core::Sink<MockJSONRPC::MockLocalDispatcher>* SystemDelegateTest::sDisplayDisp = nullptr;
+Core::Sink<MockJSONRPC::MockLocalDispatcher>* SystemDelegateTest::sHdcpDisp = nullptr;
 
 /* ---------- GetDeviceMake ---------- */
 
@@ -203,7 +225,52 @@ TEST_F(SystemDelegateTest, AGC_L1_093_GetDeviceSku_Success)
 
 /* ---------- GetFirmwareVersion ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_094_GetFirmwareVersion_Success)
+// Separate fixture: firmware-version tests need a fresh plugin instance because
+// the firmware-version cache persists for the plugin's lifetime.
+class SystemDelegateCacheTest : public ::testing::Test {
+protected:
+    Core::Sink<AppGatewayCommon> plugin;
+    NiceMock<ServiceMock> service;
+    Core::Sink<MockJSONRPC::MockLocalDispatcher> systemDispatcher;
+    Core::Sink<MockJSONRPC::MockLocalDispatcher> displayDispatcher;
+    Core::Sink<MockJSONRPC::MockLocalDispatcher> hdcpDispatcher;
+
+    void SetUp() override
+    {
+        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+            .WillByDefault(Return(nullptr));
+        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.System")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                systemDispatcher.AddRef();
+                return static_cast<PluginHost::ILocalDispatcher*>(&systemDispatcher);
+            }));
+        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.DisplaySettings")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                displayDispatcher.AddRef();
+                return static_cast<PluginHost::ILocalDispatcher*>(&displayDispatcher);
+            }));
+        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.HdcpProfile")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                hdcpDispatcher.AddRef();
+                return static_cast<PluginHost::ILocalDispatcher*>(&hdcpDispatcher);
+            }));
+        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::IAuthenticate::ID, _))
+            .WillByDefault(Return(nullptr));
+        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        const string response = plugin.Initialize(&service);
+        ASSERT_TRUE(response.empty());
+    }
+
+    void TearDown() override
+    {
+        plugin.Deinitialize(&service);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+};
+
+TEST_F(SystemDelegateCacheTest, AGC_L1_094_GetFirmwareVersion_Success)
 {
     systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"receiverVersion":"99.99.15.07","stbVersion":"SKXI11ADS_VBN_23Q4"})";
@@ -520,7 +587,7 @@ TEST_F(SystemDelegateTest, AGC_L1_113_GetAudio_RPCFailure)
     EXPECT_NE(result.find("\"stereo\":false"), std::string::npos);
 }
 
-TEST_F(SystemDelegateTest, AGC_L1_114_GetFirmwareVersion_Success)
+TEST_F(SystemDelegateCacheTest, AGC_L1_114_GetFirmwareVersion_Success)
 {
     systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"receiverVersion":"4.4.1","stbVersion":"SCXI11BEI_VBN_24Q2_sprint_20240611103551sdy_FG_EDGE_R4.4.1","success":true})";
@@ -638,7 +705,7 @@ TEST_F(SystemDelegateTest, AGC_L1_120_SetTimezone_Success)
 
 /* ---------- GetFirmwareVersion with receiverVersion parsing failure ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_121_GetFirmwareVersion_BadReceiverVersion)
+TEST_F(SystemDelegateCacheTest, AGC_L1_121_GetFirmwareVersion_BadReceiverVersion)
 {
     systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"receiverVersion":"not-a-version","stbVersion":"NOTVALID","success":true})";
@@ -842,7 +909,7 @@ TEST_F(SystemDelegateTest, AGC_L1_132_GetDeviceName_MissingFriendlyName)
 
 /* ---------- GetFirmwareVersion: cached response second call ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_133_GetFirmwareVersion_CacheHitOnSecondCall)
+TEST_F(SystemDelegateCacheTest, AGC_L1_133_GetFirmwareVersion_CacheHitOnSecondCall)
 {
     int callCount = 0;
     systemDispatcher.SetHandler("getSystemVersions", [&callCount](const std::string&, const std::string&, std::string& resp) {
@@ -903,7 +970,7 @@ TEST_F(SystemDelegateTest, AGC_L1_135_GetCountryCode_ItalyMapping)
 
 /* ---------- GetFirmwareVersion: missing stbVersion ---------- */
 
-TEST_F(SystemDelegateTest, AGC_L1_136_GetFirmwareVersion_MissingStbVersion)
+TEST_F(SystemDelegateCacheTest, AGC_L1_136_GetFirmwareVersion_MissingStbVersion)
 {
     systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"receiverVersion":"99.88.77.66","stbVersion":"","success":true})";

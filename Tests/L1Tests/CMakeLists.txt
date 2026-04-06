@@ -504,6 +504,7 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS)
         target_compile_definitions(AppGatewayCommonL1Test PRIVATE
             UNIT_TEST
             DISABLE_SECURITY_TOKEN
+            MODULE_NAME=AppGatewayCommonL1Test
         )
 
         if(_L1TESTS_USE_THUNDER_R4)
