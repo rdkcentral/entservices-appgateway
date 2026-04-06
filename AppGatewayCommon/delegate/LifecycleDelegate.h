@@ -29,6 +29,7 @@
 #include "UtilsLogging.h"
 #include "UtilsCallsign.h"
 #include "UtilsFirebolt.h"
+#include "UtilsJsonrpcDirectLink.h"
 #include <set>
 using namespace WPEFramework;
 
@@ -240,6 +241,75 @@ class LifecycleDelegate : public BaseEventDelegate
 
     Core::hresult GetLastIntent(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
         GetLastKnownIntent(context.appId, result);
+        return Core::ERROR_NONE;
+    }
+
+    Core::hresult GetStatsMemoryUsage(const std::string& appId, string& result /* @out */) {
+        // Use the app instance ID (registered at INITIALIZING) as the OCI container ID.
+        // Fall back to the hardcoded value if not yet registered.
+        static const std::string kFallbackContainerId = "com.sky.as.apps_com.bskyb.epgui";
+        std::string containerId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
+        if (containerId.empty()) {
+            LOGWARN("LifecycleDelegate: No appInstanceId found for appId=%s, using fallback containerId", appId.c_str());
+            containerId = kFallbackContainerId;
+        }
+
+        auto link = WPEFramework::Utils::GetThunderControllerClient(mShell, "org.rdk.OCIContainer");
+        if (!link) {
+            LOGERR("LifecycleDelegate: Failed to get OCIContainer JSON-RPC link");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        params[_T("containerId")] = WPEFramework::Core::JSON::Variant(containerId);
+        WPEFramework::Core::JSON::VariantContainer response;
+        const uint32_t rc = link->Invoke("getContainerInfo", params, response);
+        if (rc != Core::ERROR_NONE) {
+            LOGERR("LifecycleDelegate: OCIContainer.getContainerInfo failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+
+        if (!response.HasLabel(_T("success")) || !response[_T("success")].Boolean()) {
+            LOGERR("LifecycleDelegate: OCIContainer.getContainerInfo returned success=false: %s",
+                response.HasLabel(_T("errorReason")) ? response[_T("errorReason")].String().c_str() : "");
+            return Core::ERROR_GENERAL;
+        }
+
+        if (!response.HasLabel(_T("info"))) {
+            LOGERR("LifecycleDelegate: OCIContainer.getContainerInfo missing info field");
+            return Core::ERROR_GENERAL;
+        }
+
+        // Use explicit local VariantContainer variables with .Object() at each level
+        // to avoid chaining operator[] on Variant (which is not supported).
+        WPEFramework::Core::JSON::VariantContainer infoObj   = response[_T("info")].Object();
+        if (!infoObj.HasLabel(_T("memory")) || !infoObj.HasLabel(_T("gpu"))) {
+            LOGERR("LifecycleDelegate: getContainerInfo missing info.memory or info.gpu");
+            return Core::ERROR_GENERAL;
+        }
+
+        WPEFramework::Core::JSON::VariantContainer memoryObj = infoObj[_T("memory")].Object();
+        WPEFramework::Core::JSON::VariantContainer gpuObj    = infoObj[_T("gpu")].Object();
+        if (!memoryObj.HasLabel(_T("user")) || !gpuObj.HasLabel(_T("memory"))) {
+            LOGERR("LifecycleDelegate: getContainerInfo missing info.memory.user or info.gpu.memory");
+            return Core::ERROR_GENERAL;
+        }
+
+        WPEFramework::Core::JSON::VariantContainer userObj   = memoryObj[_T("user")].Object();
+        WPEFramework::Core::JSON::VariantContainer gpuMemObj = gpuObj[_T("memory")].Object();
+
+        // Spec requires KiB; OCIContainer returns bytes
+        const uint64_t userUsedKiB  = static_cast<uint64_t>(userObj[_T("usage")].Number())   / 1024;
+        const uint64_t userLimitKiB = static_cast<uint64_t>(userObj[_T("limit")].Number())   / 1024;
+        const uint64_t gpuUsedKiB   = static_cast<uint64_t>(gpuMemObj[_T("usage")].Number()) / 1024;
+        const uint64_t gpuLimitKiB  = static_cast<uint64_t>(gpuMemObj[_T("limit")].Number()) / 1024;
+
+        JsonObject obj;
+        obj["userMemoryUsedKiB"]  = static_cast<double>(userUsedKiB);
+        obj["userMemoryLimitKiB"] = static_cast<double>(userLimitKiB);
+        obj["gpuMemoryUsedKiB"]   = static_cast<double>(gpuUsedKiB);
+        obj["gpuMemoryLimitKiB"]  = static_cast<double>(gpuLimitKiB);
+        obj.ToString(result);
         return Core::ERROR_NONE;
     }
 

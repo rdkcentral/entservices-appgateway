@@ -1295,9 +1295,9 @@ namespace Plugin {
         Core::hresult AppGatewayCommon::GetStatsMemoryUsage(const string &appId, string &result)
         {
             if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto appDelegate = mDelegate->getAppDelegate();
-            if (!appDelegate) return Core::ERROR_UNAVAILABLE;
-            return appDelegate->GetStatsMemoryUsage(appId, result);
+            auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
+            if (!lifecycleDelegate) return Core::ERROR_UNAVAILABLE;
+            return lifecycleDelegate->GetStatsMemoryUsage(appId, result);
         }
 
 } // namespace Plugin
