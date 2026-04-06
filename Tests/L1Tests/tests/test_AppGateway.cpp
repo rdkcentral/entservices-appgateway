@@ -667,8 +667,8 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_PreProcessEvent_InvalidParam
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_PreProcessEvent_ListenTrueWithMissingNotifications_ReturnsGeneral)
 {
-    TestAppGatewayImplementation impl;
     NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
     const auto ctx = MakeImplementationContext();
     std::string resolution;
 
@@ -703,8 +703,8 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_PreProcessEvent_ListenTrueWi
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_ProcessComRpcRequest_MissingHandlerReturnsGeneral)
 {
-    TestAppGatewayImplementation impl;
     NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
     const auto ctx = MakeImplementationContext();
     std::string resolution;
 
@@ -870,8 +870,8 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DispatchWsMsg_Witho
 
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DispatchWsMsg_WithAppIdAndNoResolver_TracksApiError)
 {
-    TestAppGatewayResponderImplementation responder;
     NiceMock<ServiceMock> service;
+    TestAppGatewayResponderImplementation responder;
     AppGatewayTelemetry& telemetry = AppGatewayTelemetry::getInstance();
     telemetry.ResetHealthStats();
     telemetry.ResetApiErrorStats();
