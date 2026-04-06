@@ -1253,6 +1253,7 @@ namespace Plugin {
 
         Core::hresult AppGatewayCommon::GetDisplayEdid(string &result)
         {
+            result = "\"\"";
             if (!mDelegate) return Core::ERROR_UNAVAILABLE;
             auto systemDelegate = mDelegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
@@ -1261,6 +1262,7 @@ namespace Plugin {
 
         Core::hresult AppGatewayCommon::GetDisplaySize(string &result)
         {
+            result = "{\"width\":0,\"height\":0}";
             if (!mDelegate) return Core::ERROR_UNAVAILABLE;
             auto systemDelegate = mDelegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
@@ -1269,6 +1271,7 @@ namespace Plugin {
 
         Core::hresult AppGatewayCommon::GetDisplayMaxResolution(string &result)
         {
+            result = "{\"width\":0,\"height\":0}";
             if (!mDelegate) return Core::ERROR_UNAVAILABLE;
             auto systemDelegate = mDelegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;

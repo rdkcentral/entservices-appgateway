@@ -45,6 +45,9 @@ using namespace WPEFramework;
 
 #ifndef HDCPPROFILE_CALLSIGN
 #define HDCPPROFILE_CALLSIGN "org.rdk.HdcpProfile"
+#endif
+
+#ifndef DISPLAYINFO_CALLSIGN
 #define DISPLAYINFO_CALLSIGN "DisplayInfo"
 #endif
 
@@ -939,8 +942,8 @@ public:
     // PUBLIC_INTERFACE
     // Display.size — reads widthincentimeters / heightincentimeters from DisplayInfo.
     // Returns {"width":0,"height":0} when no display is connected (STB/OTT).
-    // DisplayInfo returns a plain integer result (e.g. {"result":48}), so we invoke
-    // with std::string response and parse the integer instead of using HasLabel().
+    // DisplayInfo may return either a bare integer ("48") or a JSON object
+    // ({"result":48}) depending on the Thunder version; ParseDisplayInfoInt handles both.
     Core::hresult GetDisplaySize(std::string &result)
     {
         result = "{\"width\":0,\"height\":0}";
@@ -956,10 +959,14 @@ public:
         const uint32_t wRc = link->Invoke<std::string, std::string>("widthincentimeters", emptyParams, wStr);
         const uint32_t hRc = link->Invoke<std::string, std::string>("heightincentimeters", emptyParams, hStr);
 
-        int width  = 0;
-        int height = 0;
-        try { if (wRc == Core::ERROR_NONE && !wStr.empty()) width  = std::stoi(wStr); } catch (...) {}
-        try { if (hRc == Core::ERROR_NONE && !hStr.empty()) height = std::stoi(hStr); } catch (...) {}
+        if (wRc != Core::ERROR_NONE && hRc != Core::ERROR_NONE)
+        {
+            LOGERR("SystemDelegate: DisplayInfo widthincentimeters rc=%u heightincentimeters rc=%u", wRc, hRc);
+            return Core::ERROR_GENERAL;
+        }
+
+        const int width  = (wRc == Core::ERROR_NONE) ? ParseDisplayInfoInt(wStr)  : 0;
+        const int height = (hRc == Core::ERROR_NONE) ? ParseDisplayInfoInt(hStr) : 0;
 
         LOGDBG("SystemDelegate: GetDisplaySize widthincentimeters=%s(%d) heightincentimeters=%s(%d)",
                wStr.c_str(), width, hStr.c_str(), height);
@@ -974,8 +981,8 @@ public:
     // PUBLIC_INTERFACE
     // Display.maxResolution — reads width / height (pixels) from DisplayInfo.
     // Returns {"width":0,"height":0} when no display is connected (STB/OTT).
-    // DisplayInfo returns a plain integer result (e.g. {"result":1920}), so we invoke
-    // with std::string response and parse the integer instead of using HasLabel().
+    // DisplayInfo may return either a bare integer ("1920") or a JSON object
+    // ({"result":1920}) depending on the Thunder version; ParseDisplayInfoInt handles both.
     Core::hresult GetDisplayMaxResolution(std::string &result)
     {
         result = "{\"width\":0,\"height\":0}";
@@ -991,10 +998,14 @@ public:
         const uint32_t wRc = link->Invoke<std::string, std::string>("width", emptyParams, wStr);
         const uint32_t hRc = link->Invoke<std::string, std::string>("height", emptyParams, hStr);
 
-        int width  = 0;
-        int height = 0;
-        try { if (wRc == Core::ERROR_NONE && !wStr.empty()) width  = std::stoi(wStr); } catch (...) {}
-        try { if (hRc == Core::ERROR_NONE && !hStr.empty()) height = std::stoi(hStr); } catch (...) {}
+        if (wRc != Core::ERROR_NONE && hRc != Core::ERROR_NONE)
+        {
+            LOGERR("SystemDelegate: DisplayInfo width rc=%u height rc=%u", wRc, hRc);
+            return Core::ERROR_GENERAL;
+        }
+
+        const int width  = (wRc == Core::ERROR_NONE) ? ParseDisplayInfoInt(wStr) : 0;
+        const int height = (hRc == Core::ERROR_NONE) ? ParseDisplayInfoInt(hStr) : 0;
 
         LOGDBG("SystemDelegate: GetDisplayMaxResolution width=%s(%d) height=%s(%d)",
                wStr.c_str(), width, hStr.c_str(), height);
@@ -1008,6 +1019,30 @@ public:
 
 
 private:
+    // Parse a DisplayInfo scalar response that may be either:
+    //   - a bare integer string:   "1920"
+    //   - a JSON object:           {"result":1920}
+    // Returns the integer value, or 0 on any parse failure.
+    static int ParseDisplayInfoInt(const std::string& s)
+    {
+        if (s.empty()) return 0;
+        // Fast path: bare integer (most common after JSONRPCDirectLink envelope unwrap)
+        if (s[0] != '{')
+        {
+            try { return std::stoi(s); } catch (...) { return 0; }
+        }
+        // Slow path: JSON object — parse and extract "result"
+        WPEFramework::Core::JSON::VariantContainer v;
+        WPEFramework::Core::OptionalType<WPEFramework::Core::JSON::Error> err;
+        if (v.FromString(s, err) && v.HasLabel(_T("result")))
+        {
+            const auto r = v.Get(_T("result"));
+            if (r.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER)
+                return static_cast<int>(r.Number());
+        }
+        return 0;
+    }
+
     // Decode a single Base64 character to its 6-bit value; returns -1 for padding/invalid.
     static int B64CharVal(char c)
     {
@@ -1021,21 +1056,27 @@ private:
 
     // Decode a Base64 string (already normalized, no escaped slashes) into raw bytes.
     // Returns number of bytes written into out[0..outMax-1].
+    // Uses a uint32_t accumulator to avoid signed-integer overflow (which would be UB).
+    // After emitting each byte the consumed bits are masked off, keeping acc bounded.
+    // '=' padding characters are treated as terminators (B64CharVal returns -1 for them).
     static size_t Base64Decode(const std::string& in, uint8_t* out, size_t outMax)
     {
-        size_t outLen = 0;
-        int acc = 0, bits = 0;
+        size_t   outLen = 0;
+        uint32_t acc    = 0;
+        int      bits   = 0;
         for (char c : in)
         {
+            if (c == '=') break;          // padding marks end of data
             const int val = B64CharVal(c);
-            if (val < 0) continue;
-            acc = (acc << 6) | val;
+            if (val < 0) continue;        // skip whitespace / invalid chars
+            acc   = (acc << 6) | static_cast<uint32_t>(val);
             bits += 6;
             if (bits >= 8)
             {
                 bits -= 8;
                 if (outLen < outMax)
-                    out[outLen++] = static_cast<uint8_t>((acc >> bits) & 0xFF);
+                    out[outLen++] = static_cast<uint8_t>((acc >> bits) & 0xFFu);
+                acc &= (1u << bits) - 1u; // discard emitted bits, keep only remainder
             }
         }
         return outLen;
