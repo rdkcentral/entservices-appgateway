@@ -59,7 +59,8 @@ public:
     static constexpr const char* EVENT_ON_HDR_CHANGED         = "Device.onHdrChanged";
     static constexpr const char* EVENT_ON_HDCP_CHANGED        = "Device.onHdcpChanged";
     static constexpr const char* EVENT_ON_AUDIO_CHANGED       = "Device.onAudioChanged";
-    static constexpr const char* EVENT_ON_NAME_CHANGED        = "Device.onDeviceNameChanged";
+    static constexpr const char* EVENT_ON_NAME_CHANGED        = "Device.onNameChanged";
+    static constexpr const char* EVENT_ON_DEVICE_NAME_CHANGED = "Device.onDeviceNameChanged";
     static constexpr const char* EVENT_ON_TIMEZONE_CHANGED    = "Localization.onTimeZoneChanged";
 
     SystemDelegate(PluginHost::IShell *shell)
@@ -858,8 +859,9 @@ public:
             LOGERR("[AppGatewayCommon|NameChanged] handler=GetDeviceName returned empty payload");
             return false;
         }
-        
+
         Dispatch(EVENT_ON_NAME_CHANGED, payload);
+        Dispatch(EVENT_ON_DEVICE_NAME_CHANGED, payload);
         return true;
     }
 
