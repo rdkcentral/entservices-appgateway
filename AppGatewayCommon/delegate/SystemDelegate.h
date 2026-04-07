@@ -19,6 +19,9 @@
 
 #pragma once
 
+#include <array>
+#include <cstdint>
+#include <cstdio>
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -910,8 +913,10 @@ public:
         const uint32_t rc = link->Invoke("readEDID", params, response);
         if (rc != Core::ERROR_NONE || !response.HasLabel(_T("EDID")))
         {
-            LOGERR("SystemDelegate: DisplaySettings.readEDID failed rc=%u", rc);
-            return Core::ERROR_GENERAL;
+            // Treat as "no display connected" — valid for OTT/STB without HDMI output.
+            // Return ERROR_NONE with empty string per the API contract.
+            LOGWARN("SystemDelegate: DisplaySettings.readEDID rc=%u (no display or not supported)", rc);
+            return Core::ERROR_NONE;
         }
 
         std::string edid = response[_T("EDID")].String();
@@ -950,8 +955,8 @@ public:
         auto link = AcquireLink(DISPLAYINFO_CALLSIGN);
         if (!link)
         {
-            LOGERR("SystemDelegate: DisplayInfo link unavailable for size");
-            return Core::ERROR_UNAVAILABLE;
+            LOGWARN("SystemDelegate: DisplayInfo link unavailable for size (no display or plugin absent)");
+            return Core::ERROR_NONE;
         }
 
         const std::string emptyParams = "{}";
@@ -961,8 +966,8 @@ public:
 
         if (wRc != Core::ERROR_NONE && hRc != Core::ERROR_NONE)
         {
-            LOGERR("SystemDelegate: DisplayInfo widthincentimeters rc=%u heightincentimeters rc=%u", wRc, hRc);
-            return Core::ERROR_GENERAL;
+            LOGWARN("SystemDelegate: DisplayInfo widthincentimeters rc=%u heightincentimeters rc=%u (no display)", wRc, hRc);
+            return Core::ERROR_NONE;
         }
 
         const int width  = (wRc == Core::ERROR_NONE) ? ParseDisplayInfoInt(wStr)  : 0;
@@ -989,8 +994,8 @@ public:
         auto link = AcquireLink(DISPLAYINFO_CALLSIGN);
         if (!link)
         {
-            LOGERR("SystemDelegate: DisplayInfo link unavailable for maxResolution");
-            return Core::ERROR_UNAVAILABLE;
+            LOGWARN("SystemDelegate: DisplayInfo link unavailable for maxResolution (no display or plugin absent)");
+            return Core::ERROR_NONE;
         }
 
         const std::string emptyParams = "{}";
@@ -1000,8 +1005,8 @@ public:
 
         if (wRc != Core::ERROR_NONE && hRc != Core::ERROR_NONE)
         {
-            LOGERR("SystemDelegate: DisplayInfo width rc=%u height rc=%u", wRc, hRc);
-            return Core::ERROR_GENERAL;
+            LOGWARN("SystemDelegate: DisplayInfo width rc=%u height rc=%u (no display)", wRc, hRc);
+            return Core::ERROR_NONE;
         }
 
         const int width  = (wRc == Core::ERROR_NONE) ? ParseDisplayInfoInt(wStr) : 0;
@@ -1094,17 +1099,17 @@ private:
 
         try
         {
-            uint8_t raw[512] = {};
-            const size_t rawLen = Base64Decode(base64edid, raw, sizeof(raw));
+            std::array<uint8_t, 512> raw{};
+            const size_t rawLen = Base64Decode(base64edid, raw.data(), raw.size());
             if (rawLen < 128)
             {
                 LOGERR("SystemDelegate: [EDID] Too short to parse (%zu bytes)", rawLen);
                 return;
             }
 
-            // cap to avoid arithmetic overflows; rawLen is at most sizeof(raw)==512
-            const size_t safeLen = (rawLen < sizeof(raw)) ? rawLen : sizeof(raw);
-            const uint8_t* e = raw;
+            // cap to avoid arithmetic overflows; rawLen is at most raw.size()==512
+            const size_t safeLen = (rawLen < raw.size()) ? rawLen : raw.size();
+            const uint8_t* e = raw.data();
 
             // Validate magic header: 00 FF FF FF FF FF FF 00
             static const uint8_t kHdr[8] = { 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00 };
@@ -1211,7 +1216,7 @@ private:
             {
                 const size_t extBase = 128 + static_cast<size_t>(xi) * 128;
                 if (extBase + 128 > safeLen) break;
-                const uint8_t* ext = raw + extBase;
+                const uint8_t* ext = raw.data() + extBase;
                 if (ext[0] != 0x02) continue;  // only CEA-861 extensions
 
                 hasCea     = true;
