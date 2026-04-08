@@ -234,6 +234,51 @@ namespace Plugin {
             (void)payload;
             return self->GetPreferredCaptionsLanguages(result);
         }},
+        { "closedcaptions.fontfamily", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetClosedCaptionsFontFamily(result);
+        }},
+        { "closedcaptions.fontcolor", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetClosedCaptionsFontColor(result);
+        }},
+        { "closedcaptions.fontedge", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetClosedCaptionsFontEdge(result);
+        }},
+        { "closedcaptions.fontedgecolor", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetClosedCaptionsFontEdgeColor(result);
+        }},
+        { "closedcaptions.fontopacity", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetClosedCaptionsFontOpacity(result);
+        }},
+        { "closedcaptions.backgroundcolor", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetClosedCaptionsBackgroundColor(result);
+        }},
+        { "closedcaptions.backgroundopacity", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetClosedCaptionsBackgroundOpacity(result);
+        }},
+        { "closedcaptions.windowcolor", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetClosedCaptionsWindowColor(result);
+        }},
+        { "closedcaptions.windowopacity", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetClosedCaptionsWindowOpacity(result);
+        }},
         { "accessibility.closedcaptions", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
             (void)payload;
@@ -415,6 +460,116 @@ namespace Plugin {
                     return ResponseUtils::SetNullResponseForSuccess(SetPreferredCaptionsLanguages(languages), result);
                 }
                 result = "{\"error\":\"Invalid payload: 'value' field must be a string or array\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+            else if (lowerMethod == "closedcaptions.setfontfamily")
+            {
+                JsonObject params;
+                if (params.FromString(payload))
+                {
+                    string value = params.Get("value").String();
+                    return ResponseUtils::SetNullResponseForSuccess(SetClosedCaptionsFontFamily(value), result);
+                }
+                result = "{\"error\":\"Invalid payload\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+            else if (lowerMethod == "closedcaptions.setfontsize")
+            {
+                JsonObject params;
+                if (params.FromString(payload))
+                {
+                    int value = static_cast<int>(params.Get("value").Number());
+                    return ResponseUtils::SetNullResponseForSuccess(SetClosedCaptionsFontSize(value), result);
+                }
+                result = "{\"error\":\"Invalid payload\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+            else if (lowerMethod == "closedcaptions.setfontcolor")
+            {
+                JsonObject params;
+                if (params.FromString(payload))
+                {
+                    string value = params.Get("value").String();
+                    return ResponseUtils::SetNullResponseForSuccess(SetClosedCaptionsFontColor(value), result);
+                }
+                result = "{\"error\":\"Invalid payload\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+            else if (lowerMethod == "closedcaptions.setfontedge")
+            {
+                JsonObject params;
+                if (params.FromString(payload))
+                {
+                    string value = params.Get("value").String();
+                    return ResponseUtils::SetNullResponseForSuccess(SetClosedCaptionsFontEdge(value), result);
+                }
+                result = "{\"error\":\"Invalid payload\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+            else if (lowerMethod == "closedcaptions.setfontedgecolor")
+            {
+                JsonObject params;
+                if (params.FromString(payload))
+                {
+                    string value = params.Get("value").String();
+                    return ResponseUtils::SetNullResponseForSuccess(SetClosedCaptionsFontEdgeColor(value), result);
+                }
+                result = "{\"error\":\"Invalid payload\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+            else if (lowerMethod == "closedcaptions.setfontopacity")
+            {
+                JsonObject params;
+                if (params.FromString(payload))
+                {
+                    int value = static_cast<int>(params.Get("value").Number());
+                    return ResponseUtils::SetNullResponseForSuccess(SetClosedCaptionsFontOpacity(value), result);
+                }
+                result = "{\"error\":\"Invalid payload\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+            else if (lowerMethod == "closedcaptions.setbackgroundcolor")
+            {
+                JsonObject params;
+                if (params.FromString(payload))
+                {
+                    string value = params.Get("value").String();
+                    return ResponseUtils::SetNullResponseForSuccess(SetClosedCaptionsBackgroundColor(value), result);
+                }
+                result = "{\"error\":\"Invalid payload\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+            else if (lowerMethod == "closedcaptions.setbackgroundopacity")
+            {
+                JsonObject params;
+                if (params.FromString(payload))
+                {
+                    int value = static_cast<int>(params.Get("value").Number());
+                    return ResponseUtils::SetNullResponseForSuccess(SetClosedCaptionsBackgroundOpacity(value), result);
+                }
+                result = "{\"error\":\"Invalid payload\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+            else if (lowerMethod == "closedcaptions.setwindowcolor")
+            {
+                JsonObject params;
+                if (params.FromString(payload))
+                {
+                    string value = params.Get("value").String();
+                    return ResponseUtils::SetNullResponseForSuccess(SetClosedCaptionsWindowColor(value), result);
+                }
+                result = "{\"error\":\"Invalid payload\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+            else if (lowerMethod == "closedcaptions.setwindowopacity")
+            {
+                JsonObject params;
+                if (params.FromString(payload))
+                {
+                    int value = static_cast<int>(params.Get("value").Number());
+                    return ResponseUtils::SetNullResponseForSuccess(SetClosedCaptionsWindowOpacity(value), result);
+                }
+                result = "{\"error\":\"Invalid payload\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             
@@ -1012,6 +1167,252 @@ namespace Plugin {
             return userSettingsDelegate->GetClosedCaptionSettings(result);
         }
 
+        Core::hresult AppGatewayCommon::GetClosedCaptionsFontFamily(string &result)
+        {
+            if (!mDelegate) {
+                result = "{\"error\":\"couldn't get closed captions fontFamily\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                result = "{\"error\":\"couldn't get closed captions fontFamily\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->GetClosedCaptionsFontFamily(result);
+        }
+
+        Core::hresult AppGatewayCommon::SetClosedCaptionsFontFamily(const string &value)
+        {
+            if (!mDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->SetClosedCaptionsFontFamily(value);
+        }
+
+        Core::hresult AppGatewayCommon::SetClosedCaptionsFontSize(const int value)
+        {
+            if (!mDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->SetClosedCaptionsFontSize(value);
+        }
+
+        Core::hresult AppGatewayCommon::GetClosedCaptionsFontColor(string &result)
+        {
+            if (!mDelegate) {
+                result = "{\"error\":\"couldn't get closed captions fontColor\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                result = "{\"error\":\"couldn't get closed captions fontColor\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->GetClosedCaptionsFontColor(result);
+        }
+
+        Core::hresult AppGatewayCommon::SetClosedCaptionsFontColor(const string &value)
+        {
+            if (!mDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->SetClosedCaptionsFontColor(value);
+        }
+
+        Core::hresult AppGatewayCommon::GetClosedCaptionsFontEdge(string &result)
+        {
+            if (!mDelegate) {
+                result = "{\"error\":\"couldn't get closed captions fontEdge\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                result = "{\"error\":\"couldn't get closed captions fontEdge\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->GetClosedCaptionsFontEdge(result);
+        }
+
+        Core::hresult AppGatewayCommon::SetClosedCaptionsFontEdge(const string &value)
+        {
+            if (!mDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->SetClosedCaptionsFontEdge(value);
+        }
+
+        Core::hresult AppGatewayCommon::GetClosedCaptionsFontEdgeColor(string &result)
+        {
+            if (!mDelegate) {
+                result = "{\"error\":\"couldn't get closed captions fontEdgeColor\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                result = "{\"error\":\"couldn't get closed captions fontEdgeColor\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->GetClosedCaptionsFontEdgeColor(result);
+        }
+
+        Core::hresult AppGatewayCommon::SetClosedCaptionsFontEdgeColor(const string &value)
+        {
+            if (!mDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->SetClosedCaptionsFontEdgeColor(value);
+        }
+
+        Core::hresult AppGatewayCommon::GetClosedCaptionsFontOpacity(string &result)
+        {
+            if (!mDelegate) {
+                result = "{\"error\":\"couldn't get closed captions fontOpacity\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                result = "{\"error\":\"couldn't get closed captions fontOpacity\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->GetClosedCaptionsFontOpacity(result);
+        }
+
+        Core::hresult AppGatewayCommon::SetClosedCaptionsFontOpacity(const int value)
+        {
+            if (!mDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->SetClosedCaptionsFontOpacity(value);
+        }
+
+        Core::hresult AppGatewayCommon::GetClosedCaptionsBackgroundColor(string &result)
+        {
+            if (!mDelegate) {
+                result = "{\"error\":\"couldn't get closed captions backgroundColor\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                result = "{\"error\":\"couldn't get closed captions backgroundColor\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->GetClosedCaptionsBackgroundColor(result);
+        }
+
+        Core::hresult AppGatewayCommon::SetClosedCaptionsBackgroundColor(const string &value)
+        {
+            if (!mDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->SetClosedCaptionsBackgroundColor(value);
+        }
+
+        Core::hresult AppGatewayCommon::GetClosedCaptionsBackgroundOpacity(string &result)
+        {
+            if (!mDelegate) {
+                result = "{\"error\":\"couldn't get closed captions backgroundOpacity\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                result = "{\"error\":\"couldn't get closed captions backgroundOpacity\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->GetClosedCaptionsBackgroundOpacity(result);
+        }
+
+        Core::hresult AppGatewayCommon::SetClosedCaptionsBackgroundOpacity(const int value)
+        {
+            if (!mDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->SetClosedCaptionsBackgroundOpacity(value);
+        }
+
+        Core::hresult AppGatewayCommon::GetClosedCaptionsWindowColor(string &result)
+        {
+            if (!mDelegate) {
+                result = "{\"error\":\"couldn't get closed captions windowColor\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                result = "{\"error\":\"couldn't get closed captions windowColor\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->GetClosedCaptionsWindowColor(result);
+        }
+
+        Core::hresult AppGatewayCommon::SetClosedCaptionsWindowColor(const string &value)
+        {
+            if (!mDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->SetClosedCaptionsWindowColor(value);
+        }
+
+        Core::hresult AppGatewayCommon::GetClosedCaptionsWindowOpacity(string &result)
+        {
+            if (!mDelegate) {
+                result = "{\"error\":\"couldn't get closed captions windowOpacity\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                result = "{\"error\":\"couldn't get closed captions windowOpacity\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->GetClosedCaptionsWindowOpacity(result);
+        }
+
+        Core::hresult AppGatewayCommon::SetClosedCaptionsWindowOpacity(const int value)
+        {
+            if (!mDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->SetClosedCaptionsWindowOpacity(value);
+        }
+        
         Core::hresult AppGatewayCommon::GetInternetConnectionStatus(string &result)
         {
             if (!mDelegate)
