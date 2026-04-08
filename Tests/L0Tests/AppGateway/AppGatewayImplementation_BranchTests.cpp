@@ -259,7 +259,9 @@ static void ConfigureImplOrFail(TestResult& tr,
 
 static void DrainAsyncRespondJobs()
 {
-    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    // Use a longer drain under Valgrind (10-50x slowdown) to ensure all WorkerPool
+    // RespondJob dispatches complete before the test releases impl and service.
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
 }
 
 } // namespace
