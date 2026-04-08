@@ -112,7 +112,7 @@ protected:
 
     void TearDown() override
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(120));
+        std::this_thread::sleep_for(std::chrono::milliseconds(12));
     }
 };
 
@@ -152,7 +152,7 @@ TEST_F(AppGatewayCommonTest, DISABLED_AGC_L1_002_HandleAppEventNotifier_SubmitsJ
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    std::this_thread::sleep_for(std::chrono::milliseconds(15));
     plugin.Deinitialize(&service);
 }
 
