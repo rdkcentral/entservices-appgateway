@@ -55,6 +55,7 @@ using namespace WPEFramework;
 
 #ifndef POWERMANAGER_CALLSIGN
 #define POWERMANAGER_CALLSIGN "org.rdk.PowerManager"
+#endif
 // Timeout (ms) for proactive Thunder event subscriptions during construction.
 // Override at compile time (e.g. -DSYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS=100)
 // to reduce startup latency in environments where Thunder is unavailable.
