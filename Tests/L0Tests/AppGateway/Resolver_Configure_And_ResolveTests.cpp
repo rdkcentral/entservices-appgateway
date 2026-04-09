@@ -468,7 +468,7 @@ uint32_t Test_Resolver_ClearResolutions()
     // ClearResolutions does not use mService; pass nullptr.
     Resolver r(nullptr);
 
-    const std::string base = BaseResolutionsPath();
+    const std::string base = ComputeBaseResolutionsPathFromThisFile();
     const bool loaded = r.LoadConfig(base);
     if (!loaded) {
         std::cerr << "NOTE: Skipping Test_Resolver_ClearResolutions (base resolutions not found)" << std::endl;
@@ -527,7 +527,8 @@ uint32_t Test_Resolver_CallThunderPlugin_NullService_EmptyAlias()
 
     // non-null service but empty alias → early return ERROR_GENERAL (lines 217-218)
     {
-        auto* svc = new L0Test::ServiceMock({}, true);
+        L0Test::ServiceMock::Config cfg;
+        auto* svc = new L0Test::ServiceMock(cfg, true);
         Resolver r(svc);
         std::string response;
         const auto rc = r.CallThunderPlugin("", "{}", response);
@@ -547,7 +548,7 @@ uint32_t Test_Resolver_LookupMissingKey()
     TestResult tr;
 
     Resolver r(nullptr);
-    const std::string base = BaseResolutionsPath();
+    const std::string base = ComputeBaseResolutionsPathFromThisFile();
     if (!r.LoadConfig(base)) {
         std::cerr << "NOTE: Skipping Test_Resolver_LookupMissingKey (base resolutions not found)" << std::endl;
         return tr.failures;
