@@ -47,6 +47,13 @@ using namespace WPEFramework;
 #define HDCPPROFILE_CALLSIGN "org.rdk.HdcpProfile"
 #endif
 
+// Timeout (ms) for proactive Thunder event subscriptions during construction.
+// Override at compile time (e.g. -DSYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS=100)
+// to reduce startup latency in environments where Thunder is unavailable.
+#ifndef SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS
+#define SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS 2000
+#endif
+
 class SystemDelegate: public BaseEventDelegate
 {
 public:
@@ -979,7 +986,7 @@ private:
             }
             if (_displayRpc) {
                 const uint32_t status = _displayRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
-                    2000, _T("resolutionChanged"), &SystemDelegate::OnDisplaySettingsResolutionChanged, this);
+                    SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("resolutionChanged"), &SystemDelegate::OnDisplaySettingsResolutionChanged, this);
                 if (status == Core::ERROR_NONE) {
                     LOGINFO("SystemDelegate: Subscribed to %s.resolutionChanged", DISPLAYSETTINGS_CALLSIGN);
                     _displaySubscribed = true;
@@ -1001,7 +1008,7 @@ private:
             }
             if (_displayRpc) {
                 const uint32_t status = _displayRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
-                    2000, _T("audioFormatChanged"), &SystemDelegate::OnDisplaySettingsAudioFormatChanged, this);
+                    SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("audioFormatChanged"), &SystemDelegate::OnDisplaySettingsAudioFormatChanged, this);
                 if (status == Core::ERROR_NONE) {
                     LOGINFO("SystemDelegate: Subscribed to %s.audioFormatChanged", DISPLAYSETTINGS_CALLSIGN);
                     _displayAudioSubscribed = true;
@@ -1023,7 +1030,7 @@ private:
             }
             if (_hdcpRpc) {
                 const uint32_t status = _hdcpRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
-                    2000, _T("onDisplayConnectionChanged"), &SystemDelegate::OnHdcpProfileDisplayConnectionChanged, this);
+                    SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("onDisplayConnectionChanged"), &SystemDelegate::OnHdcpProfileDisplayConnectionChanged, this);
                 if (status == Core::ERROR_NONE) {
                     LOGINFO("SystemDelegate: Subscribed to %s.onDisplayConnectionChanged", HDCPPROFILE_CALLSIGN);
                     _hdcpSubscribed = true;
@@ -1045,7 +1052,7 @@ private:
             }
             if (_systemRpc) {
                 const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
-                    2000, _T("onFriendlyNameChanged"), &SystemDelegate::OnSystemFriendlyNameChanged, this);
+                    SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("onFriendlyNameChanged"), &SystemDelegate::OnSystemFriendlyNameChanged, this);
                 if (status == Core::ERROR_NONE) {
                     LOGINFO("SystemDelegate: Subscribed to %s.onFriendlyNameChanged", SYSTEM_CALLSIGN);
                     _systemSubscribed = true;

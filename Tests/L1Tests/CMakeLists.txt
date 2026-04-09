@@ -146,6 +146,14 @@ if(_L1TESTS_STANDALONE_BUILD)
         # Also allow building/staging AppGatewayCommon plugin shared library from
         # the same L1Tests-only build when requested.
         add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGatewayCommon ${CMAKE_BINARY_DIR}/AppGatewayCommon)
+
+        # Reduce the SystemDelegate proactive Subscribe timeout from 2000ms to
+        # 100ms during L1 tests. No Thunder daemon runs in the test environment
+        # so every Subscribe call exhausts its full timeout; 4 calls × 2000ms
+        # adds ~8s of dead wait per Initialize() cycle.
+        target_compile_definitions(AppGatewayCommon PRIVATE
+            SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS=100
+        )
     endif()
 
     if(PLUGIN_APPNOTIFICATIONS)
@@ -504,6 +512,7 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS)
         target_compile_definitions(AppGatewayCommonL1Test PRIVATE
             UNIT_TEST
             DISABLE_SECURITY_TOKEN
+            MODULE_NAME=AppGatewayCommonL1Test
         )
 
         if(_L1TESTS_USE_THUNDER_R4)
@@ -511,6 +520,23 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS)
         endif()
 
         install(TARGETS AppGatewayCommonL1Test RUNTIME DESTINATION bin)
+
+        # Precompiled headers: cache expensive gtest/gmock and Thunder headers
+        # to reduce per-TU parse time (requires CMake >= 3.16).
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.16")
+            target_precompile_headers(AppGatewayCommonL1Test PRIVATE
+                <gmock/gmock.h>
+                <gtest/gtest.h>
+                <core/core.h>
+                <plugins/plugins.h>
+                <string>
+                <map>
+                <mutex>
+                <memory>
+                <functional>
+                <unordered_map>
+            )
+        endif()
     endif()
 
     if(PLUGIN_APPNOTIFICATIONS)

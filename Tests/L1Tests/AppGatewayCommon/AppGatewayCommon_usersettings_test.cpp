@@ -85,36 +85,64 @@ static Exchange::GatewayContext MakeContext()
 
 class UserSettingsTest : public ::testing::Test {
 protected:
-    Core::Sink<AppGatewayCommon> plugin;
-    NiceMock<ServiceMock> service;
-    NiceMock<UserSettingMock> mockUserSettings;
+    // Shared across all tests in this suite — initialized once in SetUpTestSuite.
+    static Core::Sink<AppGatewayCommon>* sPlugin;
+    static NiceMock<ServiceMock>* sService;
+    static NiceMock<UserSettingMock>* sMockUserSettings;
 
-    void SetUp() override
+    // Convenience references so existing TEST_F bodies compile unchanged.
+    Core::Sink<AppGatewayCommon>& plugin = *sPlugin;
+    NiceMock<ServiceMock>& service = *sService;
+    NiceMock<UserSettingMock>& mockUserSettings = *sMockUserSettings;
+
+    static void SetUpTestSuite()
     {
-        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+        sService = new NiceMock<ServiceMock>();
+        sMockUserSettings = new NiceMock<UserSettingMock>();
+        sPlugin = new Core::Sink<AppGatewayCommon>();
+
+        ON_CALL(*sService, QueryInterfaceByCallsign(_, _))
             .WillByDefault(Return(nullptr));
 
-        ON_CALL(service, QueryInterfaceByCallsign(Exchange::IUserSettings::ID, ::testing::StrEq("org.rdk.UserSettings")))
-            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
-                mockUserSettings.AddRef();
-                return static_cast<Exchange::IUserSettings*>(&mockUserSettings);
+        ON_CALL(*sService, QueryInterfaceByCallsign(Exchange::IUserSettings::ID, ::testing::StrEq("org.rdk.UserSettings")))
+            .WillByDefault(::testing::Invoke([](uint32_t, const string&) -> void* {
+                sMockUserSettings->AddRef();
+                return static_cast<Exchange::IUserSettings*>(sMockUserSettings);
             }));
 
-        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-        EXPECT_CALL(mockUserSettings, Register(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-        EXPECT_CALL(mockUserSettings, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*sService, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(*sService, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*sMockUserSettings, Register(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*sMockUserSettings, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
 
-        const string response = plugin.Initialize(&service);
+        const string response = sPlugin->Initialize(sService);
         ASSERT_TRUE(response.empty());
+    }
+
+    static void TearDownTestSuite()
+    {
+        if (sPlugin && sService) {
+            sPlugin->Deinitialize(sService);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        delete sPlugin;       sPlugin = nullptr;
+        delete sMockUserSettings; sMockUserSettings = nullptr;
+        delete sService;       sService = nullptr;
     }
 
     void TearDown() override
     {
-        plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // Clear per-test EXPECT_CALL expectations; ON_CALL defaults survive.
+        ::testing::Mock::VerifyAndClearExpectations(sMockUserSettings);
+        // Re-establish suite-wide expectations cleared by VerifyAndClear.
+        EXPECT_CALL(*sMockUserSettings, Register(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*sMockUserSettings, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     }
 };
+
+Core::Sink<AppGatewayCommon>* UserSettingsTest::sPlugin = nullptr;
+NiceMock<ServiceMock>* UserSettingsTest::sService = nullptr;
+NiceMock<UserSettingMock>* UserSettingsTest::sMockUserSettings = nullptr;
 
 /* ---------- Voice Guidance ---------- */
 
