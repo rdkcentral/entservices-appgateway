@@ -146,6 +146,20 @@ if(_L1TESTS_STANDALONE_BUILD)
         # Also allow building/staging AppGatewayCommon plugin shared library from
         # the same L1Tests-only build when requested.
         add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGatewayCommon ${CMAKE_BINARY_DIR}/AppGatewayCommon)
+
+        # Reduce the SystemDelegate proactive Subscribe timeout from 2000ms to
+        # 100ms during L1 tests. No Thunder daemon runs in the test environment
+        # so every Subscribe call exhausts its full timeout; 4 calls × 2000ms
+        # adds ~8s of dead wait per Initialize() cycle.
+        target_compile_definitions(AppGatewayCommon PRIVATE
+            SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS=100
+        )
+    endif()
+
+    if(PLUGIN_APPNOTIFICATIONS)
+        # AppNotifications/CMakeLists.txt defines the implementation library target
+        # which AppNotificationsL1Test must link against to resolve symbols.
+        add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppNotifications ${CMAKE_BINARY_DIR}/AppNotifications)
     endif()
 endif()
 
@@ -220,6 +234,10 @@ set(APPGATEWAYCOMMON_L1TEST_SRC "")
 set(APPGATEWAYCOMMON_L1TEST_INC "")
 set(APPGATEWAYCOMMON_L1TEST_LIB "")
 
+set(APPNOTIFICATIONS_L1TEST_SRC "")
+set(APPNOTIFICATIONS_L1TEST_INC "")
+set(APPNOTIFICATIONS_L1TEST_LIB "")
+
 if(PLUGIN_APPGATEWAY)
     message(STATUS "AppGateway L1 tests: ENABLED (PLUGIN_APPGATEWAY=ON)")
 
@@ -242,7 +260,15 @@ endif()
 if(PLUGIN_APPGATEWAYCOMMON)
     message(STATUS "AppGatewayCommon L1 tests: ENABLED (PLUGIN_APPGATEWAYCOMMON=ON)")
 
-    list(APPEND APPGATEWAYCOMMON_L1TEST_SRC tests/test_AppGatewayCommon.cpp)
+    list(APPEND APPGATEWAYCOMMON_L1TEST_SRC
+        AppGatewayCommon/AppGatewayCommon_core_test.cpp
+        AppGatewayCommon/AppGatewayCommon_appdelegate_test.cpp
+        AppGatewayCommon/AppGatewayCommon_usersettings_test.cpp
+        AppGatewayCommon/AppGatewayCommon_system_test.cpp
+        AppGatewayCommon/AppGatewayCommon_network_test.cpp
+        AppGatewayCommon/AppGatewayCommon_lifecycle_test.cpp
+        AppGatewayCommon/AppGatewayCommon_events_test.cpp
+    )
 
     list(APPEND APPGATEWAYCOMMON_L1TEST_INC
         ../../helpers
@@ -255,6 +281,24 @@ if(PLUGIN_APPGATEWAYCOMMON)
     )
 else()
     message(STATUS "AppGatewayCommon L1 tests: DISABLED (set -DPLUGIN_APPGATEWAYCOMMON=ON to enable)")
+endif()
+
+if(PLUGIN_APPNOTIFICATIONS)
+    message(STATUS "AppNotifications L1 tests: ENABLED (PLUGIN_APPNOTIFICATIONS=ON)")
+
+    list(APPEND APPNOTIFICATIONS_L1TEST_SRC tests/test_AppNotifications.cpp)
+
+    list(APPEND APPNOTIFICATIONS_L1TEST_INC
+        ../../helpers
+        ../../AppNotifications
+    )
+
+    list(APPEND APPNOTIFICATIONS_L1TEST_LIB
+        ${NAMESPACE}AppNotifications
+        ${NAMESPACE}Plugins::${NAMESPACE}Plugins
+    )
+else()
+    message(STATUS "AppNotifications L1 tests: DISABLED (set -DPLUGIN_APPNOTIFICATIONS=ON to enable)")
 endif()
 
 #########################################################################################
@@ -329,7 +373,7 @@ if(TEST_SRC)
         ${CMAKE_INSTALL_PREFIX}/include
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:include>
-        ${CMAKE_SOURCE_DIR}/Tests/mocks
+        ${CMAKE_CURRENT_SOURCE_DIR}/../mocks
         ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
     )
 
@@ -353,7 +397,7 @@ write_config(${PLUGIN_NAME})
 # -----------------------------------------------------------------------------
 # AppGatewayL1Test executable (required by the workflow/script)
 # -----------------------------------------------------------------------------
-if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON)
+if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS)
     find_package(Threads REQUIRED)
 
     # Prefer CONFIG mode so imported targets (GTest::gtest, GTest::gmock, etc.) are defined.
@@ -418,8 +462,7 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON)
 
         ${CMAKE_INSTALL_PREFIX}/include
 
-        ${CMAKE_SOURCE_DIR}/Tests/mocks
-        ${CMAKE_SOURCE_DIR}/../mocks
+        ${CMAKE_CURRENT_SOURCE_DIR}/../mocks
 
             ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
         )
@@ -453,8 +496,7 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON)
 
             ${CMAKE_INSTALL_PREFIX}/include
 
-            ${CMAKE_SOURCE_DIR}/Tests/mocks
-            ${CMAKE_SOURCE_DIR}/../mocks
+            ${CMAKE_CURRENT_SOURCE_DIR}/../mocks
 
             ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
         )
@@ -470,6 +512,7 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON)
         target_compile_definitions(AppGatewayCommonL1Test PRIVATE
             UNIT_TEST
             DISABLE_SECURITY_TOKEN
+            MODULE_NAME=AppGatewayCommonL1Test
         )
 
         if(_L1TESTS_USE_THUNDER_R4)
@@ -477,5 +520,57 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON)
         endif()
 
         install(TARGETS AppGatewayCommonL1Test RUNTIME DESTINATION bin)
+
+        # Precompiled headers: cache expensive gtest/gmock and Thunder headers
+        # to reduce per-TU parse time (requires CMake >= 3.16).
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.16")
+            target_precompile_headers(AppGatewayCommonL1Test PRIVATE
+                <gmock/gmock.h>
+                <gtest/gtest.h>
+                <core/core.h>
+                <plugins/plugins.h>
+                <string>
+                <map>
+                <mutex>
+                <memory>
+                <functional>
+                <unordered_map>
+            )
+        endif()
+    endif()
+
+    if(PLUGIN_APPNOTIFICATIONS)
+        add_executable(AppNotificationsL1Test ${APPNOTIFICATIONS_L1TEST_SRC})
+
+        target_include_directories(AppNotificationsL1Test
+            PRIVATE
+            ${APPNOTIFICATIONS_L1TEST_INC}
+
+            ${CMAKE_INSTALL_PREFIX}/include
+
+            ${CMAKE_SOURCE_DIR}/Tests/mocks
+            ${CMAKE_SOURCE_DIR}/../mocks
+
+            ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
+        )
+
+        target_link_libraries(AppNotificationsL1Test PRIVATE
+            ${APPNOTIFICATIONS_L1TEST_LIB}
+            GTest::gmock
+            GTest::gtest
+            GTest::gtest_main
+            Threads::Threads
+        )
+
+        target_compile_definitions(AppNotificationsL1Test PRIVATE
+            UNIT_TEST
+            DISABLE_SECURITY_TOKEN
+        )
+
+        if(_L1TESTS_USE_THUNDER_R4)
+            target_compile_definitions(AppNotificationsL1Test PRIVATE USE_THUNDER_R4)
+        endif()
+
+        install(TARGETS AppNotificationsL1Test RUNTIME DESTINATION bin)
     endif()
 endif()

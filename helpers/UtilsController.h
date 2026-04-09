@@ -145,7 +145,7 @@ namespace Utils
     };
 
     // Thunder Plugin Communication
-    std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> getThunderControllerClient(std::string callsign="")
+    inline std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> getThunderControllerClient(std::string callsign="")
     {
 
         string token;
@@ -178,7 +178,7 @@ namespace Utils
         std::function<void()> _work;
     };
 
-    uint32_t getServiceState(PluginHost::IShell *shell, const string &callsign, PluginHost::IShell::state &state)
+    inline uint32_t getServiceState(PluginHost::IShell *shell, const string &callsign, PluginHost::IShell::state &state)
     {
         uint32_t result;
         auto interface = shell->QueryInterfaceByCallsign<PluginHost::IShell>(callsign);
@@ -197,7 +197,7 @@ namespace Utils
         return result;
     }
 
-    uint32_t activatePlugin(PluginHost::IShell *shell, const string &callsign)
+    inline uint32_t activatePlugin(PluginHost::IShell *shell, const string &callsign)
     {
         uint32_t result = Core::ERROR_ASYNC_FAILED;
         Core::Event event(false, true);

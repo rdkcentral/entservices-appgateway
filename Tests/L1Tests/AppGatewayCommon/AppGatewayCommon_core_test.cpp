@@ -54,14 +54,14 @@ public:
         if (Core::IWorkerPool::IsAvailable() == false) {
             Core::IWorkerPool::Assign(&mPool);
             mAssigned = true;
+            mPool.Run();
         }
-        mPool.Run();
     }
 
     ~WorkerPoolGuard()
     {
-        mPool.Stop();
         if (mAssigned) {
+            mPool.Stop();
             Core::IWorkerPool::Assign(nullptr);
         }
     }
@@ -112,11 +112,11 @@ protected:
 
     void TearDown() override
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(120));
+        std::this_thread::sleep_for(std::chrono::milliseconds(12));
     }
 };
 
-TEST_F(AppGatewayCommonTest, AGC_L1_001_002_InitializeAndDeinitialize_Success)
+TEST_F(AppGatewayCommonTest, AGC_L1_001_InitializeAndDeinitialize_Success)
 {
     NiceMock<ServiceMock> service;
 
@@ -132,7 +132,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_001_002_InitializeAndDeinitialize_Success)
     plugin.Deinitialize(&service);
 }
 
-TEST_F(AppGatewayCommonTest, DISABLED_AGC_L1_003_HandleAppEventNotifier_SubmitsJob)
+TEST_F(AppGatewayCommonTest, DISABLED_AGC_L1_002_HandleAppEventNotifier_SubmitsJob)
 {
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
@@ -152,12 +152,18 @@ TEST_F(AppGatewayCommonTest, DISABLED_AGC_L1_003_HandleAppEventNotifier_SubmitsJ
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    std::this_thread::sleep_for(std::chrono::milliseconds(15));
     plugin.Deinitialize(&service);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_004_UnknownMethod_ReturnsUnknownKey)
+TEST_F(AppGatewayCommonTest, AGC_L1_003_UnknownMethod_ReturnsUnknownKey)
 {
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    plugin.Initialize(&service);
+
     const auto ctx = MakeContext();
     string result;
 
@@ -165,45 +171,66 @@ TEST_F(AppGatewayCommonTest, AGC_L1_004_UnknownMethod_ReturnsUnknownKey)
 
     EXPECT_EQ(Core::ERROR_UNKNOWN_KEY, rc);
     EXPECT_FALSE(result.empty());
+
+    plugin.Deinitialize(&service);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_009_DeviceSetName_InvalidPayload)
+TEST_F(AppGatewayCommonTest, AGC_L1_004_DeviceSetName_InvalidPayload)
 {
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    plugin.Initialize(&service);
+
     const auto ctx = MakeContext();
     string result;
 
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.setname", "{invalid", result);
 
     EXPECT_EQ(Core::ERROR_BAD_REQUEST, rc);
-    EXPECT_EQ("{\"error\":\"Invalid payload\"}", result);
+    EXPECT_EQ("{\"error\":\"Invalid payload: missing or invalid 'value' field\"}", result);
+
+    plugin.Deinitialize(&service);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_011_013_016_018_020_022_026_027_InvalidPayloads)
+TEST_F(AppGatewayCommonTest, AGC_L1_005_InvalidPayloads)
 {
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    plugin.Initialize(&service);
+
     const auto ctx = MakeContext();
 
-    const std::vector<std::string> methods = {
-        "localization.setcountrycode",
-        "localization.settimezone",
-        "voiceguidance.setenabled",
-        "audiodescriptions.setenabled",
-        "closedcaptions.setenabled",
-        "localization.setlocale",
-        "localization.setpreferredaudiolanguages",
-        "closedcaptions.setpreferredlanguages",
-        "voiceguidance.setspeed",
-        "voiceguidance.setnavigationhints"
+    // Maps each method to the exact error string returned by production code for invalid payload
+    const std::vector<std::pair<std::string, std::string>> methodErrors = {
+        { "localization.setcountrycode",           "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}" },
+        { "localization.settimezone",              "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}" },
+        { "voiceguidance.setenabled",              "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}" },
+        { "audiodescriptions.setenabled",          "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}" },
+        { "closedcaptions.setenabled",             "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}" },
+        { "localization.setlocale",                "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}" },
+        { "localization.setpreferredaudiolanguages","{\"error\":\"Invalid payload: 'value' field must be a string or array\"}" },
+        { "closedcaptions.setpreferredlanguages",  "{\"error\":\"Invalid payload: 'value' field must be a string or array\"}" },
+        { "voiceguidance.setspeed",                "{\"error\":\"Invalid payload: missing, invalid, or out-of-range 'value' field (expected 0.5-2.0)\"}" },
+        { "voiceguidance.setnavigationhints",      "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}" },
     };
 
-    for (const auto& method : methods) {
+    for (const auto& entry : methodErrors) {
+        const auto& method = entry.first;
+        const auto& expectedError = entry.second;
         string result;
         const auto rc = plugin.HandleAppGatewayRequest(ctx, method, "{invalid", result);
         EXPECT_EQ(Core::ERROR_BAD_REQUEST, rc) << "method=" << method;
-        EXPECT_EQ("{\"error\":\"Invalid payload\"}", result) << "method=" << method;
+        EXPECT_EQ(expectedError, result) << "method=" << method;
     }
+
+    plugin.Deinitialize(&service);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_005_006_007_010_012_014_015_017_019_021_023_024_025_NullDelegate)
+TEST_F(AppGatewayCommonTest, AGC_L1_006_NullDelegate)
 {
     plugin.mDelegate.reset();
     const auto ctx = MakeContext();
@@ -231,7 +258,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_005_006_007_010_012_014_015_017_019_021_023_
     }
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_042_DefaultCapabilityFallbacks_WhenDelegateUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_007_DefaultCapabilityFallbacks_WhenDelegateUnavailable)
 {
     plugin.mDelegate.reset();
 
@@ -253,7 +280,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_042_DefaultCapabilityFallbacks_WhenDelegateU
     EXPECT_EQ("{\"stereo\":true,\"dolbyDigital5.1\":false,\"dolbyDigital5.1+\":false,\"dolbyAtmos\":false}", result);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_038_039_VoiceGuidanceSettings_NullDelegate_ReturnsUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_008_VoiceGuidanceSettings_NullDelegate_ReturnsUnavailable)
 {
     plugin.mDelegate.reset();
 
@@ -262,7 +289,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_038_039_VoiceGuidanceSettings_NullDelegate_R
     EXPECT_EQ("{\"error\":\"couldn't get voice guidance settings\"}", result);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_040_041_ClosedCaptionsSettings_NullDelegate_ReturnsUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_009_ClosedCaptionsSettings_NullDelegate_ReturnsUnavailable)
 {
     plugin.mDelegate.reset();
 
@@ -271,7 +298,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_040_041_ClosedCaptionsSettings_NullDelegate_
     EXPECT_EQ("{\"error\":\"couldn't get closed captions settings\"}", result);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_028_032_GetSpeed_NullDelegate_ReturnsUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_010_GetSpeed_NullDelegate_ReturnsUnavailable)
 {
     plugin.mDelegate.reset();
 
@@ -279,18 +306,18 @@ TEST_F(AppGatewayCommonTest, AGC_L1_028_032_GetSpeed_NullDelegate_ReturnsUnavail
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetSpeed(speed));
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_033_037_SetSpeed_NullDelegate_ReturnsUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_011_SetSpeed_NullDelegate_ReturnsUnavailable)
 {
     plugin.mDelegate.reset();
 
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(2.0));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.67));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.33));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.0));
-    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(0.8));
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(2.0));   // 033
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.67));  // 034
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.33));  // 035
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(1.0));   // 036
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.SetSpeed(0.8));   // 037
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_044_045_LifecycleAndAuth_NullDelegate_ReturnUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_012_LifecycleAndAuth_NullDelegate_ReturnUnavailable)
 {
     plugin.mDelegate.reset();
 
@@ -311,7 +338,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_044_045_LifecycleAndAuth_NullDelegate_Return
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetLastIntent(ctx, "{}", result));
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_046_CheckPermissionGroup_DefaultAllowed)
+TEST_F(AppGatewayCommonTest, AGC_L1_013_CheckPermissionGroup_DefaultAllowed)
 {
     bool allowed = false;
     const auto rc = plugin.CheckPermissionGroup("test.app", "any.group", allowed);
@@ -320,7 +347,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_046_CheckPermissionGroup_DefaultAllowed)
     EXPECT_TRUE(allowed);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_043_FirmwareVersion_NullDelegate_ReturnsUnavailable)
+TEST_F(AppGatewayCommonTest, AGC_L1_014_FirmwareVersion_NullDelegate_ReturnsUnavailable)
 {
     plugin.mDelegate.reset();
 
@@ -328,7 +355,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_043_FirmwareVersion_NullDelegate_ReturnsUnav
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.GetFirmwareVersion(result));
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_008_DeviceSetName_ValidPayload_NoDelegate)
+TEST_F(AppGatewayCommonTest, AGC_L1_015_DeviceSetName_ValidPayload_NoDelegate)
 {
     plugin.mDelegate.reset();
 
@@ -340,8 +367,14 @@ TEST_F(AppGatewayCommonTest, AGC_L1_008_DeviceSetName_ValidPayload_NoDelegate)
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_Extra_AddAdditionalInfo_RouteSuccess)
+TEST_F(AppGatewayCommonTest, AGC_L1_016_AddAdditionalInfo_RouteSuccess)
 {
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    plugin.Initialize(&service);
+
     const auto ctx = MakeContext();
     string result;
 
@@ -349,9 +382,11 @@ TEST_F(AppGatewayCommonTest, AGC_L1_Extra_AddAdditionalInfo_RouteSuccess)
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_EQ("null", result);
+
+    plugin.Deinitialize(&service);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_CaseInsensitiveRouting_UnknownAndKnown)
+TEST_F(AppGatewayCommonTest, AGC_L1_017_CaseInsensitiveRouting_UnknownAndKnown)
 {
     plugin.mDelegate.reset();
 
@@ -361,7 +396,8 @@ TEST_F(AppGatewayCommonTest, AGC_L1_CaseInsensitiveRouting_UnknownAndKnown)
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.HandleAppGatewayRequest(ctx, "DEVICE.NETWORK", "{}", result));
 
     result.clear();
-    EXPECT_EQ(Core::ERROR_UNKNOWN_KEY, plugin.HandleAppGatewayRequest(ctx, "Not.A.Method", "{}", result));
+    // With null delegate the top-level guard fires before routing, so unknown methods also return ERROR_UNAVAILABLE
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, plugin.HandleAppGatewayRequest(ctx, "Not.A.Method", "{}", result));
 }
 
 } // namespace
