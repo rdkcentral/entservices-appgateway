@@ -526,15 +526,18 @@ uint32_t Test_Resolver_CallThunderPlugin_NullService_EmptyAlias()
     }
 
     // non-null service but empty alias → early return ERROR_GENERAL (lines 217-218)
+    // Note: Resolver::~Resolver() calls mService->Release(), so we must not
+    // call svc->Release() ourselves — doing so would double-free the object.
     {
         L0Test::ServiceMock::Config cfg;
         auto* svc = new L0Test::ServiceMock(cfg, true);
-        Resolver r(svc);
-        std::string response;
-        const auto rc = r.CallThunderPlugin("", "{}", response);
-        ExpectEqU32(tr, rc, WPEFramework::Core::ERROR_GENERAL,
-                    "CallThunderPlugin with empty alias returns ERROR_GENERAL");
-        svc->Release();
+        {
+            Resolver r(svc);
+            std::string response;
+            const auto rc = r.CallThunderPlugin("", "{}", response);
+            ExpectEqU32(tr, rc, WPEFramework::Core::ERROR_GENERAL,
+                        "CallThunderPlugin with empty alias returns ERROR_GENERAL");
+        } // ~Resolver calls svc->Release() → refcount 0 → deleted
     }
     return tr.failures;
 }
