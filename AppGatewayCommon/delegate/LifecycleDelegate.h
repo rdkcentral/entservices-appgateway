@@ -246,12 +246,16 @@ class LifecycleDelegate : public BaseEventDelegate
 
     Core::hresult GetStatsMemoryUsage(const std::string& appId, string& result /* @out */) {
         // Use the app instance ID (registered at INITIALIZING) as the OCI container ID.
-        // Fall back to the hardcoded value if not yet registered.
-        static const std::string kFallbackContainerId = "com.sky.as.apps_com.bskyb.epgui";
         std::string containerId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
         if (containerId.empty()) {
-            LOGWARN("LifecycleDelegate: No appInstanceId found for appId=%s, using fallback containerId", appId.c_str());
-            containerId = kFallbackContainerId;
+            LOGERR("LifecycleDelegate: No appInstanceId found for appId=%s, cannot query OCIContainer", appId.c_str());
+            JsonObject obj;
+            obj["userMemoryUsed"]  = static_cast<double>(0);
+            obj["userMemoryLimit"] = static_cast<double>(0);
+            obj["gpuMemoryUsed"]   = static_cast<double>(0);
+            obj["gpuMemoryLimit"]  = static_cast<double>(0);
+            obj.ToString(result);
+            return Core::ERROR_NONE;
         }
 
         auto link = WPEFramework::Utils::GetThunderControllerClient(mShell, "org.rdk.OCIContainer");
@@ -298,17 +302,17 @@ class LifecycleDelegate : public BaseEventDelegate
         WPEFramework::Core::JSON::VariantContainer userObj   = memoryObj[_T("user")].Object();
         WPEFramework::Core::JSON::VariantContainer gpuMemObj = gpuObj[_T("memory")].Object();
 
-        // Spec requires KiB; OCIContainer returns bytes
-        const uint64_t userUsedKiB  = static_cast<uint64_t>(userObj[_T("usage")].Number())   / 1024;
-        const uint64_t userLimitKiB = static_cast<uint64_t>(userObj[_T("limit")].Number())   / 1024;
-        const uint64_t gpuUsedKiB   = static_cast<uint64_t>(gpuMemObj[_T("usage")].Number()) / 1024;
-        const uint64_t gpuLimitKiB  = static_cast<uint64_t>(gpuMemObj[_T("limit")].Number()) / 1024;
+        // OCIContainer returns bytes; spec requires bytes
+        const uint64_t userUsed  = static_cast<uint64_t>(userObj[_T("usage")].Number());
+        const uint64_t userLimit = static_cast<uint64_t>(userObj[_T("limit")].Number());
+        const uint64_t gpuUsed   = static_cast<uint64_t>(gpuMemObj[_T("usage")].Number());
+        const uint64_t gpuLimit  = static_cast<uint64_t>(gpuMemObj[_T("limit")].Number());
 
         JsonObject obj;
-        obj["userMemoryUsedKiB"]  = static_cast<double>(userUsedKiB);
-        obj["userMemoryLimitKiB"] = static_cast<double>(userLimitKiB);
-        obj["gpuMemoryUsedKiB"]   = static_cast<double>(gpuUsedKiB);
-        obj["gpuMemoryLimitKiB"]  = static_cast<double>(gpuLimitKiB);
+        obj["userMemoryUsed"]  = static_cast<double>(userUsed);
+        obj["userMemoryLimit"] = static_cast<double>(userLimit);
+        obj["gpuMemoryUsed"]   = static_cast<double>(gpuUsed);
+        obj["gpuMemoryLimit"]  = static_cast<double>(gpuLimit);
         obj.ToString(result);
         return Core::ERROR_NONE;
     }
