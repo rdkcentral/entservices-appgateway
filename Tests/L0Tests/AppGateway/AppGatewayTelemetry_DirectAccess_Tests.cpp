@@ -775,7 +775,7 @@ uint32_t Test_Telemetry_DirectAccess_FlushJob_Dispatch_WithData()
     // Dispatch the FlushJob via ProxyType (same pattern as TelemetryTimer in production).
     // Direct stack instantiation fails because Core::IDispatch inherits Core::IUnknown
     // which has pure virtual AddRef()/Release(); Core::ProxyType provides them.
-    auto job = Core::ProxyType<AppGatewayTelemetry::FlushJob>::Create(std::move(snapshot));
+    auto job = WPEFramework::Core::ProxyType<AppGatewayTelemetry::FlushJob>::Create(std::move(snapshot));
     job->Dispatch();
 
     ExpectTrue(tr, true, "FlushJob::Dispatch() with full data - no crash");
@@ -800,7 +800,7 @@ uint32_t Test_Telemetry_DirectAccess_FlushJob_Dispatch_Empty()
     snapshot->format               = TelemetryFormat::JSON;
     // All stats at zero → FlushJob::SendHealthStats() takes early return.
 
-    auto job = Core::ProxyType<AppGatewayTelemetry::FlushJob>::Create(std::move(snapshot));
+    auto job = WPEFramework::Core::ProxyType<AppGatewayTelemetry::FlushJob>::Create(std::move(snapshot));
     job->Dispatch();
 
     ExpectTrue(tr, true, "FlushJob::Dispatch() - empty snapshot - no crash");
@@ -818,7 +818,7 @@ uint32_t Test_Telemetry_DirectAccess_FlushJob_Dispatch_NullParent()
         new AppGatewayTelemetry::TelemetrySnapshot());
     snapshot->parent = nullptr;  // null parent → early LOGERR return
 
-    auto job = Core::ProxyType<AppGatewayTelemetry::FlushJob>::Create(std::move(snapshot));
+    auto job = WPEFramework::Core::ProxyType<AppGatewayTelemetry::FlushJob>::Create(std::move(snapshot));
     job->Dispatch();  // Should LOG error and return cleanly
 
     ExpectTrue(tr, true, "FlushJob::Dispatch() null parent - no crash");
@@ -863,7 +863,7 @@ uint32_t Test_Telemetry_DirectAccess_FlushJob_Dispatch_CompactFormat()
         snapshot->apiMethodStats["CompactPlugin_compactMethod"] = s;
     }
 
-    auto job = Core::ProxyType<AppGatewayTelemetry::FlushJob>::Create(std::move(snapshot));
+    auto job = WPEFramework::Core::ProxyType<AppGatewayTelemetry::FlushJob>::Create(std::move(snapshot));
     job->Dispatch();
 
     ExpectTrue(tr, true, "FlushJob::Dispatch() COMPACT format - no crash");
