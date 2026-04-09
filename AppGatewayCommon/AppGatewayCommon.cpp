@@ -21,6 +21,7 @@
 #include <interfaces/IConfiguration.h>
 #include "StringUtils.h"
 #include "UtilsFirebolt.h"
+#include "UtilsAppGatewayTelemetry.h"
 #include "UtilsJsonValidation.h"
 #include "ContextUtils.h"
 
@@ -28,6 +29,8 @@
 #define API_VERSION_NUMBER_MAJOR    APPGATEWAYCOMMON_MAJOR_VERSION
 #define API_VERSION_NUMBER_MINOR    APPGATEWAYCOMMON_MINOR_VERSION
 #define API_VERSION_NUMBER_PATCH    APPGATEWAYCOMMON_PATCH_VERSION
+
+AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_APPGATEWAYCOMMON)
 
 namespace WPEFramework {
 
@@ -45,6 +48,7 @@ namespace {
 }
 
 namespace Plugin {
+
     SERVICE_REGISTRATION(AppGatewayCommon, API_VERSION_NUMBER_MAJOR, API_VERSION_NUMBER_MINOR, API_VERSION_NUMBER_PATCH);
 
     AppGatewayCommon::AppGatewayCommon(): mShell(nullptr), mConnectionId(0)
@@ -66,6 +70,9 @@ namespace Plugin {
         mShell = service;
         mShell->AddRef();
 
+        AGW_TELEMETRY_INIT(mShell);
+        AGW_RECORD_BOOTSTRAP_TIME();
+
         // Initialize the settings delegate
         mDelegate = std::make_shared<SettingsDelegate>();
         mDelegate->setShell(mShell);
@@ -85,6 +92,9 @@ namespace Plugin {
 
         mShell->Release();
         mShell = nullptr;
+
+        AGW_TELEMETRY_DEINIT();
+
         SYSLOG(Logging::Shutdown, (string(_T("AppGatewayCommon de-initialised"))));
     }
 
