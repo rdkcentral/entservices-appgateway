@@ -111,20 +111,54 @@ private:
     mutable std::atomic<uint32_t> _refCount;
 };
 
+// Shared plugin fixture for tests that don't require plugin isolation.
+// Lazily initializes a single PluginAndService, reused across all routing,
+// setter, and event tests — avoiding the ~8s SystemDelegate Subscribe
+// timeout overhead per init/deinit cycle.
+struct SharedFixture {
+    static SharedFixture& instance() {
+        static SharedFixture sf;
+        return sf;
+    }
+
+    PluginAndService& ps() {
+        if (!_initialized) {
+            _ps.plugin->Initialize(_ps.service);
+            _initialized = true;
+        }
+        return _ps;
+    }
+
+    void cleanup() {
+        if (_initialized) {
+            _ps.plugin->Deinitialize(_ps.service);
+            _initialized = false;
+        }
+    }
+
+private:
+    SharedFixture() : _initialized(false) {}
+    ~SharedFixture() { cleanup(); }
+    SharedFixture(const SharedFixture&) = delete;
+    SharedFixture& operator=(const SharedFixture&) = delete;
+
+    PluginAndService _ps;
+    bool _initialized;
+};
+
 // Helper: test a delegate-backed getter method.
 // In L0 (no real plugins), the delegate may return ERROR_NONE, ERROR_UNAVAILABLE, or ERROR_GENERAL.
+// Uses SharedFixture to avoid per-test init/deinit overhead.
 inline uint32_t DelegateGetterTest(const std::string& method,
                                    const Exchange::GatewayContext& ctx = DefaultContext())
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, method, "{}", result);
     const bool ok = (rc == ERROR_NONE || rc == ERROR_UNAVAILABLE || rc == ERROR_GENERAL);
     ExpectTrue(tr, ok, method + " returns acceptable code in L0");
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -136,6 +170,7 @@ using AGCTest::ExpectTrue;
 using AGCTest::ExpectEqU32;
 using AGCTest::ExpectEqStr;
 using AGCTest::PluginAndService;
+using AGCTest::SharedFixture;
 using AGCTest::DefaultContext;
 using AGCTest::QIGuard;
 using AGCTest::StubEmitter;

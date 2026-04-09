@@ -22,7 +22,6 @@
 #include <gmock/gmock.h>
 #include <string>
 #include <functional>
-#include <atomic>
 #include <mutex>
 #include <map>
 
@@ -69,19 +68,11 @@ namespace MockJSONRPC {
 
         ~MockLocalDispatcher() override = default;
 
-        void AddRef() const override
-        {
-            ++mRefCount;
-        }
-
-        uint32_t Release() const override
-        {
-            uint32_t count = --mRefCount;
-            if (count == 0) {
-                delete this;
-            }
-            return count;
-        }
+        // AddRef/Release are no-ops: lifetime is managed by Core::Sink<> wrapper.
+        // Core::Sink overrides these virtuals with its own ref-count management,
+        // so these bodies are never reached when used as Core::Sink<MockLocalDispatcher>.
+        void AddRef() const override {}
+        uint32_t Release() const override { return 0; }
 
         void SetHandler(const std::string& method, InvokeHandler handler)
         {
@@ -149,7 +140,6 @@ namespace MockJSONRPC {
         END_INTERFACE_MAP
 
     private:
-        mutable std::atomic<uint32_t> mRefCount{1};
         WPEFramework::PluginHost::ILocalDispatcher* mLocal;
         std::mutex mMutex;
         std::map<std::string, InvokeHandler> mHandlers;
