@@ -451,3 +451,126 @@ uint32_t Test_Resolver_Configure_InvalidJson_ReturnsError() {
     service->Release();
     return tr.failures;
 }
+
+// ---------------------------------------------------------------------------
+// Resolver gap tests — cover 26 uncovered lines in Resolver.cpp
+// These create Resolver directly (not via AppGatewayImplementation) to exercise
+// internal methods that are not reachable through the existing Configure/Resolve
+// L0 paths.
+// ---------------------------------------------------------------------------
+
+// Covers: Resolver::ClearResolutions() body (lines 174-175)
+uint32_t Test_Resolver_ClearResolutions()
+{
+    using WPEFramework::Plugin::Resolver;
+    TestResult tr;
+
+    // ClearResolutions does not use mService; pass nullptr.
+    Resolver r(nullptr);
+
+    const std::string base = BaseResolutionsPath();
+    const bool loaded = r.LoadConfig(base);
+    if (!loaded) {
+        std::cerr << "NOTE: Skipping Test_Resolver_ClearResolutions (base resolutions not found)" << std::endl;
+        return tr.failures;
+    }
+
+    ExpectTrue(tr, r.IsConfigured(), "IsConfigured() == true after LoadConfig");
+    r.ClearResolutions();  // covers lines 174-175
+    ExpectTrue(tr, !r.IsConfigured(), "IsConfigured() == false after ClearResolutions");
+    return tr.failures;
+}
+
+// Covers: LoadConfig — file not found early return (lines 55-56)
+uint32_t Test_Resolver_LoadConfig_FileNotFound()
+{
+    using WPEFramework::Plugin::Resolver;
+    TestResult tr;
+
+    Resolver r(nullptr);
+    const bool ok = r.LoadConfig("/tmp/this_file_does_not_exist_l0test_agw.json");
+    ExpectTrue(tr, !ok, "LoadConfig returns false when file does not exist");
+    return tr.failures;
+}
+
+// Covers: LoadConfig — valid JSON but missing "resolutions" key (lines 136-141)
+uint32_t Test_Resolver_LoadConfig_NoResolutionsKey()
+{
+    using WPEFramework::Plugin::Resolver;
+    TestResult tr;
+
+    const std::string path = "/tmp/agw_l0test_noresolutions.json";
+    ExpectTrue(tr, WriteTextFile(path, "{\"other\": {}}"), "Write JSON without resolutions key");
+
+    Resolver r(nullptr);
+    const bool ok = r.LoadConfig(path);
+    ExpectTrue(tr, !ok, "LoadConfig returns false when JSON has no 'resolutions' key");
+
+    ::unlink(path.c_str());
+    return tr.failures;
+}
+
+// Covers: CallThunderPlugin — null service (lines 211-212) and empty alias (lines 217-218)
+uint32_t Test_Resolver_CallThunderPlugin_NullService_EmptyAlias()
+{
+    using WPEFramework::Plugin::Resolver;
+    TestResult tr;
+
+    // null service → mService == nullptr → early return ERROR_GENERAL (lines 211-212)
+    {
+        Resolver r(nullptr);
+        std::string response;
+        const auto rc = r.CallThunderPlugin("org.rdk.UserSettings.getAudioDescription", "{}", response);
+        ExpectEqU32(tr, rc, WPEFramework::Core::ERROR_GENERAL,
+                    "CallThunderPlugin with null service returns ERROR_GENERAL");
+    }
+
+    // non-null service but empty alias → early return ERROR_GENERAL (lines 217-218)
+    {
+        auto* svc = new L0Test::ServiceMock({}, true);
+        Resolver r(svc);
+        std::string response;
+        const auto rc = r.CallThunderPlugin("", "{}", response);
+        ExpectEqU32(tr, rc, WPEFramework::Core::ERROR_GENERAL,
+                    "CallThunderPlugin with empty alias returns ERROR_GENERAL");
+        svc->Release();
+    }
+    return tr.failures;
+}
+
+// Covers: key-not-found return paths in HasEvent / HasIncludeContext /
+//         HasComRpcRequestSupport / IsVersionedEvent / HasPermissionGroup
+//         (lines 264, 279, 290, 301, 314)
+uint32_t Test_Resolver_LookupMissingKey()
+{
+    using WPEFramework::Plugin::Resolver;
+    TestResult tr;
+
+    Resolver r(nullptr);
+    const std::string base = BaseResolutionsPath();
+    if (!r.LoadConfig(base)) {
+        std::cerr << "NOTE: Skipping Test_Resolver_LookupMissingKey (base resolutions not found)" << std::endl;
+        return tr.failures;
+    }
+
+    const std::string missing = "this.key.definitely.does.not.exist";
+
+    // HasEvent — key not found → return false (line 264)
+    ExpectTrue(tr, !r.HasEvent(missing), "HasEvent returns false for unknown key");
+
+    // HasIncludeContext — key not found → return false (line 279)
+    WPEFramework::Core::JSON::Variant dummy;
+    ExpectTrue(tr, !r.HasIncludeContext(missing, dummy), "HasIncludeContext returns false for unknown key");
+
+    // HasComRpcRequestSupport — key not found → return false (line 290)
+    ExpectTrue(tr, !r.HasComRpcRequestSupport(missing), "HasComRpcRequestSupport returns false for unknown key");
+
+    // IsVersionedEvent — key not found → return false (line 301)
+    ExpectTrue(tr, !r.IsVersionedEvent(missing), "IsVersionedEvent returns false for unknown key");
+
+    // HasPermissionGroup — key not found → return false (line 314)
+    std::string pgroup;
+    ExpectTrue(tr, !r.HasPermissionGroup(missing, pgroup), "HasPermissionGroup returns false for unknown key");
+
+    return tr.failures;
+}

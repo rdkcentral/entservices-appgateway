@@ -43,6 +43,7 @@ set(APPGW_APPGATEWAY_L0_SOURCES
     AppGateway/ContextUtils_ConversionTests.cpp
     AppGateway/AppGatewayImplementation_BranchTests.cpp
     AppGateway/AppGatewayTelemetry_Tests.cpp
+    AppGateway/AppGatewayTelemetry_DirectAccess_Tests.cpp
     common/L0Bootstrap.cpp
 )
 set(APPNOTIF_L0_SOURCES
