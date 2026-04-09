@@ -31,6 +31,8 @@
 #include "BaseEventDelegate.h"
 #include <algorithm>
 #include "ContextUtils.h"
+#include <mutex>
+
 
 using namespace WPEFramework;
 
@@ -53,6 +55,11 @@ using namespace WPEFramework;
 
 #ifndef POWERMANAGER_CALLSIGN
 #define POWERMANAGER_CALLSIGN "org.rdk.PowerManager"
+// Timeout (ms) for proactive Thunder event subscriptions during construction.
+// Override at compile time (e.g. -DSYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS=100)
+// to reduce startup latency in environments where Thunder is unavailable.
+#ifndef SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS
+#define SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS 2000
 #endif
 
 class SystemDelegate: public BaseEventDelegate
@@ -65,7 +72,9 @@ public:
     static constexpr const char* EVENT_ON_HDR_CHANGED         = "Device.onHdrChanged";
     static constexpr const char* EVENT_ON_HDCP_CHANGED        = "Device.onHdcpChanged";
     static constexpr const char* EVENT_ON_AUDIO_CHANGED       = "Device.onAudioChanged";
-    static constexpr const char* EVENT_ON_NAME_CHANGED        = "Device.onDeviceNameChanged";
+    static constexpr const char* EVENT_ON_NAME_CHANGED        = "Device.onNameChanged";
+    static constexpr const char* EVENT_ON_DEVICE_NAME_CHANGED = "Device.onDeviceNameChanged";
+    static constexpr const char* EVENT_ON_TIMEZONE_CHANGED    = "Localization.onTimeZoneChanged";
 
     SystemDelegate(PluginHost::IShell *shell)
         : BaseEventDelegate()
@@ -78,13 +87,9 @@ public:
         , _displayAudioSubscribed(false)
         , _hdcpSubscribed(false)
         , _systemSubscribed(false)
+        , _timezoneSubscribed(false)
     {
-        // Proactively subscribe to underlying Thunder events so we can react quickly.
-        // Actual dispatch to apps only happens if registrations exist (BaseEventDelegate check).
-        SetupDisplaySettingsSubscription();
-        SetupDisplaySettingsAudioSubscription();
-        SetupHdcpProfileSubscription();
-        SetupSystemSubscription();
+            LOGINFO("SystemDelegate initialized");
     }
 
     ~SystemDelegate()
@@ -102,8 +107,13 @@ public:
             if (_hdcpRpc && _hdcpSubscribed) {
                 _hdcpRpc->Unsubscribe(2000, _T("onDisplayConnectionChanged"));
             }
-            if (_systemRpc && _systemSubscribed) {
-                _systemRpc->Unsubscribe(2000, _T("onFriendlyNameChanged"));
+            if (_systemRpc ) {
+                if (_systemSubscribed) {
+                    _systemRpc->Unsubscribe(2000, _T("onFriendlyNameChanged"));
+                }
+                if (_timezoneSubscribed) {
+                    _systemRpc->Unsubscribe(2000, _T("onTimeZoneDSTChanged"));
+                }
             }
         } catch (...) {
             // Safe-guard against destructor exceptions
@@ -782,9 +792,11 @@ public:
             LOGERR("[AppGatewayCommon|VideoResolutionChanged] handler=GetVideoResolution failed to compute payload");
             return false;
         }
-        // Transform to rpcv2_event wrapper: { "videoResolution": $event_handler_response }
-        const std::string wrapped = std::string("{\"videoResolution\":") + payload + "}";
-        Dispatch(EVENT_ON_VIDEO_RES_CHANGED, wrapped);
+        if (payload.empty()) {
+            LOGERR("[AppGatewayCommon|VideoResolutionChanged] handler=GetVideoResolution returned empty payload");
+            return false;
+        }
+        Dispatch(EVENT_ON_VIDEO_RES_CHANGED, payload);
             return true;
     }
 
@@ -796,9 +808,13 @@ public:
             LOGERR("[AppGatewayCommon|ScreenResolutionChanged] handler=GetScreenResolution failed to compute payload");
             return false;
         }
-        // Transform to rpcv2_event wrapper: { "screenResolution": $event }
-        const std::string wrapped = std::string("{\"screenResolution\":") + payload + "}";
-        Dispatch(EVENT_ON_SCREEN_RES_CHANGED, wrapped);
+
+        if (payload.empty()) {
+            LOGERR("[AppGatewayCommon|ScreenResolutionChanged] handler=GetScreenResolution returned empty payload");
+            return false;
+        }
+        
+        Dispatch(EVENT_ON_SCREEN_RES_CHANGED, payload);
         return true;
 
     }
@@ -811,6 +827,12 @@ public:
             LOGERR("[AppGatewayCommon|HdcpChanged] handler=GetHdcp failed to compute payload");
             return false;
         }
+
+        if (payload.empty()) {
+            LOGERR("[AppGatewayCommon|HdcpChanged] handler=GetHdcp returned empty payload");
+            return false;
+        }
+
         Dispatch(EVENT_ON_HDCP_CHANGED, payload);
         return true;
 
@@ -824,6 +846,12 @@ public:
             LOGERR("[AppGatewayCommon|HdrChanged] handler=GetHdr failed to compute payload");
             return false;
         }
+
+        if (payload.empty()) {
+            LOGERR("[AppGatewayCommon|HdrChanged] handler=GetHdr returned empty payload");
+            return false;
+        }
+
         // Legacy payload 
         Dispatch(EVENT_ON_HDR_CHANGED, payload);
         
@@ -839,9 +867,14 @@ public:
             LOGERR("[AppGatewayCommon|NameChanged] handler=GetDeviceName failed to compute payload");
             return false;
         }
-        // Transform to rpcv2_event wrapper: { "friendlyName": $event }
-        const std::string wrapped = std::string("{\"friendlyName\":") + payload + "}";
-        Dispatch(EVENT_ON_NAME_CHANGED, wrapped);
+
+        if (payload.empty()) {
+            LOGERR("[AppGatewayCommon|NameChanged] handler=GetDeviceName returned empty payload");
+            return false;
+        }
+
+        Dispatch(EVENT_ON_NAME_CHANGED, payload);
+        Dispatch(EVENT_ON_DEVICE_NAME_CHANGED, payload);
         return true;
     }
 
@@ -853,6 +886,12 @@ public:
             LOGERR("[AppGatewayCommon|AudioChanged] handler=GetAudio failed to compute payload");
             return false;
         }
+
+        if (payload.empty()) {
+            LOGERR("[AppGatewayCommon|AudioChanged] handler=GetAudio returned empty payload");
+            return false;
+        }
+
         Dispatch(EVENT_ON_AUDIO_CHANGED, payload);
         return true;
     }
@@ -936,6 +975,23 @@ public:
     }
 
     // PUBLIC_INTERFACE
+    // PUBLIC_INTERFACE
+    bool EmitOnTimezoneChanged(const WPEFramework::Core::JSON::VariantContainer& params)
+    {
+        if (!params.HasLabel(_T("newTimeZone"))) {
+            LOGERR("[AppGatewayCommon|TimezoneChanged] missing newTimeZone parameter in event");
+            return false;
+        }
+
+        const std::string newTz =  params[_T("newTimeZone")].String();
+        if (newTz.empty()) {
+            LOGERR("[AppGatewayCommon|TimezoneChanged] newTimeZone parameter is empty");
+            return false;
+        }
+        Dispatch(EVENT_ON_TIMEZONE_CHANGED, "\"" + newTz + "\"");
+        return true;
+    }
+
     // ---- AppNotifications registration hook ----
     // Called by SettingsDelegate when app subscribes/unsubscribes to events.
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const std::string &event, const bool listen, bool &registrationError)
@@ -944,33 +1000,32 @@ public:
 
         const std::string evLower = ToLower(event);
 
-        // Supported events (case-insensitive)
-        if (evLower == "device.onvideoresolutionchanged"
-            || evLower == "device.onscreenresolutionchanged"
-            || evLower == "device.onhdcpchanged"
-            || evLower == "device.onhdrchanged"
-            || evLower == "device.onaudiochanged"
-            || evLower == "device.ondevicenamechanged"
-            || evLower == "device.onnamechanged")
-        {
+        if (evLower == "device.onvideoresolutionchanged" || evLower == "device.onscreenresolutionchanged") {
+            SetupDisplaySettingsSubscription();
+        } else if (evLower == "device.onhdcpchanged" || evLower == "device.onhdrchanged") {
+            SetupHdcpProfileSubscription();
+        } else if (evLower == "device.onaudiochanged") {
+            SetupDisplaySettingsAudioSubscription();
+        } else if (evLower == "device.ondevicenamechanged" || evLower == "device.onnamechanged") {
+            SetupFriendlyNameSystemSub();
+        } else if (evLower == "localization.ontimezonechanged") {
+            SetupTimezoneSystemSub();
+        } else {
+            registrationError = true; // event not recognized - signal error to caller
+            return false;
+        }
+
+        if (!registrationError) {
             LOGINFO("[AppGatewayCommon|EventRegistration] event=%s listen=%s", event.c_str(), listen ? "true" : "false");
             if (listen) {
                 AddNotification(event, cb);
-                // Ensure underlying Thunder subscriptions are active
-                SetupDisplaySettingsSubscription();
-                SetupDisplaySettingsAudioSubscription();
-                SetupHdcpProfileSubscription();
-                SetupSystemSubscription();
-                registrationError = false; // no error - successfully handled
-                return true;
             } else {
                 RemoveNotification(event, cb);
-                registrationError = false; // no error - successfully handled
-                return true;
             }
         }
-        registrationError = true; // event not recognized - signal error to caller
-        return false;
+
+        return true;
+
     }
 
 
@@ -1070,17 +1125,17 @@ private:
     // Setup subscriptions to underlying Thunder plugin events
     void SetupDisplaySettingsSubscription()
     {
-        if (_displaySubscribed) return;
+        if (isDisplaySubscribed()) return;
         try {
             if (!_displayRpc) {
                 _displayRpc = ::Utils::getThunderControllerClient(DISPLAYSETTINGS_CALLSIGN);
             }
             if (_displayRpc) {
                 const uint32_t status = _displayRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
-                    2000, _T("resolutionChanged"), &SystemDelegate::OnDisplaySettingsResolutionChanged, this);
+                    SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("resolutionChanged"), &SystemDelegate::OnDisplaySettingsResolutionChanged, this);
                 if (status == Core::ERROR_NONE) {
                     LOGINFO("SystemDelegate: Subscribed to %s.resolutionChanged", DISPLAYSETTINGS_CALLSIGN);
-                    _displaySubscribed = true;
+                    markDisplaySubscribed();
                 } else {
                     LOGERR("SystemDelegate: Failed to subscribe to %s.resolutionChanged rc=%u", DISPLAYSETTINGS_CALLSIGN, status);
                 }
@@ -1092,17 +1147,17 @@ private:
 
     void SetupDisplaySettingsAudioSubscription()
     {
-        if (_displayAudioSubscribed) return;
+        if (isDisplayAudioSubscribed()) return;
         try {
             if (!_displayRpc) {
                 _displayRpc = ::Utils::getThunderControllerClient(DISPLAYSETTINGS_CALLSIGN);
             }
             if (_displayRpc) {
                 const uint32_t status = _displayRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
-                    2000, _T("audioFormatChanged"), &SystemDelegate::OnDisplaySettingsAudioFormatChanged, this);
+                    SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("audioFormatChanged"), &SystemDelegate::OnDisplaySettingsAudioFormatChanged, this);
                 if (status == Core::ERROR_NONE) {
                     LOGINFO("SystemDelegate: Subscribed to %s.audioFormatChanged", DISPLAYSETTINGS_CALLSIGN);
-                    _displayAudioSubscribed = true;
+                    markDisplayAudioSubscribed();
                 } else {
                     LOGERR("SystemDelegate: Failed to subscribe to %s.audioFormatChanged rc=%u", DISPLAYSETTINGS_CALLSIGN, status);
                 }
@@ -1114,17 +1169,17 @@ private:
 
     void SetupHdcpProfileSubscription()
     {
-        if (_hdcpSubscribed) return;
+        if (isHdcpSubscribed()) return;
         try {
             if (!_hdcpRpc) {
                 _hdcpRpc = ::Utils::getThunderControllerClient(HDCPPROFILE_CALLSIGN);
             }
             if (_hdcpRpc) {
                 const uint32_t status = _hdcpRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
-                    2000, _T("onDisplayConnectionChanged"), &SystemDelegate::OnHdcpProfileDisplayConnectionChanged, this);
+                    SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("onDisplayConnectionChanged"), &SystemDelegate::OnHdcpProfileDisplayConnectionChanged, this);
                 if (status == Core::ERROR_NONE) {
                     LOGINFO("SystemDelegate: Subscribed to %s.onDisplayConnectionChanged", HDCPPROFILE_CALLSIGN);
-                    _hdcpSubscribed = true;
+                    markHdcpSubscribed();
                 } else {
                     LOGERR("SystemDelegate: Failed to subscribe to %s.onDisplayConnectionChanged rc=%u", HDCPPROFILE_CALLSIGN, status);
                 }
@@ -1134,25 +1189,47 @@ private:
         }
     }
 
-    void SetupSystemSubscription()
+    void SetupFriendlyNameSystemSub()
     {
-        if (_systemSubscribed) return;
+        if (isSystemSubscribed()) return;
         try {
             if (!_systemRpc) {
-                _systemRpc = ::Utils::getThunderControllerClient(SYSTEM_CALLSIGN);
+                _systemRpc = std::make_shared<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>>((_T(SYSTEM_CALLSIGN)), (_T(SYSTEM_CALLSIGN)), false);
             }
             if (_systemRpc) {
                 const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
-                    2000, _T("onFriendlyNameChanged"), &SystemDelegate::OnSystemFriendlyNameChanged, this);
+                    SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("onFriendlyNameChanged"), &SystemDelegate::OnSystemFriendlyNameChanged, this);
                 if (status == Core::ERROR_NONE) {
                     LOGINFO("SystemDelegate: Subscribed to %s.onFriendlyNameChanged", SYSTEM_CALLSIGN);
-                    _systemSubscribed = true;
+                    markSystemSubscribed();
                 } else {
                     LOGERR("SystemDelegate: Failed to subscribe to %s.onFriendlyNameChanged rc=%u", SYSTEM_CALLSIGN, status);
                 }
             }
         } catch (...) {
             LOGERR("SystemDelegate: exception during System subscription");
+        }
+    }
+
+    void SetupTimezoneSystemSub()
+    {
+        if (isTimezoneSubscribed()) return;
+        try {
+            if (!_systemRpc) {
+                _systemRpc = std::make_shared<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>>((_T(SYSTEM_CALLSIGN)), (_T(SYSTEM_CALLSIGN)), false);
+            }
+            if (_systemRpc) {
+                const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
+                    2000, _T("onTimeZoneDSTChanged"), &SystemDelegate::OnSystemTimezoneChanged, this);
+                if (status == Core::ERROR_NONE) {
+                    LOGINFO("SystemDelegate: Subscribed to %s.onTimeZoneDSTChanged", SYSTEM_CALLSIGN);
+                    markTimezoneSubscribed();
+                } else {
+                    LOGERR("SystemDelegate: Failed to subscribe to %s.onTimeZoneDSTChanged rc=%u", SYSTEM_CALLSIGN, status);
+                }
+            }
+        } catch (...) {
+            LOGERR("SystemDelegate: exception during System subscription for timezone");
         }
     }
 
@@ -1203,6 +1280,76 @@ private:
                 audioEmitted ? "emitted" : "skipped");
     }
 
+    void OnSystemTimezoneChanged(const WPEFramework::Core::JSON::VariantContainer& params)
+    {
+        LOGINFO("[AppGatewayCommon|System.onTimezoneChanged] Incoming alias=%s.%s, invoking handlers...",
+                SYSTEM_CALLSIGN, "onTimezoneChanged");
+        // Re-query state and dispatch event
+        const bool timezoneEmitted = EmitOnTimezoneChanged(params);
+        LOGINFO("[AppGatewayCommon|System.onTimezoneChanged] Handler responses: onTimezoneChanged=%s",
+                timezoneEmitted ? "emitted" : "skipped");
+    }
+
+    bool isDisplaySubscribed() const
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_displaySubscriptionLock);
+        return _displaySubscribed;
+    }
+
+    void markDisplaySubscribed()
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_displaySubscriptionLock);
+        _displaySubscribed = true;
+    }
+
+    bool isDisplayAudioSubscribed() const
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_displayAudioSubscriptionLock);
+        return _displayAudioSubscribed;
+    }
+
+    void markDisplayAudioSubscribed()
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_displayAudioSubscriptionLock);
+        _displayAudioSubscribed = true;
+    }
+
+    bool isHdcpSubscribed() const
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_hdcpSubscriptionLock);
+        return _hdcpSubscribed;
+    }
+
+     void markHdcpSubscribed()
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_hdcpSubscriptionLock);
+        _hdcpSubscribed = true;
+    }
+
+    bool isSystemSubscribed() const
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_systemSubscriptionLock);
+        return _systemSubscribed;
+    }
+
+    void markSystemSubscribed()
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_systemSubscriptionLock);
+        _systemSubscribed = true;
+    }
+
+    bool isTimezoneSubscribed() const
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_timezoneSubscriptionLock);
+        return _timezoneSubscribed;
+    }
+
+    void markTimezoneSubscribed()
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_timezoneSubscriptionLock);
+        _timezoneSubscribed = true;
+    }
+
 private:
     PluginHost::IShell *_shell;
     std::unordered_set<std::string> _subscriptions;
@@ -1213,9 +1360,17 @@ private:
     std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _displayRpc;
     std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _hdcpRpc;
     std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _systemRpc;
+
     bool _displaySubscribed;
+    mutable Core::CriticalSection _displaySubscriptionLock;
     bool _displayAudioSubscribed;
+    mutable Core::CriticalSection _displayAudioSubscriptionLock;
     bool _hdcpSubscribed;
+    mutable Core::CriticalSection _hdcpSubscriptionLock;
     bool _systemSubscribed;
+    mutable Core::CriticalSection _systemSubscriptionLock;
+
+    bool _timezoneSubscribed;
+    mutable Core::CriticalSection _timezoneSubscriptionLock;
 };
 
