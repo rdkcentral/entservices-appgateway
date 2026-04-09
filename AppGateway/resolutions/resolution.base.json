@@ -500,6 +500,10 @@
         "TextToSpeech.onPlaybackerror": {
             "alias": "org.rdk.AppGatewayCommon",
             "event": "TextToSpeech.onPlaybackerror"
+        },
+        "Localization.onTimeZoneChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "Localization.onTimeZoneChanged"
         }
     }
 }
