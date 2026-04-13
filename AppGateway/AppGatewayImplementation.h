@@ -134,7 +134,7 @@ namespace Plugin {
         uint32_t InitializeWebsocket();
         uint32_t ProcessComRpcRequest(const Context &context, const string& alias, const string& method, const string& params, const string& origin, string &resolution);
         uint32_t PreProcessEvent(const Context &context, const string& alias, const string &method, const string& origin, const string& params, string &resolution);
-        string UpdateContext(const Context &context, const string& method, const string& params, const string& origin, const bool& onlyAdditionalContext = false);
+        string UpdateContext(const Context &context, const string& method, const string& params, const string& origin, const bool& onlyAdditionalContext = false, const ResolverPtr& resolver = nullptr);
         Core::hresult InternalResolve(const Context &context, const string &method, const string &params, const string &origin, string& resolution);
         Core::hresult FetchResolvedData(const Context &context, const string &method, const string &params, const string &origin, string& resolution);
         Core::hresult InternalResolutionConfigure(std::vector<std::string>&& configPaths);

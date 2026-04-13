@@ -316,7 +316,12 @@ namespace Plugin {
         const string& eventName,
         const string& eventData)
     {
-        if (!mInitialized) {
+        bool initialized = false;
+        {
+            Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+            initialized = mInitialized;
+        }
+        if (!initialized) {
             LOGERR("AppGatewayTelemetry not initialized");
             return Core::ERROR_UNAVAILABLE;
         }
@@ -918,7 +923,12 @@ namespace Plugin {
         const double metricValue,
         const string& metricUnit)
     {
-        if (!mInitialized) {
+        bool initialized = false;
+        {
+            Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+            initialized = mInitialized;
+        }
+        if (!initialized) {
             LOGERR("AppGatewayTelemetry not initialized");
             return Core::ERROR_UNAVAILABLE;
         }

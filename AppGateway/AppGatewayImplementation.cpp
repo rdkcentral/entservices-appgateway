@@ -446,7 +446,7 @@ namespace WPEFramework
                 result = ProcessComRpcRequest(context, alias, method, params, origin, resolution);
             } else {
                 // Check if includeContext is enabled for this method
-                std::string finalParams = UpdateContext(context, method, params, origin);
+                std::string finalParams = UpdateContext(context, method, params, origin, false, resolver);
                 LOGTRACE("Final Request params alias=%s Params = %s", alias.c_str(), finalParams.c_str());
 
                 result = resolver->CallThunderPlugin(alias, finalParams, resolution);
@@ -462,11 +462,17 @@ namespace WPEFramework
             return result;
         }
 
-        string AppGatewayImplementation::UpdateContext(const Context &context, const string& method, const string& params, const string& origin, const bool& onlyAdditionalContext) {
+        string AppGatewayImplementation::UpdateContext(const Context &context, const string& method, const string& params, const string& origin, const bool& onlyAdditionalContext, const ResolverPtr& resolverPtr) {
             // Check if includeContext is enabled for this method
             std::string finalParams = params;
             JsonValue additionalContext;
-            if (mResolverPtr->HasIncludeContext(method, additionalContext)) {
+            ResolverPtr resolver = resolverPtr;
+            if (resolver == nullptr) {
+                Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
+                resolver = mResolverPtr;
+            }
+
+            if ((resolver != nullptr) && resolver->HasIncludeContext(method, additionalContext)) {
                 LOGTRACE("Method '%s' requires context inclusion", method.c_str());
                 JsonObject paramsObj;
                 if (!paramsObj.FromString(params))
