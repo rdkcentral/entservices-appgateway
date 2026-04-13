@@ -127,7 +127,7 @@ namespace WPEFramework
                     const Region& region = index.Current();
                     if (region.HasCountryCode(country)) {
                         result = region.GetPaths();
-                        LOGINFO("Found %zu paths for country '%s'", result.size(), country.c_str());
+                        LOGINFO("Found %zu paths for country '%s'", result.size());
                         return result;
                     }
                 }
