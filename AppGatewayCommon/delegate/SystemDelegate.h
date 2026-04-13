@@ -36,6 +36,10 @@
 
 using namespace WPEFramework;
 
+#ifndef CALLSIGN_CALLER_APPGATEWAY
+#define CALLSIGN_CALLER_APPGATEWAY "org.rdk.AppGatewayCommon.SystemDelegate"
+#endif
+
 // Define a callsign constant to match the AUTHSERVICE_CALLSIGN-style pattern.
 #ifndef SYSTEM_CALLSIGN
 #define SYSTEM_CALLSIGN "org.rdk.System"
@@ -1032,7 +1036,7 @@ private:
         if (isDisplaySubscribed()) return;
         try {
             if (!_displayRpc) {
-                _displayRpc = ::Utils::getThunderControllerClient(DISPLAYSETTINGS_CALLSIGN);
+                _displayRpc = ::Utils::getThunderControllerClient(DISPLAYSETTINGS_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
             }
             if (_displayRpc) {
                 const uint32_t status = _displayRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
@@ -1054,7 +1058,7 @@ private:
         if (isDisplayAudioSubscribed()) return;
         try {
             if (!_displayRpc) {
-                _displayRpc = ::Utils::getThunderControllerClient(DISPLAYSETTINGS_CALLSIGN);
+                _displayRpc = ::Utils::getThunderControllerClient(DISPLAYSETTINGS_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
             }
             if (_displayRpc) {
                 const uint32_t status = _displayRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
@@ -1076,7 +1080,7 @@ private:
         if (isHdcpSubscribed()) return;
         try {
             if (!_hdcpRpc) {
-                _hdcpRpc = ::Utils::getThunderControllerClient(HDCPPROFILE_CALLSIGN);
+                _hdcpRpc = ::Utils::getThunderControllerClient(HDCPPROFILE_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
             }
             if (_hdcpRpc) {
                 const uint32_t status = _hdcpRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
@@ -1098,7 +1102,7 @@ private:
         if (isSystemSubscribed()) return;
         try {
             if (!_systemRpc) {
-                _systemRpc = std::make_shared<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>>((_T(SYSTEM_CALLSIGN)), (_T(SYSTEM_CALLSIGN)), false);
+                _systemRpc = ::Utils::getThunderControllerClient(SYSTEM_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
             }
             if (_systemRpc) {
                 const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
@@ -1120,7 +1124,7 @@ private:
         if (isTimezoneSubscribed()) return;
         try {
             if (!_systemRpc) {
-                _systemRpc = std::make_shared<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>>((_T(SYSTEM_CALLSIGN)), (_T(SYSTEM_CALLSIGN)), false);
+                _systemRpc = ::Utils::getThunderControllerClient(SYSTEM_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
             }
             if (_systemRpc) {
                 const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
