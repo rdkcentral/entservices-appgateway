@@ -332,6 +332,8 @@
 
 // Only opensource plugins here.
 #define AGW_PLUGIN_APPGATEWAY                       "AppGateway"
+#define AGW_PLUGIN_APPGATEWAYCOMMON                 "AppGatewayCommon"
+#define AGW_PLUGIN_APPNOTIFICATIONS                 "AppNotifications"
 #define AGW_PLUGIN_FBADVERTISING                    "FbAdvertising"
 #define AGW_PLUGIN_FBDISCOVERY                      "FbDiscovery"
 #define AGW_PLUGIN_FBENTOS                          "FbEntos"
