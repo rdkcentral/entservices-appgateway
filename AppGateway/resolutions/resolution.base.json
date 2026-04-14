@@ -504,7 +504,19 @@
         "Localization.onTimeZoneChanged": {
             "alias": "org.rdk.AppGatewayCommon",
             "event": "Localization.onTimeZoneChanged"
-        }
+        },
+        "localization.country": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "localization.presentationLanguage": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "localization.onCountryChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "Localization.onCountryChanged"
+         }
     }
 }
 
