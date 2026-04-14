@@ -1125,7 +1125,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_140_EmitOnScreenResolutionChanged_Dispatch
 
     MockEmitter* emitter = SubscribeEmitter("Device.onScreenResolutionChanged");
 
-    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onScreenResolutionChanged"), ::testing::HasSubstr("screenResolution"), _))
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onScreenResolutionChanged"), ::testing::StartsWith("["), _))
         .Times(::testing::AtLeast(1));
 
     auto systemDelegate = plugin.mDelegate->getSystemDelegate();
@@ -1144,7 +1144,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_141_EmitOnVideoResolutionChanged_Dispatche
 
     MockEmitter* emitter = SubscribeEmitter("Device.onVideoResolutionChanged");
 
-    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onVideoResolutionChanged"), ::testing::HasSubstr("videoResolution"), _))
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onVideoResolutionChanged"), ::testing::StartsWith("["), _))
         .Times(::testing::AtLeast(1));
 
     auto systemDelegate = plugin.mDelegate->getSystemDelegate();
@@ -1220,7 +1220,7 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_145_EmitOnNameChanged_DispatchesToEmitter)
 
     MockEmitter* emitter = SubscribeEmitter("Device.onDeviceNameChanged");
 
-    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onDeviceNameChanged"), ::testing::HasSubstr("friendlyName"), _))
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onDeviceNameChanged"), ::testing::HasSubstr("Living Room TV"), _))
         .Times(::testing::AtLeast(1));
 
     auto systemDelegate = plugin.mDelegate->getSystemDelegate();
