@@ -78,7 +78,12 @@ namespace Plugin {
         AppGatewayTelemetry::getInstance().Initialize(service);
         // Set the telemetry interface pointer for COM-RPC exposure
         mTelemetry = &AppGatewayTelemetry::getInstance();
-        mTelemetry->AddRef();
+        if (mTelemetry != nullptr) {
+            mTelemetry->AddRef();
+            LOGINFO("AppGatewayTelemetry initialized successfully");
+        } else {
+            LOGERR("Failed to acquire AppGatewayTelemetry instance");
+        }
 
         mAppGateway = service->Root<Exchange::IAppGatewayResolver>(mConnectionId, 2000, _T("AppGatewayImplementation"));
        
@@ -116,10 +121,14 @@ namespace Plugin {
         auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
             bootstrapEnd - bootstrapStart).count();
         double durationMs = durationUs / 1000.0;  // Convert to milliseconds with decimal precision
-        AppGatewayTelemetry::getInstance().RecordBootstrapTime(durationMs);
+        // Only record bootstrap time if telemetry is available
+        if (mTelemetry != nullptr) {
+            AppGatewayTelemetry::getInstance().RecordBootstrapTime(durationMs);
+        }
             
         // On success return empty, to indicate there is no error text.
-        return ((mAppGateway != nullptr) && (mResponder != nullptr))
+        // Include mTelemetry in validation for complete initialization check
+        return ((mAppGateway != nullptr) && (mResponder != nullptr) && (mTelemetry != nullptr))
             ? EMPTY_STRING
             : _T("Could not retrieve the AppGateway interface.");
     }
