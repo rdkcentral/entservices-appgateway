@@ -245,7 +245,7 @@ uint32_t Test_HandleAppEventNotifier_TTSEvent_ListenTrue()
 // NOTE: Only listen=true is tested here. listen=false races on _displayRpc
 // (unprotected shared_ptr) when both jobs run concurrently on the worker pool.
 // The unsubscribe path is covered in L1 (AGC_L1_146) where mocks prevent blocking.
-// Coverage: SystemDelegate::HandleEvent success path and AddNotification/RemoveNotification.
+// Coverage: SystemDelegate::HandleEvent success path and AddNotification.
 uint32_t Test_HandleAppEventNotifier_SystemDeviceEvent()
 {
     TestResult tr;
