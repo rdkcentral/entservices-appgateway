@@ -74,9 +74,8 @@ namespace WPEFramework {
                 }
                 virtual void Dispatch()
                 {
-                    mParent.mActiveJobs.fetch_add(1, std::memory_order_acq_rel);
                     mParent.mDelegate->HandleAppEventNotifier(mCallback, mEvent, mListen);
-                    if (mParent.mActiveJobs.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+                    if (1 == mParent.mActiveJobs.fetch_sub(1, std::memory_order_acq_rel)) {
                         std::lock_guard<std::mutex> lk(mParent.mJobDrainMutex);
                         mParent.mJobDrainCv.notify_all();
                     }

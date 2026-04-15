@@ -508,6 +508,7 @@ namespace Plugin {
                 return false;
             }
 
+            mActiveJobs.fetch_add(1, std::memory_order_acq_rel);
             Core::IWorkerPool::Instance().Submit(job);
             return true;
         }
