@@ -69,6 +69,7 @@ class AppDelegate {
                         return Core::ERROR_GENERAL;
                     }
                 }
+                result = "\"" + result + "\""; // Return the UID as a string value
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Unable to get SharedStorage interface");
