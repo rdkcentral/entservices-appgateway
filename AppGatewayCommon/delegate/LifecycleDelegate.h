@@ -30,7 +30,6 @@
 #include "UtilsLogging.h"
 #include "UtilsCallsign.h"
 #include "UtilsFirebolt.h"
-#include "UtilsJsonrpcDirectLink.h"
 #include <set>
 using namespace WPEFramework;
 
