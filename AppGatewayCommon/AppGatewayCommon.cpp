@@ -21,6 +21,7 @@
 #include <interfaces/IConfiguration.h>
 #include "StringUtils.h"
 #include "UtilsFirebolt.h"
+#include "UtilsAppGatewayTelemetry.h"
 #include "UtilsJsonValidation.h"
 #include "ContextUtils.h"
 
@@ -28,6 +29,8 @@
 #define API_VERSION_NUMBER_MAJOR    APPGATEWAYCOMMON_MAJOR_VERSION
 #define API_VERSION_NUMBER_MINOR    APPGATEWAYCOMMON_MINOR_VERSION
 #define API_VERSION_NUMBER_PATCH    APPGATEWAYCOMMON_PATCH_VERSION
+
+AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_APPGATEWAYCOMMON)
 
 namespace WPEFramework {
 
@@ -45,6 +48,7 @@ namespace {
 }
 
 namespace Plugin {
+
     SERVICE_REGISTRATION(AppGatewayCommon, API_VERSION_NUMBER_MAJOR, API_VERSION_NUMBER_MINOR, API_VERSION_NUMBER_PATCH);
 
     AppGatewayCommon::AppGatewayCommon(): mShell(nullptr), mConnectionId(0)
@@ -66,6 +70,9 @@ namespace Plugin {
         mShell = service;
         mShell->AddRef();
 
+        AGW_TELEMETRY_INIT(mShell);
+        AGW_RECORD_BOOTSTRAP_TIME();
+
         // Initialize the settings delegate
         mDelegate = std::make_shared<SettingsDelegate>();
         mDelegate->setShell(mShell);
@@ -79,12 +86,25 @@ namespace Plugin {
         ASSERT(service == mShell);
         mConnectionId = 0;
 
+        // Wait for any in-flight EventRegistrationJobs to complete before
+        // destroying the delegate.  These jobs run on the worker pool and
+        // may be blocked inside Thunder Subscribe() calls (up to the
+        // SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS timeout).  Destroying the
+        // delegate while a job is executing causes use-after-free.
+        {
+            std::unique_lock<std::mutex> lk(mJobDrainMutex);
+            mJobDrainCv.wait(lk, [this] { return mActiveJobs.load(std::memory_order_acquire) == 0; });
+        }
+
         mDelegate->Cleanup();
         // Clean up the delegate
         mDelegate.reset();
 
         mShell->Release();
         mShell = nullptr;
+
+        AGW_TELEMETRY_DEINIT();
+
         SYSLOG(Logging::Shutdown, (string(_T("AppGatewayCommon de-initialised"))));
     }
 
@@ -439,6 +459,7 @@ namespace Plugin {
                 return false;
             }
 
+            mActiveJobs.fetch_add(1, std::memory_order_acq_rel);
             Core::IWorkerPool::Instance().Submit(job);
             return true;
         }

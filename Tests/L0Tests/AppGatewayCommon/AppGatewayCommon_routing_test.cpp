@@ -5,9 +5,7 @@
 uint32_t Test_HandleRequest_UnknownMethod()
 {
     TestResult tr;
-    PluginAndService ps;
-
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
 
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
@@ -16,7 +14,6 @@ uint32_t Test_HandleRequest_UnknownMethod()
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "invalid.method.xyz", "{}", result);
     ExpectEqU32(tr, rc, ERROR_UNKNOWN_KEY, "invalid.method returns ERROR_UNKNOWN_KEY");
 
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -29,9 +26,7 @@ uint32_t Test_HandleRequest_UnknownMethod()
 uint32_t Test_HandleRequest_DeviceMake_DelegateUnavailable()
 {
     TestResult tr;
-    PluginAndService ps;
-
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
 
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
@@ -46,7 +41,6 @@ uint32_t Test_HandleRequest_DeviceMake_DelegateUnavailable()
     const bool acceptable = (rc == ERROR_NONE || rc == ERROR_UNAVAILABLE);
     ExpectTrue(tr, acceptable, "device.make returns ERROR_NONE or ERROR_UNAVAILABLE in L0");
 
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -55,9 +49,7 @@ uint32_t Test_HandleRequest_DeviceMake_DelegateUnavailable()
 uint32_t Test_HandleRequest_MetricsPassthrough()
 {
     TestResult tr;
-    PluginAndService ps;
-
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
 
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
@@ -67,7 +59,6 @@ uint32_t Test_HandleRequest_MetricsPassthrough()
     ExpectEqU32(tr, rc, ERROR_NONE, "metrics.someEvent returns ERROR_NONE");
     ExpectEqStr(tr, result, "null", "metrics.someEvent result is null");
 
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -76,9 +67,7 @@ uint32_t Test_HandleRequest_MetricsPassthrough()
 uint32_t Test_HandleRequest_DiscoveryWatched()
 {
     TestResult tr;
-    PluginAndService ps;
-
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
 
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
@@ -88,7 +77,6 @@ uint32_t Test_HandleRequest_DiscoveryWatched()
     ExpectEqU32(tr, rc, ERROR_NONE, "discovery.watched returns ERROR_NONE");
     ExpectEqStr(tr, result, "null", "discovery.watched result is null");
 
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -97,9 +85,7 @@ uint32_t Test_HandleRequest_DiscoveryWatched()
 uint32_t Test_HandleRequest_CaseInsensitiveMethod()
 {
     TestResult tr;
-    PluginAndService ps;
-
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
 
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
@@ -110,7 +96,6 @@ uint32_t Test_HandleRequest_CaseInsensitiveMethod()
     const bool acceptable = (rc == ERROR_NONE || rc == ERROR_UNAVAILABLE);
     ExpectTrue(tr, acceptable, "DEVICE.MAKE (uppercase) routes same as device.make");
 
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -122,9 +107,7 @@ uint32_t Test_HandleRequest_CaseInsensitiveMethod()
 uint32_t Test_HandleRequest_LifecycleReady()
 {
     TestResult tr;
-    PluginAndService ps;
-
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
 
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
@@ -133,7 +116,6 @@ uint32_t Test_HandleRequest_LifecycleReady()
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "lifecycle.ready", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "lifecycle.ready returns ERROR_NONE in L0 (mLifecycleManagerState is null)");
 
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -348,15 +330,13 @@ uint32_t Test_HandleRequest_SecondScreenFriendlyName()
 uint32_t Test_HandleRequest_LocalizationAddAdditionalInfo()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "localization.addadditionalinfo", R"({"key":"test","value":"val"})", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "localization.addadditionalinfo returns ERROR_NONE");
     ExpectEqStr(tr, result, "null", "localization.addadditionalinfo result is null");
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -365,14 +345,12 @@ uint32_t Test_HandleRequest_LocalizationAddAdditionalInfo()
 uint32_t Test_HandleRequest_LifecycleState()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "lifecycle.state", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "lifecycle.state returns ERROR_NONE in L0");
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -381,14 +359,12 @@ uint32_t Test_HandleRequest_LifecycleState()
 uint32_t Test_HandleRequest_LifecycleClose()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "lifecycle.close", R"({"reason":"userExit"})", result);
     ExpectEqU32(tr, rc, ERROR_GENERAL, "lifecycle.close returns ERROR_GENERAL in L0");
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -398,15 +374,13 @@ uint32_t Test_HandleRequest_LifecycleClose()
 uint32_t Test_HandleRequest_LifecycleFinished()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "lifecycle.finished", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "lifecycle.finished returns ERROR_NONE");
     ExpectEqStr(tr, result, "null", "lifecycle.finished result is null");
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -415,14 +389,12 @@ uint32_t Test_HandleRequest_LifecycleFinished()
 uint32_t Test_HandleRequest_Lifecycle2State()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "lifecycle2.state returns ERROR_NONE in L0");
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -431,14 +403,12 @@ uint32_t Test_HandleRequest_Lifecycle2State()
 uint32_t Test_HandleRequest_Lifecycle2Close()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "lifecycle2.close", R"({"type":"deactivate"})", result);
     ExpectEqU32(tr, rc, ERROR_GENERAL, "lifecycle2.close returns ERROR_GENERAL in L0");
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -448,15 +418,13 @@ uint32_t Test_HandleRequest_Lifecycle2Close()
 uint32_t Test_HandleRequest_DispatchIntent()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "commoninternal.dispatchintent", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "commoninternal.dispatchintent returns ERROR_NONE");
     ExpectEqStr(tr, result, "null", "commoninternal.dispatchintent result is null");
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 
@@ -466,14 +434,12 @@ uint32_t Test_HandleRequest_DispatchIntent()
 uint32_t Test_HandleRequest_GetLastIntent()
 {
     TestResult tr;
-    PluginAndService ps;
-    ps.plugin->Initialize(ps.service);
+    PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "commoninternal.getlastintent returns ERROR_NONE");
-    ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }
 

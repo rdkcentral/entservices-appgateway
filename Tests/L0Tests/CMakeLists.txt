@@ -424,6 +424,7 @@ target_compile_definitions(appgatewaycommon_l0test PRIVATE
     DISABLE_DEBUG_FOR_CONNECTION="disableDebugForConnection"
     DISABLE_SECURITY_TOKEN
     USE_THUNDER_R4
+    SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS=100
 )
 
 if(APPGW_ENABLE_COVERAGE)
@@ -520,6 +521,21 @@ set_target_properties(appgatewaycommon_l0test PROPERTIES
     BUILD_RPATH "${APPGW_BUILD_RPATH}"
     INSTALL_RPATH "${APPGW_INSTALL_RPATH}"
 )
+
+# Precompiled headers: cache expensive Thunder framework and STL headers
+# to reduce per-TU parse time (requires CMake >= 3.16).
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.16")
+    target_precompile_headers(appgatewaycommon_l0test PRIVATE
+        <core/core.h>
+        <plugins/plugins.h>
+        <string>
+        <map>
+        <mutex>
+        <memory>
+        <functional>
+        <unordered_map>
+    )
+endif()
 
 add_custom_target(run_appgatewaycommon
     DEPENDS appgatewaycommon_l0test

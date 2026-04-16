@@ -167,7 +167,7 @@ protected:
     {
         if (!initialized_) return;
         plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
         for (auto* e : heapEmitters) {
             testing::Mock::VerifyAndClearExpectations(e);
             delete e;
@@ -535,31 +535,43 @@ TEST_F(LifecycleDelegateTest, AGC_L1_186_GetLastIntent_WithIntent)
 
 class LifecycleNoInterfaceTest : public ::testing::Test {
 protected:
-    Core::Sink<AppGatewayCommon> plugin;
-    NiceMock<ServiceMock> service;
+    static Core::Sink<AppGatewayCommon>* sPlugin;
+    static NiceMock<ServiceMock>* sService;
 
-    void SetUp() override
+    Core::Sink<AppGatewayCommon>& plugin = *sPlugin;
+    NiceMock<ServiceMock>& service = *sService;
+
+    static void SetUpTestSuite()
     {
         // Ensure /opt/ai2managers does NOT exist (handles both file and directory)
         RemoveAi2managers();
 
-        // All calls return nullptr
-        ON_CALL(service, QueryInterfaceByCallsign(_, _))
+        sService = new NiceMock<ServiceMock>();
+        sPlugin = new Core::Sink<AppGatewayCommon>();
+
+        ON_CALL(*sService, QueryInterfaceByCallsign(_, _))
             .WillByDefault(Return(nullptr));
 
-        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*sService, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(*sService, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
 
-        const string response = plugin.Initialize(&service);
+        const string response = sPlugin->Initialize(sService);
         ASSERT_TRUE(response.empty());
     }
 
-    void TearDown() override
+    static void TearDownTestSuite()
     {
-        plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        if (sPlugin && sService) {
+            sPlugin->Deinitialize(sService);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        delete sPlugin;  sPlugin = nullptr;
+        delete sService; sService = nullptr;
     }
 };
+
+Core::Sink<AppGatewayCommon>* LifecycleNoInterfaceTest::sPlugin = nullptr;
+NiceMock<ServiceMock>* LifecycleNoInterfaceTest::sService = nullptr;
 
 TEST_F(LifecycleNoInterfaceTest, AGC_L1_187_LifecycleClose_NullInterface_ReturnsError)
 {
@@ -745,7 +757,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_195_HandleEvent_InvalidEvent_NotHandled)
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     // Event is not recognized by any delegate — status should reflect unsuccessful match
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
 }
 
 TEST_F(LifecycleDelegateTest, AGC_L1_196_HandleEvent_ValidLifecycleEvent_Subscription)
@@ -759,7 +771,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_196_HandleEvent_ValidLifecycleEvent_Subscri
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
 }
 
 TEST_F(LifecycleDelegateTest, AGC_L1_197_HandleEvent_ValidLifecycleEvent_Unsubscription)
@@ -771,13 +783,13 @@ TEST_F(LifecycleDelegateTest, AGC_L1_197_HandleEvent_ValidLifecycleEvent_Unsubsc
     // Subscribe first
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "Lifecycle.onBackground", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
     EXPECT_TRUE(status);
 
     // Now unsubscribe
     status = false;
     const auto rc = plugin.HandleAppEventNotifier(emitter, "Lifecycle.onBackground", false, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
@@ -832,7 +844,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_198_OnFocus_DispatchesFocusedChanged_And_Fo
     // Fire OnFocus
     capturedWMNotification->OnFocus("instance-focus-001");
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 TEST_F(LifecycleDelegateTest, AGC_L1_199_OnBlur_DispatchesFocusedChanged_And_Background)
@@ -855,7 +867,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_199_OnBlur_DispatchesFocusedChanged_And_Bac
     );
     // Focus the app so blur will clear it
     capturedWMNotification->OnFocus("instance-blur-001");
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
     auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
     ASSERT_NE(lifecycleDelegate, nullptr);
@@ -878,7 +890,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_199_OnBlur_DispatchesFocusedChanged_And_Bac
     // Fire OnBlur
     capturedWMNotification->OnBlur("instance-blur-001");
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 /* ================================================================
@@ -920,7 +932,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_200_Terminating_DispatchesOnUnloading)
         ""
     );
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
 /* ================================================================
@@ -939,13 +951,13 @@ TEST_F(LifecycleDelegateTest, AGC_L1_201_HandleEvent_PresentationFocusedChanged_
     // Subscribe
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "Presentation.onFocusedChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
     EXPECT_TRUE(status);
 
     // Unsubscribe
     status = false;
     const auto rc = plugin.HandleAppEventNotifier(emitter, "Presentation.onFocusedChanged", false, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);

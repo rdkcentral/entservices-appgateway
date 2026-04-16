@@ -18,12 +18,15 @@
  */
 
 #include "AppNotifications.h"
+#include "UtilsAppGatewayTelemetry.h"
 #include <interfaces/IConfiguration.h>
 
 
 #define API_VERSION_NUMBER_MAJOR    APPNOTIFICATIONS_MAJOR_VERSION
 #define API_VERSION_NUMBER_MINOR    APPNOTIFICATIONS_MINOR_VERSION
 #define API_VERSION_NUMBER_PATCH    APPNOTIFICATIONS_PATCH_VERSION
+
+AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_APPNOTIFICATIONS)
 
 namespace WPEFramework {
 
@@ -62,6 +65,10 @@ namespace Plugin {
 
         mService = service;
         mService->AddRef();
+
+        AGW_TELEMETRY_INIT(mService);
+        AGW_RECORD_BOOTSTRAP_TIME();
+
         mAppNotifications = service->Root<Exchange::IAppNotifications>(mConnectionId, 2000, _T("AppNotificationsImplementation"));
 
         if (mAppNotifications != nullptr) {
@@ -85,6 +92,8 @@ namespace Plugin {
     {
         SYSLOG(Logging::Shutdown, (string(_T("AppNotifications::Deinitialize"))));
         ASSERT(service == mService);
+
+        AGW_TELEMETRY_DEINIT();
 
         if (mAppNotifications != nullptr) {
             RPC::IRemoteConnection *connection(service->RemoteConnection(mConnectionId));
