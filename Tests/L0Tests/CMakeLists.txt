@@ -424,6 +424,7 @@ target_compile_definitions(appgatewaycommon_l0test PRIVATE
     DISABLE_DEBUG_FOR_CONNECTION="disableDebugForConnection"
     DISABLE_SECURITY_TOKEN
     USE_THUNDER_R4
+    SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS=100
 )
 
 if(APPGW_ENABLE_COVERAGE)
