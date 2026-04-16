@@ -55,13 +55,26 @@ namespace Core {
                 _adminLock.Lock();
                 if (_sendQueue.Count() > 0) {
                     loaded = Serialize(_sendQueue[0], stream, length);
-                    // If fully sent or we’re not in a partial-send state, notify and pop
+                    
+                    // Log serialization progress for debugging large payloads
+                    fprintf(stderr, "[FASIL] [StreamJSONOneShot::Serialize] Bytes serialized: %u, Current offset: %u, Buffer capacity: %u\n", 
+                            loaded, _offset, length);
+                    
+                    // If fully sent or we're not in a partial-send state, notify and pop
                     if ((_offset == 0) || (loaded != length)) {
+                        fprintf(stderr, "[FASIL] [StreamJSONOneShot::Serialize] MESSAGE TRANSMISSION COMPLETE - Offset: %u\n", _offset);
                         Core::ProxyType<INTERFACE> current = _sendQueue[0];
                         _parent.Send(current);
                         _sendQueue.Remove(0);
                         _offset = 0;
+                    } else {
+                        fprintf(stderr, "[FASIL] [StreamJSONOneShot::Serialize] Transmission in progress - Offset: %u (more frames pending)\n", _offset);
                     }
+                }
+                _adminLock.Unlock();
+
+                return loaded;
+            }
                 }
                 _adminLock.Unlock();
 
@@ -97,6 +110,7 @@ namespace Core {
                 : _parent(parent)
                 , _factory(slotSize)
                 , _current()
+                , _adminLock()
                 , _offset(0)
             {
             }
@@ -105,6 +119,7 @@ namespace Core {
                 : _parent(parent)
                 , _factory(allocator)
                 , _current()
+                , _adminLock()
                 , _offset(0)
             {
             }
@@ -117,6 +132,10 @@ namespace Core {
             uint16_t Deserialize(const uint8_t* stream, const uint16_t length) {
                 uint16_t loaded = 0;
 
+                // FIX 4: Thread-safe offset management prevents race conditions when
+                // multiple TCP frames arrive for large payloads across concurrent callbacks.
+                _adminLock.Lock();
+
                 if (_current.IsValid() == false) {
                     _current = Core::ProxyType<INTERFACE>(_factory.Element(EMPTY_STRING));
                     _offset = 0;
@@ -125,14 +144,27 @@ namespace Core {
                 if (_current.IsValid() == true) {
                     loaded = Deserialize(_current, stream, length);
 
-                    // If message finished (offset reset by callee) or not all bytes used,
-                    // deliver the element now and reset.
-                    if ((_offset == 0) || (loaded != length)) {
+                    // Log deserialization progress for debugging large payloads
+                    fprintf(stderr, "[FASIL] [StreamJSONOneShot::Deserialize] Bytes loaded: %u, Current offset: %u, Stream length: %u\n", 
+                            loaded, _offset, length);
+
+                    // Only deliver message when deserialization is complete (offset explicitly reset by callee).
+                    // This ensures multi-frame payloads (e.g., 200KB across 25+ TCP packets) are fully
+                    // assembled before delivery. The previous logic incorrectly delivered incomplete
+                    // messages when loaded != length, causing subsequent requests to be corrupted.
+                    if (_offset == 0) {
+                        fprintf(stderr, "[FASIL] [StreamJSONOneShot::Deserialize] DESERIALIZATION COMPLETE - Delivering message\n");
+                        fprintf(stderr, "[FASIL] [StreamJSONOneShot::Deserialize] Final offset value: %u (0 = complete)\n", _offset);
+                        _adminLock.Unlock();
                         _parent.Received(_current);
+                        _adminLock.Lock();
                         _current.Release();
+                    } else {
+                        fprintf(stderr, "[FASIL] [StreamJSONOneShot::Deserialize] Deserialization in progress - Offset: %u (awaiting more frames)\n", _offset);
                     }
                 }
 
+                _adminLock.Unlock();
                 return loaded;
             }
 
@@ -151,6 +183,7 @@ namespace Core {
             ParentClass& _parent;
             ALLOCATOR _factory;
             Core::ProxyType<INTERFACE> _current;
+            mutable Core::CriticalSection _adminLock;  // FIX 4: Thread-safe protection for multi-frame payload deserialization
             uint32_t _offset;
         };
 
