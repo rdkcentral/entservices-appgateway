@@ -71,17 +71,12 @@ namespace Core {
                         fprintf(stderr, "[FASIL] [StreamJSONOneShot::Serialize] Transmission in progress - Offset: %u (more frames pending)\n", _offset);
                     }
                 }
-                _adminLock.Unlock();
+                 _adminLock.Unlock();
 
-                return loaded;
-            }
-                }
-                _adminLock.Unlock();
+                 return loaded;
+             }
 
-                return loaded;
-            }
-
-        private:
+         private:
             // Overloads for JSON text vs MessagePack
             inline uint16_t Serialize(const Core::ProxyType<Core::JSON::IElement>& source,
                                       uint8_t* stream, const uint16_t length) const {
