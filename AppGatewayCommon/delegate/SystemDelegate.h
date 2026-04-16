@@ -976,7 +976,6 @@ public:
     }
 
     // PUBLIC_INTERFACE
-    // PUBLIC_INTERFACE
     bool EmitOnTimezoneChanged(const WPEFramework::Core::JSON::VariantContainer& params)
     {
         if (!params.HasLabel(_T("newTimeZone"))) {
