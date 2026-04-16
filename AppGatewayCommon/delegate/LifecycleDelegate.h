@@ -26,6 +26,7 @@
 #include "BaseEventDelegate.h"
 #include <interfaces/ILifecycleManagerState.h>
 #include <interfaces/IRDKWindowManager.h>
+#include <interfaces/IRuntimeManager.h>
 #include "UtilsLogging.h"
 #include "UtilsCallsign.h"
 #include "UtilsFirebolt.h"
@@ -35,6 +36,7 @@ using namespace WPEFramework;
 
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
 #define WINDOW_MANAGER_CALLSIGN "org.rdk.RDKWindowManager"
+#define RUNTIME_MANAGER_CALLSIGN "org.rdk.RuntimeManager"
 
 // Valid lifecycle events that can be subscribed to
 static const std::set<string> VALID_LIFECYCLE_EVENT = {
@@ -245,10 +247,9 @@ class LifecycleDelegate : public BaseEventDelegate
     }
 
     Core::hresult GetStatsMemoryUsage(const std::string& appId, string& result /* @out */) {
-        // Use the app instance ID (registered at INITIALIZING) as the OCI container ID.
-        std::string containerId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
-        if (containerId.empty()) {
-            LOGERR("LifecycleDelegate: No appInstanceId found for appId=%s, cannot query OCIContainer", appId.c_str());
+        std::string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
+        if (appInstanceId.empty()) {
+            LOGERR("LifecycleDelegate: No appInstanceId found for appId=%s", appId.c_str());
             JsonObject obj;
             obj["userMemoryUsed"]  = static_cast<double>(0);
             obj["userMemoryLimit"] = static_cast<double>(0);
@@ -258,61 +259,48 @@ class LifecycleDelegate : public BaseEventDelegate
             return Core::ERROR_NONE;
         }
 
-        auto link = WPEFramework::Utils::GetThunderControllerClient(mShell, "org.rdk.OCIContainer");
-        if (!link) {
-            LOGERR("LifecycleDelegate: Failed to get OCIContainer JSON-RPC link");
+        Exchange::IRuntimeManager* runtimeManager =
+            mShell->QueryInterfaceByCallsign<Exchange::IRuntimeManager>(RUNTIME_MANAGER_CALLSIGN);
+        if (!runtimeManager) {
+            LOGERR("LifecycleDelegate: Failed to get RuntimeManager COM interface");
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        params[_T("containerId")] = WPEFramework::Core::JSON::Variant(containerId);
-        WPEFramework::Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke("getContainerInfo", params, response);
+        string info;
+        const Core::hresult rc = runtimeManager->GetInfo(appInstanceId, info);
+        runtimeManager->Release();
+        runtimeManager = nullptr;
+
         if (rc != Core::ERROR_NONE) {
-            LOGERR("LifecycleDelegate: OCIContainer.getContainerInfo failed rc=%u", rc);
+            LOGERR("LifecycleDelegate: RuntimeManager.GetInfo failed rc=%u", rc);
             return Core::ERROR_GENERAL;
         }
 
-        if (!response.HasLabel(_T("success")) || !response[_T("success")].Boolean()) {
-            LOGERR("LifecycleDelegate: OCIContainer.getContainerInfo returned success=false: %s",
-                response.HasLabel(_T("errorReason")) ? response[_T("errorReason")].String().c_str() : "");
-            return Core::ERROR_GENERAL;
-        }
-
-        if (!response.HasLabel(_T("info"))) {
-            LOGERR("LifecycleDelegate: OCIContainer.getContainerInfo missing info field");
-            return Core::ERROR_GENERAL;
-        }
-
-        // Use explicit local VariantContainer variables with .Object() at each level
-        // to avoid chaining operator[] on Variant (which is not supported).
-        WPEFramework::Core::JSON::VariantContainer infoObj   = response[_T("info")].Object();
+        // Parse the info JSON string returned by RuntimeManager::GetInfo.
+        // Structure: { "memory": { "user": { "usage": ..., "limit": ... } },
+        //              "gpu":    { "memory": { "usage": ..., "limit": ... } } }
+        WPEFramework::Core::JSON::VariantContainer infoObj;
+        infoObj.FromString(info);
         if (!infoObj.HasLabel(_T("memory")) || !infoObj.HasLabel(_T("gpu"))) {
-            LOGERR("LifecycleDelegate: getContainerInfo missing info.memory or info.gpu");
+            LOGERR("LifecycleDelegate: GetInfo missing memory or gpu field");
             return Core::ERROR_GENERAL;
         }
 
         WPEFramework::Core::JSON::VariantContainer memoryObj = infoObj[_T("memory")].Object();
         WPEFramework::Core::JSON::VariantContainer gpuObj    = infoObj[_T("gpu")].Object();
         if (!memoryObj.HasLabel(_T("user")) || !gpuObj.HasLabel(_T("memory"))) {
-            LOGERR("LifecycleDelegate: getContainerInfo missing info.memory.user or info.gpu.memory");
+            LOGERR("LifecycleDelegate: GetInfo missing memory.user or gpu.memory field");
             return Core::ERROR_GENERAL;
         }
 
         WPEFramework::Core::JSON::VariantContainer userObj   = memoryObj[_T("user")].Object();
         WPEFramework::Core::JSON::VariantContainer gpuMemObj = gpuObj[_T("memory")].Object();
 
-        // OCIContainer returns bytes; spec requires bytes
-        const uint64_t userUsed  = static_cast<uint64_t>(userObj[_T("usage")].Number());
-        const uint64_t userLimit = static_cast<uint64_t>(userObj[_T("limit")].Number());
-        const uint64_t gpuUsed   = static_cast<uint64_t>(gpuMemObj[_T("usage")].Number());
-        const uint64_t gpuLimit  = static_cast<uint64_t>(gpuMemObj[_T("limit")].Number());
-
         JsonObject obj;
-        obj["userMemoryUsed"]  = static_cast<double>(userUsed);
-        obj["userMemoryLimit"] = static_cast<double>(userLimit);
-        obj["gpuMemoryUsed"]   = static_cast<double>(gpuUsed);
-        obj["gpuMemoryLimit"]  = static_cast<double>(gpuLimit);
+        obj["userMemoryUsed"]  = userObj[_T("usage")].Number();
+        obj["userMemoryLimit"] = userObj[_T("limit")].Number();
+        obj["gpuMemoryUsed"]   = gpuMemObj[_T("usage")].Number();
+        obj["gpuMemoryLimit"]  = gpuMemObj[_T("limit")].Number();
         obj.ToString(result);
         return Core::ERROR_NONE;
     }
