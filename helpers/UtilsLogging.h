@@ -21,6 +21,10 @@
 
 #include <syscall.h>
 
+enum LogLevel {FATAL_LEVEL = 0, ERROR_LEVEL, WARNING_LEVEL, INFO_LEVEL, DEBUG_LEVEL};
+
+static int gDefaultLogLevel = DEBUG_LEVEL;
+
 #ifdef __DEBUG__    // XXX: maybe use BUILD_TYPE
 #define LOGTRACE(fmt, ...) do { fprintf(stderr, "[%d] TRACE [%s:%d] %s: " fmt "\n", (int)syscall(SYS_gettid), WPEFramework::Core::FileNameOnly(__FILE__), __LINE__, __FUNCTION__, ##__VA_ARGS__); fflush(stderr); } while (0)
 #else

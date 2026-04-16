@@ -245,5 +245,9 @@ int main()
     }
 
     PrintTotals(std::cerr, "AppGatewayCommon l0test", failures);
+
+    // Clean up the shared plugin fixture (single init/deinit for all non-lifecycle tests).
+    AGCTest::SharedFixture::instance().cleanup();
+
     return ResultToExitCode(failures);
 }
