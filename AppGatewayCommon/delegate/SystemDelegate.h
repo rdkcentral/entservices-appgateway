@@ -49,6 +49,13 @@ using namespace WPEFramework;
 #define HDCPPROFILE_CALLSIGN "org.rdk.HdcpProfile"
 #endif
 
+#ifndef DEVICEINFO_CALLSIGN
+#define DEVICEINFO_CALLSIGN "DeviceInfo"
+#endif
+
+#ifndef POWERMANAGER_CALLSIGN
+#define POWERMANAGER_CALLSIGN "org.rdk.PowerManager"
+#endif
 // Timeout (ms) for proactive Thunder event subscriptions during construction.
 // Override at compile time (e.g. -DSYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS=100)
 // to reduce startup latency in environments where Thunder is unavailable.
@@ -890,6 +897,84 @@ public:
         return true;
     }
 
+    // ---- New Device info APIs (Firebolt Device module) ----
+
+    // PUBLIC_INTERFACE
+    Core::hresult GetDeviceChipsetId(std::string &chipset)
+    {
+        chipset.clear();
+        auto link = AcquireLink(DEVICEINFO_CALLSIGN);
+        if (!link) return Core::ERROR_UNAVAILABLE;
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        WPEFramework::Core::JSON::VariantContainer response;
+        const uint32_t rc = link->Invoke("chipset", params, response);
+        if (rc != Core::ERROR_NONE || !response.HasLabel(_T("chipset")))
+        {
+            LOGERR("SystemDelegate: DeviceInfo.chipset failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        chipset = "\"" + response[_T("chipset")].String() + "\"";
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    Core::hresult GetDeviceClass(std::string &typeOut)
+    {
+        typeOut.clear();
+        auto link = AcquireLink(DEVICEINFO_CALLSIGN);
+        if (!link) return Core::ERROR_UNAVAILABLE;
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        WPEFramework::Core::JSON::VariantContainer response;
+        const uint32_t rc = link->Invoke("devicetype", params, response);
+        if (rc != Core::ERROR_NONE || !response.HasLabel(_T("devicetype")))
+        {
+            LOGERR("SystemDelegate: DeviceInfo.devicetype failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        typeOut = "\"" + MapThunderDeviceTypeToFirebolt(response[_T("devicetype")].String()) + "\"";
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    Core::hresult GetDeviceUptime(std::string &uptime)
+    {
+        uptime.clear();
+        auto link = AcquireLink(DEVICEINFO_CALLSIGN);
+        if (!link) return Core::ERROR_UNAVAILABLE;
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        WPEFramework::Core::JSON::VariantContainer response;
+        const uint32_t rc = link->Invoke("systeminfo", params, response);
+        if (rc != Core::ERROR_NONE || !response.HasLabel(_T("uptime")))
+        {
+            LOGERR("SystemDelegate: DeviceInfo.systeminfo failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        uptime = std::to_string(static_cast<uint64_t>(response[_T("uptime")].Number()));
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    Core::hresult GetDeviceTimeInActiveState(std::string &result)
+    {
+        result.clear();
+        auto link = AcquireLink(POWERMANAGER_CALLSIGN);
+        if (!link) return Core::ERROR_UNAVAILABLE;
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        WPEFramework::Core::JSON::VariantContainer response;
+        const uint32_t rc = link->Invoke("getTimeSinceWakeup", params, response);
+        if (rc != Core::ERROR_NONE || !response.HasLabel(_T("secondsSinceWakeup")))
+        {
+            LOGERR("SystemDelegate: PowerManager.getTimeSinceWakeup failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        result = std::to_string(static_cast<uint64_t>(response[_T("secondsSinceWakeup")].Number()));
+        return Core::ERROR_NONE;
+    }
+
     // PUBLIC_INTERFACE
     bool EmitOnTimezoneChanged(const WPEFramework::Core::JSON::VariantContainer& params)
     {
@@ -965,6 +1050,17 @@ private:
             out.push_back(static_cast<char>(::tolower(static_cast<unsigned char>(c))));
         }
         return out;
+    }
+
+    static std::string MapThunderDeviceTypeToFirebolt(const std::string &thunderType)
+    {
+        // IDeviceInfo enum text values (from IDeviceInfo.h): "IpTv", "IpStb", "QamIpStb"
+        // Firebolt Types.DeviceType: "tv", "stb", "ott"
+        const std::string lower = ToLower(thunderType);
+        if (lower == "iptv")     return "tv";
+        if (lower == "ipstb")    return "stb";
+        if (lower == "qamipstb") return "stb";
+        return "ott";  // fallback for OTT dongles / unrecognised types
     }
 
     static std::string TerritoryThunderToFirebolt(const std::string &terr, const std::string &deflt)
