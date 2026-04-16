@@ -309,28 +309,19 @@ namespace Plugin {
             (void)payload;
             return self->GetNetworkConnected(result);
         }},
-        { "device.chipsetid", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
+        { "device.chipsetid", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDeviceChipsetId(result);
         }},
-        { "device.deviceclass", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
+        { "device.deviceclass", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDeviceClass(result);
         }},
-        { "device.uptime", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
+        { "device.uptime", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDeviceUptime(result);
         }},
-        { "device.timeinactivestate", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)ctx;
-            (void)payload;
+        { "device.timeinactivestate", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDeviceTimeInActiveState(result);
         }},
-        { "stats.memoryusage", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
-            (void)payload;
+        { "stats.memoryusage", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string&, std::string& result) {
             return self->GetStatsMemoryUsage(ctx.appId, result);
         }},
     };
