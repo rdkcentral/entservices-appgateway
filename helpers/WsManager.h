@@ -106,7 +106,7 @@ public:
                   false, false, false,
                   connector,
                   remoteNode.AnyInterface(),
-                  65536, 65536),  // Increased from 8096 to 65536 (64KB) to handle large payloads like 200KB requests
+                  8096, 8096),
         _id(0),
         _parent(static_cast<WebSocketConnectionManager::WebSocketChannel &>(*parent)),
         _queue(10){
@@ -122,30 +122,21 @@ public:
         }
 
     public:
-         void Received(Core::ProxyType<Core::JSON::IElement> &jsonObject){
-             
-             uint32_t connectionId = _id;
+        void Received(Core::ProxyType<Core::JSON::IElement> &jsonObject){
+            
+            uint32_t connectionId = _id;
 
-             fprintf(stderr, "[FASIL] [WsManager::Received] ===== JSON OBJECT RECEIVED FROM STREAM =====\n");
-             fprintf(stderr, "[FASIL] [WsManager::Received] ConnectionId: %u\n", connectionId);
-             
-             if (jsonObject.IsValid() == false)
-             {
-                 fprintf(stderr, "[FASIL] [WsManager::Received] ERROR: Invalid JSON object received\n");
-                 LOGERR("WebSocketServer: Invalid JSON object received");
-             }
-             else
-             {
-                 string objStr;
-                 jsonObject->ToString(objStr);
-                 fprintf(stderr, "[FASIL] [WsManager::Received] Valid JSON object received (size: %zu bytes)\n", objStr.length());
-                 fprintf(stderr, "[FASIL] [WsManager::Received] JSON content (first 200 chars): %.200s\n", objStr.c_str());
-                 
-                 Core::ProxyType<Core::JSONRPC::Message> message = Core::ProxyType<Core::JSONRPC::Message>(jsonObject);
-                 // Call internal ProcessMessage
-                 WebSocketConnectionManager::WebSocketServer::ProcessMessage(message, connectionId);
-             }
-         }
+            if (jsonObject.IsValid() == false)
+            {
+                LOGERR("WebSocketServer: Invalid JSON object received");
+            }
+            else
+            {
+                Core::ProxyType<Core::JSONRPC::Message> message = Core::ProxyType<Core::JSONRPC::Message>(jsonObject);
+                // Call internal ProcessMessage
+                WebSocketConnectionManager::WebSocketServer::ProcessMessage(message, connectionId);
+            }
+        }
         void Send(Core::ProxyType<Core::JSON::IElement> &jsonObject) {
             if (jsonObject.IsValid() == false)
             {
@@ -228,90 +219,53 @@ public:
             jsonObject->ToString(jsonMessage);
             LOGTRACE("WebSocket Sent: %s", jsonMessage.c_str());
         }
-          void ProcessMessage(Core::ProxyType<Core::JSONRPC::Message> &message, uint32_t connectionId) {
-              // Check for message->Id.IsSet()
-                      if(!message->Id.IsSet()) {
-                          string jsonMessage;
-                          message->ToString(jsonMessage);
-                          // Log an Error for this usecase
-                          LOGERR("Message MUST contain an id field %s", jsonMessage.c_str());
-                          return;
-                      }
+        void ProcessMessage(Core::ProxyType<Core::JSONRPC::Message> &message, uint32_t connectionId) {
+            // Check for message->Id.IsSet()
+                    if(!message->Id.IsSet()) {
+                        string jsonMessage;
+                        message->ToString(jsonMessage);
+                        // Log an Error for this usecase
+                        LOGERR("Message MUST contain an id field %s", jsonMessage.c_str());
+                        return;
+                    }
 
-                      int requestId = message->Id.Value();
+                    int requestId = message->Id.Value();
 
-                      // FIX 3: Detect message corruption from multi-frame payloads
-                      // Large payloads (e.g., 200KB) arrive in multiple TCP frames.
-                      // If corruption detection fails here, the message is corrupted and should be rejected.
-                      string jsonMessage;
-                      message->ToString(jsonMessage);
-                      
-                      fprintf(stderr, "[FASIL] [WsManager::ProcessMessage] ========== MESSAGE RECEIVED ==========\n");
-                      fprintf(stderr, "[FASIL] [WsManager::ProcessMessage] RequestId: %d, ConnectionId: %u\n", requestId, connectionId);
-                      fprintf(stderr, "[FASIL] [WsManager::ProcessMessage] Message size: %zu bytes\n", jsonMessage.length());
-                      fprintf(stderr, "[FASIL] [WsManager::ProcessMessage] Message content (first 200 chars): %.200s\n", jsonMessage.c_str());
-                      
-                      if (jsonMessage.empty() || jsonMessage.length() < 10) {
-                          LOGERR("[ProcessMessage] Message appears corrupted (too small: %zu bytes): %s", 
-                                 jsonMessage.length(), jsonMessage.c_str());
-                          fprintf(stderr, "[FASIL] [WsManager::ProcessMessage] ERROR: Message corrupted - size too small\n");
-                          SendJSONRPCResponse(R"({"error": "Message corrupted - incomplete payload detected"})", requestId, connectionId);
-                          return;
-                      }
+                    if (_id == 0) {
+                        string jsonMessage;
+                        message->ToString(jsonMessage);
+                        LOGERR("Connection ID Not set adding request to Pending queue %s", jsonMessage.c_str());
+                        AddToPending(message);
+                        return;
+                    }
 
-                      if (_id == 0) {
-                          LOGERR("Connection ID Not set adding request to Pending queue %s", jsonMessage.c_str());
-                          fprintf(stderr, "[FASIL] [WsManager::ProcessMessage] WARNING: Connection ID not set, queuing message\n");
-                          AddToPending(message);
-                          return;
-                      }
+                    // Extract method name from designator
+                    if(!message->Designator.IsSet()) {
+                        SendJSONRPCResponse(R"({"error": "Message MUST contain a method field"})", requestId, connectionId);
+                        return;
+                    }
 
-                      // Extract method name from designator
-                      if(!message->Designator.IsSet()) {
-                          SendJSONRPCResponse(R"({"error": "Message MUST contain a method field"})", requestId, connectionId);
-                          fprintf(stderr, "[FASIL] [WsManager::ProcessMessage] ERROR: Designator/method not set\n");
-                          return;
-                      }
+                    std::string methodName = message->Designator.Value();
+                    
+                    LOGTRACE("[ProcessMessage] Method: %s, RequestId: %d, ConnectionId: %d",
+                            methodName.c_str(), requestId, connectionId);
 
-                      std::string methodName = message->Designator.Value();
-                      
-                      fprintf(stderr, "[FASIL] [WsManager::ProcessMessage] Method: %s, RequestId: %d, ConnectionId: %d\n",
-                              methodName.c_str(), requestId, connectionId);
-                      
-                      LOGTRACE("[ProcessMessage] Method: %s, RequestId: %d, ConnectionId: %d",
-                              methodName.c_str(), requestId, connectionId);
+                    // Extract params once for reuse
+                    std::string params = "{}"; // Default empty params
+                    if (message->Parameters.IsSet() && !message->Parameters.Value().empty())
+                    {
+                        params = message->Parameters.Value();
+                    }
 
-                     // Extract params once for reuse
-                     std::string params = "{}"; // Default empty params
-                     if (message->Parameters.IsSet() && !message->Parameters.Value().empty())
-                     {
-                         const std::string& rawParams = message->Parameters.Value();
-                         
-                         // FIX 5: Validate param size to prevent huge payload issues
-                         // Large payloads can cause memory pressure and expensive JSON operations
-                         const size_t MAX_PARAM_SIZE = 5242880;  // 5MB limit (25x the 200KB request)
-                         if (rawParams.length() > MAX_PARAM_SIZE) {
-                             fprintf(stderr, "[FASIL] [WsManager::ProcessMessage] ERROR: Params too large (%zu bytes, max %zu bytes)\n", 
-                                     rawParams.length(), MAX_PARAM_SIZE);
-                             LOGERR("[ProcessMessage] Params exceed maximum size: %zu > %zu", rawParams.length(), MAX_PARAM_SIZE);
-                             SendJSONRPCResponse(R"({"error": "Request payload too large"})", requestId, connectionId);
-                             return;
-                         }
-                         
-                         params = rawParams;
-                         fprintf(stderr, "[FASIL] [WsManager::ProcessMessage] Param size: %zu bytes (within limits)\n", params.length());
-                     }
-
-                     // SYNCHRONOUS PROCESSING
-                     try
-                     {
-                         auto& manager = _parent.Interface();
-                         if (manager._messageHandler) {
-                             fprintf(stderr, "[FASIL] [WsManager::ProcessMessage] Passing params to handler: %zu bytes\n", params.length());
-                             manager._messageHandler(methodName, params, requestId, _id);
-                         } else {
-                             SendJSONRPCResponse(R"({"error": "Message handler not set"})", requestId, connectionId);
-                         }
+                    // SYNCHRONOUS PROCESSING
+                    try
+                    {
+                        auto& manager = _parent.Interface();
+                        if (manager._messageHandler) {
+                            manager._messageHandler(methodName, params, requestId, _id);
+                        } else {
+                            SendJSONRPCResponse(R"({"error": "Message handler not set"})", requestId, connectionId);
+                        }
                     }
                     catch (const std::exception &e)
                     {
