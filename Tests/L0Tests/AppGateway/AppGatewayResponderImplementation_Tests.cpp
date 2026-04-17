@@ -218,6 +218,39 @@ uint32_t Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvI
 }
 
 // PUBLIC_INTERFACE
+uint32_t Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps()
+{
+    /** Exercise all branches of RecordGatewayConnectionContext (lines 250-261):
+     *  - DISABLE_DEBUG_FOR_CONNECTION adds the connectionId to the debug-disabled registry.
+     *  - ENABLE_DEBUG_FOR_CONNECTION removes it.
+     *  - Any other key is accepted without special handling.
+     */
+    TestResult tr;
+
+    WPEFramework::Core::Sink<WPEFramework::Plugin::AppGatewayResponderImplementation> responder;
+
+    // Branch: DISABLE_DEBUG_FOR_CONNECTION
+    ExpectEqU32(tr,
+               responder.RecordGatewayConnectionContext(42u, "disableDebugForConnection", "1"),
+               ERROR_NONE,
+               "RecordGatewayConnectionContext DISABLE_DEBUG returns ERROR_NONE");
+
+    // Branch: ENABLE_DEBUG_FOR_CONNECTION
+    ExpectEqU32(tr,
+               responder.RecordGatewayConnectionContext(42u, "enableDebugForConnection", "1"),
+               ERROR_NONE,
+               "RecordGatewayConnectionContext ENABLE_DEBUG returns ERROR_NONE");
+
+    // Branch: generic key (else-path — no special registry operation)
+    ExpectEqU32(tr,
+               responder.RecordGatewayConnectionContext(42u, "some.arbitrary.key", "value"),
+               ERROR_NONE,
+               "RecordGatewayConnectionContext generic key returns ERROR_NONE");
+
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
 uint32_t Test_AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash()
 {
     // Goal: execute constructor/configure/initialize-websocket code and some public methods

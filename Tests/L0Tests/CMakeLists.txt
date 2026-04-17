@@ -10,7 +10,7 @@ option(APPGW_TEST_ENABLE_WARNINGS "Enable additional compiler warnings for appga
 option(APPGW_ENABLE_COVERAGE "Enable coverage flags for appgateway_l0test" ON)
 option(APPNOTIF_ENABLE_COVERAGE "Enable coverage flags for appnotifications_l0test" ON)
 option(APPGW_L0_ENABLE_APPGATEWAY "Build AppGateway L0 test target" ON)
-option(APPGW_L0_ENABLE_APPGATEWAYCOMMON "Build AppGatewayCommon L0 test target" ON)
+option(APPGW_L0_ENABLE_APPGATEWAYCOMMON "Build AppGatewayCommon L0 test target" OFF)
 option(APPGW_L0_ENABLE_APPNOTIFICATIONS "Build AppNotifications L0 test target" ON)
 
 if(NOT DEFINED PREFIX OR "${PREFIX}" STREQUAL "")
@@ -42,6 +42,8 @@ set(APPGW_APPGATEWAY_L0_SOURCES
     AppGateway/AppGatewayResponderImplementation_Tests.cpp
     AppGateway/ContextUtils_ConversionTests.cpp
     AppGateway/AppGatewayImplementation_BranchTests.cpp
+    AppGateway/AppGatewayTelemetry_Tests.cpp
+    AppGateway/AppGatewayTelemetry_DirectAccess_Tests.cpp
     common/L0Bootstrap.cpp
 )
 set(APPNOTIF_L0_SOURCES

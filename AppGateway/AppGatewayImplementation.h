@@ -68,6 +68,7 @@ namespace Plugin {
             )
                 : mParent(*parent), mPayload(payload), mContext(context), mDestination(destination)
             {
+                mParent.AddRef();
             }
 
         public:
@@ -76,6 +77,7 @@ namespace Plugin {
             RespondJob &operator=(const RespondJob &) = delete;
             ~RespondJob()
             {
+                mParent.Release();
             }
 
         public:
