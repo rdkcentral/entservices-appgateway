@@ -113,7 +113,8 @@ namespace Core {
             }
 
             bool IsIdle() const {
-                return (_current.IsValid() == false);
+                std::lock_guard<std::mutex> lock(_mutex);
+                return (false == _current.IsValid());
             }
 
             // One-shot entry: parse current buffer once with RAII-based synchronization.
