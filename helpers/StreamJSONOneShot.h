@@ -118,6 +118,7 @@ namespace Core {
             // One-shot entry: parse current buffer once.
             uint16_t Deserialize(const uint8_t* stream, const uint16_t length) {
                 uint16_t loaded = 0;
+                Core::ProxyType<INTERFACE> deliver;
 
                 // Thread-safe offset management prevents race conditions when
                 // multiple TCP frames arrive for large payloads across concurrent callbacks.
@@ -137,21 +138,19 @@ namespace Core {
                     // This ensures large payloads across multiple frames are fully reassembled before delivery.
                     // The critical insight: loaded=bytes_consumed by parser, so if loaded < length, JSON is complete.
                     if ((_offset == 0) || (loaded != length)) {                        
-                        // CRITICAL: Reset offset BEFORE release to ensure clean state for next message
-                        // Without this, subsequent messages would start with stale offset value
-                        _offset = 0;
-                        
-                        // Deliver message to parent
-                        _adminLock.Unlock();
-                        _parent.Received(_current);
-                        _adminLock.Lock();
-                        
-                        // Release current message buffer
+                        // Detach completed message from shared state while holding the lock.
+                        deliver = _current;
                         _current.Release();
+                        _offset = 0;
                     }
                 }
                 
                 _adminLock.Unlock();
+
+                if (deliver.IsValid() == true) {
+                    _parent.Received(deliver);
+                }
+
                 return loaded;
             }
 
