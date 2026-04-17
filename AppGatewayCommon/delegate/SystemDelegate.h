@@ -32,6 +32,7 @@
 #include <algorithm>
 #include "ContextUtils.h"
 #include <mutex>
+#include <interfaces/ISystemServices.h>
 
 
 using namespace WPEFramework;
@@ -70,19 +71,63 @@ public:
     static constexpr const char* EVENT_ON_DEVICE_NAME_CHANGED = "Device.onDeviceNameChanged";
     static constexpr const char* EVENT_ON_TIMEZONE_CHANGED    = "Localization.onTimeZoneChanged";
 
+private:
+    class SystemServicesNotification : public Exchange::ISystemServices::INotification
+    {
+    private:
+        SystemServicesNotification(const SystemServicesNotification&) = delete;
+        SystemServicesNotification& operator=(const SystemServicesNotification&) = delete;
+
+    public:
+        explicit SystemServicesNotification(SystemDelegate& parent)
+            : _parent(parent)
+        {
+        }
+        ~SystemServicesNotification() override = default;
+
+    public:
+        void OnFriendlyNameChanged(const string& friendlyName) override
+        {
+            LOGINFO("[AppGatewayCommon|OnFriendlyNameChanged] friendlyName=%s", friendlyName.c_str());
+            WPEFramework::Core::JSON::VariantContainer params;
+            params[_T("friendlyName")] = friendlyName;
+            _parent.OnSystemFriendlyNameChanged(params);
+        }
+
+        void OnTimeZoneDSTChanged(const Exchange::ISystemServices::TimeZoneDSTChangedInfo& timeZoneDSTChangedInfo) override
+        {
+            LOGINFO("[AppGatewayCommon|OnTimeZoneDSTChanged] newTimeZone=%s", timeZoneDSTChangedInfo.newTimeZone.c_str());
+            WPEFramework::Core::JSON::VariantContainer params;
+            params[_T("oldTimeZone")] = timeZoneDSTChangedInfo.oldTimeZone;
+            params[_T("newTimeZone")] = timeZoneDSTChangedInfo.newTimeZone;
+            params[_T("oldAccuracy")] = timeZoneDSTChangedInfo.oldAccuracy;
+            params[_T("newAccuracy")] = timeZoneDSTChangedInfo.newAccuracy;
+            _parent.OnSystemTimezoneChanged(params);
+        }
+
+        BEGIN_INTERFACE_MAP(SystemServicesNotification)
+        INTERFACE_ENTRY(Exchange::ISystemServices::INotification)
+        END_INTERFACE_MAP
+
+    private:
+        SystemDelegate& _parent;
+    };
+
+public:
     SystemDelegate(PluginHost::IShell *shell)
         : BaseEventDelegate()
         , _shell(shell)
         , _subscriptions()
         , _displayRpc(nullptr)
         , _hdcpRpc(nullptr)
-        , _systemRpc(nullptr)
+        , _systemServicesPlugin(nullptr)
+        , _systemServicesNotification(*this)
+        , _registeredSystemEventHandlers(false)
         , _displaySubscribed(false)
         , _displayAudioSubscribed(false)
         , _hdcpSubscribed(false)
-        , _systemSubscribed(false)
-        , _timezoneSubscribed(false)
     {
+            SetupFriendlyNameSystemSub();
             LOGINFO("SystemDelegate initialized");
     }
 
@@ -101,20 +146,19 @@ public:
             if (_hdcpRpc && _hdcpSubscribed) {
                 _hdcpRpc->Unsubscribe(2000, _T("onDisplayConnectionChanged"));
             }
-            if (_systemRpc ) {
-                if (_systemSubscribed) {
-                    _systemRpc->Unsubscribe(2000, _T("onFriendlyNameChanged"));
+            if (_systemServicesPlugin != nullptr) {
+                if (_registeredSystemEventHandlers) {
+                    _systemServicesPlugin->Unregister(&_systemServicesNotification);
+                    _registeredSystemEventHandlers = false;
                 }
-                if (_timezoneSubscribed) {
-                    _systemRpc->Unsubscribe(2000, _T("onTimeZoneDSTChanged"));
-                }
+                _systemServicesPlugin->Release();
+                _systemServicesPlugin = nullptr;
             }
         } catch (...) {
             // Safe-guard against destructor exceptions
         }
         _displayRpc.reset();
         _hdcpRpc.reset();
-        _systemRpc.reset();
         _shell = nullptr;
     }
 
@@ -124,25 +168,23 @@ public:
         /** Retrieve the device make using org.rdk.System.getDeviceInfo */
         LOGINFO("GetDeviceMake AppGatewayCommon Delegate");
         make.clear();
-        auto link = AcquireLink(SYSTEM_CALLSIGN);
-        if (!link)
+        auto sysServices = AcquireSystemServices();
+        if (!sysServices)
         {
             make = "unknown";
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        WPEFramework::Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getDeviceInfo", params, response);
-        if (rc == Core::ERROR_NONE)
+        Exchange::ISystemServices::DeviceInfo deviceInfo;
+        // The first GetDeviceInfo parameter is an optional selector/context.
+        // Passing nullptr here is the expected way to query the default/current
+        // device rather than a specific target.
+        const uint32_t rc = sysServices->GetDeviceInfo(nullptr, deviceInfo);
+        if (rc == Core::ERROR_NONE && deviceInfo.success && !deviceInfo.make.empty())
         {
-            if (response.HasLabel(_T("make")))
-            {
-                make = response[_T("make")].String();
-            }
+            make = deviceInfo.make;
         }
-
-        if (make.empty())
+        else
         {
             // Per transform: return_or_else(.result.make, "unknown")
             make = "unknown";
@@ -157,23 +199,21 @@ public:
     {
         /** Retrieve the friendly name using org.rdk.System.getFriendlyName */
         name.clear();
-        auto link = AcquireLink(SYSTEM_CALLSIGN);
-        if (!link)
+        auto sysServices = AcquireSystemServices();
+        if (!sysServices)
         {
             name = "Living Room";
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        WPEFramework::Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getFriendlyName", params, response);
-        if (rc == Core::ERROR_NONE && response.HasLabel(_T("friendlyName")))
+        string friendlyName;
+        bool success = false;
+        const uint32_t rc = sysServices->GetFriendlyName(friendlyName, success);
+        if (rc == Core::ERROR_NONE && success && !friendlyName.empty())
         {
-            name = response[_T("friendlyName")].String();
+            name = friendlyName;
         }
-
-        // Default if empty
-        if (name.empty())
+        else
         {
             name = "Living Room";
         }
@@ -186,17 +226,15 @@ public:
     Core::hresult SetDeviceName(const std::string &name)
     {
         /** Set the friendly name using org.rdk.System.setFriendlyName */
-        auto link = AcquireLink(SYSTEM_CALLSIGN);
-        if (!link)
+        auto sysServices = AcquireSystemServices();
+        if (!sysServices)
         {
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        params[_T("friendlyName")] = name;
-        WPEFramework::Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("setFriendlyName", params, response);
-        if (rc == Core::ERROR_NONE && response.HasLabel(_T("success")) && response[_T("success")].Boolean())
+        Exchange::ISystemServices::SystemResult result;
+        const uint32_t rc = sysServices->SetFriendlyName(name, result);
+        if (rc == Core::ERROR_NONE && result.success)
         {
             return Core::ERROR_NONE;
         }
@@ -209,30 +247,27 @@ public:
     {
         /** Retrieve the device SKU from org.rdk.System.getSystemVersions.stbVersion */
         skuOut.clear();
-        auto link = AcquireLink(SYSTEM_CALLSIGN);
-        if (!link)
+        auto sysServices = AcquireSystemServices();
+        if (!sysServices)
         {
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        WPEFramework::Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getSystemVersions", params, response);
-        if (rc != Core::ERROR_NONE)
+        Exchange::ISystemServices::SystemVersionsInfo systemVersionsInfo;
+        const uint32_t rc = sysServices->GetSystemVersions(systemVersionsInfo);
+        if (rc != Core::ERROR_NONE || !systemVersionsInfo.success)
         {
-            LOGERR("SystemDelegate: getSystemVersions failed rc=%u", rc);
+            LOGERR("SystemDelegate: GetSystemVersions failed rc=%u success=%d", rc, systemVersionsInfo.success);
             return Core::ERROR_UNAVAILABLE;
         }
-        if (!response.HasLabel(_T("stbVersion")))
+        if (systemVersionsInfo.stbVersion.empty())
         {
-            LOGERR("SystemDelegate: getSystemVersions missing stbVersion");
+            LOGERR("SystemDelegate: GetSystemVersions returned empty stbVersion");
             return Core::ERROR_UNAVAILABLE;
         }
-
-        const std::string stbVersion = response[_T("stbVersion")].String();
         // Per transform: split("_")[0]
-        auto pos = stbVersion.find('_');
-        skuOut = (pos == std::string::npos) ? stbVersion : stbVersion.substr(0, pos);
+        auto pos = systemVersionsInfo.stbVersion.find('_');
+        skuOut = (pos == std::string::npos) ? systemVersionsInfo.stbVersion : systemVersionsInfo.stbVersion.substr(0, pos);
         if (skuOut.empty())
         {
             LOGERR("SystemDelegate: Failed to get SKU");
@@ -253,32 +288,25 @@ public:
             return Core::ERROR_NONE;
         }
 
-        auto link = AcquireLink(SYSTEM_CALLSIGN);
-        if (!link)
+        auto sysServices = AcquireSystemServices();
+        if (!sysServices)
         {
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        WPEFramework::Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getSystemVersions", params, response);
-        if (rc != Core::ERROR_NONE)
+        Exchange::ISystemServices::SystemVersionsInfo systemVersionsInfo;
+        const uint32_t rc = sysServices->GetSystemVersions(systemVersionsInfo);
+        if (rc != Core::ERROR_NONE || !systemVersionsInfo.success)
         {
-            LOGERR("SystemDelegate: getSystemVersions failed rc=%u", rc);
+            LOGERR("SystemDelegate: GetSystemVersions failed rc=%u success=%d", rc, systemVersionsInfo.success);
             return Core::ERROR_UNAVAILABLE;
         }
-        if (!response.HasLabel(_T("receiverVersion"))) {
-            LOGERR("SystemDelegate: getSystemVersions missing receiverVersion");
+        if (systemVersionsInfo.receiverVersion.empty()) {
+            LOGERR("SystemDelegate: GetSystemVersions returned empty receiverVersion");
             return Core::ERROR_UNAVAILABLE;
         }
-        std::string receiverVersion = response[_T("receiverVersion")].String();
-        if (receiverVersion.empty())
-        {
-            LOGERR("SystemDelegate: Failed to get Version");
-            return Core::ERROR_UNAVAILABLE;
-        }
-
-        std::string stbVersion = response[_T("stbVersion")].String();
+        std::string receiverVersion = systemVersionsInfo.receiverVersion;
+        std::string stbVersion = systemVersionsInfo.stbVersion;
         if (stbVersion.empty())
         {
             LOGERR("SystemDelegate: Failed to get STB Version");
@@ -328,22 +356,21 @@ public:
     {
         /** Retrieve Firebolt country code derived from org.rdk.System.getTerritory */
         code.clear();
-        auto link = AcquireLink(SYSTEM_CALLSIGN);
-        if (!link)
+        auto sysServices = AcquireSystemServices();
+        if (!sysServices)
         {
             code = "US";
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        WPEFramework::Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getTerritory", params, response);
-        if (rc == Core::ERROR_NONE && response.HasLabel(_T("territory")))
+        string territory;
+        string region;
+        bool success = false;
+        const uint32_t rc = sysServices->GetTerritory(territory, region, success);
+        if (rc == Core::ERROR_NONE && success)
         {
-            const std::string terr = response[_T("territory")].String();
-            code = TerritoryThunderToFirebolt(terr, "");
+            code = TerritoryThunderToFirebolt(territory, "");
         }
-
         // Wrap in quotes to make it a valid JSON string
         code = "\"" + code + "\"";
         return Core::ERROR_NONE;
@@ -353,19 +380,18 @@ public:
     Core::hresult SetCountryCode(const std::string &code)
     {
         /** Set territory using org.rdk.System.setTerritory mapped from Firebolt country code */
-        auto link = AcquireLink(SYSTEM_CALLSIGN);
-        if (!link)
+        auto sysServices = AcquireSystemServices();
+        if (!sysServices)
         {
             return Core::ERROR_UNAVAILABLE;
         }
 
         const std::string territory = TerritoryFireboltToThunder(code, "USA");
-        WPEFramework::Core::JSON::VariantContainer params;
-        params[_T("territory")] = territory;
-
-        WPEFramework::Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("setTerritory", params, response);
-        if (rc == Core::ERROR_NONE && response.HasLabel(_T("success")) && response[_T("success")].Boolean())
+        const std::string region = "";  // Empty region as it's not used in current implementation
+        Exchange::ISystemServices::SystemError error;
+        bool success = false;
+        const uint32_t rc = sysServices->SetTerritory(territory, region, error, success);
+        if (rc == Core::ERROR_NONE && success)
         {
             return Core::ERROR_NONE;
         }
@@ -378,24 +404,22 @@ public:
     {
         /** Retrieve timezone using org.rdk.System.getTimeZoneDST */
         tz.clear();
-        auto link = AcquireLink(SYSTEM_CALLSIGN);
-        if (!link)
+        auto sysServices = AcquireSystemServices();
+        if (!sysServices)
         {
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        WPEFramework::Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getTimeZoneDST", params, response);
-        if (rc == Core::ERROR_NONE && response.HasLabel(_T("success")) && response[_T("success")].Boolean())
+        string timeZone;
+        string accuracy;
+        bool success = false;
+        const uint32_t rc = sysServices->GetTimeZoneDST(timeZone, accuracy, success);
+        if (rc == Core::ERROR_NONE && success)
         {
-            if (response.HasLabel(_T("timeZone")))
-            {
-                tz = response[_T("timeZone")].String();
-                // Wrap in quotes to make it a valid JSON string
-                tz = "\"" + tz + "\"";
-                return Core::ERROR_NONE;
-            }
+            tz = timeZone;
+            // Wrap in quotes to make it a valid JSON string
+            tz = "\"" + tz + "\"";
+            return Core::ERROR_NONE;
         }
         LOGERR("SystemDelegate: couldn't get timezone");
         return Core::ERROR_UNAVAILABLE;
@@ -405,21 +429,22 @@ public:
     Core::hresult SetTimeZone(const std::string &tz)
     {
         /** Set timezone using org.rdk.System.setTimeZoneDST */
-        auto link = AcquireLink(SYSTEM_CALLSIGN);
-        if (!link)
+        auto sysServices = AcquireSystemServices();
+        if (!sysServices)
         {
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        params[_T("timeZone")] = tz;
-        WPEFramework::Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("setTimeZoneDST", params, response);
-        if (rc == Core::ERROR_NONE && response.HasLabel(_T("success")) && response[_T("success")].Boolean())
+        const std::string accuracy = "";
+        uint32_t serviceStatus = 0;
+        string errorMessage;
+        bool success = false;
+        const uint32_t rc = sysServices->SetTimeZoneDST(tz, accuracy, serviceStatus, errorMessage, success);
+        if (rc == Core::ERROR_NONE && success)
         {
             return Core::ERROR_NONE;
         }
-        LOGERR("SystemDelegate: couldn't set timezone");
+        LOGERR("SystemDelegate: couldn't set timezone, error: %s", errorMessage.c_str());
         return Core::ERROR_GENERAL;
     }
 
@@ -955,6 +980,24 @@ private:
         }
         return WPEFramework::Utils::GetThunderControllerClient(_shell, callsign);
     }
+
+    inline Exchange::ISystemServices* AcquireSystemServices() const
+    {
+        if (_systemServicesPlugin == nullptr && _shell != nullptr)
+        {
+            const_cast<SystemDelegate*>(this)->_systemServicesPlugin = 
+                _shell->QueryInterfaceByCallsign<Exchange::ISystemServices>(SYSTEM_CALLSIGN);
+            if (_systemServicesPlugin != nullptr)
+            {
+                LOGINFO("SystemDelegate: Successfully acquired ISystemServices interface");
+            }
+            else
+            {
+                LOGERR("SystemDelegate: Failed to acquire ISystemServices interface");
+            }
+        }
+        return _systemServicesPlugin;
+    }
     
     static std::string ToLower(const std::string &in)
     {
@@ -1095,46 +1138,27 @@ private:
 
     void SetupFriendlyNameSystemSub()
     {
-        if (isSystemSubscribed()) return;
+        if (isSystemRegistered()) return;
         try {
-            if (!_systemRpc) {
-                _systemRpc = std::make_shared<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>>((_T(SYSTEM_CALLSIGN)), (_T(SYSTEM_CALLSIGN)), false);
-            }
-            if (_systemRpc) {
-                const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
-                    SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("onFriendlyNameChanged"), &SystemDelegate::OnSystemFriendlyNameChanged, this);
+            auto sysServices = AcquireSystemServices();
+            if (sysServices) {
+                const uint32_t status = sysServices->Register(&_systemServicesNotification);
                 if (status == Core::ERROR_NONE) {
-                    LOGINFO("SystemDelegate: Subscribed to %s.onFriendlyNameChanged", SYSTEM_CALLSIGN);
-                    markSystemSubscribed();
+                    LOGINFO("SystemDelegate: Registered ISystemServices notifications (FriendlyName + TimeZone)");
+                    markSystemRegistered();
                 } else {
-                    LOGERR("SystemDelegate: Failed to subscribe to %s.onFriendlyNameChanged rc=%u", SYSTEM_CALLSIGN, status);
+                    LOGERR("SystemDelegate: Failed to register ISystemServices notifications rc=%u", status);
                 }
             }
         } catch (...) {
-            LOGERR("SystemDelegate: exception during System subscription");
+            LOGERR("SystemDelegate: exception during ISystemServices registration");
         }
     }
 
     void SetupTimezoneSystemSub()
     {
-        if (isTimezoneSubscribed()) return;
-        try {
-            if (!_systemRpc) {
-                _systemRpc = std::make_shared<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>>((_T(SYSTEM_CALLSIGN)), (_T(SYSTEM_CALLSIGN)), false);
-            }
-            if (_systemRpc) {
-                const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
-                    2000, _T("onTimeZoneDSTChanged"), &SystemDelegate::OnSystemTimezoneChanged, this);
-                if (status == Core::ERROR_NONE) {
-                    LOGINFO("SystemDelegate: Subscribed to %s.onTimeZoneDSTChanged", SYSTEM_CALLSIGN);
-                    markTimezoneSubscribed();
-                } else {
-                    LOGERR("SystemDelegate: Failed to subscribe to %s.onTimeZoneDSTChanged rc=%u", SYSTEM_CALLSIGN, status);
-                }
-            }
-        } catch (...) {
-            LOGERR("SystemDelegate: exception during System subscription for timezone");
-        }
+        // Both FriendlyName and Timezone use the same ISystemServices registration
+        SetupFriendlyNameSystemSub();
     }
 
     // Event handlers invoked by Thunder JSON-RPC subscription
@@ -1230,28 +1254,16 @@ private:
         _hdcpSubscribed = true;
     }
 
-    bool isSystemSubscribed() const
+    bool isSystemRegistered() const
     {
-        Core::SafeSyncType<Core::CriticalSection> lock(_systemSubscriptionLock);
-        return _systemSubscribed;
+        Core::SafeSyncType<Core::CriticalSection> lock(_systemRegistrationLock);
+        return _registeredSystemEventHandlers;
     }
 
-    void markSystemSubscribed()
+    void markSystemRegistered()
     {
-        Core::SafeSyncType<Core::CriticalSection> lock(_systemSubscriptionLock);
-        _systemSubscribed = true;
-    }
-
-    bool isTimezoneSubscribed() const
-    {
-        Core::SafeSyncType<Core::CriticalSection> lock(_timezoneSubscriptionLock);
-        return _timezoneSubscribed;
-    }
-
-    void markTimezoneSubscribed()
-    {
-        Core::SafeSyncType<Core::CriticalSection> lock(_timezoneSubscriptionLock);
-        _timezoneSubscribed = true;
+        Core::SafeSyncType<Core::CriticalSection> lock(_systemRegistrationLock);
+        _registeredSystemEventHandlers = true;
     }
 
 private:
@@ -1263,7 +1275,11 @@ private:
     // JSONRPC clients for event subscriptions
     std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _displayRpc;
     std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _hdcpRpc;
-    std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _systemRpc;
+
+    // COM-RPC interface for SystemServices
+    mutable Exchange::ISystemServices* _systemServicesPlugin;
+    Core::Sink<SystemServicesNotification> _systemServicesNotification;
+    bool _registeredSystemEventHandlers;
 
     bool _displaySubscribed;
     mutable Core::CriticalSection _displaySubscriptionLock;
@@ -1271,10 +1287,6 @@ private:
     mutable Core::CriticalSection _displayAudioSubscriptionLock;
     bool _hdcpSubscribed;
     mutable Core::CriticalSection _hdcpSubscriptionLock;
-    bool _systemSubscribed;
-    mutable Core::CriticalSection _systemSubscriptionLock;
-
-    bool _timezoneSubscribed;
-    mutable Core::CriticalSection _timezoneSubscriptionLock;
+    mutable Core::CriticalSection _systemRegistrationLock;
 };
 
