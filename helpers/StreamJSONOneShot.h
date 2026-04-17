@@ -10,6 +10,7 @@
 #include <core/JSON.h>
 #include <core/core.h>
 #include <plugins/plugins.h>
+#include <mutex>
 
 namespace WPEFramework {
 namespace Core {
@@ -55,7 +56,7 @@ namespace Core {
                 _adminLock.Lock();
                 if (_sendQueue.Count() > 0) {
                     loaded = Serialize(_sendQueue[0], stream, length);
-                    // If fully sent or we’re not in a partial-send state, notify and pop
+                    // If fully sent or we're not in a partial-send state, notify and pop
                     if ((_offset == 0) || (loaded != length)) {
                         Core::ProxyType<INTERFACE> current = _sendQueue[0];
                         _parent.Send(current);
@@ -97,7 +98,7 @@ namespace Core {
                 : _parent(parent)
                 , _factory(slotSize)
                 , _current()
-                , _adminLock()
+                , _mutex()
                 , _offset(0)
             {
             }
@@ -106,7 +107,7 @@ namespace Core {
                 : _parent(parent)
                 , _factory(allocator)
                 , _current()
-                , _adminLock()
+                , _mutex()
                 , _offset(0)
             {
             }
@@ -115,39 +116,40 @@ namespace Core {
                 return (_current.IsValid() == false);
             }
 
-            // One-shot entry: parse current buffer once.
+            // One-shot entry: parse current buffer once with RAII-based synchronization.
             uint16_t Deserialize(const uint8_t* stream, const uint16_t length) {
                 uint16_t loaded = 0;
                 Core::ProxyType<INTERFACE> deliver;
 
-                // Thread-safe offset management prevents race conditions when
+                // RAII-based mutex synchronization prevents race conditions when
                 // multiple TCP frames arrive for large payloads across concurrent callbacks.
-                _adminLock.Lock();
+                {
+                    std::lock_guard<std::mutex> lock(_mutex);
 
-                if (_current.IsValid() == false) {
-                    _current = Core::ProxyType<INTERFACE>(_factory.Element(EMPTY_STRING));
-                    _offset = 0;
-                }
-
-                if (_current.IsValid() == true) {
-                    loaded = Deserialize(_current, stream, length);
-                    // Deliver message when:
-                    // 1. offset == 0: Parser reset (complete JSON was parsed in previous call or we're starting fresh)
-                    // 2. loaded < length: Parser found complete JSON and stopped mid-frame (didn't consume all bytes)
-                    // 
-                    // This ensures large payloads across multiple frames are fully reassembled before delivery.
-                    // The critical insight: loaded=bytes_consumed by parser, so if loaded < length, JSON is complete.
-                    if ((_offset == 0) || (loaded != length)) {                        
-                        // Detach completed message from shared state while holding the lock.
-                        ASSERT(_current.IsValid());
-                        // Reset before unlock/delivery to guarantee a clean state for the next frame.
+                    if (_current.IsValid() == false) {
+                        _current = Core::ProxyType<INTERFACE>(_factory.Element(EMPTY_STRING));
                         _offset = 0;
-                        deliver = _current;
-                        _current.Release();
                     }
-                }
-                
-                _adminLock.Unlock();
+
+                    if (_current.IsValid() == true) {
+                        loaded = Deserialize(_current, stream, length);
+                        // Deliver message when:
+                        // 1. offset == 0: Parser reset (complete JSON was parsed in previous call or we're starting fresh)
+                        // 2. loaded < length: Parser found complete JSON and stopped mid-frame (didn't consume all bytes)
+                        // 
+                        // This ensures large payloads across multiple frames are fully reassembled before delivery.
+                        // The critical insight: loaded=bytes_consumed by parser, so if loaded < length, JSON is complete.
+                        if ((_offset == 0) || (loaded != length)) {                        
+                            // Detach completed message from shared state while holding the lock.
+                            ASSERT(_current.IsValid());
+                            // CRITICAL: Reset offset BEFORE release to ensure clean state for next message.
+                            // Without this, subsequent messages would start with stale offset value.
+                            _offset = 0;
+                            deliver = _current;
+                            _current.Release();
+                        }
+                    }
+                } // lock_guard automatically releases mutex
 
                 if (deliver.IsValid()) {
                     _parent.Received(deliver);
@@ -171,7 +173,7 @@ namespace Core {
             ParentClass& _parent;
             ALLOCATOR _factory;
             Core::ProxyType<INTERFACE> _current;
-            mutable Core::CriticalSection _adminLock; 
+            mutable std::mutex _mutex;
             uint32_t _offset;
         };
 
