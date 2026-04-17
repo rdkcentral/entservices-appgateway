@@ -97,6 +97,7 @@ namespace Core {
                 : _parent(parent)
                 , _factory(slotSize)
                 , _current()
+                , _adminLock()
                 , _offset(0)
             {
             }
@@ -105,6 +106,7 @@ namespace Core {
                 : _parent(parent)
                 , _factory(allocator)
                 , _current()
+                , _adminLock()
                 , _offset(0)
             {
             }
@@ -117,6 +119,10 @@ namespace Core {
             uint16_t Deserialize(const uint8_t* stream, const uint16_t length) {
                 uint16_t loaded = 0;
 
+                // Thread-safe offset management prevents race conditions when
+                // multiple TCP frames arrive for large payloads across concurrent callbacks.
+                _adminLock.Lock();
+
                 if (_current.IsValid() == false) {
                     _current = Core::ProxyType<INTERFACE>(_factory.Element(EMPTY_STRING));
                     _offset = 0;
@@ -124,15 +130,28 @@ namespace Core {
 
                 if (_current.IsValid() == true) {
                     loaded = Deserialize(_current, stream, length);
-
-                    // If message finished (offset reset by callee) or not all bytes used,
-                    // deliver the element now and reset.
-                    if ((_offset == 0) || (loaded != length)) {
+                    // Deliver message when:
+                    // 1. offset == 0: Parser reset (complete JSON was parsed in previous call or we're starting fresh)
+                    // 2. loaded < length: Parser found complete JSON and stopped mid-frame (didn't consume all bytes)
+                    // 
+                    // This ensures large payloads across multiple frames are fully reassembled before delivery.
+                    // The critical insight: loaded=bytes_consumed by parser, so if loaded < length, JSON is complete.
+                    if ((_offset == 0) || (loaded != length)) {                        
+                        // CRITICAL: Reset offset BEFORE release to ensure clean state for next message
+                        // Without this, subsequent messages would start with stale offset value
+                        _offset = 0;
+                        
+                        // Deliver message to parent
+                        _adminLock.Unlock();
                         _parent.Received(_current);
+                        _adminLock.Lock();
+                        
+                        // Release current message buffer
                         _current.Release();
                     }
                 }
-
+                
+                _adminLock.Unlock();
                 return loaded;
             }
 
@@ -151,6 +170,7 @@ namespace Core {
             ParentClass& _parent;
             ALLOCATOR _factory;
             Core::ProxyType<INTERFACE> _current;
+            mutable Core::CriticalSection _adminLock; 
             uint32_t _offset;
         };
 
@@ -263,4 +283,3 @@ namespace Core {
 
 } // namespace Core
 } // namespace WPEFramework
-
