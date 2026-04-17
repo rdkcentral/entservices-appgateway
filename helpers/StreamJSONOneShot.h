@@ -135,19 +135,30 @@ namespace Core {
                     fprintf(stderr, "[FASIL] [StreamJSONOneShot::Deserialize] Bytes loaded: %u, Current offset: %u, Stream length: %u\n", 
                             loaded, _offset, length);
 
-                    // Only deliver message when deserialization is complete (offset explicitly reset by callee).
-                    // This ensures multi-frame payloads (e.g., 200KB across 25+ TCP packets) are fully
-                    // assembled before delivery. The previous logic incorrectly delivered incomplete
-                    // messages when loaded != length, causing subsequent requests to be corrupted.
-                    if (_offset == 0) {
-                        fprintf(stderr, "[FASIL] [StreamJSONOneShot::Deserialize] DESERIALIZATION COMPLETE - Delivering message\n");
-                        fprintf(stderr, "[FASIL] [StreamJSONOneShot::Deserialize] Final offset value: %u (0 = complete)\n", _offset);
+                    // Deliver message when:
+                    // 1. offset == 0: Parser reset (complete JSON was parsed in previous call or we're starting fresh)
+                    // 2. loaded < length: Parser found complete JSON and stopped mid-frame (didn't consume all bytes)
+                    // 
+                    // This ensures large payloads across multiple frames are fully reassembled before delivery.
+                    // The critical insight: loaded=bytes_consumed by parser, so if loaded < length, JSON is complete.
+                    if ((_offset == 0) || (loaded != length)) {
+                        fprintf(stderr, "[FASIL] [StreamJSONOneShot::Deserialize] DESERIALIZATION COMPLETE - Offset: %u, Loaded: %u, Length: %u\n", 
+                                _offset, loaded, length);
+                        
+                        // CRITICAL: Reset offset BEFORE release to ensure clean state for next message
+                        // Without this, subsequent messages would start with stale offset value
+                        _offset = 0;
+                        
+                        // Deliver message to parent
                         _adminLock.Unlock();
                         _parent.Received(_current);
                         _adminLock.Lock();
+                        
+                        // Release current message buffer
                         _current.Release();
                     } else {
-                        fprintf(stderr, "[FASIL] [StreamJSONOneShot::Deserialize] Deserialization in progress - Offset: %u (awaiting more frames)\n", _offset);
+                        fprintf(stderr, "[FASIL] [StreamJSONOneShot::Deserialize] Deserialization in progress - Offset: %u (needs more frames, loaded all %u bytes)\n", 
+                                _offset, loaded);
                     }
                 }
 
