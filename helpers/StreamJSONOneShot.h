@@ -139,7 +139,7 @@ namespace Core {
                         // 
                         // This ensures large payloads across multiple frames are fully reassembled before delivery.
                         // The critical insight: loaded=bytes_consumed by parser, so if loaded < length, JSON is complete.
-                        if ((0 == _offset) || (loaded != length)) {
+                        if ((0 == _offset) || (length != loaded)) {
                             // Detach completed message from shared state while holding the lock.
                             ASSERT(_current.IsValid());
                             // CRITICAL: Reset offset BEFORE release to ensure clean state for next message.
