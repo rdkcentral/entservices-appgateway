@@ -126,12 +126,12 @@ namespace Core {
                 {
                     std::lock_guard<std::mutex> lock(_mutex);
 
-                    if (_current.IsValid() == false) {
+                    if (false == _current.IsValid()) {
                         _current = Core::ProxyType<INTERFACE>(_factory.Element(EMPTY_STRING));
                         _offset = 0;
                     }
 
-                    if (_current.IsValid() == true) {
+                    if (true == _current.IsValid()) {
                         loaded = Deserialize(_current, stream, length);
                         // Deliver message when:
                         // 1. offset == 0: Parser reset (complete JSON was parsed in previous call or we're starting fresh)
@@ -139,7 +139,7 @@ namespace Core {
                         // 
                         // This ensures large payloads across multiple frames are fully reassembled before delivery.
                         // The critical insight: loaded=bytes_consumed by parser, so if loaded < length, JSON is complete.
-                        if ((_offset == 0) || (loaded != length)) {                        
+                        if ((0 == _offset) || (loaded != length)) {
                             // Detach completed message from shared state while holding the lock.
                             ASSERT(_current.IsValid());
                             // CRITICAL: Reset offset BEFORE release to ensure clean state for next message.
