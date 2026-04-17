@@ -74,11 +74,11 @@ namespace Plugin {
         mService = service;
         mService->AddRef();
 
-        // Initialize telemetry aggregator first (singleton)
+        // Initialize telemetry aggregator (singleton, always available)
         AppGatewayTelemetry::getInstance().Initialize(service);
-        // Set the telemetry interface pointer for COM-RPC exposure
         mTelemetry = &AppGatewayTelemetry::getInstance();
         mTelemetry->AddRef();
+        LOGINFO("AppGatewayTelemetry initialized successfully");
 
         mAppGateway = service->Root<Exchange::IAppGatewayResolver>(mConnectionId, 2000, _T("AppGatewayImplementation"));
        
@@ -116,6 +116,7 @@ namespace Plugin {
         auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
             bootstrapEnd - bootstrapStart).count();
         double durationMs = durationUs / 1000.0;  // Convert to milliseconds with decimal precision
+        // Record bootstrap time
         AppGatewayTelemetry::getInstance().RecordBootstrapTime(durationMs);
             
         // On success return empty, to indicate there is no error text.
@@ -135,12 +136,10 @@ namespace Plugin {
             connection = service->RemoteConnection(mConnectionId);
         }
 
-        // Deinitialize telemetry first (singleton - just call Deinitialize)
+        // Deinitialize telemetry (singleton - just call Deinitialize)
         AppGatewayTelemetry::getInstance().Deinitialize();
-        if (mTelemetry != nullptr) {
-            mTelemetry->Release();
-            mTelemetry = nullptr;
-        }
+        mTelemetry->Release();
+        mTelemetry = nullptr;
         LOGINFO("AppGatewayTelemetry deinitialized");
 
         if (mResponder != nullptr) {
