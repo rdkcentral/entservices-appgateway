@@ -139,9 +139,10 @@ namespace Core {
                     // The critical insight: loaded=bytes_consumed by parser, so if loaded < length, JSON is complete.
                     if ((_offset == 0) || (loaded != length)) {                        
                         // Detach completed message from shared state while holding the lock.
-                        ASSERT(true == _current.IsValid());
+                        ASSERT(_current.IsValid());
                         deliver = _current;
                         _current.Release();
+                        // Reset before unlock/delivery to guarantee a clean state for the next frame.
                         _offset = 0;
                     }
                 }
