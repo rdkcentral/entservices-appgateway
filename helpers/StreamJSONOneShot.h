@@ -140,10 +140,10 @@ namespace Core {
                     if ((_offset == 0) || (loaded != length)) {                        
                         // Detach completed message from shared state while holding the lock.
                         ASSERT(_current.IsValid());
-                        deliver = _current;
-                        _current.Release();
                         // Reset before unlock/delivery to guarantee a clean state for the next frame.
                         _offset = 0;
+                        deliver = _current;
+                        _current.Release();
                     }
                 }
                 
