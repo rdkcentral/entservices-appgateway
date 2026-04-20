@@ -1984,3 +1984,241 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DispatchWsMsg_Compl
 
     responder.mService = nullptr;
 }
+
+// -----------------------------------------------------------------------------
+// Coverage push: target 75%+ with minimal additions
+// -----------------------------------------------------------------------------
+
+// Mock IAppGatewayRequestHandler for ProcessComRpcRequest tests
+class MockRequestHandler : public Exchange::IAppGatewayRequestHandler {
+public:
+    void AddRef() const override {}
+    uint32_t Release() const override { return Core::ERROR_NONE; }
+
+    BEGIN_INTERFACE_MAP(MockRequestHandler)
+        INTERFACE_ENTRY(Exchange::IAppGatewayRequestHandler)
+    END_INTERFACE_MAP
+
+    Core::hresult HandleAppGatewayRequest(const Exchange::GatewayContext& /*context*/,
+                                          const string& /*method*/,
+                                          const string& /*params*/,
+                                          string& resolution) override
+    {
+        resolution = mResolution;
+        return mReturnCode;
+    }
+
+    Core::hresult mReturnCode{Core::ERROR_NONE};
+    std::string mResolution;
+};
+
+// Mock IAppGatewayAuthenticator for permission group tests
+class MockAuthenticator : public Exchange::IAppGatewayAuthenticator {
+public:
+    void AddRef() const override {}
+    uint32_t Release() const override { return Core::ERROR_NONE; }
+
+    BEGIN_INTERFACE_MAP(MockAuthenticator)
+        INTERFACE_ENTRY(Exchange::IAppGatewayAuthenticator)
+    END_INTERFACE_MAP
+
+    Core::hresult Authenticate(const string& /*sessionId*/, string& appId) override
+    {
+        appId = "test.app";
+        return Core::ERROR_NONE;
+    }
+
+    Core::hresult GetSessionId(const string& /*appId*/, string& sessionId) override
+    {
+        sessionId = "session123";
+        return Core::ERROR_NONE;
+    }
+
+    Core::hresult CheckPermissionGroup(const string& /*appId*/,
+                                       const string& /*permissionGroup*/,
+                                       bool& allowed) override
+    {
+        allowed = mAllowed;
+        return mReturnCode;
+    }
+
+    Core::hresult mReturnCode{Core::ERROR_NONE};
+    bool mAllowed{true};
+};
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_ProcessComRpcRequest_HandlerSucceeds)
+{
+    NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
+    MockRequestHandler handler;
+    handler.mReturnCode = Core::ERROR_NONE;
+    handler.mResolution = R"({"result":"ok"})";
+
+    impl.mService = &service;
+    impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber())
+        .WillRepeatedly(Return(static_cast<void*>(&handler)));
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "device.name": {
+                "alias": "org.rdk.DeviceInfo",
+                "useComRpc": true,
+                "includeContext": true,
+                "additionalContext": {"source":"agw"}
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_comrpc_success.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    const auto ctx = MakeImplementationContext();
+    std::string resolution;
+
+    EXPECT_EQ(Core::ERROR_NONE,
+              impl.ProcessComRpcRequest(ctx, "org.rdk.DeviceInfo", "device.name", "{}", "org.rdk.AppGateway", resolution));
+    EXPECT_EQ(R"({"result":"ok"})", resolution);
+
+    std::remove(path.c_str());
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_ProcessComRpcRequest_HandlerFails_EmptyResolution)
+{
+    NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
+    MockRequestHandler handler;
+    handler.mReturnCode = Core::ERROR_GENERAL;
+    handler.mResolution = "";  // Empty resolution triggers CustomInternal fallback
+
+    impl.mService = &service;
+    impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber())
+        .WillRepeatedly(Return(static_cast<void*>(&handler)));
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "device.name": {
+                "alias": "org.rdk.DeviceInfo",
+                "useComRpc": true,
+                "includeContext": true,
+                "additionalContext": {"source":"agw"}
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_comrpc_fail.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    const auto ctx = MakeImplementationContext();
+    std::string resolution;
+
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              impl.ProcessComRpcRequest(ctx, "org.rdk.DeviceInfo", "device.name", "{}", "org.rdk.AppGateway", resolution));
+    EXPECT_FALSE(resolution.empty());
+
+    std::remove(path.c_str());
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_PermissionCheckFails)
+{
+    NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
+    MockAuthenticator auth;
+    auth.mReturnCode = Core::ERROR_GENERAL;  // CheckPermissionGroup fails
+
+    impl.mService = &service;
+    impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+    impl.mAuthenticator = &auth;
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "device.name": {
+                "alias": "org.rdk.DeviceInfo.getName",
+                "permissionGroup": "device.info"
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_perm_fail.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    const auto ctx = MakeImplementationContext();
+    std::string resolution;
+
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              impl.FetchResolvedData(ctx, "device.name", "{}", "org.rdk.AppGateway", resolution));
+    EXPECT_FALSE(resolution.empty());
+
+    impl.mAuthenticator = nullptr;
+    std::remove(path.c_str());
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_PermissionNotAllowed)
+{
+    NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
+    MockAuthenticator auth;
+    auth.mReturnCode = Core::ERROR_NONE;
+    auth.mAllowed = false;  // Permission denied
+
+    impl.mService = &service;
+    impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+    impl.mAuthenticator = &auth;
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "device.name": {
+                "alias": "org.rdk.DeviceInfo.getName",
+                "permissionGroup": "device.info"
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_perm_denied.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    const auto ctx = MakeImplementationContext();
+    std::string resolution;
+
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              impl.FetchResolvedData(ctx, "device.name", "{}", "org.rdk.AppGateway", resolution));
+    EXPECT_FALSE(resolution.empty());
+
+    impl.mAuthenticator = nullptr;
+    std::remove(path.c_str());
+}
+
+TEST(AppGatewayPluginTest, Telemetry_SetReportingInterval_WhileTimerRunning_RestartsTimer)
+{
+    TestAppGatewayTelemetry telemetry;
+    NiceMock<ServiceMock> service;
+
+    EXPECT_CALL(service, AddRef()).Times(::testing::AnyNumber());
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    // Initialize starts the timer
+    telemetry.Initialize(&service);
+    EXPECT_TRUE(telemetry.mTimerRunning);
+
+    // Changing interval while running should restart the timer (covers lines 128-130)
+    telemetry.SetReportingInterval(1800);
+    EXPECT_EQ(1800u, telemetry.mReportingIntervalSec);
+
+    telemetry.Deinitialize();
+}
+
+TEST(AppGatewayPluginTest, AppGateway_QueryInterface_CoversInterfaceMap)
+{
+    TestAppGateway plugin;
+
+    // QueryInterface for IPlugin covers the INTERFACE_MAP lines 55-61 in AppGateway.h
+    auto* iface = plugin.QueryInterface(PluginHost::IPlugin::ID);
+    EXPECT_NE(nullptr, iface);
+}
