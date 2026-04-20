@@ -22,6 +22,8 @@
 #include <interfaces/IAppGateway.h>
 #include <interfaces/IAppNotifications.h>
 #include <mutex>
+#include <condition_variable>
+#include <atomic>
 #include <map>
 #include "UtilsLogging.h"
 #include "UtilsController.h"
@@ -73,6 +75,14 @@ namespace WPEFramework {
                 virtual void Dispatch()
                 {
                     mParent.mDelegate->HandleAppEventNotifier(mCallback, mEvent, mListen);
+                    // fetch_sub returns the previous value; if it was 1 the
+                    // counter is now 0 (last in-flight job finished). Lock
+                    // the mutex so the notify wakes up Deinitialize's
+                    // wait — this ensures the signal is never missed.
+                    if (1 == mParent.mActiveJobs.fetch_sub(1, std::memory_order_acq_rel)) {
+                        std::lock_guard<std::mutex> lk(mParent.mJobDrainMutex);
+                        mParent.mJobDrainCv.notify_all();
+                    }
                 }
 
             private:
@@ -184,6 +194,12 @@ namespace WPEFramework {
             PluginHost::IShell* mShell;
             uint32_t mConnectionId;
             std::shared_ptr<SettingsDelegate> mDelegate;
+
+            // Track in-flight EventRegistrationJobs so Deinitialize() can
+            // wait for them before destroying the delegate.
+            std::atomic<int> mActiveJobs{0};
+            std::mutex mJobDrainMutex;
+            std::condition_variable mJobDrainCv;
         };
 	} // namespace Plugin
 } // namespace WPEFramework
