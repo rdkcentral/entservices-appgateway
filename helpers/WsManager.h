@@ -446,6 +446,9 @@ public:
         LOGTRACE("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d response=%s", requestId, connectionId, result.c_str());
 
         // Send the response back to the WebSocket client
+        if (mChannel == nullptr) {
+            return false;
+        }
         mChannel->Submit(connectionId, Core::ProxyType<Core::JSON::IElement>(response));
         
         #ifdef ENABLE_APP_GATEWAY_AUTOMATION
@@ -474,6 +477,9 @@ public:
         event->Designator = designator;
         event->Parameters = payload;
         LOGTRACE("Emit Event for method=%s, connectionId=%d params=%s", designator.c_str(), connectionId, payload.c_str());
+        if (mChannel == nullptr) {
+            return false;
+        }
         mChannel->Submit(connectionId, Core::ProxyType<Core::JSON::IElement>(event));
         
         #ifdef ENABLE_APP_GATEWAY_AUTOMATION
@@ -504,6 +510,9 @@ public:
         request->Parameters = params;
 
         LOGTRACE("Send Request for method=%s, connectionId=%d params=%s", designator.c_str(), connectionId, params.c_str());
+        if (mChannel == nullptr) {
+            return false;
+        }
         mChannel->Submit(connectionId, Core::ProxyType<Core::JSON::IElement>(request));
 
         #ifdef ENABLE_APP_GATEWAY_AUTOMATION
@@ -572,6 +581,9 @@ public:
 
     // Close connection for a given connection id
     void Close(const uint32_t connectionId) {
+        if (mChannel == nullptr) {
+            return;
+        }
         const auto& client = mChannel->Client(connectionId);
         client->Close(0);
     }
