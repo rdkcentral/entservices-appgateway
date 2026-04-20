@@ -1560,8 +1560,8 @@ TEST(AppGatewayPluginTest, Telemetry_RecordTelemetryMetric_CacheThresholdTrigger
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_ConfigureWithShell_InitializesResolver)
 {
-    TestAppGatewayImplementation impl;
     NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
 
     EXPECT_CALL(service, AddRef()).Times(::testing::AnyNumber());
     EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
@@ -1573,15 +1573,12 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_ConfigureWithShell_Initializ
 
     // The resolver should be created even if config files are missing
     EXPECT_NE(nullptr, impl.mResolverPtr);
-
-    // Clean up to avoid double release in destructor
-    impl.mService = nullptr;
 }
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_EventPath)
 {
-    TestAppGatewayImplementation impl;
     NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
     const auto ctx = MakeImplementationContext();
     std::string resolution;
 
@@ -1608,13 +1605,12 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_EventPath)
               impl.FetchResolvedData(ctx, "device.event", "{}", "org.rdk.AppGateway", resolution));
 
     std::remove(path.c_str());
-    impl.mService = nullptr;
 }
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_EventPathWithListen)
 {
-    TestAppGatewayImplementation impl;
     NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
     std::string resolution;
 
     impl.mService = &service;
@@ -1648,13 +1644,12 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_EventPathW
     EXPECT_NE(std::string::npos, resolution.find("\"event\":\"device.event\""));
 
     std::remove(path.c_str());
-    impl.mService = nullptr;
 }
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_ComRpcPath)
 {
-    TestAppGatewayImplementation impl;
     NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
     const auto ctx = MakeImplementationContext();
     std::string resolution;
 
@@ -1683,13 +1678,12 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_ComRpcPath
     EXPECT_FALSE(resolution.empty());
 
     std::remove(path.c_str());
-    impl.mService = nullptr;
 }
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_ThunderPluginPath)
 {
-    TestAppGatewayImplementation impl;
     NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
     const auto ctx = MakeImplementationContext();
     std::string resolution;
 
@@ -1715,13 +1709,12 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_ThunderPlu
     EXPECT_FALSE(resolution.empty());
 
     std::remove(path.c_str());
-    impl.mService = nullptr;
 }
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_WithPermissionGroup_NoAuthenticator)
 {
-    TestAppGatewayImplementation impl;
     NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
     const auto ctx = MakeImplementationContext();
     std::string resolution;
 
@@ -1748,13 +1741,12 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_WithPermis
               impl.FetchResolvedData(ctx, "device.name", "{}", "org.rdk.AppGateway", resolution));
 
     std::remove(path.c_str());
-    impl.mService = nullptr;
 }
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_IncludeContextWithRegularPath)
 {
-    TestAppGatewayImplementation impl;
     NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
     const auto ctx = MakeImplementationContext();
     std::string resolution;
 
@@ -1779,7 +1771,6 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_IncludeCon
     impl.FetchResolvedData(ctx, "device.name", R"({"k":"v"})", "org.rdk.AppGateway", resolution);
 
     std::remove(path.c_str());
-    impl.mService = nullptr;
 }
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_ConfigureWithNullResolver_ReturnsBadRequest)
@@ -1830,14 +1821,15 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_InternalResolutionConfigure_
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_Resolve_SubmitsRespondJob)
 {
-    TestAppGatewayImplementation impl;
     NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
     std::string resolution;
 
     impl.mService = &service;
     impl.mResolverPtr = std::make_shared<Resolver>(&service);
 
     EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterface(_)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
 
     const std::string cfg = R"({
@@ -1859,7 +1851,6 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_Resolve_SubmitsRespondJob)
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     std::remove(path.c_str());
-    impl.mService = nullptr;
 }
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_UpdateContext_NoIncludeContext_ReturnsOriginalParams)
@@ -1920,25 +1911,28 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_UpdateContext_AdditionalCont
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DispatchWsMsg_WithAppIdAndResolver_TracksResult)
 {
     NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation resolver;
     TestAppGatewayResponderImplementation responder;
     AppGatewayTelemetry& telemetry = AppGatewayTelemetry::getInstance();
     telemetry.ResetHealthStats();
     telemetry.ResetApiErrorStats();
 
-    // Create a simple TestAppGatewayImplementation to serve as the resolver
-    TestAppGatewayImplementation resolver;
     resolver.mResolverPtr = std::make_shared<Resolver>(nullptr);
+    resolver.mService = &service;
 
     responder.mService = &service;
+    responder.mResolver = &resolver;
     responder.mAppIdRegistry.Add(7002, "test.app");
 
     EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    // When QueryInterface is called for IAppGatewayResolver, return the resolver
-    EXPECT_CALL(service, QueryInterface(_)).Times(::testing::AnyNumber())
-        .WillRepeatedly(Return(static_cast<void*>(&resolver)));
+    EXPECT_CALL(service, QueryInterface(_)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
 
     // resolver is not configured, so Resolve will fail
     responder.DispatchWsMsg("device.name", "{}", 903, 7002);
+
+    // Wait for async RespondJob to complete
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     EXPECT_EQ(1u, telemetry.mHealthStats.totalCalls.load(std::memory_order_relaxed));
 
