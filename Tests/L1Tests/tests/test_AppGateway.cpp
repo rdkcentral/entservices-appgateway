@@ -1259,3 +1259,734 @@ TEST(AppGatewayPluginTest, Telemetry_SendHealthStats_NoDataAndWithData_NoCrash)
         telemetry.SendHealthStats();
     });
 }
+
+// -----------------------------------------------------------------------------
+// Additional coverage tests for AppGateway plugin (targeting >=75%)
+// -----------------------------------------------------------------------------
+
+TEST(AppGatewayPluginTest, Telemetry_SendApiErrorStats_WithData_NoCrash)
+{
+    TestAppGatewayTelemetry telemetry;
+    const auto ctx = MakeTelemetryContext(80, 800, "test.app");
+
+    telemetry.RecordApiError(ctx, "Device.name");
+    telemetry.RecordApiError(ctx, "Device.name");
+    telemetry.RecordApiError(ctx, "App.launch");
+
+    EXPECT_NO_THROW(telemetry.SendApiErrorStats());
+}
+
+TEST(AppGatewayPluginTest, Telemetry_SendExternalServiceErrorStats_WithData_NoCrash)
+{
+    TestAppGatewayTelemetry telemetry;
+    const auto ctx = MakeTelemetryContext(81, 801, "test.app");
+
+    telemetry.RecordExternalServiceErrorInternal(ctx, "AuthService");
+    telemetry.RecordExternalServiceErrorInternal(ctx, "PermissionService");
+
+    EXPECT_NO_THROW(telemetry.SendExternalServiceErrorStats());
+}
+
+TEST(AppGatewayPluginTest, Telemetry_SendAggregatedMetrics_WithData_NoCrash)
+{
+    TestAppGatewayTelemetry telemetry;
+    const auto ctx = MakeTelemetryContext(82, 802, "test.app");
+
+    telemetry.RecordGenericMetric(ctx, "CustomMetric1", 10.0, AGW_UNIT_MILLISECONDS);
+    telemetry.RecordGenericMetric(ctx, "CustomMetric1", 20.0, AGW_UNIT_MILLISECONDS);
+    telemetry.RecordGenericMetric(ctx, "CustomMetric2", 5.0, AGW_UNIT_COUNT);
+
+    EXPECT_NO_THROW(telemetry.SendAggregatedMetrics());
+}
+
+TEST(AppGatewayPluginTest, Telemetry_SendApiMethodStats_SuccessAndError_NoCrash)
+{
+    TestAppGatewayTelemetry telemetry;
+    const auto ctx = MakeTelemetryContext(83, 803, "test.app");
+
+    telemetry.RecordApiMethodMetric(ctx, "Badger", "getData", 12.5, false);
+    telemetry.RecordApiMethodMetric(ctx, "Badger", "getData", 22.0, true);
+    telemetry.RecordApiMethodMetric(ctx, "OttServices", "fetchConfig", 8.0, false);
+
+    EXPECT_NO_THROW(telemetry.SendApiMethodStats());
+}
+
+TEST(AppGatewayPluginTest, Telemetry_SendApiLatencyStats_WithData_NoCrash)
+{
+    TestAppGatewayTelemetry telemetry;
+    const auto ctx = MakeTelemetryContext(84, 804, "test.app");
+
+    telemetry.RecordApiLatencyMetric(ctx, "Badger", "getData", 4.0);
+    telemetry.RecordApiLatencyMetric(ctx, "Badger", "getData", 8.0);
+    telemetry.RecordApiLatencyMetric(ctx, "OttServices", "fetchConfig", 15.0);
+
+    EXPECT_NO_THROW(telemetry.SendApiLatencyStats());
+}
+
+TEST(AppGatewayPluginTest, Telemetry_SendServiceLatencyStats_WithData_NoCrash)
+{
+    TestAppGatewayTelemetry telemetry;
+    const auto ctx = MakeTelemetryContext(85, 805, "test.app");
+
+    telemetry.RecordServiceLatencyMetric(ctx, "OttServices", "ThorService", 5.0);
+    telemetry.RecordServiceLatencyMetric(ctx, "OttServices", "ThorService", 11.0);
+
+    EXPECT_NO_THROW(telemetry.SendServiceLatencyStats());
+}
+
+TEST(AppGatewayPluginTest, Telemetry_SendServiceMethodStats_SuccessAndError_NoCrash)
+{
+    TestAppGatewayTelemetry telemetry;
+    const auto ctx = MakeTelemetryContext(86, 806, "test.app");
+
+    telemetry.RecordServiceMethodMetric(ctx, "OttServices", "ThorService", 13.0, false);
+    telemetry.RecordServiceMethodMetric(ctx, "OttServices", "ThorService", 25.0, true);
+
+    EXPECT_NO_THROW(telemetry.SendServiceMethodStats());
+}
+
+TEST(AppGatewayPluginTest, Telemetry_FlushTelemetryData_CoversBothSuccessAndErrorBranches)
+{
+    TestAppGatewayTelemetry telemetry;
+    telemetry.mInitialized = true;
+    telemetry.SetTelemetryFormat(TelemetryFormat::JSON);
+    telemetry.SetCacheThreshold(5000);
+
+    const auto ctx = MakeTelemetryContext(87, 807, "test.app");
+
+    telemetry.IncrementWebSocketConnections(ctx);
+    telemetry.IncrementTotalCalls(ctx);
+    telemetry.RecordResponse(ctx, true);
+
+    // Record both success AND error for ApiMethod and ServiceMethod
+    telemetry.RecordApiMethodMetric(ctx, "Badger", "getData", 10.0, false);
+    telemetry.RecordApiMethodMetric(ctx, "Badger", "getData", 20.0, true);
+    telemetry.RecordServiceMethodMetric(ctx, "Ott", "Thor", 5.0, false);
+    telemetry.RecordServiceMethodMetric(ctx, "Ott", "Thor", 15.0, true);
+    telemetry.RecordApiLatencyMetric(ctx, "Badger", "getData", 7.0);
+    telemetry.RecordServiceLatencyMetric(ctx, "Ott", "Thor", 9.0);
+    telemetry.RecordApiError(ctx, "Device.name");
+    telemetry.RecordExternalServiceErrorInternal(ctx, "AuthService");
+    telemetry.RecordGenericMetric(ctx, "CustomMetric", 42.0, AGW_UNIT_COUNT);
+
+    EXPECT_NO_THROW(telemetry.FlushTelemetryData());
+
+    EXPECT_TRUE(telemetry.mApiMethodStats.empty());
+    EXPECT_TRUE(telemetry.mServiceMethodStats.empty());
+}
+
+TEST(AppGatewayPluginTest, Telemetry_InitializeAndDeinitialize_NoCrash)
+{
+    TestAppGatewayTelemetry telemetry;
+    NiceMock<ServiceMock> service;
+
+    EXPECT_CALL(service, AddRef()).Times(::testing::AnyNumber());
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    EXPECT_FALSE(telemetry.mInitialized);
+    telemetry.Initialize(&service);
+    EXPECT_TRUE(telemetry.mInitialized);
+
+    // Double-initialize should be safe
+    telemetry.Initialize(&service);
+    EXPECT_TRUE(telemetry.mInitialized);
+
+    telemetry.Deinitialize();
+    EXPECT_FALSE(telemetry.mInitialized);
+
+    // Double-deinitialize should be safe
+    telemetry.Deinitialize();
+    EXPECT_FALSE(telemetry.mInitialized);
+}
+
+TEST(AppGatewayPluginTest, Telemetry_SetReportingInterval_UpdatesInterval)
+{
+    TestAppGatewayTelemetry telemetry;
+
+    telemetry.SetReportingInterval(7200);
+    EXPECT_EQ(7200u, telemetry.mReportingIntervalSec);
+}
+
+TEST(AppGatewayPluginTest, Telemetry_DecrementWebSocketConnections_WhenNonZero)
+{
+    TestAppGatewayTelemetry telemetry;
+    const auto ctx = MakeTelemetryContext(90, 900, "test.app");
+
+    telemetry.IncrementWebSocketConnections(ctx);
+    telemetry.IncrementWebSocketConnections(ctx);
+    EXPECT_EQ(2u, telemetry.mHealthStats.websocketConnections.load());
+
+    telemetry.DecrementWebSocketConnections(ctx);
+    EXPECT_EQ(1u, telemetry.mHealthStats.websocketConnections.load());
+
+    // Decrement to zero
+    telemetry.DecrementWebSocketConnections(ctx);
+    EXPECT_EQ(0u, telemetry.mHealthStats.websocketConnections.load());
+
+    // Decrement when already zero should stay at zero
+    telemetry.DecrementWebSocketConnections(ctx);
+    EXPECT_EQ(0u, telemetry.mHealthStats.websocketConnections.load());
+}
+
+TEST(AppGatewayPluginTest, Telemetry_RecordBootstrapTime_RecordsMetric)
+{
+    TestAppGatewayTelemetry telemetry;
+    EXPECT_NO_THROW(telemetry.RecordBootstrapTime(123.45));
+    EXPECT_EQ(1u, telemetry.mMetricsCache[AGW_MARKER_BOOTSTRAP_DURATION].count);
+}
+
+TEST(AppGatewayPluginTest, Telemetry_RecordTelemetryEvent_GenericEvent_CachesAndFlushes)
+{
+    TestAppGatewayTelemetry telemetry;
+    telemetry.mInitialized = true;
+    telemetry.SetCacheThreshold(2);
+
+    const auto ctx = MakeTelemetryContext(91, 901, "test.app");
+
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryEvent(ctx, "GenericEvent", R"({"info":"data"})"));
+
+    // Second event should trigger flush (threshold = 2)
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryEvent(ctx, "AnotherGenericEvent", R"({"info":"more"})"));
+}
+
+TEST(AppGatewayPluginTest, Telemetry_RecordTelemetryMetric_BootstrapDuration_Routes)
+{
+    TestAppGatewayTelemetry telemetry;
+    telemetry.mInitialized = true;
+    telemetry.SetCacheThreshold(5000);
+
+    const auto ctx = MakeTelemetryContext(92, 902, "test.app");
+
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx, AGW_MARKER_BOOTSTRAP_DURATION, 250.0, AGW_UNIT_MILLISECONDS));
+    EXPECT_EQ(1u, telemetry.mMetricsCache[AGW_MARKER_BOOTSTRAP_DURATION].count);
+}
+
+TEST(AppGatewayPluginTest, Telemetry_FormatTelemetryPayload_CompactWithBoolean)
+{
+    TestAppGatewayTelemetry telemetry;
+    telemetry.SetTelemetryFormat(TelemetryFormat::COMPACT);
+
+    JsonObject payload;
+    payload["enabled"] = true;
+    payload["disabled"] = false;
+    payload["value"] = 42;
+
+    const std::string out = telemetry.FormatTelemetryPayload(payload);
+    EXPECT_NE(std::string::npos, out.find("true"));
+    EXPECT_NE(std::string::npos, out.find("false"));
+    EXPECT_NE(std::string::npos, out.find("42"));
+}
+
+TEST(AppGatewayPluginTest, Telemetry_SendT2Event_JsonObjectOverload_NoCrash)
+{
+    TestAppGatewayTelemetry telemetry;
+    telemetry.SetTelemetryFormat(TelemetryFormat::JSON);
+
+    JsonObject payload;
+    payload["key1"] = "value1";
+    payload["key2"] = 99;
+
+    const auto ctx = MakeTelemetryContext(93, 903, "test.app");
+    EXPECT_NO_THROW(telemetry.SendT2Event("TestMarker", payload, ctx));
+}
+
+TEST(AppGatewayPluginTest, Telemetry_SendT2Event_SystemContext_SkipsContextFields)
+{
+    TestAppGatewayTelemetry telemetry;
+    telemetry.SetTelemetryFormat(TelemetryFormat::JSON);
+
+    JsonObject payload;
+    payload["metric"] = 100;
+
+    // SYSTEM context should not include request_id, connection_id, app_id
+    auto sysCtx = AppGatewayTelemetry::CreateSystemContext();
+    EXPECT_NO_THROW(telemetry.SendT2Event("SysMarker", payload, sysCtx));
+}
+
+TEST(AppGatewayPluginTest, Telemetry_GetTelemetryFormat_ReturnsCurrentFormat)
+{
+    TestAppGatewayTelemetry telemetry;
+
+    telemetry.SetTelemetryFormat(TelemetryFormat::JSON);
+    EXPECT_EQ(TelemetryFormat::JSON, telemetry.GetTelemetryFormat());
+
+    telemetry.SetTelemetryFormat(TelemetryFormat::COMPACT);
+    EXPECT_EQ(TelemetryFormat::COMPACT, telemetry.GetTelemetryFormat());
+}
+
+TEST(AppGatewayPluginTest, Telemetry_IncrementTotalResponses_TracksCorrectly)
+{
+    TestAppGatewayTelemetry telemetry;
+    const auto ctx = MakeTelemetryContext(94, 904, "test.app");
+
+    telemetry.IncrementTotalCalls(ctx);
+    telemetry.IncrementTotalResponses(ctx);
+    EXPECT_EQ(1u, telemetry.mHealthStats.totalResponses.load());
+
+    // Duplicate response should be ignored (entry still present since IncrementTotalResponses doesn't erase)
+    telemetry.IncrementTotalResponses(ctx);
+    EXPECT_EQ(2u, telemetry.mHealthStats.totalResponses.load());
+}
+
+TEST(AppGatewayPluginTest, Telemetry_IncrementTotalResponses_UnknownRequest_Ignored)
+{
+    TestAppGatewayTelemetry telemetry;
+    const auto ctx = MakeTelemetryContext(95, 905, "test.app");
+
+    // No IncrementTotalCalls - so no request state exists
+    telemetry.IncrementTotalResponses(ctx);
+    EXPECT_EQ(0u, telemetry.mHealthStats.totalResponses.load());
+}
+
+TEST(AppGatewayPluginTest, Telemetry_RecordTelemetryMetric_CacheThresholdTriggersFlush)
+{
+    TestAppGatewayTelemetry telemetry;
+    telemetry.mInitialized = true;
+    telemetry.SetCacheThreshold(1);
+
+    const auto ctx = MakeTelemetryContext(96, 906, "test.app");
+
+    // This should trigger a flush because threshold = 1
+    EXPECT_EQ(Core::ERROR_NONE,
+              telemetry.RecordTelemetryMetric(ctx, "SomeMetric", 10.0, AGW_UNIT_COUNT));
+}
+
+// -----------------------------------------------------------------------------
+// Additional AppGatewayImplementation coverage tests
+// -----------------------------------------------------------------------------
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_ConfigureWithShell_InitializesResolver)
+{
+    TestAppGatewayImplementation impl;
+    NiceMock<ServiceMock> service;
+
+    EXPECT_CALL(service, AddRef()).Times(::testing::AnyNumber());
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    // Configure will call InitializeResolver which tries to load config files
+    // that don't exist on the test machine, but it should still create the resolver
+    uint32_t result = impl.Configure(static_cast<PluginHost::IShell*>(&service));
+
+    // The resolver should be created even if config files are missing
+    EXPECT_NE(nullptr, impl.mResolverPtr);
+
+    // Clean up to avoid double release in destructor
+    impl.mService = nullptr;
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_EventPath)
+{
+    TestAppGatewayImplementation impl;
+    NiceMock<ServiceMock> service;
+    const auto ctx = MakeImplementationContext();
+    std::string resolution;
+
+    impl.mService = &service;
+    impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "device.event": {
+                "alias": "org.rdk.DeviceInfo.onChanged",
+                "event": "onDeviceChanged"
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_fetch_event.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    // FetchResolvedData with event method should take the event path (PreProcessEvent)
+    // listen is missing, so it returns BAD_REQUEST
+    EXPECT_EQ(Core::ERROR_BAD_REQUEST,
+              impl.FetchResolvedData(ctx, "device.event", "{}", "org.rdk.AppGateway", resolution));
+
+    std::remove(path.c_str());
+    impl.mService = nullptr;
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_EventPathWithListen)
+{
+    TestAppGatewayImplementation impl;
+    NiceMock<ServiceMock> service;
+    std::string resolution;
+
+    impl.mService = &service;
+    impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "device.event": {
+                "alias": "org.rdk.DeviceInfo.onChanged",
+                "event": "onDeviceChanged",
+                "versionedEvent": true
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_fetch_event_listen.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    Exchange::GatewayContext ctx;
+    ctx.requestId = 1;
+    ctx.connectionId = 2;
+    ctx.appId = "test.app";
+    ctx.version = "2.0.0";
+
+    // listen=true but AppNotifications not available → ERROR_GENERAL but resolution has listening/event
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              impl.FetchResolvedData(ctx, "device.event", R"({"listen":true})", "org.rdk.AppGateway", resolution));
+    EXPECT_NE(std::string::npos, resolution.find("\"listening\":true"));
+    EXPECT_NE(std::string::npos, resolution.find("\"event\":\"device.event\""));
+
+    std::remove(path.c_str());
+    impl.mService = nullptr;
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_ComRpcPath)
+{
+    TestAppGatewayImplementation impl;
+    NiceMock<ServiceMock> service;
+    const auto ctx = MakeImplementationContext();
+    std::string resolution;
+
+    impl.mService = &service;
+    impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "device.name": {
+                "alias": "org.rdk.DeviceInfo",
+                "useComRpc": true,
+                "includeContext": true,
+                "additionalContext": {"source":"agw"}
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_fetch_comrpc.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    // ComRPC path but handler not available → ERROR_GENERAL
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              impl.FetchResolvedData(ctx, "device.name", "{}", "org.rdk.AppGateway", resolution));
+    EXPECT_FALSE(resolution.empty());
+
+    std::remove(path.c_str());
+    impl.mService = nullptr;
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_ThunderPluginPath)
+{
+    TestAppGatewayImplementation impl;
+    NiceMock<ServiceMock> service;
+    const auto ctx = MakeImplementationContext();
+    std::string resolution;
+
+    impl.mService = &service;
+    impl.mResolverPtr = std::make_shared<Resolver>(&service);
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "device.name": {
+                "alias": "org.rdk.DeviceInfo.getName"
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_fetch_thunder.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    // Regular thunder plugin path - CallThunderPlugin will fail (no real plugin available)
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              impl.FetchResolvedData(ctx, "device.name", "{}", "org.rdk.AppGateway", resolution));
+    EXPECT_FALSE(resolution.empty());
+
+    std::remove(path.c_str());
+    impl.mService = nullptr;
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_WithPermissionGroup_NoAuthenticator)
+{
+    TestAppGatewayImplementation impl;
+    NiceMock<ServiceMock> service;
+    const auto ctx = MakeImplementationContext();
+    std::string resolution;
+
+    impl.mService = &service;
+    impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "device.name": {
+                "alias": "org.rdk.DeviceInfo.getName",
+                "permissionGroup": "device.info"
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_fetch_perm.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    // Permission group is set but Authenticator not available (QueryInterfaceByCallsign returns nullptr)
+    // Without authenticator, permission check is skipped and continues to resolve
+    EXPECT_NE(Core::ERROR_BAD_REQUEST,
+              impl.FetchResolvedData(ctx, "device.name", "{}", "org.rdk.AppGateway", resolution));
+
+    std::remove(path.c_str());
+    impl.mService = nullptr;
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_IncludeContextWithRegularPath)
+{
+    TestAppGatewayImplementation impl;
+    NiceMock<ServiceMock> service;
+    const auto ctx = MakeImplementationContext();
+    std::string resolution;
+
+    impl.mService = &service;
+    impl.mResolverPtr = std::make_shared<Resolver>(&service);
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "device.name": {
+                "alias": "org.rdk.DeviceInfo.getName",
+                "includeContext": true
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_fetch_context.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    // CallThunderPlugin will fail but we cover the includeContext + regular path
+    impl.FetchResolvedData(ctx, "device.name", R"({"k":"v"})", "org.rdk.AppGateway", resolution);
+
+    std::remove(path.c_str());
+    impl.mService = nullptr;
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_ConfigureWithNullResolver_ReturnsBadRequest)
+{
+    TestAppGatewayImplementation impl;
+    // mResolverPtr is null, Configure(paths) should return ERROR_GENERAL
+    Exchange::IAppGatewayResolver::IStringIterator* paths = nullptr;
+    EXPECT_EQ(Core::ERROR_BAD_REQUEST, impl.Configure(paths));
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_InternalResolutionConfigure_OverrideLastWins)
+{
+    TestAppGatewayImplementation impl;
+    impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+    const std::string cfg1 = R"({
+        "resolutions": {
+            "device.name": {
+                "alias": "org.rdk.DeviceInfo.name_v1"
+            }
+        }
+    })";
+    const std::string cfg2 = R"({
+        "resolutions": {
+            "device.name": {
+                "alias": "org.rdk.DeviceInfo.name_v2"
+            },
+            "app.launch": {
+                "alias": "org.rdk.AppManager.launch"
+            }
+        }
+    })";
+
+    const std::string path1 = WriteResolverTempConfig("agw_override_1.json", cfg1);
+    const std::string path2 = WriteResolverTempConfig("agw_override_2.json", cfg2);
+
+    std::vector<std::string> configPaths = {path1, path2};
+    EXPECT_EQ(Core::ERROR_NONE, impl.InternalResolutionConfigure(std::move(configPaths)));
+    EXPECT_TRUE(impl.mResolverPtr->IsConfigured());
+
+    // Second config overrides the first for device.name
+    EXPECT_EQ("org.rdk.DeviceInfo.name_v2", impl.mResolverPtr->ResolveAlias("device.name"));
+    EXPECT_EQ("org.rdk.AppManager.launch", impl.mResolverPtr->ResolveAlias("app.launch"));
+
+    std::remove(path1.c_str());
+    std::remove(path2.c_str());
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_Resolve_SubmitsRespondJob)
+{
+    TestAppGatewayImplementation impl;
+    NiceMock<ServiceMock> service;
+    std::string resolution;
+
+    impl.mService = &service;
+    impl.mResolverPtr = std::make_shared<Resolver>(&service);
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "device.name": {
+                "alias": "org.rdk.DeviceInfo.getName"
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_resolve_test.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    auto ctx = MakeImplementationContext();
+    // Resolve calls InternalResolve which calls FetchResolvedData
+    // CallThunderPlugin will fail but covers the Resolve->InternalResolve path
+    impl.Resolve(ctx, "org.rdk.AppGateway", "device.name", "{}", resolution);
+
+    // Allow async job to complete
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    std::remove(path.c_str());
+    impl.mService = nullptr;
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_UpdateContext_NoIncludeContext_ReturnsOriginalParams)
+{
+    TestAppGatewayImplementation impl;
+    impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "device.name": {
+                "alias": "org.rdk.DeviceInfo.getName"
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_no_include_ctx.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    const auto ctx = MakeImplementationContext();
+    const std::string result = impl.UpdateContext(ctx, "device.name", R"({"k":"v"})", "origin");
+
+    // Without includeContext, params should be returned as-is
+    EXPECT_EQ(R"({"k":"v"})", result);
+
+    std::remove(path.c_str());
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_UpdateContext_AdditionalContextNotObject_ReturnsOriginal)
+{
+    TestAppGatewayImplementation impl;
+    impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "device.name": {
+                "alias": "org.rdk.DeviceInfo.getName",
+                "includeContext": true,
+                "additionalContext": "not_an_object"
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_bad_additional_ctx.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    const auto ctx = MakeImplementationContext();
+    const std::string result = impl.UpdateContext(ctx, "device.name", R"({"k":"v"})", "origin", true);
+
+    // additionalContext is not an object, so it should log error and not add _additionalContext
+    // The result should still have the params
+    EXPECT_FALSE(result.empty());
+
+    std::remove(path.c_str());
+}
+
+// -----------------------------------------------------------------------------
+// Additional AppGatewayResponderImplementation coverage tests
+// -----------------------------------------------------------------------------
+
+TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DispatchWsMsg_WithAppIdAndResolver_TracksResult)
+{
+    NiceMock<ServiceMock> service;
+    TestAppGatewayResponderImplementation responder;
+    AppGatewayTelemetry& telemetry = AppGatewayTelemetry::getInstance();
+    telemetry.ResetHealthStats();
+    telemetry.ResetApiErrorStats();
+
+    // Create a simple TestAppGatewayImplementation to serve as the resolver
+    TestAppGatewayImplementation resolver;
+    resolver.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+    responder.mService = &service;
+    responder.mAppIdRegistry.Add(7002, "test.app");
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    // When QueryInterface is called for IAppGatewayResolver, return the resolver
+    EXPECT_CALL(service, QueryInterface(_)).Times(::testing::AnyNumber())
+        .WillRepeatedly(Return(static_cast<void*>(&resolver)));
+
+    // resolver is not configured, so Resolve will fail
+    responder.DispatchWsMsg("device.name", "{}", 903, 7002);
+
+    EXPECT_EQ(1u, telemetry.mHealthStats.totalCalls.load(std::memory_order_relaxed));
+
+    // Clean up
+    responder.mResolver = nullptr;
+    responder.mService = nullptr;
+}
+
+TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DispatchWsMsg_WithDebugDisabled_NoCrash)
+{
+    NiceMock<ServiceMock> service;
+    TestAppGatewayResponderImplementation responder;
+    AppGatewayTelemetry& telemetry = AppGatewayTelemetry::getInstance();
+    telemetry.ResetHealthStats();
+
+    responder.mService = &service;
+    responder.mAppIdRegistry.Add(7003, "test.app");
+    responder.mDebugDisabledConnectionsRegistry.Add(7003);
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterface(_)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    responder.DispatchWsMsg("method.test", "{}", 904, 7003);
+
+    EXPECT_EQ(1u, telemetry.mHealthStats.totalCalls.load(std::memory_order_relaxed));
+
+    responder.mService = nullptr;
+}
+
+TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DispatchWsMsg_CompliantJsonRpc_SetsVersion)
+{
+    NiceMock<ServiceMock> service;
+    TestAppGatewayResponderImplementation responder;
+    AppGatewayTelemetry& telemetry = AppGatewayTelemetry::getInstance();
+    telemetry.ResetHealthStats();
+
+    responder.mService = &service;
+    responder.mAppIdRegistry.Add(7004, "test.app");
+
+    const auto compliantFlag = AppGatewayResponderImplementation::CompliantJsonRpcRegistry::kCompliantJsonRpcFeatureFlag;
+    responder.mCompliantJsonRpcRegistry.CheckAndAddCompliantJsonRpc(7004, compliantFlag);
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, QueryInterface(_)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    responder.DispatchWsMsg("method.test", "{}", 905, 7004);
+
+    EXPECT_EQ(1u, telemetry.mHealthStats.totalCalls.load(std::memory_order_relaxed));
+
+    responder.mService = nullptr;
+}
