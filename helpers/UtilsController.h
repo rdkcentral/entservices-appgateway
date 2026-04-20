@@ -145,15 +145,16 @@ namespace Utils
     };
 
     // Thunder Plugin Communication
-    inline std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> getThunderControllerClient(std::string callsign="")
+    inline std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> getThunderControllerClient(std::string callsign="", std::string callerUniqueCallsign="")
     {
 
         string token;
         Utils::SecurityToken::getSecurityToken(token);
         string query = "token=" + token;
 
+        LOGTRACE("getThunderControllerClient for callsign=[%s] CallerUniqueCallsign=[%s]", callsign.c_str(), callerUniqueCallsign.c_str());
         Core::SystemInfo::SetEnvironment(_T("THUNDER_ACCESS"), (_T(SERVER_DETAILS)));
-        std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> thunderClient = make_shared<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>>(callsign.c_str(), "", false, query);
+        std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> thunderClient = make_shared<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>>(callsign.c_str(), callerUniqueCallsign.c_str(), false, query);
 
         return thunderClient;
     }
