@@ -1,6 +1,8 @@
 #include <iostream>
 #include <string>
 #include <cstdlib>
+#include <thread>
+#include <chrono>
 
 #include <core/core.h>
 
@@ -84,6 +86,13 @@ static GatewayContext MakeContext(uint32_t requestId = 100, uint32_t connectionI
     ctx.connectionId = connectionId;
     ctx.appId = appId;
     return ctx;
+}
+
+static void DrainAsyncResponderJobs()
+{
+    // Respond/Emit/Request submit worker-pool jobs; give them a brief window
+    // to complete before responder/plugin teardown.
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
 } // namespace
@@ -179,6 +188,8 @@ uint32_t Test_Responder_Respond_Success_And_Unavailable()
             std::cerr << "NOTE: ResponderFake not available; skipping transport-disable validation." << std::endl;
         }
 
+        DrainAsyncResponderJobs();
+
         responder->Release();
     }
 
@@ -223,6 +234,8 @@ uint32_t Test_Responder_Emit_Success_And_Unavailable()
             std::cerr << "NOTE: ResponderFake not available; skipping transport-disable validation." << std::endl;
         }
 
+        DrainAsyncResponderJobs();
+
         responder->Release();
     }
 
@@ -265,6 +278,8 @@ uint32_t Test_Responder_Request_Success_And_Unavailable()
         } else {
             std::cerr << "NOTE: ResponderFake not available; skipping transport-disable validation." << std::endl;
         }
+
+        DrainAsyncResponderJobs();
 
         responder->Release();
     }

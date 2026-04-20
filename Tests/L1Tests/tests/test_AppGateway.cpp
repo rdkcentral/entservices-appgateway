@@ -24,6 +24,7 @@
 #include <condition_variable>
 #include <cstdio>
 #include <fstream>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -228,6 +229,14 @@ static Exchange::GatewayContext MakeTelemetryContext(uint32_t req, uint32_t conn
     ctx.connectionId = conn;
     ctx.appId = app;
     return ctx;
+}
+
+static TestAppGatewayResponderImplementation& StableAsyncResponder()
+{
+    // Intentionally process-lifetime to avoid teardown races between async
+    // worker-pool jobs and responder destruction in CI.
+    static auto* responder = new TestAppGatewayResponderImplementation();
+    return *responder;
 }
 
 } // namespace
@@ -870,21 +879,18 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_GetGatewayConnectio
 
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_RespondEmitAndRequest_ReturnNone)
 {
-    TestAppGatewayResponderImplementation responder;
+    auto& responder = StableAsyncResponder();
     const auto ctx = MakeTelemetryContext(9, 1001, "test.app");
 
     EXPECT_EQ(Core::ERROR_NONE, responder.Respond(ctx, R"({"ok":true})"));
     EXPECT_EQ(Core::ERROR_NONE, responder.Emit(ctx, "device.event", R"({"v":1})"));
     EXPECT_EQ(Core::ERROR_NONE, responder.Request(1001, 77, "method.name", "{}"));
-    // Respond/Emit/Request submit jobs to the worker-pool asynchronously.  Sleep
-    // while `responder` is still in scope so the jobs run before it is destroyed,
-    // preventing a use-after-free crash in the next test.
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_Emit_CompliantAndNonCompliantBothReturnNone)
 {
-    TestAppGatewayResponderImplementation responder;
+    auto& responder = StableAsyncResponder();
     const auto compliantFlag = AppGatewayResponderImplementation::CompliantJsonRpcRegistry::kCompliantJsonRpcFeatureFlag;
 
     responder.mCompliantJsonRpcRegistry.CheckAndAddCompliantJsonRpc(55, compliantFlag);
@@ -894,8 +900,7 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_Emit_CompliantAndNo
 
     EXPECT_EQ(Core::ERROR_NONE, responder.Emit(compliantCtx, "event.one", "{}"));
     EXPECT_EQ(Core::ERROR_NONE, responder.Emit(regularCtx, "event.two", "{}"));
-    // Drain async EmitJobs before responder goes out of scope (use-after-free guard).
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DispatchWsMsg_WithoutAppId_IncrementsFailed)
