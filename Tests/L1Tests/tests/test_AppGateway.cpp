@@ -231,11 +231,30 @@ static Exchange::GatewayContext MakeTelemetryContext(uint32_t req, uint32_t conn
     return ctx;
 }
 
+static NiceMock<ServiceMock>& StableAsyncResponderService()
+{
+    static auto* service = []() {
+        auto* s = new NiceMock<ServiceMock>();
+        EXPECT_CALL(*s, AddRef()).Times(::testing::AnyNumber());
+        EXPECT_CALL(*s, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(*s, ConfigLine()).Times(::testing::AnyNumber()).WillRepeatedly(Return("{\"connector\":\"127.0.0.1:0\"}"));
+        EXPECT_CALL(*s, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+        return s;
+    }();
+    return *service;
+}
+
 static TestAppGatewayResponderImplementation& StableAsyncResponder()
 {
     // Intentionally process-lifetime to avoid teardown races between async
     // worker-pool jobs and responder destruction in CI.
-    static auto* responder = new TestAppGatewayResponderImplementation();
+    static auto* responder = []() {
+        auto* r = new TestAppGatewayResponderImplementation();
+        auto& service = StableAsyncResponderService();
+        const auto rc = r->Configure(&service);
+        EXPECT_EQ(Core::ERROR_NONE, rc);
+        return r;
+    }();
     return *responder;
 }
 
@@ -885,7 +904,7 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_RespondEmitAndReque
     EXPECT_EQ(Core::ERROR_NONE, responder.Respond(ctx, R"({"ok":true})"));
     EXPECT_EQ(Core::ERROR_NONE, responder.Emit(ctx, "device.event", R"({"v":1})"));
     EXPECT_EQ(Core::ERROR_NONE, responder.Request(1001, 77, "method.name", "{}"));
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 }
 
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_Emit_CompliantAndNonCompliantBothReturnNone)
@@ -900,7 +919,7 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_Emit_CompliantAndNo
 
     EXPECT_EQ(Core::ERROR_NONE, responder.Emit(compliantCtx, "event.one", "{}"));
     EXPECT_EQ(Core::ERROR_NONE, responder.Emit(regularCtx, "event.two", "{}"));
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 }
 
 TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DispatchWsMsg_WithoutAppId_IncrementsFailed)
