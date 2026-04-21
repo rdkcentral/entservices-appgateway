@@ -110,10 +110,20 @@ private:
             _parent.OnSystemTimezoneChanged(params);
         }
 
+        void OnTerritoryChanged(const Exchange::ISystemServices::TerritoryChangedInfo& territoryChangedInfo) override
+        {
+            LOGINFO("[AppGatewayCommon|OnTerritoryChanged] newTerritory=%s", territoryChangedInfo.newTerritory.c_str());
+            WPEFramework::Core::JSON::VariantContainer params;
+            params[_T("oldTerritory")] = territoryChangedInfo.oldTerritory;
+            params[_T("newTerritory")] = territoryChangedInfo.newTerritory;
+            params[_T("oldRegion")] = territoryChangedInfo.oldRegion;
+            params[_T("newRegion")] = territoryChangedInfo.newRegion;
+            _parent.OnSystemTimezoneChanged(params);
+        }
+
         BEGIN_INTERFACE_MAP(SystemServicesNotification)
         INTERFACE_ENTRY(Exchange::ISystemServices::INotification)
         END_INTERFACE_MAP
-
     private:
         SystemDelegate& _parent;
     };
@@ -133,7 +143,6 @@ public:
         , _hdcpSubscribed(false)
         , _systemSubscribed(false)
         , _timezoneSubscribed(false)
-        , _countrySubscribed(false)
     {
             SetupFriendlyNameSystemSub();
             LOGINFO("SystemDelegate initialized");
@@ -158,9 +167,6 @@ public:
                 if (_registeredSystemEventHandlers) {
                     _systemServicesPlugin->Unregister(&_systemServicesNotification);
                     _registeredSystemEventHandlers = false;
-                }
-                if (_countrySubscribed) {
-                    _systemRpc->Unsubscribe(2000, _T("onTerritoryChanged"));
                 }
                 _systemServicesPlugin->Release();
                 _systemServicesPlugin = nullptr;
@@ -1181,17 +1187,11 @@ private:
     {
         if (isSystemRegistered()) return;
         try {
-            if (!_systemRpc) {
-                _systemRpc = ::Utils::getThunderControllerClient(SYSTEM_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
-            }
-            if (_systemRpc) {
-                const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
-                    SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("onFriendlyNameChanged"), &SystemDelegate::OnSystemFriendlyNameChanged, this);
             auto sysServices = AcquireSystemServices();
             if (sysServices) {
                 const uint32_t status = sysServices->Register(&_systemServicesNotification);
                 if (status == Core::ERROR_NONE) {
-                    LOGINFO("SystemDelegate: Registered ISystemServices notifications (FriendlyName + TimeZone)");
+                    LOGINFO("SystemDelegate: Registered ISystemServices notifications (FriendlyName + TimeZone + Country)");
                     markSystemRegistered();
                 } else {
                     LOGERR("SystemDelegate: Failed to register ISystemServices notifications rc=%u", status);
@@ -1204,48 +1204,14 @@ private:
 
     void SetupTimezoneSystemSub()
     {
-        if (isTimezoneSubscribed()) return;
-        try {
-            if (!_systemRpc) {
-                _systemRpc = ::Utils::getThunderControllerClient(SYSTEM_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
-            }
-            if (_systemRpc) {
-                const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
-                    2000, _T("onTimeZoneDSTChanged"), &SystemDelegate::OnSystemTimezoneChanged, this);
-                if (status == Core::ERROR_NONE) {
-                    LOGINFO("SystemDelegate: Subscribed to %s.onTimeZoneDSTChanged", SYSTEM_CALLSIGN);
-                    markTimezoneSubscribed();
-                } else {
-                    LOGERR("SystemDelegate: Failed to subscribe to %s.onTimeZoneDSTChanged rc=%u", SYSTEM_CALLSIGN, status);
-                }
-            }
-        } catch (...) {
-            LOGERR("SystemDelegate: exception during System subscription for timezone");
-        }
-        // Both FriendlyName and Timezone use the same ISystemServices registration
+        // Both FriendlyName,Timezone and Country use the same ISystemServices registration
         SetupFriendlyNameSystemSub();
     }
 
     void SetupCountrySystemSub()
     {
-        if (isCountrySubscribed()) return;
-        try {
-            if (!_systemRpc) {
-                _systemRpc = ::Utils::getThunderControllerClient(SYSTEM_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
-            }
-            if (_systemRpc) {
-                const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
-                    SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("onTerritoryChanged"), &SystemDelegate::OnSystemTerritoryChanged, this);
-                if (status == Core::ERROR_NONE) {
-                    LOGINFO("SystemDelegate: Subscribed to %s.onTerritoryChanged", SYSTEM_CALLSIGN);
-                    markCountrySubscribed();
-                } else {
-                    LOGERR("SystemDelegate: Failed to subscribe to %s.onTerritoryChanged rc=%u", SYSTEM_CALLSIGN, status);
-                }
-            }
-        } catch (...) {
-            LOGERR("SystemDelegate: exception during System subscription for territory");
-        }
+        // FriendlyName,Timezone and Country use the same ISystemServices registration
+        SetupFriendlyNameSystemSub();
     }
 
     // Event handlers invoked by Thunder JSON-RPC subscription
@@ -1363,17 +1329,6 @@ private:
         _registeredSystemEventHandlers = true;
     }
 
-    bool isCountrySubscribed() const
-    {
-        Core::SafeSyncType<Core::CriticalSection> lock(_countrySubscriptionLock);
-        return _countrySubscribed;
-    }
-
-    void markCountrySubscribed()
-    {
-        Core::SafeSyncType<Core::CriticalSection> lock(_countrySubscriptionLock);
-        _countrySubscribed = true;
-    }
 
 private:
     PluginHost::IShell *_shell;
@@ -1396,14 +1351,6 @@ private:
     mutable Core::CriticalSection _displayAudioSubscriptionLock;
     bool _hdcpSubscribed;
     mutable Core::CriticalSection _hdcpSubscriptionLock;
-    bool _systemSubscribed;
-    mutable Core::CriticalSection _systemSubscriptionLock;
-
-    bool _timezoneSubscribed;
-    mutable Core::CriticalSection _timezoneSubscriptionLock;
-
-    bool _countrySubscribed;
-    mutable Core::CriticalSection _countrySubscriptionLock;
     mutable Core::CriticalSection _systemRegistrationLock;
 };
 
