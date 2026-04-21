@@ -60,22 +60,23 @@ static void ExpectEqU32(TestResult& tr, const uint32_t actual, const uint32_t ex
     }
 }
 
-// RAII guard to Initialize/Deinitialize AppGatewayTelemetry singleton around a test
+// RAII guard to Initialize/Deinitialize AppGatewayTelemetry singleton around a test.
+// We explicitly AddRef before Initialize and Release after Deinitialize so the
+// ServiceMock stays alive for the full telemetry lifecycle, regardless of whether
+// the production code starts refcounting the IShell* in the future.
 struct TelemetryGuard {
     L0Test::ServiceMock* svc { nullptr };
 
     TelemetryGuard()
         : svc(new L0Test::ServiceMock({}, true))
     {
+        svc->AddRef();
         AppGatewayTelemetry::getInstance().Initialize(svc);
     }
 
     ~TelemetryGuard()
     {
         AppGatewayTelemetry::getInstance().Deinitialize();
-        // svc is self-delete (selfDelete=true), released when refcount hits zero.
-        // Initialize calls AddRef; Deinitialize does NOT call Release (sets nullptr).
-        // So we release the initial ref here.
         svc->Release();
         svc = nullptr;
     }

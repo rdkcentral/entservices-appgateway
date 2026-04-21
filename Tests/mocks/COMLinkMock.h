@@ -40,7 +40,7 @@ public:
     virtual ~COMLinkMock() = default;
 
     MOCK_METHOD(void, Register, (WPEFramework::RPC::IRemoteConnection::INotification*), (override));
-    MOCK_METHOD(void, Unregister, (const WPEFramework::RPC::IRemoteConnection::INotification*), (override));
+    MOCK_METHOD(void, Unregister, (WPEFramework::RPC::IRemoteConnection::INotification*), (override));
     MOCK_METHOD(void, Register, (INotification*), (override));
     MOCK_METHOD(void, Unregister, (INotification*), (override));
     MOCK_METHOD(WPEFramework::RPC::IRemoteConnection*, RemoteConnection, (const uint32_t), (override));

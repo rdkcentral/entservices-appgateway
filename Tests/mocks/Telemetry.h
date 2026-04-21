@@ -41,16 +41,36 @@ public:
 
 class TelemetryApi {
 protected:
-    static TelemetryApiImpl* impl;
+    static TelemetryApiImpl*& implRef() {
+        static TelemetryApiImpl* impl = nullptr;
+        return impl;
+    }
 public:
-    TelemetryApi();
+    TelemetryApi() = default;
     TelemetryApi(const TelemetryApi &obj) = delete;
-    static void setImpl(TelemetryApiImpl* newImpl);
-    static void t2_init(char* component);
-    static T2ERROR t2_event_s(char* marker, char* value);
+
+    static void setImpl(TelemetryApiImpl* newImpl) {
+        implRef() = newImpl;
+    }
+    static void t2_init(char* component) {
+        if (implRef() != nullptr) {
+            implRef()->t2_init(component);
+        }
+    }
+    static T2ERROR t2_event_s(char* marker, char* value) {
+        if (implRef() != nullptr) {
+            return implRef()->t2_event_s(marker, value);
+        }
+        return T2ERROR_SUCCESS;
+    }
 };
 
-extern void (*t2_init)(char*);
-extern  T2ERROR (*t2_event_s)(char*,char*);
+inline void t2_init(char* component) {
+    TelemetryApi::t2_init(component);
+}
+
+inline T2ERROR t2_event_s(char* marker, char* value) {
+    return TelemetryApi::t2_event_s(marker, value);
+}
 
 

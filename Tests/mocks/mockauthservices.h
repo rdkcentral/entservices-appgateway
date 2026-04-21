@@ -23,6 +23,7 @@
 #include <gmock/gmock.h>
 
 #include "Module.h"
+#include <interfaces/IAuthService.h>
 
 class MockAuthService : public WPEFramework::Exchange::IAuthService {
 public:
@@ -77,8 +78,8 @@ public:
 
 class MockIAuthenticate : public WPEFramework::PluginHost::IAuthenticate {
 public:
-    MOCK_METHOD(void*, QueryInterfaceByCallsign, (const uint32_t, const string&));
-    MOCK_METHOD(uint32_t, CreateToken, (uint16_t, const uint8_t*, std::string&));
+    MOCK_METHOD(void*, QueryInterfaceByCallsign, (const uint32_t, const string&), (override));
+    MOCK_METHOD(uint32_t, CreateToken, (uint16_t, const uint8_t*, std::string&), (override));
     MOCK_METHOD(uint32_t, Release, (), (const, override));
     MOCK_METHOD(void*, QueryInterface, (uint32_t), (override));
     MOCK_METHOD(void, AddRef, (), (const, override));

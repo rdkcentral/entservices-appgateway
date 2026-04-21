@@ -154,6 +154,16 @@ private:
     mutable std::atomic<uint32_t> _refCount;
 };
 
+// Build a temp-directory-based path for test-generated override JSON files.
+// Avoids dirtying the working tree and prevents collisions in parallel runs.
+static std::string TempOverridePath(const std::string& filename)
+{
+    std::string dir = std::string(std::getenv("TMPDIR") ? std::getenv("TMPDIR") : "/tmp")
+                      + "/appgw_l0test_overrides";
+    EnsureDir(dir);
+    return dir + "/" + filename;
+}
+
 static std::string ComputeRepoRoot()
 {
     const char* envRepoRoot = std::getenv("APPGATEWAY_TEST_REPO_ROOT");
@@ -404,7 +414,7 @@ uint32_t Test_AppGatewayImplementation_IncludeContext_Path_Executes()
      */
     TestResult tr;
 
-    const std::string overridePath = ComputeRepoRoot() + "/Tests/L0Tests/l0test/config/include_context.override.json";
+    const std::string overridePath = TempOverridePath("include_context.override.json");
     const std::string overrideJson = R"JSON(
 {
   "resolutions": {
@@ -444,6 +454,7 @@ uint32_t Test_AppGatewayImplementation_IncludeContext_Path_Executes()
         service->Release();
     }
 
+    ::unlink(overridePath.c_str());
     return tr.failures;
 }
 
@@ -569,7 +580,7 @@ uint32_t Test_AppGatewayImplementation_ComRpc_HandleRequestFails()
 
     EnvVarGuard guard("APPGATEWAY_L0_DISABLE_COMRPC", "0"); // ensure COM-RPC path is enabled
 
-    const std::string overridePath = ComputeRepoRoot() + "/Tests/L0Tests/l0test/config/comrpc_handle_fail.override.json";
+    const std::string overridePath = TempOverridePath("comrpc_handle_fail.override.json");
     const std::string overrideJson = R"JSON(
 {
   "resolutions": {
@@ -620,6 +631,7 @@ uint32_t Test_AppGatewayImplementation_ComRpc_HandleRequestFails()
         service->Release();
     }
 
+    ::unlink(overridePath.c_str());
     return tr.failures;
 }
 
@@ -634,7 +646,7 @@ uint32_t Test_AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAdditionalC
 
     EnvVarGuard guard("APPGATEWAY_L0_DISABLE_COMRPC", "0"); // enable COM-RPC path inside implementation
 
-    const std::string overridePath = ComputeRepoRoot() + "/Tests/L0Tests/l0test/config/comrpc_with_context.override.json";
+    const std::string overridePath = TempOverridePath("comrpc_with_context.override.json");
     const std::string overrideJson = R"JSON(
 {
   "resolutions": {
@@ -682,6 +694,7 @@ uint32_t Test_AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAdditionalC
         service->Release();
     }
 
+    ::unlink(overridePath.c_str());
     return tr.failures;
 }
 
@@ -733,7 +746,7 @@ uint32_t Test_AppGatewayImplementation_UpdateContext_NonJsonParams()
      */
     TestResult tr;
 
-    const std::string overridePath = ComputeRepoRoot() + "/Tests/L0Tests/l0test/config/non_json_params.override.json";
+    const std::string overridePath = TempOverridePath("non_json_params.override.json");
     const std::string overrideJson = R"JSON(
 {
   "resolutions": {
@@ -776,6 +789,7 @@ uint32_t Test_AppGatewayImplementation_UpdateContext_NonJsonParams()
         service->Release();
     }
 
+    ::unlink(overridePath.c_str());
     return tr.failures;
 }
 
@@ -790,7 +804,7 @@ uint32_t Test_AppGatewayImplementation_ComRpc_AdditionalContext_NotObject()
 
     EnvVarGuard guard("APPGATEWAY_L0_DISABLE_COMRPC", "0");
 
-    const std::string overridePath = ComputeRepoRoot() + "/Tests/L0Tests/l0test/config/comrpc_nonobj_ctx.override.json";
+    const std::string overridePath = TempOverridePath("comrpc_nonobj_ctx.override.json");
     // "additionalContext" is a plain string, not a JSON object
     const std::string overrideJson = R"JSON(
 {
@@ -836,6 +850,7 @@ uint32_t Test_AppGatewayImplementation_ComRpc_AdditionalContext_NotObject()
         service->Release();
     }
 
+    ::unlink(overridePath.c_str());
     return tr.failures;
 }
 
@@ -938,6 +953,19 @@ uint32_t Test_AppGatewayImplementation_RegionalConfig()
 
     const std::string etcResPath = "/etc/app-gateway/resolutions.json";
 
+    // Back up any pre-existing file so we don't clobber production configuration
+    std::string originalContent;
+    bool hadOriginal = false;
+    {
+        std::ifstream existing(etcResPath);
+        if (existing.is_open()) {
+            originalContent.assign(
+                (std::istreambuf_iterator<char>(existing)),
+                 std::istreambuf_iterator<char>());
+            hadOriginal = true;
+        }
+    }
+
     // Build regional config JSON that points to the actual test base-resolutions file
     const std::string baseResPath = BaseResolutionsPath();
     const std::string regionalJson =
@@ -984,8 +1012,12 @@ uint32_t Test_AppGatewayImplementation_RegionalConfig()
         service->Release();
     }
 
-    // Clean up the test file to avoid polluting the environment
-    ::unlink(etcResPath.c_str());
+    // Restore original file or remove the test-generated one
+    if (hadOriginal) {
+        WriteTextFile(etcResPath, originalContent);
+    } else {
+        ::unlink(etcResPath.c_str());
+    }
 
     return tr.failures;
 }

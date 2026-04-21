@@ -20,6 +20,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>
@@ -206,16 +207,24 @@ private:
 
 static std::string WriteResolverTempConfig(const std::string& fileName, const std::string& content)
 {
-    const std::string path = std::string("/tmp/") + fileName;
+    static std::atomic<uint32_t> seq{0};
+    const std::string path = std::string("/tmp/agw_l1_") + std::to_string(::getpid())
+                             + "_" + std::to_string(seq.fetch_add(1)) + "_" + fileName;
     std::ofstream out(path);
+    if (!out.is_open()) {
+        return {};
+    }
     out << content;
+    if (!out.good()) {
+        return {};
+    }
     out.close();
     return path;
 }
 
 static Exchange::GatewayContext MakeImplementationContext()
 {
-    Exchange::GatewayContext ctx;
+    Exchange::GatewayContext ctx{};
     ctx.requestId = 1;
     ctx.connectionId = 2;
     ctx.appId = "test.app";
@@ -224,7 +233,7 @@ static Exchange::GatewayContext MakeImplementationContext()
 
 static Exchange::GatewayContext MakeTelemetryContext(uint32_t req, uint32_t conn, const std::string& app)
 {
-    Exchange::GatewayContext ctx;
+    Exchange::GatewayContext ctx{};
     ctx.requestId = req;
     ctx.connectionId = conn;
     ctx.appId = app;
@@ -233,30 +242,33 @@ static Exchange::GatewayContext MakeTelemetryContext(uint32_t req, uint32_t conn
 
 static NiceMock<ServiceMock>& StableAsyncResponderService()
 {
-    static auto* service = []() {
-        auto* s = new NiceMock<ServiceMock>();
-        testing::Mock::AllowLeak(s);
-        EXPECT_CALL(*s, AddRef()).Times(::testing::AnyNumber());
-        EXPECT_CALL(*s, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-        EXPECT_CALL(*s, ConfigLine()).Times(::testing::AnyNumber()).WillRepeatedly(Return("{\"connector\":\"127.0.0.1:0\"}"));
-        EXPECT_CALL(*s, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
-        return s;
+    static NiceMock<ServiceMock> service;
+    static bool initialized = []() {
+        EXPECT_CALL(service, AddRef()).Times(::testing::AnyNumber());
+        EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(service, ConfigLine()).Times(::testing::AnyNumber()).WillRepeatedly(Return("{\"connector\":\"127.0.0.1:0\"}"));
+        EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+        return true;
     }();
-    return *service;
+    (void)initialized;
+    return service;
 }
 
 static TestAppGatewayResponderImplementation& StableAsyncResponder()
 {
-    // Intentionally process-lifetime to avoid teardown races between async
+    // Process-lifetime static to avoid teardown races between async
     // worker-pool jobs and responder destruction in CI.
-    static auto* responder = []() {
-        auto* r = new TestAppGatewayResponderImplementation();
+    // Using function-static objects ensures proper cleanup at exit
+    // without showing up as leaks in valgrind.
+    static TestAppGatewayResponderImplementation responder;
+    static bool initialized = []() {
         auto& service = StableAsyncResponderService();
-        const auto rc = r->Configure(&service);
+        const auto rc = responder.Configure(&service);
         EXPECT_EQ(Core::ERROR_NONE, rc);
-        return r;
+        return true;
     }();
-    return *responder;
+    (void)initialized;
+    return responder;
 }
 
 } // namespace
@@ -290,19 +302,11 @@ TEST(AppGatewayPluginTest, AppGateway_InitializeFailsWhenRemoteRootsUnavailable)
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
 
     const string result = plugin.Initialize(&service);
-    // Current implementation can continue initialization with internal fallbacks.
-    EXPECT_TRUE(result.empty() || (result.find("Could not retrieve the AppGateway interface") != std::string::npos));
+    // Root<>() returns nullptr with this mock setup, so Initialize must report the error.
+    EXPECT_FALSE(result.empty());
+    EXPECT_NE(std::string::npos, result.find("Could not retrieve the AppGateway interface"));
 
     plugin.Deinitialize(&service);
-}
-
-TEST(AppGatewayPluginTest, AppGateway_ReusedThunderMocks_AreAvailableForFutureBranchTests)
-{
-    NiceMock<COMLinkMock> comlink;
-    NiceMock<DispatcherMock> dispatcher;
-
-    EXPECT_NE(static_cast<COMLinkMock*>(nullptr), &comlink);
-    EXPECT_NE(static_cast<DispatcherMock*>(nullptr), &dispatcher);
 }
 
 // -----------------------------------------------------------------------------
@@ -595,7 +599,24 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_ConfigureWithNullIterator_Re
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_ResolveWithoutResolver_ReturnsGeneral)
 {
-    GTEST_SKIP() << "Disabled due to intermittent segfault in Resolve() path under CI runtime; covered by higher-level plugin initialization tests.";
+    // Exercise FetchResolvedData early-exit when mResolverPtr is null.
+    // Call FetchResolvedData directly to avoid the async RespondJob submission
+    // in InternalResolve, which caused the original segfault on destruction.
+    NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
+    impl.mService = &service;
+    // mResolverPtr is null by default — do NOT set it.
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    const auto ctx = MakeImplementationContext();
+    std::string resolution;
+
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              impl.FetchResolvedData(ctx, "device.name", "{}", "org.rdk.AppGateway", resolution));
+    EXPECT_FALSE(resolution.empty());
+
+    impl.mService = nullptr;
 }
 
 TEST(AppGatewayPluginTest, AppGatewayImplementation_InternalResolutionConfigure_ReturnsGeneralWhenAllPathsInvalid)
