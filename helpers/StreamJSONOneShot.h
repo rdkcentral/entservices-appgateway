@@ -14,9 +14,12 @@
 #include <cstdio>
 #include <ctime>
 
-// Enable payload logging for debugging large JSON/MessagePack deserialization
-// Set to 1 to enable, 0 to disable. When disabled, no file I/O overhead is incurred.
-#define ENABLE_PAYLOAD_LOGGING 1
+// Enable payload logging for debugging large JSON/MessagePack deserialization.
+// Disabled by default to avoid unexpected raw payload dumps and file I/O overhead
+// in production builds. Define ENABLE_PAYLOAD_LOGGING=1 at build time to enable.
+#ifndef ENABLE_PAYLOAD_LOGGING
+#define ENABLE_PAYLOAD_LOGGING 0
+#endif
 
 namespace WPEFramework {
 namespace Core {
@@ -63,7 +66,7 @@ namespace Core {
                 if (_sendQueue.Count() > 0) {
                     loaded = Serialize(_sendQueue[0], stream, length);
                     // If fully sent or we're not in a partial-send state, notify and pop
-                    if ((_offset == 0) || (loaded != length)) {
+                    if ((0 == _offset) || (length != loaded)) {
                         Core::ProxyType<INTERFACE> current = _sendQueue[0];
                         _parent.Send(current);
                         _sendQueue.Remove(0);
@@ -129,29 +132,41 @@ namespace Core {
                 Core::ProxyType<INTERFACE> deliver;
 
 #if ENABLE_PAYLOAD_LOGGING
-                // Log incoming payload for debugging large 150KB+ JSON/MessagePack frames
+                // Log incoming payload for debugging large 150KB+ JSON/MessagePack frames.
+                // Protected against concurrent Deserialize() calls with once_flag init and mutex writes.
+                static std::once_flag payloadFileInitFlag;
+                static std::mutex payloadLogMutex;
                 static FILE* payloadFile = nullptr;
-                if (payloadFile == nullptr) {
+
+                std::call_once(payloadFileInitFlag, []() {
                     payloadFile = fopen("/tmp/appgateway_payload.log", "a");
-                    if (payloadFile) {
+                    if (nullptr != payloadFile) {
                         fprintf(payloadFile, "\n===== StreamJSONOneShot::Deserialize Logging Initialized =====\n");
                         fflush(payloadFile);
                     }
-                }
-                
-                if (payloadFile != nullptr && length > 0) {
+                });
+
+                if ((nullptr != payloadFile) && (0 < length)) {
+                    uint32_t currentOffset = 0;
+                    bool isParsing = false;
+                    {
+                        std::lock_guard<std::mutex> logStateLock(_mutex);
+                        currentOffset = _offset;
+                        isParsing = _current.IsValid();
+                    }
+                    std::lock_guard<std::mutex> payloadLogLock(payloadLogMutex);
                     time_t now = std::time(nullptr);
                     fprintf(payloadFile, "\n========== INCOMING PAYLOAD (Frame #%u bytes) ==========\n", length);
                     fprintf(payloadFile, "Timestamp: %ld\n", now);
-                    fprintf(payloadFile, "Current Offset: %u\n", _offset);
-                    fprintf(payloadFile, "Is Parsing: %s\n", (_current.IsValid() ? "YES" : "NO"));
+                    fprintf(payloadFile, "Current Offset: %u\n", currentOffset);
+                    fprintf(payloadFile, "Is Parsing: %s\n", (true == isParsing) ? "YES" : "NO");
                     fprintf(payloadFile, "------- PAYLOAD DATA (First 1000 bytes) -------\n");
-                    
+
                     // Write first 1000 bytes or entire payload if smaller
-                    uint16_t bytesToLog = (length > 1000) ? 1000 : length;
+                    uint16_t bytesToLog = (1000 < length) ? 1000 : length;
                     fwrite(stream, 1, bytesToLog, payloadFile);
-                    
-                    if (length > 1000) {
+
+                    if (1000 < length) {
                         fprintf(payloadFile, "\n... (truncated, total %u bytes) ...\n", length);
                     }
                     fprintf(payloadFile, "\n------- END PAYLOAD -------\n");
@@ -191,7 +206,8 @@ namespace Core {
                 } // lock_guard automatically releases mutex
 
 #if ENABLE_PAYLOAD_LOGGING
-                if (deliver.IsValid() && payloadFile != nullptr) {
+                if (deliver.IsValid() && (nullptr != payloadFile)) {
+                    std::lock_guard<std::mutex> payloadLogLock(payloadLogMutex);
                     fprintf(payloadFile, "[DELIVERY] Complete message parsed and delivering to parent handler\n");
                     fflush(payloadFile);
                 }
