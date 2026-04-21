@@ -517,7 +517,3 @@ uint32_t Test_HandleRequest_PresentationFocused_CaseInsensitive()
     return tr.failures;
 }
 
-// NOTE: The AppDelegate.h change renames response key "limit" → "lmt" for
-// advertising.advertisingid.  This path is unreachable in L0 because
-// SharedStorage (COM-RPC) is unavailable; the response JSON is never built.
-// Coverage of the "lmt" key rename requires an L1 test with a SharedStorage mock.
