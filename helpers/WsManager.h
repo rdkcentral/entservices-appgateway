@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <mutex>
 #include <memory>
 #include <plugins/plugins.h>
@@ -126,8 +127,17 @@ public:
             
             uint32_t connectionId = _id;
 
-            // Triage log: track each incoming frame for payload corruption / buffer-overflow analysis.
-            LOGTRACE("ConnectionID: %u - JSON object received, valid: %s", connectionId, (jsonObject.IsValid() ? "YES" : "NO"));
+            // Triage log: emit the full payload as a single line for corruption / buffer-overflow analysis.
+            // Newlines inside the serialized JSON are replaced with spaces so the entry never wraps.
+            if (jsonObject.IsValid()) {
+                std::string jsonStr;
+                jsonObject->ToString(jsonStr);
+                std::replace(jsonStr.begin(), jsonStr.end(), '\n', ' ');
+                std::replace(jsonStr.begin(), jsonStr.end(), '\r', ' ');
+                LOGTRACE("ConnectionID: %u bytes: %zu payload: %s", connectionId, jsonStr.size(), jsonStr.c_str());
+            } else {
+                LOGTRACE("ConnectionID: %u - JSON object received, valid: NO", connectionId);
+            }
 
             if (false == jsonObject.IsValid())
             {
