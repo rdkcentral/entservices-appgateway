@@ -13,6 +13,9 @@
 #include <mutex>
 #include <cstdio>
 #include <ctime>
+#include <algorithm>
+#include <string>
+#include "UtilsLogging.h"
 
 // Enable payload logging for debugging large JSON/MessagePack deserialization.
 // Disabled by default to avoid unexpected raw payload dumps and file I/O overhead
@@ -130,6 +133,17 @@ namespace Core {
             uint16_t Deserialize(const uint8_t* stream, const uint16_t length) {
                 uint16_t loaded = 0;
                 Core::ProxyType<INTERFACE> deliver;
+
+                // Log the raw incoming bytes unconditionally — before any JSON/MessagePack parsing
+                // so that corrupted or partial frames are always visible in the log.
+                // Embedded newlines and carriage returns are replaced with spaces to keep the
+                // entire payload on a single log line regardless of payload size.
+                if (0 < length) {
+                    std::string rawStr(reinterpret_cast<const char*>(stream), length);
+                    std::replace(rawStr.begin(), rawStr.end(), '\n', ' ');
+                    std::replace(rawStr.begin(), rawStr.end(), '\r', ' ');
+                    LOGINFO("Raw frame bytes: %u data: %s", length, rawStr.c_str());
+                }
 
 #if ENABLE_PAYLOAD_LOGGING
                 // Log incoming payload for debugging large 150KB+ JSON/MessagePack frames.

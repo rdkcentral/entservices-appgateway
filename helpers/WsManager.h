@@ -127,16 +127,15 @@ public:
             
             uint32_t connectionId = _id;
 
-            // Triage log: emit the full payload as a single line for corruption / buffer-overflow analysis.
-            // Newlines inside the serialized JSON are replaced with spaces so the entry never wraps.
-            if (jsonObject.IsValid()) {
+            // Log the fully-parsed JSON object as a single line.
+            // Note: corrupted payloads are logged earlier in StreamJSONOneShot::Deserialize()
+            // before parsing, so raw-byte triage does not rely on this log.
+            {
                 std::string jsonStr;
                 jsonObject->ToString(jsonStr);
                 std::replace(jsonStr.begin(), jsonStr.end(), '\n', ' ');
                 std::replace(jsonStr.begin(), jsonStr.end(), '\r', ' ');
                 LOGTRACE("ConnectionID: %u bytes: %zu payload: %s", connectionId, jsonStr.size(), jsonStr.c_str());
-            } else {
-                LOGTRACE("ConnectionID: %u - JSON object received, valid: NO", connectionId);
             }
 
             if (false == jsonObject.IsValid())
