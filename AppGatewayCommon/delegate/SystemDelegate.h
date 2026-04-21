@@ -118,7 +118,7 @@ private:
             params[_T("newTerritory")] = territoryChangedInfo.newTerritory;
             params[_T("oldRegion")] = territoryChangedInfo.oldRegion;
             params[_T("newRegion")] = territoryChangedInfo.newRegion;
-            _parent.OnSystemTimezoneChanged(params);
+            _parent.OnSystemTerritoryChanged(params);
         }
 
         BEGIN_INTERFACE_MAP(SystemServicesNotification)
