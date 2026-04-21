@@ -144,7 +144,7 @@ public:
         , _systemSubscribed(false)
         , _timezoneSubscribed(false)
     {
-            SetupFriendlyNameSystemSub();
+            SetupSystemSub();
             LOGINFO("SystemDelegate initialized");
     }
 
@@ -992,11 +992,11 @@ public:
         } else if (evLower == "device.onaudiochanged") {
             SetupDisplaySettingsAudioSubscription();
         } else if (evLower == "device.ondevicenamechanged" || evLower == "device.onnamechanged") {
-            SetupFriendlyNameSystemSub();
+            SetupSystemSub();
         } else if (evLower == "localization.ontimezonechanged") {
-            SetupTimezoneSystemSub();
+            SetupSystemSub();
         } else if (evLower == "localization.oncountrychanged") {
-            SetupCountrySystemSub();
+            SetupSystemSub();
         } else {
             registrationError = true; // event not recognized - signal error to caller
             return false;
@@ -1183,7 +1183,7 @@ private:
         }
     }
 
-    void SetupFriendlyNameSystemSub()
+    void SetupSystemSub()
     {
         if (isSystemRegistered()) return;
         try {
@@ -1200,18 +1200,6 @@ private:
         } catch (...) {
             LOGERR("SystemDelegate: exception during ISystemServices registration");
         }
-    }
-
-    void SetupTimezoneSystemSub()
-    {
-        // Both FriendlyName,Timezone and Country use the same ISystemServices registration
-        SetupFriendlyNameSystemSub();
-    }
-
-    void SetupCountrySystemSub()
-    {
-        // FriendlyName,Timezone and Country use the same ISystemServices registration
-        SetupFriendlyNameSystemSub();
     }
 
     // Event handlers invoked by Thunder JSON-RPC subscription
