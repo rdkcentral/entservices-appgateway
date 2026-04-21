@@ -11,6 +11,12 @@
 #include <core/core.h>
 #include <plugins/plugins.h>
 #include <mutex>
+#include <cstdio>
+#include <ctime>
+
+// Enable payload logging for debugging large JSON/MessagePack deserialization
+// Set to 1 to enable, 0 to disable. When disabled, no file I/O overhead is incurred.
+#define ENABLE_PAYLOAD_LOGGING 1
 
 namespace WPEFramework {
 namespace Core {
@@ -122,6 +128,38 @@ namespace Core {
                 uint16_t loaded = 0;
                 Core::ProxyType<INTERFACE> deliver;
 
+#if ENABLE_PAYLOAD_LOGGING
+                // Log incoming payload for debugging large 150KB+ JSON/MessagePack frames
+                static FILE* payloadFile = nullptr;
+                if (payloadFile == nullptr) {
+                    payloadFile = fopen("/tmp/appgateway_payload.log", "a");
+                    if (payloadFile) {
+                        fprintf(payloadFile, "\n===== StreamJSONOneShot::Deserialize Logging Initialized =====\n");
+                        fflush(payloadFile);
+                    }
+                }
+                
+                if (payloadFile != nullptr && length > 0) {
+                    time_t now = std::time(nullptr);
+                    fprintf(payloadFile, "\n========== INCOMING PAYLOAD (Frame #%u bytes) ==========\n", length);
+                    fprintf(payloadFile, "Timestamp: %ld\n", now);
+                    fprintf(payloadFile, "Current Offset: %u\n", _offset);
+                    fprintf(payloadFile, "Is Parsing: %s\n", (_current.IsValid() ? "YES" : "NO"));
+                    fprintf(payloadFile, "------- PAYLOAD DATA (First 1000 bytes) -------\n");
+                    
+                    // Write first 1000 bytes or entire payload if smaller
+                    uint16_t bytesToLog = (length > 1000) ? 1000 : length;
+                    fwrite(stream, 1, bytesToLog, payloadFile);
+                    
+                    if (length > 1000) {
+                        fprintf(payloadFile, "\n... (truncated, total %u bytes) ...\n", length);
+                    }
+                    fprintf(payloadFile, "\n------- END PAYLOAD -------\n");
+                    fprintf(payloadFile, "==============================================\n");
+                    fflush(payloadFile);
+                }
+#endif
+
                 // RAII-based mutex synchronization prevents race conditions when
                 // multiple TCP frames arrive for large payloads across concurrent callbacks.
                 {
@@ -151,6 +189,13 @@ namespace Core {
                         }
                     }
                 } // lock_guard automatically releases mutex
+
+#if ENABLE_PAYLOAD_LOGGING
+                if (deliver.IsValid() && payloadFile != nullptr) {
+                    fprintf(payloadFile, "[DELIVERY] Complete message parsed and delivering to parent handler\n");
+                    fflush(payloadFile);
+                }
+#endif
 
                 if (deliver.IsValid()) {
                     _parent.Received(deliver);

@@ -22,6 +22,8 @@
 #include <mutex>
 #include <memory>
 #include <plugins/plugins.h>
+#include <cstdio>
+#include <ctime>
 #include "UtilsLogging.h"
 #include "WebSocketLink.h"
 
@@ -125,6 +127,23 @@ public:
         void Received(Core::ProxyType<Core::JSON::IElement> &jsonObject){
             
             uint32_t connectionId = _id;
+
+            // Log reception at WebSocket server level for connection tracking
+            static FILE* wsLogFile = nullptr;
+            if (wsLogFile == nullptr) {
+                wsLogFile = fopen("/tmp/appgateway_websocket.log", "a");
+                if (wsLogFile) {
+                    fprintf(wsLogFile, "===== WebSocketServer::Received Logging Initialized =====\n");
+                    fflush(wsLogFile);
+                }
+            }
+            
+            if (wsLogFile != nullptr) {
+                time_t now = std::time(nullptr);
+                fprintf(wsLogFile, "\n[%ld] ConnectionID: %u - JSON object received\n", now, connectionId);
+                fprintf(wsLogFile, "Valid: %s\n", (jsonObject.IsValid() ? "YES" : "NO"));
+                fflush(wsLogFile);
+            }
 
             if (jsonObject.IsValid() == false)
             {
