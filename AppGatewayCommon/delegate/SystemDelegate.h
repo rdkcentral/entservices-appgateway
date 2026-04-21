@@ -141,8 +141,6 @@ public:
         , _displaySubscribed(false)
         , _displayAudioSubscribed(false)
         , _hdcpSubscribed(false)
-        , _systemSubscribed(false)
-        , _timezoneSubscribed(false)
     {
             SetupSystemSub();
             LOGINFO("SystemDelegate initialized");
