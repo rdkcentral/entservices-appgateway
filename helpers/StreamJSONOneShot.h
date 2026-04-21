@@ -159,7 +159,7 @@ namespace Core {
                     fprintf(payloadFile, "\n========== INCOMING PAYLOAD (Frame #%u bytes) ==========\n", length);
                     fprintf(payloadFile, "Timestamp: %ld\n", now);
                     fprintf(payloadFile, "Current Offset: %u\n", currentOffset);
-                    fprintf(payloadFile, "Is Parsing: %s\n", (true == isParsing) ? "YES" : "NO");
+                    fprintf(payloadFile, "Is Parsing: %s\n", isParsing ? "YES" : "NO");
                     fprintf(payloadFile, "------- PAYLOAD DATA (First 1000 bytes) -------\n");
 
                     // Write first 1000 bytes or entire payload if smaller
