@@ -101,6 +101,11 @@ extern uint32_t Test_HandleRequest_SetPrefAudioLangs_Invalid();
 extern uint32_t Test_HandleRequest_SetPrefAudioLangs_ValidString();
 extern uint32_t Test_HandleRequest_SetPrefAudioLangs_ValidArray();
 
+// AppGatewayCommon_routing_test.cpp (presentation.focused — AGC_L0_098–AGC_L0_100)
+extern uint32_t Test_HandleRequest_PresentationFocused_Routed();
+extern uint32_t Test_HandleRequest_PresentationFocused_ResultIsBooleanString();
+extern uint32_t Test_HandleRequest_PresentationFocused_CaseInsensitive();
+
 // AppGatewayCommon_events_test.cpp
 extern uint32_t Test_CheckPermissionGroup_DefaultAllowed();
 extern uint32_t Test_Authenticate_DelegateUnavailable();
@@ -186,6 +191,10 @@ int main()
         { "HandleRequest_AdvertisingId",                  Test_HandleRequest_AdvertisingId },
         { "HandleRequest_DeviceUid",                      Test_HandleRequest_DeviceUid },
         { "HandleRequest_NetworkConnected",               Test_HandleRequest_NetworkConnected },
+        // --- presentation.focused tests (AGC_L0_098–AGC_L0_100) ---
+        { "HandleRequest_PresentationFocused_Routed",             Test_HandleRequest_PresentationFocused_Routed },
+        { "HandleRequest_PresentationFocused_ResultIsBooleanStr", Test_HandleRequest_PresentationFocused_ResultIsBooleanString },
+        { "HandleRequest_PresentationFocused_CaseInsensitive",    Test_HandleRequest_PresentationFocused_CaseInsensitive },
         // --- Setters tests (AGC_L0_057–AGC_L0_085) ---
         { "HandleRequest_SetterInvalidPayload",           Test_HandleRequest_SetterInvalidPayload },
         { "HandleRequest_SetterValidPayload_DelegateUnavailable", Test_HandleRequest_SetterValidPayload_DelegateUnavailable },

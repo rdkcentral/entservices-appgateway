@@ -243,6 +243,13 @@ class LifecycleDelegate : public BaseEventDelegate
         return Core::ERROR_NONE;
     }
 
+    Core::hresult GetPresentationFocused(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        // get appInstance Id from context.appId
+        string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(context.appId);
+        result = mFocusedAppRegistry.IsAppInstanceIdFocused(appInstanceId) ? "true" : "false";
+        return Core::ERROR_NONE;
+    }
+
     private:
     class LifecycleNotificationHandler : public Exchange::ILifecycleManagerState::INotification
     {
