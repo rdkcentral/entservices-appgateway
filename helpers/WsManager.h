@@ -126,6 +126,9 @@ public:
             
             uint32_t connectionId = _id;
 
+            // Triage log: track each incoming frame for payload corruption / buffer-overflow analysis.
+            LOGTRACE("ConnectionID: %u - JSON object received, valid: %s", connectionId, (jsonObject.IsValid() ? "YES" : "NO"));
+
             if (false == jsonObject.IsValid())
             {
                 LOGERR("WebSocketServer: Invalid JSON object received");
