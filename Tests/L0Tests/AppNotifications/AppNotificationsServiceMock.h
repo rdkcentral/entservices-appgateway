@@ -568,7 +568,7 @@ public:
 
     // ICOMLink
     void Register(WPEFramework::RPC::IRemoteConnection::INotification* /*sink*/) override {}
-    void Unregister(WPEFramework::RPC::IRemoteConnection::INotification* /*sink*/) override {}
+    void Unregister(const WPEFramework::RPC::IRemoteConnection::INotification* /*sink*/) override {}
     void Register(WPEFramework::PluginHost::IShell::ICOMLink::INotification* /*sink*/) override {}
     void Unregister(WPEFramework::PluginHost::IShell::ICOMLink::INotification* /*sink*/) override {}
 
