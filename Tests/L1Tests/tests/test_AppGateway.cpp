@@ -292,9 +292,9 @@ TEST(AppGatewayPluginTest, AppGateway_ConstructAndDestroy_NoCrash)
 
 TEST(AppGatewayPluginTest, AppGateway_InitializeFailsWhenRemoteRootsUnavailable)
 {
-    TestAppGateway plugin;
     NiceMock<ServiceMock> service;
     NiceMock<COMLinkMock> comlink;
+    TestAppGateway plugin;
 
     EXPECT_CALL(service, AddRef()).Times(::testing::AnyNumber());
     EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
