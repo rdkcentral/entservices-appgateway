@@ -240,35 +240,28 @@ static Exchange::GatewayContext MakeTelemetryContext(uint32_t req, uint32_t conn
     return ctx;
 }
 
-static NiceMock<ServiceMock>& StableAsyncResponderService()
-{
-    static NiceMock<ServiceMock> service;
-    static bool initialized = []() {
-        EXPECT_CALL(service, AddRef()).Times(::testing::AnyNumber());
-        EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-        EXPECT_CALL(service, ConfigLine()).Times(::testing::AnyNumber()).WillRepeatedly(Return("{\"connector\":\"127.0.0.1:0\"}"));
-        EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
-        return true;
-    }();
-    (void)initialized;
-    return service;
-}
-
 static TestAppGatewayResponderImplementation& StableAsyncResponder()
 {
-    // Process-lifetime static to avoid teardown races between async
-    // worker-pool jobs and responder destruction in CI.
-    // Using function-static objects ensures proper cleanup at exit
-    // without showing up as leaks in valgrind.
-    static TestAppGatewayResponderImplementation responder;
-    static bool initialized = []() {
-        auto& service = StableAsyncResponderService();
-        const auto rc = responder.Configure(&service);
-        EXPECT_EQ(Core::ERROR_NONE, rc);
-        return true;
-    }();
-    (void)initialized;
-    return responder;
+    // Keep service and responder in one holder so destruction order is stable:
+    // responder is destroyed before service, preventing mService dangling access.
+    struct StableResponderHolder {
+        NiceMock<ServiceMock> service;
+        TestAppGatewayResponderImplementation responder;
+
+        StableResponderHolder()
+        {
+            EXPECT_CALL(service, AddRef()).Times(::testing::AnyNumber());
+            EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+            EXPECT_CALL(service, ConfigLine()).Times(::testing::AnyNumber()).WillRepeatedly(Return("{\"connector\":\"127.0.0.1:0\"}"));
+            EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+            const auto rc = responder.Configure(&service);
+            EXPECT_EQ(Core::ERROR_NONE, rc);
+        }
+    };
+
+    static StableResponderHolder holder;
+    return holder.responder;
 }
 
 } // namespace
