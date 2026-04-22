@@ -3306,7 +3306,7 @@ public:
     {}
 
     void Register(WPEFramework::RPC::IRemoteConnection::INotification*) override {}
-    void Unregister(WPEFramework::RPC::IRemoteConnection::INotification*) override {}
+    void Unregister(const WPEFramework::RPC::IRemoteConnection::INotification*) override {}
     void Register(WPEFramework::PluginHost::IShell::ICOMLink::INotification*) override {}
     void Unregister(WPEFramework::PluginHost::IShell::ICOMLink::INotification*) override {}
 
@@ -3346,7 +3346,7 @@ private:
 class FailingCOMLink : public WPEFramework::PluginHost::IShell::ICOMLink {
 public:
     void Register(WPEFramework::RPC::IRemoteConnection::INotification*) override {}
-    void Unregister(WPEFramework::RPC::IRemoteConnection::INotification*) override {}
+    void Unregister(const WPEFramework::RPC::IRemoteConnection::INotification*) override {}
     void Register(WPEFramework::PluginHost::IShell::ICOMLink::INotification*) override {}
     void Unregister(WPEFramework::PluginHost::IShell::ICOMLink::INotification*) override {}
     WPEFramework::RPC::IRemoteConnection* RemoteConnection(const uint32_t) override { return nullptr; }
