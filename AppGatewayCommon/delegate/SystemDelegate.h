@@ -1031,7 +1031,7 @@ private:
         if (_systemServicesPlugin == nullptr && _shell != nullptr)
         {
             const_cast<SystemDelegate*>(this)->_systemServicesPlugin = 
-                _shell->QueryInterfaceByCallsign<Exchange::ISystemServices>(SYSTEM_CALLSIGN);
+                _shell->QueryInterfaceByCallsign<WPEFramework::Exchange::ISystemServices>(SYSTEM_CALLSIGN);
             if (_systemServicesPlugin != nullptr)
             {
                 LOGINFO("SystemDelegate: Successfully acquired ISystemServices interface");
