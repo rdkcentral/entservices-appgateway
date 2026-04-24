@@ -136,7 +136,7 @@ jobs:
           ref: R4.4.3
 
       - name: Checkout entservices-apis
-        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
+        run: |
         uses: actions/checkout@v3
         with:
           repository: rdkcentral/entservices-apis
@@ -250,14 +250,12 @@ jobs:
           cmake --install build/Thunder
 
       - name: Apply patches entservices-apis
-        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: |
           cd $GITHUB_WORKSPACE/entservices-apis
           patch -p1 < $GITHUB_WORKSPACE/Tests/patches/RDKEMW-1007.patch
           cd -
 
       - name: Build entservices-apis
-        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: >
           set -euo pipefail
           &&
