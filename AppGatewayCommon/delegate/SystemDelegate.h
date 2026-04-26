@@ -1222,9 +1222,26 @@ public:
             return Core::ERROR_NONE;
         }
 
-        // Serialize the supportedResolutions array variant to a JSON string for parsing.
+        // Iterate the supportedResolutions array and build a concatenated string for substring matching.
+        // Using Variant::Array() + element.String() follows the same pattern used elsewhere in this file
+        // (e.g. SetFlagsFromSupported) and avoids the unresolved Variant::ToString(std::string&) symbol.
         std::string arrJson;
-        response.Get(_T("supportedResolutions")).ToString(arrJson);
+        const WPEFramework::Core::JSON::Variant& resVar = response.Get(_T("supportedResolutions"));
+        if (resVar.Content() == WPEFramework::Core::JSON::Variant::type::ARRAY)
+        {
+            auto arr = resVar.Array();
+            const uint16_t n = arr.Length();
+            for (uint16_t i = 0; i < n; ++i)
+            {
+                arrJson += arr[i].String();
+                arrJson += ' ';
+            }
+        }
+        else
+        {
+            // Fallback: treat it as a plain string (unlikely but safe)
+            arrJson = resVar.String();
+        }
 
         LOGDBG("SystemDelegate: DisplaySettings.getSupportedResolutions supportedResolutions=%s", arrJson.c_str());
 
