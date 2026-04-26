@@ -1117,6 +1117,134 @@ public:
         return Core::ERROR_NONE;
     }
 
+    // PUBLIC_INTERFACE
+    // Display.colorimetry — reads colorimetry from DisplayInfo.colorimetry.
+    // Maps Thunder enum values (e.g. "ColorimetryBt2020Yccbcbrc") to Firebolt enum values ("bt709", "bt2020").
+    // Returns "[]" when no display is connected (STB/OTT) or the plugin is unavailable.
+    Core::hresult GetDisplayColorimetry(std::string &result)
+    {
+        result = "[]";
+        auto link = AcquireLink(DISPLAYINFO_CALLSIGN);
+        if (!link)
+        {
+            LOGWARN("SystemDelegate: DisplayInfo link unavailable for colorimetry (no display or plugin absent)");
+            return Core::ERROR_NONE;
+        }
+
+        std::string rawResult;
+        const std::string emptyParams = "{}";
+        const uint32_t rc = link->Invoke<std::string, std::string>("colorimetry", emptyParams, rawResult);
+        if (rc != Core::ERROR_NONE)
+        {
+            LOGWARN("SystemDelegate: DisplayInfo.colorimetry rc=%u (no display or not supported)", rc);
+            return Core::ERROR_NONE;
+        }
+
+        LOGDBG("SystemDelegate: DisplayInfo.colorimetry raw=%s", rawResult.c_str());
+
+        // Map Thunder colorimetry enum values to Firebolt enum values.
+        // Thunder returns e.g. ["ColorimetryBt2020Yccbcbrc","ColorimetryBt2020RgbYcbcr"]
+        // Firebolt enum: "bt709", "bt2020"
+        // Use case-insensitive substring search for robustness across Thunder versions.
+        std::string lower = rawResult;
+        std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+        const bool hasBt709  = (lower.find("bt709")  != std::string::npos);
+        const bool hasBt2020 = (lower.find("bt2020") != std::string::npos);
+
+        if (!hasBt709 && !hasBt2020)
+        {
+            LOGWARN("SystemDelegate: DisplayInfo.colorimetry: no recognized values in response: %s", rawResult.c_str());
+            return Core::ERROR_NONE;
+        }
+
+        result = "[";
+        bool first = true;
+        if (hasBt709)
+        {
+            result += "\"bt709\"";
+            first = false;
+        }
+        if (hasBt2020)
+        {
+            if (!first) result += ",";
+            result += "\"bt2020\"";
+        }
+        result += "]";
+
+        LOGDBG("SystemDelegate: GetDisplayColorimetry result=%s", result.c_str());
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    // Display.videoResolutions — reads supported resolutions from org.rdk.DisplaySettings.getSupportedResolutions.
+    // Maps Thunder resolution strings (e.g. "720p", "720p50", "1080p60") to Firebolt {width, height} objects.
+    // Only HD resolutions (720p and above) are included; results are deduplicated by resolution class.
+    // Returns "[]" when no display is connected (STB/OTT) or the plugin is unavailable.
+    Core::hresult GetDisplayVideoResolutions(std::string &result)
+    {
+        result = "[]";
+        auto link = AcquireLink(DISPLAYSETTINGS_CALLSIGN);
+        if (!link)
+        {
+            LOGWARN("SystemDelegate: DisplaySettings link unavailable for getSupportedResolutions (no display or plugin absent)");
+            return Core::ERROR_NONE;
+        }
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        WPEFramework::Core::JSON::VariantContainer response;
+        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getSupportedResolutions", params, response);
+        if (rc != Core::ERROR_NONE || !response.HasLabel(_T("supportedResolutions")))
+        {
+            LOGWARN("SystemDelegate: DisplaySettings.getSupportedResolutions rc=%u (no display or not supported)", rc);
+            return Core::ERROR_NONE;
+        }
+
+        // Serialize the supportedResolutions array variant to a JSON string for parsing.
+        std::string arrJson;
+        response.Get(_T("supportedResolutions")).ToString(arrJson);
+
+        LOGDBG("SystemDelegate: DisplaySettings.getSupportedResolutions supportedResolutions=%s", arrJson.c_str());
+
+        // Map resolution strings to unique {width,height} entries (HD only: 720p+).
+        // Thunder strings: "480i","480p","576p50","720p","720p50","1080p","1080p24","1080p60","2160p30","2160p60" etc.
+        std::string lower = arrJson;
+        std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+        const bool has720  = (lower.find("720p")  != std::string::npos);
+        const bool has1080 = (lower.find("1080p") != std::string::npos);
+        const bool has2160 = (lower.find("2160p") != std::string::npos);
+
+        if (!has720 && !has1080 && !has2160)
+        {
+            LOGWARN("SystemDelegate: DisplaySettings.getSupportedResolutions: no HD resolutions in response: %s", arrJson.c_str());
+            return Core::ERROR_NONE;
+        }
+
+        result = "[";
+        bool first = true;
+        if (has720)
+        {
+            result += "{\"width\":1280,\"height\":720}";
+            first = false;
+        }
+        if (has1080)
+        {
+            if (!first) result += ",";
+            result += "{\"width\":1920,\"height\":1080}";
+            first = false;
+        }
+        if (has2160)
+        {
+            if (!first) result += ",";
+            result += "{\"width\":3840,\"height\":2160}";
+        }
+        result += "]";
+
+        LOGDBG("SystemDelegate: GetDisplayVideoResolutions result=%s", result.c_str());
+        return Core::ERROR_NONE;
+    }
+
 
 private:
     // Parse a DisplayInfo scalar response that may be either:

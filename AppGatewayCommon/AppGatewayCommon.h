@@ -194,6 +194,8 @@ namespace WPEFramework {
             Core::hresult GetDisplayEdid(string &result /* @out */);
             Core::hresult GetDisplaySize(string &result /* @out */);
             Core::hresult GetDisplayMaxResolution(string &result /* @out */);
+            Core::hresult GetDisplayColorimetry(string &result /* @out */);
+            Core::hresult GetDisplayVideoResolutions(string &result /* @out */);
         private:
             PluginHost::IShell* mShell;
             uint32_t mConnectionId;

@@ -275,6 +275,12 @@ namespace Plugin {
         }},
         { "display.maxresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDisplayMaxResolution(result);
+        }},
+        { "display.colorimetry", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetDisplayColorimetry(result);
+        }},
+        { "display.videoresolutions", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetDisplayVideoResolutions(result);
         }}
     };
 
@@ -1239,6 +1245,24 @@ namespace Plugin {
             auto systemDelegate = mDelegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDisplayMaxResolution(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetDisplayColorimetry(string &result)
+        {
+            result = "[]";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDisplayColorimetry(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetDisplayVideoResolutions(string &result)
+        {
+            result = "[]";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDisplayVideoResolutions(result);
         }
 
 } // namespace Plugin
