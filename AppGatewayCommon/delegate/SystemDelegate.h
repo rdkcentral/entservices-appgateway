@@ -39,6 +39,10 @@
 
 using namespace WPEFramework;
 
+#ifndef CALLSIGN_CALLER_APPGATEWAY
+#define CALLSIGN_CALLER_APPGATEWAY "org.rdk.AppGatewayCommon.SystemDelegate"
+#endif
+
 // Define a callsign constant to match the AUTHSERVICE_CALLSIGN-style pattern.
 #ifndef SYSTEM_CALLSIGN
 #define SYSTEM_CALLSIGN "org.rdk.System"
@@ -75,6 +79,7 @@ public:
     static constexpr const char* EVENT_ON_NAME_CHANGED        = "Device.onNameChanged";
     static constexpr const char* EVENT_ON_DEVICE_NAME_CHANGED = "Device.onDeviceNameChanged";
     static constexpr const char* EVENT_ON_TIMEZONE_CHANGED    = "Localization.onTimeZoneChanged";
+    static constexpr const char* EVENT_ON_COUNTRY_CHANGED     = "Localization.onCountryChanged";
 
     SystemDelegate(PluginHost::IShell *shell)
         : BaseEventDelegate()
@@ -88,6 +93,7 @@ public:
         , _hdcpSubscribed(false)
         , _systemSubscribed(false)
         , _timezoneSubscribed(false)
+        , _countrySubscribed(false)
     {
             LOGINFO("SystemDelegate initialized");
     }
@@ -113,6 +119,9 @@ public:
                 }
                 if (_timezoneSubscribed) {
                     _systemRpc->Unsubscribe(2000, _T("onTimeZoneDSTChanged"));
+                }
+                if (_countrySubscribed) {
+                    _systemRpc->Unsubscribe(2000, _T("onTerritoryChanged"));
                 }
             }
         } catch (...) {
@@ -913,6 +922,34 @@ public:
         return true;
     }
 
+    bool EmitOnTerritoryChanged(const WPEFramework::Core::JSON::VariantContainer& params)
+    {
+        if (!params.HasLabel(_T("newTerritory"))) {
+            LOGERR("[AppGatewayCommon|TerritoryChanged] missing newTerritory parameter in event");
+            return false;
+        }
+
+        const std::string newTerritory =  params[_T("newTerritory")].String();
+        if (newTerritory.empty()) {
+            LOGERR("[AppGatewayCommon|TerritoryChanged] newTerritory parameter is empty");
+            return false;
+        }
+        const std::string code = TerritoryThunderToFirebolt(newTerritory, "");
+
+        if (code.empty()) {
+            LOGERR("[AppGatewayCommon|TerritoryChanged] unrecognized territory code %s in event", newTerritory.c_str());
+            return false;
+        }
+
+        JsonObject object;
+        object["value"] = code;
+        string result;
+        object.ToString(result);
+
+        Dispatch(EVENT_ON_COUNTRY_CHANGED, result);
+        return true;
+    }
+
     // ---- AppNotifications registration hook ----
     // Called by SettingsDelegate when app subscribes/unsubscribes to events.
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const std::string &event, const bool listen, bool &registrationError)
@@ -931,6 +968,8 @@ public:
             SetupFriendlyNameSystemSub();
         } else if (evLower == "localization.ontimezonechanged") {
             SetupTimezoneSystemSub();
+        } else if (evLower == "localization.oncountrychanged") {
+            SetupCountrySystemSub();
         } else {
             registrationError = true; // event not recognized - signal error to caller
             return false;
@@ -1496,7 +1535,7 @@ private:
         if (isDisplaySubscribed()) return;
         try {
             if (!_displayRpc) {
-                _displayRpc = ::Utils::getThunderControllerClient(DISPLAYSETTINGS_CALLSIGN);
+                _displayRpc = ::Utils::getThunderControllerClient(DISPLAYSETTINGS_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
             }
             if (_displayRpc) {
                 const uint32_t status = _displayRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
@@ -1518,7 +1557,7 @@ private:
         if (isDisplayAudioSubscribed()) return;
         try {
             if (!_displayRpc) {
-                _displayRpc = ::Utils::getThunderControllerClient(DISPLAYSETTINGS_CALLSIGN);
+                _displayRpc = ::Utils::getThunderControllerClient(DISPLAYSETTINGS_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
             }
             if (_displayRpc) {
                 const uint32_t status = _displayRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
@@ -1540,7 +1579,7 @@ private:
         if (isHdcpSubscribed()) return;
         try {
             if (!_hdcpRpc) {
-                _hdcpRpc = ::Utils::getThunderControllerClient(HDCPPROFILE_CALLSIGN);
+                _hdcpRpc = ::Utils::getThunderControllerClient(HDCPPROFILE_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
             }
             if (_hdcpRpc) {
                 const uint32_t status = _hdcpRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
@@ -1562,7 +1601,7 @@ private:
         if (isSystemSubscribed()) return;
         try {
             if (!_systemRpc) {
-                _systemRpc = std::make_shared<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>>((_T(SYSTEM_CALLSIGN)), (_T(SYSTEM_CALLSIGN)), false);
+                _systemRpc = ::Utils::getThunderControllerClient(SYSTEM_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
             }
             if (_systemRpc) {
                 const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
@@ -1584,7 +1623,7 @@ private:
         if (isTimezoneSubscribed()) return;
         try {
             if (!_systemRpc) {
-                _systemRpc = std::make_shared<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>>((_T(SYSTEM_CALLSIGN)), (_T(SYSTEM_CALLSIGN)), false);
+                _systemRpc = ::Utils::getThunderControllerClient(SYSTEM_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
             }
             if (_systemRpc) {
                 const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
@@ -1598,6 +1637,28 @@ private:
             }
         } catch (...) {
             LOGERR("SystemDelegate: exception during System subscription for timezone");
+        }
+    }
+
+    void SetupCountrySystemSub()
+    {
+        if (isCountrySubscribed()) return;
+        try {
+            if (!_systemRpc) {
+                _systemRpc = ::Utils::getThunderControllerClient(SYSTEM_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
+            }
+            if (_systemRpc) {
+                const uint32_t status = _systemRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
+                    SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("onTerritoryChanged"), &SystemDelegate::OnSystemTerritoryChanged, this);
+                if (status == Core::ERROR_NONE) {
+                    LOGINFO("SystemDelegate: Subscribed to %s.onTerritoryChanged", SYSTEM_CALLSIGN);
+                    markCountrySubscribed();
+                } else {
+                    LOGERR("SystemDelegate: Failed to subscribe to %s.onTerritoryChanged rc=%u", SYSTEM_CALLSIGN, status);
+                }
+            }
+        } catch (...) {
+            LOGERR("SystemDelegate: exception during System subscription for territory");
         }
     }
 
@@ -1656,6 +1717,16 @@ private:
         const bool timezoneEmitted = EmitOnTimezoneChanged(params);
         LOGINFO("[AppGatewayCommon|System.onTimezoneChanged] Handler responses: onTimezoneChanged=%s",
                 timezoneEmitted ? "emitted" : "skipped");
+    }
+
+    void OnSystemTerritoryChanged(const WPEFramework::Core::JSON::VariantContainer& params)
+    {
+        LOGINFO("[AppGatewayCommon|System.onTerritoryChanged] Incoming alias=%s.%s, invoking handlers...",
+                SYSTEM_CALLSIGN, "onTerritoryChanged");
+        // Re-query state and dispatch event
+        const bool territoryEmitted = EmitOnTerritoryChanged(params);
+        LOGINFO("[AppGatewayCommon|System.onTerritoryChanged] Handler responses: onTerritoryChanged=%s",
+                territoryEmitted ? "emitted" : "skipped");
     }
 
     bool isDisplaySubscribed() const
@@ -1718,6 +1789,18 @@ private:
         _timezoneSubscribed = true;
     }
 
+    bool isCountrySubscribed() const
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_countrySubscriptionLock);
+        return _countrySubscribed;
+    }
+
+    void markCountrySubscribed()
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_countrySubscriptionLock);
+        _countrySubscribed = true;
+    }
+
 private:
     PluginHost::IShell *_shell;
     std::unordered_set<std::string> _subscriptions;
@@ -1740,5 +1823,8 @@ private:
 
     bool _timezoneSubscribed;
     mutable Core::CriticalSection _timezoneSubscriptionLock;
+
+    bool _countrySubscribed;
+    mutable Core::CriticalSection _countrySubscriptionLock;
 };
 
