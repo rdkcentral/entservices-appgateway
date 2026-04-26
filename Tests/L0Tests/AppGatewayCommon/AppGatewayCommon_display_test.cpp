@@ -12,8 +12,6 @@
 //   - result contains the appropriate empty/zero default value
 // ============================================================================
 
-namespace AGCTest {
-
 // ---- Display.edid ----------------------------------------------------------
 
 // TEST_ID: AGC_L0_098
@@ -191,5 +189,3 @@ uint32_t Test_HandleRequest_DisplayVideoResolutions_CaseInsensitive()
     ExpectEqStr(tr, result, "[]", "Display.VideoResolutions (mixed-case) returns empty array");
     return tr.failures;
 }
-
-} // namespace AGCTest
