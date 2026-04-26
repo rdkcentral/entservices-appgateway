@@ -116,6 +116,18 @@ extern uint32_t Test_HandleAppEventNotifier_TTSEvent_ListenTrue();
 extern uint32_t Test_HandleAppEventNotifier_SystemDeviceEvent();
 extern uint32_t Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly();
 
+// AppGatewayCommon_display_test.cpp
+extern uint32_t Test_HandleRequest_DisplayEdid_NoDisplay();
+extern uint32_t Test_HandleRequest_DisplayEdid_CaseInsensitive();
+extern uint32_t Test_HandleRequest_DisplaySize_NoDisplay();
+extern uint32_t Test_HandleRequest_DisplaySize_CaseInsensitive();
+extern uint32_t Test_HandleRequest_DisplayMaxResolution_NoDisplay();
+extern uint32_t Test_HandleRequest_DisplayMaxResolution_CaseInsensitive();
+extern uint32_t Test_HandleRequest_DisplayColorimetry_NoDisplay();
+extern uint32_t Test_HandleRequest_DisplayColorimetry_CaseInsensitive();
+extern uint32_t Test_HandleRequest_DisplayVideoResolutions_NoDisplay();
+extern uint32_t Test_HandleRequest_DisplayVideoResolutions_CaseInsensitive();
+
 int main()
 {
     // Test-only bootstrap for WorkerPool.
@@ -229,6 +241,17 @@ int main()
         { "EventNotifier_TTSEvent_ListenTrue",            Test_HandleAppEventNotifier_TTSEvent_ListenTrue },
         { "EventNotifier_SystemDeviceEvent",              Test_HandleAppEventNotifier_SystemDeviceEvent },
         { "EventNotifier_NetworkEvent_UnsubscribeOnly",   Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly },
+        // --- Display tests (AGC_L0_098–AGC_L0_107) ---
+        { "DisplayEdid_NoDisplay",                        Test_HandleRequest_DisplayEdid_NoDisplay },
+        { "DisplayEdid_CaseInsensitive",                  Test_HandleRequest_DisplayEdid_CaseInsensitive },
+        { "DisplaySize_NoDisplay",                        Test_HandleRequest_DisplaySize_NoDisplay },
+        { "DisplaySize_CaseInsensitive",                  Test_HandleRequest_DisplaySize_CaseInsensitive },
+        { "DisplayMaxResolution_NoDisplay",               Test_HandleRequest_DisplayMaxResolution_NoDisplay },
+        { "DisplayMaxResolution_CaseInsensitive",         Test_HandleRequest_DisplayMaxResolution_CaseInsensitive },
+        { "DisplayColorimetry_NoDisplay",                 Test_HandleRequest_DisplayColorimetry_NoDisplay },
+        { "DisplayColorimetry_CaseInsensitive",           Test_HandleRequest_DisplayColorimetry_CaseInsensitive },
+        { "DisplayVideoResolutions_NoDisplay",            Test_HandleRequest_DisplayVideoResolutions_NoDisplay },
+        { "DisplayVideoResolutions_CaseInsensitive",      Test_HandleRequest_DisplayVideoResolutions_CaseInsensitive },
     };
 
     uint32_t failures = 0;
