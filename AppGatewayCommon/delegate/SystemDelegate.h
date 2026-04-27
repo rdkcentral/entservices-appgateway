@@ -25,6 +25,7 @@
 #include <memory>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 #include <plugins/plugins.h>
 #include <core/JSON.h>
@@ -1245,40 +1246,75 @@ public:
 
         LOGDBG("SystemDelegate: DisplaySettings.getSupportedResolutions supportedResolutions=%s", arrJson.c_str());
 
-        // Map resolution strings to unique {width,height} entries (HD only: 720p+).
-        // Thunder strings: "480i","480p","576p50","720p","720p50","1080p","1080p24","1080p60","2160p30","2160p60" etc.
-        std::string lower = arrJson;
-        std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+        // Map each Thunder resolution token to Firebolt VideoResolution enum strings.
+        // Firebolt spec defines exactly 6 values: 720p50, 720p60, 1080p50, 1080p60, 2160p50, 2160p60.
+        //
+        // Mapping rules:
+        //  - Generic "720p"  (no framerate) → both 720p50 and 720p60 (display supports both rates)
+        //  - Specific "720p50" → 720p50 only; "720p60" → 720p60 only
+        //  - Same pattern for 1080p and 2160p classes
+        //  - "1080p24/25/30", "2160p24/25/30", "480p", "576p*", "768p*", "1080i*" → no Firebolt mapping
+        //
+        // Tokens are matched individually (not by substring on a concatenated string) to avoid
+        // false matches (e.g. "1080p50" being a substring of "1080p500" if that ever appeared).
+        struct ThunderToFb {
+            const char* thunder;  // exact Thunder token (lowercase)
+            const char* fb1;      // first Firebolt enum (always non-null)
+            const char* fb2;      // second Firebolt enum (null if single mapping)
+        };
+        static const std::array<ThunderToFb, 9> kMap = {{
+            { "720p",    "720p50",  "720p60"  },
+            { "720p50",  "720p50",  nullptr   },
+            { "720p60",  "720p60",  nullptr   },
+            { "1080p",   "1080p50", "1080p60" },
+            { "1080p50", "1080p50", nullptr   },
+            { "1080p60", "1080p60", nullptr   },
+            { "2160p",   "2160p50", "2160p60" },
+            { "2160p50", "2160p50", nullptr   },
+            { "2160p60", "2160p60", nullptr   },
+        }};
 
-        const bool has720  = (lower.find("720p")  != std::string::npos);
-        const bool has1080 = (lower.find("1080p") != std::string::npos);
-        const bool has2160 = (lower.find("2160p") != std::string::npos);
-
-        if (!has720 && !has1080 && !has2160)
+        // Collect results preserving insertion order, deduplicated (e.g. "720p" + "720p50" → 720p50 once)
+        std::unordered_set<std::string> seen;
+        std::vector<std::string> fbResults;
+        if (resVar.Content() == WPEFramework::Core::JSON::Variant::type::ARRAY)
         {
-            LOGWARN("SystemDelegate: DisplaySettings.getSupportedResolutions: no HD resolutions in response: %s", arrJson.c_str());
+            auto arr = resVar.Array();
+            const uint16_t n = arr.Length();
+            for (uint16_t i = 0; i < n; ++i)
+            {
+                std::string token = arr[i].String();
+                std::transform(token.begin(), token.end(), token.begin(), ::tolower);
+                for (const auto& entry : kMap)
+                {
+                    if (token == entry.thunder)
+                    {
+                        if (seen.insert(entry.fb1).second)
+                            fbResults.push_back(entry.fb1);
+                        if (entry.fb2 != nullptr && seen.insert(entry.fb2).second)
+                            fbResults.push_back(entry.fb2);
+                        break;
+                    }
+                }
+            }
+        }
+
+        std::string items;
+        for (const auto& en : fbResults)
+        {
+            if (!items.empty()) items += ',';
+            items += '"';
+            items += en;
+            items += '"';
+        }
+
+        if (items.empty())
+        {
+            LOGWARN("SystemDelegate: DisplaySettings.getSupportedResolutions: no Firebolt HD enum values in response: %s", arrJson.c_str());
             return Core::ERROR_NONE;
         }
 
-        result = "[";
-        bool first = true;
-        if (has720)
-        {
-            result += "{\"width\":1280,\"height\":720}";
-            first = false;
-        }
-        if (has1080)
-        {
-            if (!first) result += ",";
-            result += "{\"width\":1920,\"height\":1080}";
-            first = false;
-        }
-        if (has2160)
-        {
-            if (!first) result += ",";
-            result += "{\"width\":3840,\"height\":2160}";
-        }
-        result += "]";
+        result = "[" + items + "]";
 
         LOGDBG("SystemDelegate: GetDisplayVideoResolutions result=%s", result.c_str());
         return Core::ERROR_NONE;

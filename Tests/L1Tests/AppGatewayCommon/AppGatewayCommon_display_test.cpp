@@ -533,11 +533,11 @@ TEST_F(DisplayDelegateTest, AGC_L1_158_DisplayColorimetry_CallFails_ReturnsEmpty
 // ============================================================================
 
 // TEST_ID: AGC_L1_159
-// Display.videoResolutions: UHD-capable display → all three HD classes returned.
-TEST_F(DisplayDelegateTest, AGC_L1_159_DisplayVideoResolutions_UHD_AllClasses)
+// Display.videoResolutions: UHD-capable display → all 6 Firebolt enum values returned.
+TEST_F(DisplayDelegateTest, AGC_L1_159_DisplayVideoResolutions_UHD_AllEnums)
 {
     displaySettingsDisp.SetHandler("getSupportedResolutions", [](const std::string&, const std::string&, std::string& resp) {
-        resp = R"({"supportedResolutions":["480i","480p","720p","720p50","1080p","1080p60","2160p30","2160p60"],"success":true})";
+        resp = R"({"supportedResolutions":["480i","480p","720p50","720p60","1080p50","1080p60","2160p50","2160p60"],"success":true})";
         return Core::ERROR_NONE;
     });
 
@@ -546,20 +546,24 @@ TEST_F(DisplayDelegateTest, AGC_L1_159_DisplayVideoResolutions_UHD_AllClasses)
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "display.videoresolutions", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
-    // All three HD resolution objects must be present
-    EXPECT_NE(result.find("1280"), std::string::npos);  // 720p
-    EXPECT_NE(result.find("1920"), std::string::npos);  // 1080p
-    EXPECT_NE(result.find("3840"), std::string::npos);  // 2160p
-    // Non-HD resolutions must not appear
-    EXPECT_EQ(result.find("480"), std::string::npos);
+    // All 6 Firebolt VideoResolution enum strings must be present
+    EXPECT_NE(result.find("720p50"),  std::string::npos);
+    EXPECT_NE(result.find("720p60"),  std::string::npos);
+    EXPECT_NE(result.find("1080p50"), std::string::npos);
+    EXPECT_NE(result.find("1080p60"), std::string::npos);
+    EXPECT_NE(result.find("2160p50"), std::string::npos);
+    EXPECT_NE(result.find("2160p60"), std::string::npos);
+    // Non-enum values (SD, generic, non-60Hz 4K) must not appear
+    EXPECT_EQ(result.find("480"),    std::string::npos);
+    EXPECT_EQ(result.find("2160p30"), std::string::npos);
 }
 
 // TEST_ID: AGC_L1_160
-// Display.videoResolutions: HD-only display (720p and 1080p, no 4K) → two entries.
+// Display.videoResolutions: HD-only display (720p + 1080p, no 4K) → 4 enum values, no 2160p.
 TEST_F(DisplayDelegateTest, AGC_L1_160_DisplayVideoResolutions_HD_NoUHD)
 {
     displaySettingsDisp.SetHandler("getSupportedResolutions", [](const std::string&, const std::string&, std::string& resp) {
-        resp = R"({"supportedResolutions":["480p","720p","1080p"],"success":true})";
+        resp = R"({"supportedResolutions":["480p","720p50","720p60","1080p50","1080p60"],"success":true})";
         return Core::ERROR_NONE;
     });
 
@@ -568,9 +572,11 @@ TEST_F(DisplayDelegateTest, AGC_L1_160_DisplayVideoResolutions_HD_NoUHD)
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "display.videoresolutions", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_NE(result.find("1280"), std::string::npos);  // 720p entry
-    EXPECT_NE(result.find("1920"), std::string::npos);  // 1080p entry
-    EXPECT_EQ(result.find("3840"), std::string::npos);  // no 4K
+    EXPECT_NE(result.find("720p50"),  std::string::npos);
+    EXPECT_NE(result.find("720p60"),  std::string::npos);
+    EXPECT_NE(result.find("1080p50"), std::string::npos);
+    EXPECT_NE(result.find("1080p60"), std::string::npos);
+    EXPECT_EQ(result.find("2160p"),   std::string::npos);  // no 4K
 }
 
 // TEST_ID: AGC_L1_161
@@ -622,6 +628,42 @@ TEST_F(DisplayDelegateTest, AGC_L1_163_DisplayVideoResolutions_MissingField_Retu
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_EQ(result, "[]");
+}
+
+// TEST_ID: AGC_L1_164
+// Display.videoResolutions: real-world Thunder response with generic tokens ("720p", "1080p") and
+// non-Firebolt tokens ("576p50", "768p60", "1080p24", "1080i50", "2160p30") → generic tokens expand
+// to both 50Hz and 60Hz Firebolt enums; non-Firebolt tokens are dropped; result is deduplicated.
+// Input:  ["480i","480p","576p50","720p","720p50","768p60","1080p24","1080p","1080i50","1080i","2160p30","2160p60"]
+// Output: ["720p50","720p60","1080p50","1080p60","2160p60"]
+TEST_F(DisplayDelegateTest, AGC_L1_164_DisplayVideoResolutions_RealWorldResponse_GenericTokenExpansion)
+{
+    displaySettingsDisp.SetHandler("getSupportedResolutions", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"supportedResolutions":["480i","480p","576p50","720p","720p50","768p60","1080p24","1080p","1080i50","1080i","2160p30","2160p60"],"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "display.videoresolutions", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // Generic "720p" must expand to both 720p50 and 720p60 (deduped with explicit "720p50" token)
+    EXPECT_NE(result.find("720p50"),  std::string::npos);
+    EXPECT_NE(result.find("720p60"),  std::string::npos);
+    // Generic "1080p" must expand to both 1080p50 and 1080p60
+    EXPECT_NE(result.find("1080p50"), std::string::npos);
+    EXPECT_NE(result.find("1080p60"), std::string::npos);
+    // Explicit "2160p60" must be present; "2160p30" has no Firebolt mapping → absent
+    EXPECT_NE(result.find("2160p60"), std::string::npos);
+    EXPECT_EQ(result.find("2160p50"), std::string::npos);
+    // Non-Firebolt tokens must not appear
+    EXPECT_EQ(result.find("480"),     std::string::npos);
+    EXPECT_EQ(result.find("576"),     std::string::npos);
+    EXPECT_EQ(result.find("768"),     std::string::npos);
+    EXPECT_EQ(result.find("1080p24"), std::string::npos);
+    EXPECT_EQ(result.find("1080i"),   std::string::npos);
+    EXPECT_EQ(result.find("2160p30"), std::string::npos);
 }
 
 } // anonymous namespace
