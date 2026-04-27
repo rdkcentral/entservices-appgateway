@@ -303,6 +303,9 @@ namespace Plugin {
         { "commoninternal.getlastintent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->GetLastIntent(ctx,payload,result);
         }},
+        { "actions.intent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetLastIntent(ctx,payload,result);
+        }},
         {"advertising.advertisingid", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->HandleAppDelegateRequest(ctx, "advertising.advertisingid", payload, result);
         }},

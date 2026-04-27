@@ -314,9 +314,13 @@
             "alias": "org.rdk.AppGatewayCommon",
             "event": "Lifecycle2.onStateChanged"
         },
-        "discovery.onnavigateto": {
+        "actions.onintent": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "Discovery.onNavigateTo"
+            "event": "Actions.onIntent"
+        },
+        "actions.intent": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
         },
         "presentation.onfocusedchanged": {
             "alias": "org.rdk.AppGatewayCommon",
