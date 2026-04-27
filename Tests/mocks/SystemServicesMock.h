@@ -31,8 +31,8 @@ public:
 
     MOCK_METHOD(WPEFramework::Core::hresult, Register, (INotification* notification), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, Unregister, (INotification* notification), (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, GetDeviceInfo, (IStringIterator* const& params, DeviceInfo& deviceInfo), (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, GetDownloadedFirmwareInfo, (DownloadedFirmwareInfo& downloadedFirmwareInfo), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetDeviceInfo, (IStringIterator* const& params, ISystemServices::DeviceInfo& deviceInfo), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetDownloadedFirmwareInfo, (ISystemServices::DownloadedFirmwareInfo& downloadedFirmwareInfo), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, GetFirmwareDownloadPercent, (int32_t& downloadPercent, bool& success), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, GetFirmwareUpdateInfo, (const string& GUID, bool& asyncResponse, bool& success), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, GetFirmwareUpdateState, (int& firmwareUpdateState, bool& success), (override));
@@ -40,7 +40,7 @@ public:
     MOCK_METHOD(WPEFramework::Core::hresult, GetLastWakeupKeyCode, (int& wakeupKeyCode, bool& success), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, GetFriendlyName, (string& name), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, SetFriendlyName, (const string& name), (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, GetSystemVersions, (SystemVersions& systemVersions), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetSystemVersions, (ISystemServices::SystemVersions& systemVersions), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, GetTerritory, (string& territory), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, SetTerritory, (const string& territory), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, GetTimeZoneDST, (string& timeZone), (override));
