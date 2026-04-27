@@ -83,6 +83,7 @@ namespace Plugin {
             const uint32_t connectionId)
                 : mParent(*parent), mMethod(method), mParams(params), mRequestId(requestId), mConnectionId(connectionId)
             {
+                mParent.AddRef();
             }
 
         public:
@@ -91,6 +92,7 @@ namespace Plugin {
             WsMsgJob &operator=(const WsMsgJob &) = delete;
             ~WsMsgJob()
             {
+                mParent.Release();
             }
 
         public:
@@ -123,6 +125,7 @@ namespace Plugin {
             )
                 : mParent(*parent), mPayload(payload), mRequestId(requestId), mConnectionId(connectionId)
             {
+                mParent.AddRef();
             }
 
         public:
@@ -131,6 +134,7 @@ namespace Plugin {
             RespondJob &operator=(const RespondJob &) = delete;
             ~RespondJob()
             {
+                mParent.Release();
             }
 
         public:
@@ -161,6 +165,7 @@ namespace Plugin {
             )
                 : mParent(*parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId)
             {
+                mParent.AddRef();
             }
 
         public:
@@ -169,6 +174,7 @@ namespace Plugin {
             EmitJob &operator=(const EmitJob &) = delete;
             ~EmitJob()
             {
+                mParent.Release();
             }
 
         public:
@@ -200,6 +206,7 @@ namespace Plugin {
             )
                 : mParent(*parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId), mRequestId(requestId)
             {
+                mParent.AddRef();
             }
 
         public:
@@ -208,6 +215,7 @@ namespace Plugin {
             RequestJob &operator=(const RequestJob &) = delete;
             ~RequestJob()
             {
+                mParent.Release();
             }
 
         public:
@@ -239,6 +247,7 @@ namespace Plugin {
             )
                 : mParent(*parent), mConnectionId(connectionId), mAppId(appId), mConnected(connected)
             {
+                mParent.AddRef();
             }
 
         public:
@@ -247,6 +256,7 @@ namespace Plugin {
             ConnectionStatusNotificationJob &operator=(const ConnectionStatusNotificationJob &) = delete;
             ~ConnectionStatusNotificationJob()
             {
+                mParent.Release();
             }
 
         public:
