@@ -31,14 +31,20 @@ public:
 
     MOCK_METHOD(WPEFramework::Core::hresult, Register, (INotification* notification), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, Unregister, (INotification* notification), (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, GetDeviceInfo, (const string* selector, DeviceInfo& info), (const, override));
-    MOCK_METHOD(WPEFramework::Core::hresult, GetFriendlyName, (string& name, bool& success), (const, override));
-    MOCK_METHOD(WPEFramework::Core::hresult, SetFriendlyName, (const string& name, SystemResult& result), (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, GetSystemVersions, (SystemVersionsInfo& info), (const, override));
-    MOCK_METHOD(WPEFramework::Core::hresult, GetTerritory, (string& territory, string& region, bool& success), (const, override));
-    MOCK_METHOD(WPEFramework::Core::hresult, SetTerritory, (const string& territory, const string& region, SystemError& error, bool& success), (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, GetTimeZoneDST, (string& timeZone, string& accuracy, bool& success), (const, override));
-    MOCK_METHOD(WPEFramework::Core::hresult, SetTimeZoneDST, (const string& timeZone, const string& accuracy, uint32_t& serviceStatus, string& errorMessage, bool& success), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetDeviceInfo, (IStringIterator* const& params, DeviceInfo& deviceInfo), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetDownloadedFirmwareInfo, (DownloadedFirmwareInfo& downloadedFirmwareInfo), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetFirmwareDownloadPercent, (int32_t& downloadPercent, bool& success), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetFirmwareUpdateInfo, (const string& GUID, bool& asyncResponse, bool& success), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetFirmwareUpdateState, (int& firmwareUpdateState, bool& success), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetLastFirmwareFailureReason, (string& failReason, bool& success), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetLastWakeupKeyCode, (int& wakeupKeyCode, bool& success), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetFriendlyName, (string& name), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, SetFriendlyName, (const string& name), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetSystemVersions, (SystemVersions& systemVersions), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetTerritory, (string& territory), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, SetTerritory, (const string& territory), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetTimeZoneDST, (string& timeZone), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, SetTimeZoneDST, (const string& timeZone), (override));
 
     MOCK_METHOD(void, AddRef, (), (const, override));
     MOCK_METHOD(uint32_t, Release, (), (const, override));
