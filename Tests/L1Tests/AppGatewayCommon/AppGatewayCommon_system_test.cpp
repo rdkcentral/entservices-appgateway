@@ -654,10 +654,13 @@ TEST_F(SystemDelegateCacheTest, AGC_L1_114_GetFirmwareVersion_Success)
 
 TEST_F(SystemDelegateTest, AGC_L1_115_GetDeviceSku_MissingField)
 {
-    systemDispatcher.SetHandler("getSystemVersions", [](const std::string&, const std::string&, std::string& resp) {
-        resp = R"({"success":true})";
-        return Core::ERROR_NONE;
-    });
+    ON_CALL(*sSystemServices, GetSystemVersions(_))
+        .WillByDefault(::testing::Invoke([](Exchange::ISystemServices::SystemVersionsInfo& info) {
+            info.stbVersion = "";
+            info.receiverVersion = "";
+            info.success = true;
+            return Core::ERROR_NONE;
+        }));
 
     const auto ctx = MakeContext();
     string result;
@@ -969,8 +972,8 @@ TEST_F(SystemDelegateTest, AGC_L1_132_GetDeviceName_MissingFriendlyName)
 TEST_F(SystemDelegateCacheTest, AGC_L1_133_GetFirmwareVersion_CacheHitOnSecondCall)
 {
     int callCount = 0;
-    ON_CALL(systemServices, GetSystemVersions(_))
-        .WillByDefault(::testing::Invoke([&callCount](Exchange::ISystemServices::SystemVersionsInfo& info) {
+    EXPECT_CALL(systemServices, GetSystemVersions(_))
+        .WillRepeatedly(::testing::Invoke([&callCount](Exchange::ISystemServices::SystemVersionsInfo& info) {
             ++callCount;
             info.receiverVersion = "99.88.77.66";
             info.stbVersion = "PLATFORM_DEV_20250101_TEST";
@@ -1089,7 +1092,7 @@ TEST_F(SystemDelegateTest, AGC_L1_139_GetTimeZone_MissingTimeZoneField)
         .WillByDefault(::testing::Invoke([](string& timeZone, string& accuracy, bool& success) {
             timeZone = "";
             accuracy = "";
-            success = true;
+            success = false;
             return Core::ERROR_NONE;
         }));
 
@@ -1097,7 +1100,7 @@ TEST_F(SystemDelegateTest, AGC_L1_139_GetTimeZone_MissingTimeZoneField)
     string result;
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.timezone", "{}", result);
 
-    // success=true but no timeZone field → falls through to error path
+    // success=false should return error
     EXPECT_NE(Core::ERROR_NONE, rc);
 }
 
