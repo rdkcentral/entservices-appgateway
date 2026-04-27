@@ -40,6 +40,12 @@ extern uint32_t Test_Resolver_Configure_WithOverride_TakesPrecedence();
 extern uint32_t Test_Resolver_Resolve_UnknownMethod_ReturnsNotFound();
 extern uint32_t Test_Resolver_Resolve_MalformedParams_ReturnsBadRequest();
 extern uint32_t Test_Resolver_Configure_InvalidJson_ReturnsError();
+// Resolver gap tests (cover ClearResolutions, LoadConfig error paths, CallThunderPlugin, missing-key lookups)
+extern uint32_t Test_Resolver_ClearResolutions();
+extern uint32_t Test_Resolver_LoadConfig_FileNotFound();
+extern uint32_t Test_Resolver_LoadConfig_NoResolutionsKey();
+extern uint32_t Test_Resolver_CallThunderPlugin_NullService_EmptyAlias();
+extern uint32_t Test_Resolver_LookupMissingKey();
 
 // New Responder behavior tests
 extern uint32_t Test_Responder_Register_Unregister_Notifications();
@@ -60,10 +66,74 @@ extern uint32_t Test_AppGatewayImplementation_PermissionGroup_Allowed_ComRpcDisa
 extern uint32_t Test_AppGatewayImplementation_EventListen_TriggersNotify();
 extern uint32_t Test_AppGatewayImplementation_IncludeContext_Path_Executes();
 extern uint32_t Test_AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAdditionalContext();
+extern uint32_t Test_AppGatewayImplementation_Configure_NullPaths_ReturnsBadRequest();
+extern uint32_t Test_AppGatewayImplementation_Configure_EmptyPaths_ReturnsBadRequest();
+extern uint32_t Test_AppGatewayImplementation_Authenticator_CheckPermission_Fails();
+extern uint32_t Test_AppGatewayImplementation_ComRpc_HandleRequestFails();
 
 // Targeted AppGatewayResponderImplementation coverage tests
 extern uint32_t Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery();
 extern uint32_t Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey();
+extern uint32_t Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps();
+extern uint32_t Test_AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash();
+
+// AppGatewayTelemetry coverage tests
+extern uint32_t Test_Telemetry_SettersAndConfig();
+extern uint32_t Test_Telemetry_HealthStatCounters_And_RecordResponse();
+extern uint32_t Test_Telemetry_HandleHealthStatsMarkers();
+extern uint32_t Test_Telemetry_RecordTelemetryMetric_ApiMethodParse();
+extern uint32_t Test_Telemetry_RecordTelemetryMetric_ApiLatencyParse();
+extern uint32_t Test_Telemetry_RecordTelemetryMetric_ServiceLatencyParse();
+extern uint32_t Test_Telemetry_RecordTelemetryMetric_ServiceMethodParse();
+extern uint32_t Test_Telemetry_RecordTelemetryEvent_ApiError();
+extern uint32_t Test_Telemetry_RecordTelemetryEvent_ExtServiceError();
+extern uint32_t Test_Telemetry_RecordTelemetryEvent_NonImmediate_CacheThreshold();
+extern uint32_t Test_Telemetry_Flush_WithHealthData();
+extern uint32_t Test_Telemetry_Flush_WithApiAndServiceStats();
+extern uint32_t Test_Telemetry_Flush_WithApiAndServiceErrorCounts();
+extern uint32_t Test_Telemetry_Flush_WithAggregatedMetrics();
+extern uint32_t Test_Telemetry_FormatTelemetryPayload_CompactFormat();
+extern uint32_t Test_Telemetry_RecordTelemetryMetric_WhenNotInitialized();
+extern uint32_t Test_Telemetry_RecordTelemetryEvent_WhenNotInitialized();
+// New telemetry coverage tests
+extern uint32_t Test_Telemetry_RecordBootstrapDuration();
+extern uint32_t Test_Telemetry_ResponsePayloadTracking_ErrorResponse();
+extern uint32_t Test_Telemetry_SendT2Event_NonJsonPayload();
+extern uint32_t Test_Telemetry_Compact_FloatAndBoolean();
+extern uint32_t Test_Telemetry_Compact_ArrayPayload();
+// New AppGatewayImplementation coverage tests
+extern uint32_t Test_AppGatewayImplementation_Event_MissingListenParam();
+extern uint32_t Test_AppGatewayImplementation_UpdateContext_NonJsonParams();
+extern uint32_t Test_AppGatewayImplementation_ComRpc_AdditionalContext_NotObject();
+extern uint32_t Test_AppGatewayImplementation_Resolve_BeforeShellConfigure();
+extern uint32_t Test_AppGatewayImplementation_Resolve_NotConfigured();
+extern uint32_t Test_AppGatewayImplementation_RegionalConfig();
+
+// Direct-access coverage tests (use #define private public to reach private Send* and FlushJob methods)
+extern uint32_t Test_Telemetry_DirectAccess_AlreadyInitialized();
+extern uint32_t Test_Telemetry_DirectAccess_SendHealthStats_Empty();
+extern uint32_t Test_Telemetry_DirectAccess_SendHealthStats_WithData();
+extern uint32_t Test_Telemetry_DirectAccess_SendApiErrorStats_Empty();
+extern uint32_t Test_Telemetry_DirectAccess_SendApiErrorStats_WithData();
+extern uint32_t Test_Telemetry_DirectAccess_SendExternalServiceErrorStats_Empty();
+extern uint32_t Test_Telemetry_DirectAccess_SendExternalServiceErrorStats_WithData();
+extern uint32_t Test_Telemetry_DirectAccess_SendAggregatedMetrics_Empty();
+extern uint32_t Test_Telemetry_DirectAccess_SendAggregatedMetrics_WithData();
+extern uint32_t Test_Telemetry_DirectAccess_SendApiMethodStats_Empty();
+extern uint32_t Test_Telemetry_DirectAccess_SendApiMethodStats_WithData();
+extern uint32_t Test_Telemetry_DirectAccess_SendApiLatencyStats_Empty();
+extern uint32_t Test_Telemetry_DirectAccess_SendApiLatencyStats_WithData();
+extern uint32_t Test_Telemetry_DirectAccess_SendServiceLatencyStats_Empty();
+extern uint32_t Test_Telemetry_DirectAccess_SendServiceLatencyStats_WithData();
+extern uint32_t Test_Telemetry_DirectAccess_SendServiceMethodStats_Empty();
+extern uint32_t Test_Telemetry_DirectAccess_SendServiceMethodStats_WithData();
+extern uint32_t Test_Telemetry_DirectAccess_FlushJob_Dispatch_WithData();
+extern uint32_t Test_Telemetry_DirectAccess_FlushJob_Dispatch_Empty();
+extern uint32_t Test_Telemetry_DirectAccess_FlushJob_Dispatch_NullParent();
+extern uint32_t Test_Telemetry_DirectAccess_FlushJob_Dispatch_CompactFormat();
+extern uint32_t Test_Telemetry_DirectAccess_ParseApiMetricName_WrongPrefix();
+extern uint32_t Test_Telemetry_DirectAccess_ParseApiMetricName_NoMethodTag();
+extern uint32_t Test_Telemetry_DirectAccess_ParseApiLatencyMetricName_WrongSuffix();
 
 namespace {
 
@@ -388,6 +458,11 @@ int main()
         { "Resolver_Resolve_UnknownMethod_ReturnsNotFound", Test_Resolver_Resolve_UnknownMethod_ReturnsNotFound },
         { "Resolver_Resolve_MalformedParams_ReturnsBadRequest", Test_Resolver_Resolve_MalformedParams_ReturnsBadRequest },
         { "Resolver_Configure_InvalidJson_ReturnsError", Test_Resolver_Configure_InvalidJson_ReturnsError },
+        { "Resolver_ClearResolutions", Test_Resolver_ClearResolutions },
+        { "Resolver_LoadConfig_FileNotFound", Test_Resolver_LoadConfig_FileNotFound },
+        { "Resolver_LoadConfig_NoResolutionsKey", Test_Resolver_LoadConfig_NoResolutionsKey },
+        { "Resolver_CallThunderPlugin_NullService_EmptyAlias", Test_Resolver_CallThunderPlugin_NullService_EmptyAlias },
+        { "Resolver_LookupMissingKey", Test_Resolver_LookupMissingKey },
 
         // New Responder behavior tests
         { "Responder_Register_Unregister_Notifications", Test_Responder_Register_Unregister_Notifications },
@@ -405,13 +480,77 @@ int main()
         // New AppGatewayImplementation branch/coverage tests
         { "AppGatewayImplementation_PermissionGroup_Denied", Test_AppGatewayImplementation_PermissionGroup_Denied },
         { "AppGatewayImplementation_PermissionGroup_Allowed_ComRpcDisabled", Test_AppGatewayImplementation_PermissionGroup_Allowed_ComRpcDisabled },
-       // { "AppGatewayImplementation_EventListen_TriggersNotify", Test_AppGatewayImplementation_EventListen_TriggersNotify },
+        { "AppGatewayImplementation_EventListen_TriggersNotify", Test_AppGatewayImplementation_EventListen_TriggersNotify },
         { "AppGatewayImplementation_IncludeContext_Path_Executes", Test_AppGatewayImplementation_IncludeContext_Path_Executes },
         { "AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAdditionalContext", Test_AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAdditionalContext },
+        { "AppGatewayImplementation_Configure_NullPaths_ReturnsBadRequest", Test_AppGatewayImplementation_Configure_NullPaths_ReturnsBadRequest },
+        { "AppGatewayImplementation_Configure_EmptyPaths_ReturnsBadRequest", Test_AppGatewayImplementation_Configure_EmptyPaths_ReturnsBadRequest },
+        { "AppGatewayImplementation_Authenticator_CheckPermission_Fails", Test_AppGatewayImplementation_Authenticator_CheckPermission_Fails },
+        { "AppGatewayImplementation_ComRpc_HandleRequestFails", Test_AppGatewayImplementation_ComRpc_HandleRequestFails },
 
         // Targeted AppGatewayResponderImplementation coverage tests
-       // { "AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery", Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery },
+        { "AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery", Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery },
         { "AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey", Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey },
+        { "AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps", Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps },
+        { "AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash", Test_AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash },
+
+        // AppGatewayTelemetry coverage tests
+        { "Telemetry_SettersAndConfig", Test_Telemetry_SettersAndConfig },
+        { "Telemetry_HealthStatCounters_And_RecordResponse", Test_Telemetry_HealthStatCounters_And_RecordResponse },
+        { "Telemetry_HandleHealthStatsMarkers", Test_Telemetry_HandleHealthStatsMarkers },
+        { "Telemetry_RecordTelemetryMetric_ApiMethodParse", Test_Telemetry_RecordTelemetryMetric_ApiMethodParse },
+        { "Telemetry_RecordTelemetryMetric_ApiLatencyParse", Test_Telemetry_RecordTelemetryMetric_ApiLatencyParse },
+        { "Telemetry_RecordTelemetryMetric_ServiceLatencyParse", Test_Telemetry_RecordTelemetryMetric_ServiceLatencyParse },
+        { "Telemetry_RecordTelemetryMetric_ServiceMethodParse", Test_Telemetry_RecordTelemetryMetric_ServiceMethodParse },
+        { "Telemetry_RecordTelemetryEvent_ApiError", Test_Telemetry_RecordTelemetryEvent_ApiError },
+        { "Telemetry_RecordTelemetryEvent_ExtServiceError", Test_Telemetry_RecordTelemetryEvent_ExtServiceError },
+        { "Telemetry_RecordTelemetryEvent_NonImmediate_CacheThreshold", Test_Telemetry_RecordTelemetryEvent_NonImmediate_CacheThreshold },
+        { "Telemetry_Flush_WithHealthData", Test_Telemetry_Flush_WithHealthData },
+        { "Telemetry_Flush_WithApiAndServiceStats", Test_Telemetry_Flush_WithApiAndServiceStats },
+        { "Telemetry_Flush_WithApiAndServiceErrorCounts", Test_Telemetry_Flush_WithApiAndServiceErrorCounts },
+        { "Telemetry_Flush_WithAggregatedMetrics", Test_Telemetry_Flush_WithAggregatedMetrics },
+        { "Telemetry_FormatTelemetryPayload_CompactFormat", Test_Telemetry_FormatTelemetryPayload_CompactFormat },
+        { "Telemetry_RecordTelemetryMetric_WhenNotInitialized", Test_Telemetry_RecordTelemetryMetric_WhenNotInitialized },
+        { "Telemetry_RecordTelemetryEvent_WhenNotInitialized", Test_Telemetry_RecordTelemetryEvent_WhenNotInitialized },
+        // New telemetry coverage tests
+        { "Telemetry_RecordBootstrapDuration", Test_Telemetry_RecordBootstrapDuration },
+        { "Telemetry_ResponsePayloadTracking_ErrorResponse", Test_Telemetry_ResponsePayloadTracking_ErrorResponse },
+        { "Telemetry_SendT2Event_NonJsonPayload", Test_Telemetry_SendT2Event_NonJsonPayload },
+        { "Telemetry_Compact_FloatAndBoolean", Test_Telemetry_Compact_FloatAndBoolean },
+        { "Telemetry_Compact_ArrayPayload", Test_Telemetry_Compact_ArrayPayload },
+        // New AppGatewayImplementation coverage tests
+        { "AppGatewayImplementation_Event_MissingListenParam", Test_AppGatewayImplementation_Event_MissingListenParam },
+        { "AppGatewayImplementation_UpdateContext_NonJsonParams", Test_AppGatewayImplementation_UpdateContext_NonJsonParams },
+        { "AppGatewayImplementation_ComRpc_AdditionalContext_NotObject", Test_AppGatewayImplementation_ComRpc_AdditionalContext_NotObject },
+        { "AppGatewayImplementation_Resolve_BeforeShellConfigure", Test_AppGatewayImplementation_Resolve_BeforeShellConfigure },
+        { "AppGatewayImplementation_Resolve_NotConfigured", Test_AppGatewayImplementation_Resolve_NotConfigured },
+        { "AppGatewayImplementation_RegionalConfig", Test_AppGatewayImplementation_RegionalConfig },
+
+        // Direct-access coverage tests (private Send* and FlushJob methods)
+        { "Telemetry_DirectAccess_AlreadyInitialized", Test_Telemetry_DirectAccess_AlreadyInitialized },
+        { "Telemetry_DirectAccess_SendHealthStats_Empty", Test_Telemetry_DirectAccess_SendHealthStats_Empty },
+        { "Telemetry_DirectAccess_SendHealthStats_WithData", Test_Telemetry_DirectAccess_SendHealthStats_WithData },
+        { "Telemetry_DirectAccess_SendApiErrorStats_Empty", Test_Telemetry_DirectAccess_SendApiErrorStats_Empty },
+        { "Telemetry_DirectAccess_SendApiErrorStats_WithData", Test_Telemetry_DirectAccess_SendApiErrorStats_WithData },
+        { "Telemetry_DirectAccess_SendExternalServiceErrorStats_Empty", Test_Telemetry_DirectAccess_SendExternalServiceErrorStats_Empty },
+        { "Telemetry_DirectAccess_SendExternalServiceErrorStats_WithData", Test_Telemetry_DirectAccess_SendExternalServiceErrorStats_WithData },
+        { "Telemetry_DirectAccess_SendAggregatedMetrics_Empty", Test_Telemetry_DirectAccess_SendAggregatedMetrics_Empty },
+        { "Telemetry_DirectAccess_SendAggregatedMetrics_WithData", Test_Telemetry_DirectAccess_SendAggregatedMetrics_WithData },
+        { "Telemetry_DirectAccess_SendApiMethodStats_Empty", Test_Telemetry_DirectAccess_SendApiMethodStats_Empty },
+        { "Telemetry_DirectAccess_SendApiMethodStats_WithData", Test_Telemetry_DirectAccess_SendApiMethodStats_WithData },
+        { "Telemetry_DirectAccess_SendApiLatencyStats_Empty", Test_Telemetry_DirectAccess_SendApiLatencyStats_Empty },
+        { "Telemetry_DirectAccess_SendApiLatencyStats_WithData", Test_Telemetry_DirectAccess_SendApiLatencyStats_WithData },
+        { "Telemetry_DirectAccess_SendServiceLatencyStats_Empty", Test_Telemetry_DirectAccess_SendServiceLatencyStats_Empty },
+        { "Telemetry_DirectAccess_SendServiceLatencyStats_WithData", Test_Telemetry_DirectAccess_SendServiceLatencyStats_WithData },
+        { "Telemetry_DirectAccess_SendServiceMethodStats_Empty", Test_Telemetry_DirectAccess_SendServiceMethodStats_Empty },
+        { "Telemetry_DirectAccess_SendServiceMethodStats_WithData", Test_Telemetry_DirectAccess_SendServiceMethodStats_WithData },
+        { "Telemetry_DirectAccess_FlushJob_Dispatch_WithData", Test_Telemetry_DirectAccess_FlushJob_Dispatch_WithData },
+        { "Telemetry_DirectAccess_FlushJob_Dispatch_Empty", Test_Telemetry_DirectAccess_FlushJob_Dispatch_Empty },
+        { "Telemetry_DirectAccess_FlushJob_Dispatch_NullParent", Test_Telemetry_DirectAccess_FlushJob_Dispatch_NullParent },
+        { "Telemetry_DirectAccess_FlushJob_Dispatch_CompactFormat", Test_Telemetry_DirectAccess_FlushJob_Dispatch_CompactFormat },
+        { "Telemetry_DirectAccess_ParseApiMetricName_WrongPrefix", Test_Telemetry_DirectAccess_ParseApiMetricName_WrongPrefix },
+        { "Telemetry_DirectAccess_ParseApiMetricName_NoMethodTag", Test_Telemetry_DirectAccess_ParseApiMetricName_NoMethodTag },
+        { "Telemetry_DirectAccess_ParseApiLatencyMetricName_WrongSuffix", Test_Telemetry_DirectAccess_ParseApiLatencyMetricName_WrongSuffix },
     };
 
     uint32_t failures = 0;
