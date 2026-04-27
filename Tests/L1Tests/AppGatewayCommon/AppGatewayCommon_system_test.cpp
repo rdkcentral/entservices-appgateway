@@ -178,8 +178,7 @@ Core::Sink<MockJSONRPC::MockLocalDispatcher>* SystemDelegateTest::sHdcpDisp = nu
 TEST_F(SystemDelegateTest, AGC_L1_090_GetDeviceMake_Success)
 {
     ON_CALL(*sSystemServices, GetDeviceInfo(_, _))
-        .WillByDefault(::testing::Invoke([](const string*, Exchange::ISystemServices::DeviceInfo& info) {
-            info.success = true;
+        .WillByDefault(::testing::Invoke([](WPEFramework::Exchange::IStringIterator* const&, Exchange::ISystemServices::DeviceInfo& info) {
             info.make = "Arris";
             return Core::ERROR_NONE;
         }));
@@ -195,8 +194,7 @@ TEST_F(SystemDelegateTest, AGC_L1_090_GetDeviceMake_Success)
 TEST_F(SystemDelegateTest, AGC_L1_091_GetDeviceMake_MissingField_ReturnsUnknown)
 {
     ON_CALL(*sSystemServices, GetDeviceInfo(_, _))
-        .WillByDefault(::testing::Invoke([](const string*, Exchange::ISystemServices::DeviceInfo& info) {
-            info.success = true;
+        .WillByDefault(::testing::Invoke([](WPEFramework::Exchange::IStringIterator* const&, Exchange::ISystemServices::DeviceInfo& info) {
             info.make = "";
             return Core::ERROR_NONE;
         }));
