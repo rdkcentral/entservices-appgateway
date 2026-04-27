@@ -136,7 +136,6 @@ jobs:
           ref: R4.4.3
 
       - name: Checkout entservices-apis
-        run: |
         uses: actions/checkout@v3
         with:
           repository: rdkcentral/entservices-apis
