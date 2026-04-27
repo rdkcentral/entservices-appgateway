@@ -999,14 +999,14 @@ public:
     {
         result = "\"\"";
 
-        if (_shell == nullptr)
+        if (nullptr == _shell)
         {
             LOGERR("SystemDelegate: shell is null for GetDisplayEdid");
             return Core::ERROR_UNAVAILABLE;
         }
 
         auto* connProps = _shell->QueryInterfaceByCallsign<Exchange::IConnectionProperties>(DISPLAYINFO_CALLSIGN);
-        if (connProps == nullptr)
+        if (nullptr == connProps)
         {
             LOGWARN("SystemDelegate: IConnectionProperties unavailable for EDID (no display or plugin absent)");
             return Core::ERROR_NONE;
@@ -1050,14 +1050,14 @@ public:
     {
         result = "{\"width\":0,\"height\":0}";
 
-        if (_shell == nullptr)
+        if (nullptr == _shell)
         {
             LOGERR("SystemDelegate: shell is null for GetDisplaySize");
             return Core::ERROR_UNAVAILABLE;
         }
 
         auto* connProps = _shell->QueryInterfaceByCallsign<Exchange::IConnectionProperties>(DISPLAYINFO_CALLSIGN);
-        if (connProps == nullptr)
+        if (nullptr == connProps)
         {
             LOGWARN("SystemDelegate: IConnectionProperties unavailable for size (no display or plugin absent)");
             return Core::ERROR_NONE;
@@ -1092,14 +1092,14 @@ public:
     {
         result = "{\"width\":0,\"height\":0}";
 
-        if (_shell == nullptr)
+        if (nullptr == _shell)
         {
             LOGERR("SystemDelegate: shell is null for GetDisplayMaxResolution");
             return Core::ERROR_UNAVAILABLE;
         }
 
         auto* connProps = _shell->QueryInterfaceByCallsign<Exchange::IConnectionProperties>(DISPLAYINFO_CALLSIGN);
-        if (connProps == nullptr)
+        if (nullptr == connProps)
         {
             LOGWARN("SystemDelegate: IConnectionProperties unavailable for maxResolution (no display or plugin absent)");
             return Core::ERROR_NONE;
