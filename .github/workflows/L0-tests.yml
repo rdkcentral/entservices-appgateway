@@ -25,7 +25,7 @@ env:
   INTERFACES_REF: "develop"
   ENABLE_GDB: ${{ (inputs.enable_gdb && '1') || '0' }}
   # L0 test targets to build and run -- To add a new plugin, append its test binary name here and add its target in Tests/L0Tests/CMakeLists.txt.
-  L0_PLUGIN_TESTS: "appgateway_l0test appnotifications_l0test"
+  L0_PLUGIN_TESTS: "appgateway_l0test appgatewaycommon_l0test appnotifications_l0test"
 
 jobs:
   L0-tests:

@@ -943,28 +943,45 @@ uint32_t Test_AppGatewayImplementation_Resolve_NotConfigured()
 // PUBLIC_INTERFACE
 uint32_t Test_AppGatewayImplementation_RegionalConfig()
 {
-    /** Exercise the regional configuration loading path when /etc/app-gateway/resolutions.json
-     *  exists and contains valid regional JSON.
+    /** Exercise the regional configuration loading path with valid regional JSON.
      *  Covers lines 63-110 (Region class), 121-146 (GetPathsForCountry), 256-297 (parse branch)
      *
-     *  This test is skipped gracefully if the process lacks write permission to /etc/app-gateway/.
+     *  The test writes its config to /etc/app-gateway/resolutions.json.  A RAII guard
+     *  backs up any pre-existing content and restores it (or removes the file if it did
+     *  not exist) when the function returns — even on early return or failure.
      */
     TestResult tr;
 
     const std::string etcResPath = "/etc/app-gateway/resolutions.json";
 
-    // Back up any pre-existing file so we don't clobber production configuration
-    std::string originalContent;
-    bool hadOriginal = false;
-    {
-        std::ifstream existing(etcResPath);
-        if (existing.is_open()) {
-            originalContent.assign(
-                (std::istreambuf_iterator<char>(existing)),
-                 std::istreambuf_iterator<char>());
-            hadOriginal = true;
+    // ── RAII guard: back up now, restore unconditionally on scope exit ──────
+    struct FileGuard {
+        const std::string& path;
+        std::string        savedContent;
+        bool               existed;
+
+        explicit FileGuard(const std::string& p) : path(p), existed(false) {
+            std::ifstream f(p);
+            if (f.is_open()) {
+                savedContent.assign(std::istreambuf_iterator<char>(f),
+                                    std::istreambuf_iterator<char>());
+                existed = true;
+            }
         }
-    }
+        ~FileGuard() {
+            if (existed) {
+                // Restore the original content
+                std::ofstream f(path, std::ios::out | std::ios::trunc);
+                if (f.is_open()) f << savedContent;
+            } else {
+                ::unlink(path.c_str());
+            }
+        }
+        // non-copyable
+        FileGuard(const FileGuard&) = delete;
+        FileGuard& operator=(const FileGuard&) = delete;
+    } guard(etcResPath);
+    // ────────────────────────────────────────────────────────────────────────
 
     // Build regional config JSON that points to the actual test base-resolutions file
     const std::string baseResPath = BaseResolutionsPath();
@@ -979,9 +996,7 @@ uint32_t Test_AppGatewayImplementation_RegionalConfig()
         "  ]"
         "}";
 
-    const bool wrote = WriteTextFile(etcResPath, regionalJson);
-    if (!wrote) {
-        // Cannot write → skip this test (not a failure; just not runnable in this environment)
+    if (!WriteTextFile(etcResPath, regionalJson)) {
         std::cerr << "NOTE: Skipping Test_AppGatewayImplementation_RegionalConfig "
                      "(cannot write to " << etcResPath << ")" << std::endl;
         return tr.failures;
@@ -1012,12 +1027,6 @@ uint32_t Test_AppGatewayImplementation_RegionalConfig()
         service->Release();
     }
 
-    // Restore original file or remove the test-generated one
-    if (hadOriginal) {
-        WriteTextFile(etcResPath, originalContent);
-    } else {
-        ::unlink(etcResPath.c_str());
-    }
-
+    // guard destructor restores (or removes) /etc/app-gateway/resolutions.json here
     return tr.failures;
 }

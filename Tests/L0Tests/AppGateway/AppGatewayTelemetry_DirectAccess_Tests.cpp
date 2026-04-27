@@ -74,6 +74,12 @@ static void ExpectEqU32(TestResult& tr, const uint32_t actual, const uint32_t ex
 }
 
 // RAII guard - initializes/deinitializes the telemetry singleton for each test.
+//
+// Ownership: the guard owns the single ref produced by `new` (refcount = 1).
+// Initialize() receives a non-owning pointer; the guard releases the ref after
+// Deinitialize() so the ServiceMock is destroyed at the end of each test.
+// If Initialize()/Deinitialize() ever start managing their own AddRef/Release,
+// this guard must be updated to match.
 struct TelemetryGuard {
     L0Test::ServiceMock* svc { nullptr };
 
@@ -86,7 +92,7 @@ struct TelemetryGuard {
     ~TelemetryGuard()
     {
         AppGatewayTelemetry::getInstance().Deinitialize();
-        svc->Release();
+        svc->Release();  // drops the ref from new; selfDelete=true destroys the object
         svc = nullptr;
     }
 
