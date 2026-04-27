@@ -43,9 +43,37 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
     "lifecycle.onsuspended",
     "lifecycle.onunloading",
     "lifecycle2.onstatechanged",
-    "discovery.onnavigateto",
+    "actions.onintent",
     "presentation.onfocusedchanged"
 };
+
+// Encode a plain string as a JSON string literal (handles escaping and quotes)
+static inline string JsonEncodeString(const string& value) {
+    string encoded;
+    encoded.reserve(value.size() + 2);
+    encoded.push_back('"');
+    for (char c : value) {
+        switch (c) {
+            case '"':  encoded.append("\\\""); break;
+            case '\\': encoded.append("\\\\"); break;
+            case '\b': encoded.append("\\b");  break;
+            case '\f': encoded.append("\\f");  break;
+            case '\n': encoded.append("\\n");  break;
+            case '\r': encoded.append("\\r");  break;
+            case '\t': encoded.append("\\t");  break;
+            default:
+                if (static_cast<unsigned char>(c) < 0x20) {
+                    char buf[8];
+                    snprintf(buf, sizeof(buf), "\\u%04x", c);
+                    encoded.append(buf);
+                } else {
+                    encoded.push_back(c);
+                }
+        }
+    }
+    encoded.push_back('"');
+    return encoded;
+}
 
 class LifecycleDelegate : public BaseEventDelegate
 {
@@ -239,7 +267,9 @@ class LifecycleDelegate : public BaseEventDelegate
     }
 
     Core::hresult GetLastIntent(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
-        GetLastKnownIntent(context.appId, result);
+        string navigationIntent;
+        GetLastKnownIntent(context.appId, navigationIntent);
+        result = JsonEncodeString(navigationIntent);
         return Core::ERROR_NONE;
     }
 
@@ -625,7 +655,7 @@ class LifecycleDelegate : public BaseEventDelegate
         string navigationIntent;
         GetLastKnownIntent(appId, navigationIntent);
         if (!navigationIntent.empty()) {
-            Dispatch("Discovery.onNavigateTo", navigationIntent, appId);
+            Dispatch("Actions.onIntent", JsonEncodeString(navigationIntent), appId);
         }
     }
 
@@ -646,6 +676,15 @@ class LifecycleDelegate : public BaseEventDelegate
 
         // get appId from appInstanceId
         string appId = mAppIdInstanceIdMap.GetAppId(appInstanceId);
+
+        // A no-op state transition (e.g. AppManager.sendIntent producing ACTIVE->ACTIVE)
+        // carries only an intent — dispatch the intent and skip state-change notifications.
+        if (oldLifecycleState == newLifecycleState) {
+            if (newLifecycleState == Exchange::ILifecycleManager::ACTIVE) {
+                DispatchLastKnownIntent(appId);
+            }
+            return;
+        }
 
         Dispatch("Lifecycle2.onStateChanged", mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId), appId);
 
