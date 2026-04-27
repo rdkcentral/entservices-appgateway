@@ -972,9 +972,10 @@ TEST_F(SystemDelegateTest, AGC_L1_132_GetDeviceName_MissingFriendlyName)
 TEST_F(SystemDelegateCacheTest, AGC_L1_133_GetFirmwareVersion_CacheHitOnSecondCall)
 {
     int callCount = 0;
-    EXPECT_CALL(systemServices, GetSystemVersions(_))
-        .WillRepeatedly(::testing::Invoke([&callCount](Exchange::ISystemServices::SystemVersionsInfo& info) {
+    ON_CALL(systemServices, GetSystemVersions(_))
+        .WillByDefault(::testing::Invoke([&callCount](Exchange::ISystemServices::SystemVersionsInfo& info) {
             ++callCount;
+            info.success = true;
             info.receiverVersion = "99.88.77.66";
             info.stbVersion = "PLATFORM_DEV_20250101_TEST";
             return Core::ERROR_NONE;
