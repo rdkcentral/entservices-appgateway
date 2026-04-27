@@ -991,156 +991,167 @@ public:
     // ---- Display APIs (Firebolt Display module) ----
 
     // PUBLIC_INTERFACE
-    // Display.edid — reads EDID from org.rdk.DisplaySettings.readEDID, returns Base64 string.
-    // Returns "" when no display is connected (STB/OTT).
+    // Display.edid — reads raw EDID bytes from DisplayInfo via ComRPC (Exchange::IConnectionProperties::EDID),
+    // then Base64-encodes them to produce the Firebolt string result.
+    // Returns "" when no display is connected (STB/OTT) or the interface is unavailable.
     Core::hresult GetDisplayEdid(std::string &result)
     {
         result = "\"\"";
-        auto link = AcquireLink(DISPLAYSETTINGS_CALLSIGN);
-        if (!link)
+
+        if (_shell == nullptr)
         {
-            LOGERR("SystemDelegate: DisplaySettings link unavailable for readEDID");
+            LOGERR("SystemDelegate: shell is null for GetDisplayEdid");
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        WPEFramework::Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke("readEDID", params, response);
-        if (rc != Core::ERROR_NONE || !response.HasLabel(_T("EDID")))
+        auto* connProps = _shell->QueryInterfaceByCallsign<Exchange::IConnectionProperties>(DISPLAYINFO_CALLSIGN);
+        if (connProps == nullptr)
         {
-            // Treat as "no display connected" — valid for OTT/STB without HDMI output.
-            // Return ERROR_NONE with empty string per the API contract.
-            LOGWARN("SystemDelegate: DisplaySettings.readEDID rc=%u (no display or not supported)", rc);
+            LOGWARN("SystemDelegate: IConnectionProperties unavailable for EDID (no display or plugin absent)");
             return Core::ERROR_NONE;
         }
 
-        std::string edid = response[_T("EDID")].String();
-
-        // Normalize: some Thunder versions JSON-escape forward slashes as \/ inside the EDID
-        // Base64 string. Replace \/ -> / to produce canonical standard Base64
-        // (RFC 4648 Base64 alphabet uses plain '/', not '\/').
-        std::string normalized;
-        normalized.reserve(edid.size());
-        for (size_t i = 0; i < edid.size(); ++i)
+        // Check HDMI connection before requesting EDID
+        bool connected = false;
+        connProps->Connected(connected);
+        if (!connected)
         {
-            if (edid[i] == '\\' && (i + 1) < edid.size() && edid[i + 1] == '/')
-            {
-                normalized += '/';
-                ++i;
-            }
-            else if (edid[i] != '\r' && edid[i] != '\n' && edid[i] != ' ')
-            {
-                normalized += edid[i];
-            }
+            LOGWARN("SystemDelegate: No display connected — returning empty EDID");
+            connProps->Release();
+            return Core::ERROR_NONE;
         }
 
-        LogEdidInfo(normalized);
-        result = "\"" + normalized + "\"";
+        // Allocate buffer for up to 4 EDID blocks (128 bytes each, max 512 bytes).
+        // EDID() uses length as @inout: pass the buffer capacity, receives the actual byte count.
+        static constexpr uint16_t kMaxEdidBytes = 512;
+        std::array<uint8_t, kMaxEdidBytes> edidBuf{};
+        uint16_t edidLen = kMaxEdidBytes;
+        const Core::hresult rc = connProps->EDID(edidLen, edidBuf.data());
+        connProps->Release();
+
+        if (rc != Core::ERROR_NONE || edidLen == 0)
+        {
+            LOGWARN("SystemDelegate: IConnectionProperties::EDID rc=%u len=%u (no display or not supported)", rc, static_cast<unsigned>(edidLen));
+            return Core::ERROR_NONE;
+        }
+
+        const std::string encoded = Base64Encode(edidBuf.data(), edidLen);
+        LogEdidInfo(encoded);
+        result = "\"" + encoded + "\"";
         return Core::ERROR_NONE;
     }
 
     // PUBLIC_INTERFACE
-    // Display.size — reads widthincentimeters / heightincentimeters from DisplayInfo.
-    // Returns {"width":0,"height":0} when no display is connected (STB/OTT).
-    // DisplayInfo may return either a bare integer ("48") or a JSON object
-    // ({"result":48}) depending on the Thunder version; ParseDisplayInfoInt handles both.
+    // Display.size — reads physical display dimensions via ComRPC (Exchange::IConnectionProperties).
+    // Uses WidthInCentimeters() / HeightInCentimeters() which return uint8_t directly.
+    // Returns {"width":0,"height":0} when no display is connected (STB/OTT) or the interface is unavailable.
     Core::hresult GetDisplaySize(std::string &result)
     {
         result = "{\"width\":0,\"height\":0}";
-        auto link = AcquireLink(DISPLAYINFO_CALLSIGN);
-        if (!link)
+
+        if (_shell == nullptr)
         {
-            LOGWARN("SystemDelegate: DisplayInfo link unavailable for size (no display or plugin absent)");
+            LOGERR("SystemDelegate: shell is null for GetDisplaySize");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        auto* connProps = _shell->QueryInterfaceByCallsign<Exchange::IConnectionProperties>(DISPLAYINFO_CALLSIGN);
+        if (connProps == nullptr)
+        {
+            LOGWARN("SystemDelegate: IConnectionProperties unavailable for size (no display or plugin absent)");
             return Core::ERROR_NONE;
         }
 
-        const std::string emptyParams = "{}";
-        std::string wStr, hStr;
-        const uint32_t wRc = link->Invoke<std::string, std::string>("widthincentimeters", emptyParams, wStr);
-        const uint32_t hRc = link->Invoke<std::string, std::string>("heightincentimeters", emptyParams, hStr);
+        uint8_t width = 0, height = 0;
+        const Core::hresult wRc = connProps->WidthInCentimeters(width);
+        const Core::hresult hRc = connProps->HeightInCentimeters(height);
+        connProps->Release();
 
         if (wRc != Core::ERROR_NONE && hRc != Core::ERROR_NONE)
         {
-            LOGWARN("SystemDelegate: DisplayInfo widthincentimeters rc=%u heightincentimeters rc=%u (no display)", wRc, hRc);
+            LOGWARN("SystemDelegate: IConnectionProperties WidthInCentimeters rc=%u HeightInCentimeters rc=%u (no display)", wRc, hRc);
             return Core::ERROR_NONE;
         }
 
-        const int width  = (wRc == Core::ERROR_NONE) ? ParseDisplayInfoInt(wStr)  : 0;
-        const int height = (hRc == Core::ERROR_NONE) ? ParseDisplayInfoInt(hStr) : 0;
-
-        LOGDBG("SystemDelegate: GetDisplaySize widthincentimeters=%s(%d) heightincentimeters=%s(%d)",
-               wStr.c_str(), width, hStr.c_str(), height);
+        LOGDBG("SystemDelegate: GetDisplaySize width=%u cm height=%u cm",
+               static_cast<unsigned>(width), static_cast<unsigned>(height));
 
         JsonObject obj;
-        obj["width"]  = width;
-        obj["height"] = height;
+        obj["width"]  = static_cast<int>(width);
+        obj["height"] = static_cast<int>(height);
         obj.ToString(result);
         return Core::ERROR_NONE;
     }
 
     // PUBLIC_INTERFACE
-    // Display.maxResolution — reads width / height (pixels) from DisplayInfo.
-    // Returns {"width":0,"height":0} when no display is connected (STB/OTT).
-    // DisplayInfo may return either a bare integer ("1920") or a JSON object
-    // ({"result":1920}) depending on the Thunder version; ParseDisplayInfoInt handles both.
+    // Display.maxResolution — reads TV pixel resolution via ComRPC (Exchange::IConnectionProperties).
+    // Uses Width() / Height() which return uint32_t directly.
+    // Returns {"width":0,"height":0} when no display is connected (STB/OTT) or the interface is unavailable.
     Core::hresult GetDisplayMaxResolution(std::string &result)
     {
         result = "{\"width\":0,\"height\":0}";
-        auto link = AcquireLink(DISPLAYINFO_CALLSIGN);
-        if (!link)
+
+        if (_shell == nullptr)
         {
-            LOGWARN("SystemDelegate: DisplayInfo link unavailable for maxResolution (no display or plugin absent)");
+            LOGERR("SystemDelegate: shell is null for GetDisplayMaxResolution");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        auto* connProps = _shell->QueryInterfaceByCallsign<Exchange::IConnectionProperties>(DISPLAYINFO_CALLSIGN);
+        if (connProps == nullptr)
+        {
+            LOGWARN("SystemDelegate: IConnectionProperties unavailable for maxResolution (no display or plugin absent)");
             return Core::ERROR_NONE;
         }
 
-        const std::string emptyParams = "{}";
-        std::string wStr, hStr;
-        const uint32_t wRc = link->Invoke<std::string, std::string>("width", emptyParams, wStr);
-        const uint32_t hRc = link->Invoke<std::string, std::string>("height", emptyParams, hStr);
+        uint32_t width = 0, height = 0;
+        const Core::hresult wRc = connProps->Width(width);
+        const Core::hresult hRc = connProps->Height(height);
+        connProps->Release();
 
         if (wRc != Core::ERROR_NONE && hRc != Core::ERROR_NONE)
         {
-            LOGWARN("SystemDelegate: DisplayInfo width rc=%u height rc=%u (no display)", wRc, hRc);
+            LOGWARN("SystemDelegate: IConnectionProperties Width rc=%u Height rc=%u (no display)", wRc, hRc);
             return Core::ERROR_NONE;
         }
 
-        const int width  = (wRc == Core::ERROR_NONE) ? ParseDisplayInfoInt(wStr) : 0;
-        const int height = (hRc == Core::ERROR_NONE) ? ParseDisplayInfoInt(hStr) : 0;
-
-        LOGDBG("SystemDelegate: GetDisplayMaxResolution width=%s(%d) height=%s(%d)",
-               wStr.c_str(), width, hStr.c_str(), height);
+        LOGDBG("SystemDelegate: GetDisplayMaxResolution width=%u height=%u", width, height);
 
         JsonObject obj;
-        obj["width"]  = width;
-        obj["height"] = height;
+        obj["width"]  = static_cast<int>(width);
+        obj["height"] = static_cast<int>(height);
         obj.ToString(result);
         return Core::ERROR_NONE;
     }
 
 
 private:
-    // Parse a DisplayInfo scalar response that may be either:
-    //   - a bare integer string:   "1920"
-    //   - a JSON object:           {"result":1920}
-    // Returns the integer value, or 0 on any parse failure.
-    static int ParseDisplayInfoInt(const std::string& s)
+    // Encode raw bytes to a standard Base64 string (RFC 4648, with '=' padding).
+    static std::string Base64Encode(const uint8_t* in, size_t inLen)
     {
-        if (s.empty()) return 0;
-        // Fast path: bare integer (most common after JSONRPCDirectLink envelope unwrap)
-        if (s[0] != '{')
+        static const char kAlpha[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        std::string out;
+        out.reserve(((inLen + 2) / 3) * 4);
+        uint32_t acc = 0;
+        int      bits = 0;
+        for (size_t i = 0; i < inLen; ++i)
         {
-            try { return std::stoi(s); } catch (...) { return 0; }
+            acc   = (acc << 8) | static_cast<uint32_t>(in[i]);
+            bits += 8;
+            while (bits >= 6)
+            {
+                bits -= 6;
+                out += kAlpha[(acc >> bits) & 0x3Fu];
+            }
         }
-        // Slow path: JSON object — parse and extract "result"
-        WPEFramework::Core::JSON::VariantContainer v;
-        WPEFramework::Core::OptionalType<WPEFramework::Core::JSON::Error> err;
-        if (v.FromString(s, err) && v.HasLabel(_T("result")))
+        if (bits > 0)
         {
-            const auto r = v.Get(_T("result"));
-            if (r.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER)
-                return static_cast<int>(r.Number());
+            acc <<= (6 - bits);
+            out += kAlpha[acc & 0x3Fu];
         }
-        return 0;
+        while (out.size() % 4 != 0)
+            out += '=';
+        return out;
     }
 
     // Decode a single Base64 character to its 6-bit value; returns -1 for padding/invalid.
