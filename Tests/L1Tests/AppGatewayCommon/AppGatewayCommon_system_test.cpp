@@ -30,6 +30,7 @@
 #include "ServiceMock.h"
 #include "MockJSONRPCDirectLink.h"
 #include "MockEmitter.h"
+#include "SystemServicesMock.h"
 #include "ThunderPortability.h"
 #include "WorkerPoolImplementation.h"
 
@@ -87,6 +88,7 @@ protected:
     // Shared across all tests in this suite — initialized once in SetUpTestSuite.
     static Core::Sink<AppGatewayCommon>* sPlugin;
     static NiceMock<ServiceMock>* sService;
+    static NiceMock<SystemServicesMock>* sSystemServices;
     static Core::Sink<MockJSONRPC::MockLocalDispatcher>* sSystemDisp;
     static Core::Sink<MockJSONRPC::MockLocalDispatcher>* sDisplayDisp;
     static Core::Sink<MockJSONRPC::MockLocalDispatcher>* sHdcpDisp;
@@ -94,6 +96,7 @@ protected:
     // Convenience references so existing TEST_F bodies compile unchanged.
     Core::Sink<AppGatewayCommon>& plugin = *sPlugin;
     NiceMock<ServiceMock>& service = *sService;
+    NiceMock<SystemServicesMock>& systemServices = *sSystemServices;
     Core::Sink<MockJSONRPC::MockLocalDispatcher>& systemDispatcher = *sSystemDisp;
     Core::Sink<MockJSONRPC::MockLocalDispatcher>& displayDispatcher = *sDisplayDisp;
     Core::Sink<MockJSONRPC::MockLocalDispatcher>& hdcpDispatcher = *sHdcpDisp;
@@ -101,6 +104,7 @@ protected:
     static void SetUpTestSuite()
     {
         sService = new NiceMock<ServiceMock>();
+        sSystemServices = new NiceMock<SystemServicesMock>();
         sSystemDisp = new Core::Sink<MockJSONRPC::MockLocalDispatcher>();
         sDisplayDisp = new Core::Sink<MockJSONRPC::MockLocalDispatcher>();
         sHdcpDisp = new Core::Sink<MockJSONRPC::MockLocalDispatcher>();
@@ -108,6 +112,11 @@ protected:
 
         ON_CALL(*sService, QueryInterfaceByCallsign(_, _))
             .WillByDefault(Return(nullptr));
+
+        ON_CALL(*sService, QueryInterfaceByCallsign(Exchange::ISystemServices::ID, ::testing::StrEq("org.rdk.System")))
+            .WillByDefault(::testing::Invoke([](uint32_t, const string&) -> void* {
+                return static_cast<Exchange::ISystemServices*>(sSystemServices);
+            }));
 
         ON_CALL(*sService, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.System")))
             .WillByDefault(::testing::Invoke([](uint32_t, const string&) -> void* {
@@ -130,6 +139,11 @@ protected:
         ON_CALL(*sService, QueryInterfaceByCallsign(PluginHost::IAuthenticate::ID, _))
             .WillByDefault(Return(nullptr));
 
+        ON_CALL(*sSystemServices, AddRef()).WillByDefault(Return());
+        ON_CALL(*sSystemServices, Release()).WillByDefault(Return(Core::ERROR_NONE));
+        ON_CALL(*sSystemServices, Register(_)).WillByDefault(Return(Core::ERROR_NONE));
+        ON_CALL(*sSystemServices, Unregister(_)).WillByDefault(Return(Core::ERROR_NONE));
+
         EXPECT_CALL(*sService, AddRef()).Times(AnyNumber());
         EXPECT_CALL(*sService, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
 
@@ -147,12 +161,14 @@ protected:
         delete sHdcpDisp;    sHdcpDisp = nullptr;
         delete sDisplayDisp; sDisplayDisp = nullptr;
         delete sSystemDisp;  sSystemDisp = nullptr;
+        delete sSystemServices; sSystemServices = nullptr;
         delete sService;     sService = nullptr;
     }
 };
 
 Core::Sink<AppGatewayCommon>* SystemDelegateTest::sPlugin = nullptr;
 NiceMock<ServiceMock>* SystemDelegateTest::sService = nullptr;
+NiceMock<SystemServicesMock>* SystemDelegateTest::sSystemServices = nullptr;
 Core::Sink<MockJSONRPC::MockLocalDispatcher>* SystemDelegateTest::sSystemDisp = nullptr;
 Core::Sink<MockJSONRPC::MockLocalDispatcher>* SystemDelegateTest::sDisplayDisp = nullptr;
 Core::Sink<MockJSONRPC::MockLocalDispatcher>* SystemDelegateTest::sHdcpDisp = nullptr;
@@ -161,10 +177,12 @@ Core::Sink<MockJSONRPC::MockLocalDispatcher>* SystemDelegateTest::sHdcpDisp = nu
 
 TEST_F(SystemDelegateTest, AGC_L1_090_GetDeviceMake_Success)
 {
-    systemDispatcher.SetHandler("getDeviceInfo", [](const std::string&, const std::string&, std::string& resp) {
-        resp = R"({"make":"Arris"})";
-        return Core::ERROR_NONE;
-    });
+    ON_CALL(*sSystemServices, GetDeviceInfo(_, _))
+        .WillByDefault(::testing::Invoke([](const string*, Exchange::ISystemServices::DeviceInfo& info) {
+            info.success = true;
+            info.make = "Arris";
+            return Core::ERROR_NONE;
+        }));
 
     const auto ctx = MakeContext();
     string result;
@@ -176,10 +194,12 @@ TEST_F(SystemDelegateTest, AGC_L1_090_GetDeviceMake_Success)
 
 TEST_F(SystemDelegateTest, AGC_L1_091_GetDeviceMake_MissingField_ReturnsUnknown)
 {
-    systemDispatcher.SetHandler("getDeviceInfo", [](const std::string&, const std::string&, std::string& resp) {
-        resp = R"({})";
-        return Core::ERROR_NONE;
-    });
+    ON_CALL(*sSystemServices, GetDeviceInfo(_, _))
+        .WillByDefault(::testing::Invoke([](const string*, Exchange::ISystemServices::DeviceInfo& info) {
+            info.success = true;
+            info.make = "";
+            return Core::ERROR_NONE;
+        }));
 
     const auto ctx = MakeContext();
     string result;
