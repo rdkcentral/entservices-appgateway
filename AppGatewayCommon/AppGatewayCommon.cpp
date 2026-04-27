@@ -352,31 +352,31 @@ namespace Plugin {
             if (it != handlers.end()) {
                 return it->second(this, context, payload, result);
             }
-            else if (lowerMethod == "device.setname")
-            {
-                std::string name;
-                if (JsonValidation::ValidateAndExtractString(payload, name)) {
-                    return ResponseUtils::SetNullResponseForSuccess(SetDeviceName(name), result);
-                }
-                result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
+                else if (lowerMethod == "device.setname")
+                {
+                    std::string name;
+                    if (JsonValidation::ValidateAndExtractString(payload, name)) {
+                        return ResponseUtils::SetNullResponseForSuccess(SetDeviceName(std::move(name)), result);
+                    }
+                    result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
-            else if (lowerMethod == "localization.setcountrycode")
-            {
-                std::string countryCode;
-                if (JsonValidation::ValidateAndExtractString(payload, countryCode)) {
-                    return ResponseUtils::SetNullResponseForSuccess(SetCountryCode(countryCode), result);
-                }
-                result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
+                else if (lowerMethod == "localization.setcountrycode")
+                {
+                    std::string countryCode;
+                    if (JsonValidation::ValidateAndExtractString(payload, countryCode)) {
+                        return ResponseUtils::SetNullResponseForSuccess(SetCountryCode(std::move(countryCode)), result);
+                    }
+                    result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
-            else if (lowerMethod == "localization.settimezone")
-            {
-                std::string timeZone;
-                if (JsonValidation::ValidateAndExtractString(payload, timeZone)) {
-                    return ResponseUtils::SetNullResponseForSuccess(SetTimeZone(timeZone), result);
-                }
-                result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
+                else if (lowerMethod == "localization.settimezone")
+                {
+                    std::string timeZone;
+                    if (JsonValidation::ValidateAndExtractString(payload, timeZone)) {
+                        return ResponseUtils::SetNullResponseForSuccess(SetTimeZone(std::move(timeZone)), result);
+                    }
+                    result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
             }
             else if (lowerMethod == "voiceguidance.setenabled")
