@@ -234,6 +234,7 @@ TEST_F(SystemDelegateTest, AGC_L1_093_GetDeviceSku_Success)
         .WillByDefault(::testing::Invoke([](Exchange::ISystemServices::SystemVersionsInfo& info) {
             info.stbVersion = "SKXI11ADS_VBN_23Q4_sprint_20240101123456";
             info.receiverVersion = "99.99.15.07";
+            info.success = true;
             return Core::ERROR_NONE;
         }));
 
@@ -307,6 +308,7 @@ TEST_F(SystemDelegateCacheTest, AGC_L1_094_GetFirmwareVersion_Success)
         .WillByDefault(::testing::Invoke([](Exchange::ISystemServices::SystemVersionsInfo& info) {
             info.receiverVersion = "99.99.15.07";
             info.stbVersion = "SKXI11ADS_VBN_23Q4";
+            info.success = true;
             return Core::ERROR_NONE;
         }));
 
@@ -637,6 +639,7 @@ TEST_F(SystemDelegateCacheTest, AGC_L1_114_GetFirmwareVersion_Success)
         .WillByDefault(::testing::Invoke([](Exchange::ISystemServices::SystemVersionsInfo& info) {
             info.receiverVersion = "4.4.1";
             info.stbVersion = "SCXI11BEI_VBN_24Q2_sprint_20240611103551sdy_FG_EDGE_R4.4.1";
+            info.success = true;
             return Core::ERROR_NONE;
         }));
 
@@ -706,10 +709,11 @@ TEST_F(SystemDelegateTest, AGC_L1_117_SetDeviceName_Success)
 
 TEST_F(SystemDelegateTest, AGC_L1_118_SetDeviceName_Failure)
 {
-    systemDispatcher.SetHandler("setFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
-        resp = R"({"success":false})";
-        return Core::ERROR_NONE;
-    });
+    ON_CALL(*sSystemServices, SetFriendlyName(_, _))
+        .WillByDefault(::testing::Invoke([](const string& friendlyName, Exchange::ISystemServices::SystemResult& result) {
+            result.success = false;
+            return Core::ERROR_NONE;
+        }));
 
     const auto ctx = MakeContext();
     string result;
@@ -1046,10 +1050,11 @@ TEST_F(SystemDelegateCacheTest, AGC_L1_136_GetFirmwareVersion_MissingStbVersion)
 
 TEST_F(SystemDelegateTest, AGC_L1_137_SetCountryCode_Failure)
 {
-    systemDispatcher.SetHandler("setTerritory", [](const std::string&, const std::string&, std::string& resp) {
-        resp = R"({"success":false})";
-        return Core::ERROR_NONE;
-    });
+    ON_CALL(*sSystemServices, SetTerritory(_, _, _, _))
+        .WillByDefault(::testing::Invoke([](const string& territory, const string& region, Exchange::ISystemServices::SystemError& error, bool& success) {
+            success = false;
+            return Core::ERROR_NONE;
+        }));
 
     const auto ctx = MakeContext();
     string result;
@@ -1062,10 +1067,12 @@ TEST_F(SystemDelegateTest, AGC_L1_137_SetCountryCode_Failure)
 
 TEST_F(SystemDelegateTest, AGC_L1_138_SetTimeZone_Failure)
 {
-    systemDispatcher.SetHandler("setTimeZoneDST", [](const std::string&, const std::string&, std::string& resp) {
-        resp = R"({"success":false})";
-        return Core::ERROR_NONE;
-    });
+    ON_CALL(*sSystemServices, SetTimeZoneDST(_, _, _, _, _))
+        .WillByDefault(::testing::Invoke([](const string& timeZone, const string& accuracy, uint32_t& SysSrv_Status, string& errorMessage, bool& success) {
+            success = false;
+            SysSrv_Status = 1;
+            return Core::ERROR_NONE;
+        }));
 
     const auto ctx = MakeContext();
     string result;
@@ -1078,10 +1085,13 @@ TEST_F(SystemDelegateTest, AGC_L1_138_SetTimeZone_Failure)
 
 TEST_F(SystemDelegateTest, AGC_L1_139_GetTimeZone_MissingTimeZoneField)
 {
-    systemDispatcher.SetHandler("getTimeZoneDST", [](const std::string&, const std::string&, std::string& resp) {
-        resp = R"({"success":true})";
-        return Core::ERROR_NONE;
-    });
+    ON_CALL(*sSystemServices, GetTimeZoneDST(_, _, _))
+        .WillByDefault(::testing::Invoke([](string& timeZone, string& accuracy, bool& success) {
+            timeZone = "";
+            accuracy = "";
+            success = true;
+            return Core::ERROR_NONE;
+        }));
 
     const auto ctx = MakeContext();
     string result;
@@ -1103,6 +1113,7 @@ class SystemDelegateEmitTest : public ::testing::Test {
 protected:
     Core::Sink<AppGatewayCommon> plugin;
     NiceMock<ServiceMock> service;
+    NiceMock<SystemServicesMock> systemServices;
     Core::Sink<MockJSONRPC::MockLocalDispatcher> systemDispatcher;
     Core::Sink<MockJSONRPC::MockLocalDispatcher> displayDispatcher;
     Core::Sink<MockJSONRPC::MockLocalDispatcher> hdcpDispatcher;
@@ -1113,6 +1124,11 @@ protected:
         ON_CALL(service, QueryInterfaceByCallsign(_, _))
             .WillByDefault(Return(nullptr));
 
+        ON_CALL(service, QueryInterfaceByCallsign(Exchange::ISystemServices::ID, ::testing::StrEq("org.rdk.System")))
+            .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
+                return static_cast<Exchange::ISystemServices*>(&systemServices);
+            }));
+        
         ON_CALL(service, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, ::testing::StrEq("org.rdk.System")))
             .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
                 systemDispatcher.AddRef();
@@ -1133,6 +1149,11 @@ protected:
 
         ON_CALL(service, QueryInterfaceByCallsign(PluginHost::IAuthenticate::ID, _))
             .WillByDefault(Return(nullptr));
+
+        ON_CALL(systemServices, AddRef()).WillByDefault(Return());
+        ON_CALL(systemServices, Release()).WillByDefault(Return(Core::ERROR_NONE));
+        ON_CALL(systemServices, Register(_)).WillByDefault(Return(Core::ERROR_NONE));
+        ON_CALL(systemServices, Unregister(_)).WillByDefault(Return(Core::ERROR_NONE));
 
         EXPECT_CALL(service, AddRef()).Times(AnyNumber());
         EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
@@ -1271,10 +1292,12 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_144_EmitOnAudioChanged_DispatchesToEmitter
 
 TEST_F(SystemDelegateEmitTest, AGC_L1_145_EmitOnNameChanged_DispatchesToEmitter)
 {
-    systemDispatcher.SetHandler("getFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
-        resp = R"({"friendlyName":"Living Room TV"})";
-        return Core::ERROR_NONE;
-    });
+    ON_CALL(systemServices, GetFriendlyName(_, _))
+        .WillByDefault(::testing::Invoke([](string& friendlyName, bool& success) {
+            friendlyName = "Living Room TV";
+            success = true;
+            return Core::ERROR_NONE;
+        }));
 
     MockEmitter* emitter = SubscribeEmitter("Device.onDeviceNameChanged");
 
