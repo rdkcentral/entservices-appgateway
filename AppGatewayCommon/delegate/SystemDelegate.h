@@ -28,6 +28,7 @@
 
 #include <plugins/plugins.h>
 #include <core/JSON.h>
+#include <interfaces/IDisplayInfo.h>
 #include "UtilsLogging.h"
 #include "UtilsJsonrpcDirectLink.h"
 #include "UtilsController.h"
