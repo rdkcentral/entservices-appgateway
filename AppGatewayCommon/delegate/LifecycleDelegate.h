@@ -243,6 +243,18 @@ class LifecycleDelegate : public BaseEventDelegate
         return Core::ERROR_NONE;
     }
 
+    Core::hresult GetPresentationFocused(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        // get appInstance Id from context.appId
+        string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(context.appId);
+        if (true == appInstanceId.empty()) {
+            LOGWARN("GetPresentationFocused called for unknown or unmapped appId=%s", context.appId.c_str());
+            result = "false";
+            return Core::ERROR_NONE;
+        }
+        result = mFocusedAppRegistry.IsAppInstanceIdFocused(appInstanceId) ? "true" : "false";
+        return Core::ERROR_NONE;
+    }
+
     private:
     class LifecycleNotificationHandler : public Exchange::ILifecycleManagerState::INotification
     {

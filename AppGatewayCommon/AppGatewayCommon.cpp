@@ -86,6 +86,16 @@ namespace Plugin {
         ASSERT(service == mShell);
         mConnectionId = 0;
 
+        // Wait for any in-flight EventRegistrationJobs to complete before
+        // destroying the delegate.  These jobs run on the worker pool and
+        // may be blocked inside Thunder Subscribe() calls (up to the
+        // SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS timeout).  Destroying the
+        // delegate while a job is executing causes use-after-free.
+        {
+            std::unique_lock<std::mutex> lk(mJobDrainMutex);
+            mJobDrainCv.wait(lk, [this] { return mActiveJobs.load(std::memory_order_acquire) == 0; });
+        }
+
         mDelegate->Cleanup();
         // Clean up the delegate
         mDelegate.reset();
@@ -318,7 +328,10 @@ namespace Plugin {
             (void)ctx;
             (void)payload;
             return self->GetNetworkConnected(result);
-        }}
+        }},
+        {"presentation.focused", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetPresentationFocused(ctx, payload, result);
+        }},
     };
 
     Core::hresult AppGatewayCommon::HandleAppGatewayRequest(const Exchange::GatewayContext &context /* @in */,
@@ -508,6 +521,7 @@ namespace Plugin {
                 return false;
             }
 
+            mActiveJobs.fetch_add(1, std::memory_order_acq_rel);
             Core::IWorkerPool::Instance().Submit(job);
             return true;
         }
@@ -1226,6 +1240,11 @@ namespace Plugin {
         Core::hresult AppGatewayCommon::GetLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
             return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetLastIntent, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::GetPresentationFocused(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetPresentationFocused, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::CheckPermissionGroup(const string &appId /* @in */, const string &permissionGroup /* @in */, bool &allowed /* @out */)
