@@ -218,6 +218,7 @@ TEST_F(AppDelegateTest, AGC_L1_021_AdvertisingId_Success_ExistingValue)
     EXPECT_NE(result.find("existing-ad-id"), std::string::npos);
     EXPECT_NE(result.find("ifa"), std::string::npos);
     EXPECT_NE(result.find("ifa_type"), std::string::npos);
+    EXPECT_NE(result.find("lmt"), std::string::npos);
 }
 
 TEST_F(AppDelegateTest, AGC_L1_022_AdvertisingId_CreatesNewWhenNotFound)
@@ -238,6 +239,8 @@ TEST_F(AppDelegateTest, AGC_L1_022_AdvertisingId_CreatesNewWhenNotFound)
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_NE(result.find("ifa"), std::string::npos);
+    EXPECT_NE(result.find("ifa_type"), std::string::npos);
+    EXPECT_NE(result.find("lmt"), std::string::npos);
 }
 
 TEST_F(AppDelegateTest, AGC_L1_023_AdvertisingId_SetValueFails)

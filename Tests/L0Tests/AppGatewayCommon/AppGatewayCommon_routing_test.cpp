@@ -463,3 +463,57 @@ uint32_t Test_HandleRequest_NetworkConnected()
 {
     return DelegateGetterTest("network.connected");
 }
+
+// ============================================================================
+// Tests AGC_L0_098 – AGC_L0_100 — presentation.focused
+// ============================================================================
+
+// TEST_ID: AGC_L0_098
+// Handler-map getter: presentation.focused is routed and returns ERROR_NONE.
+// In L0, mAppIdInstanceIdMap is empty so GetAppInstanceId returns "" and
+// IsAppInstanceIdFocused("") is true (focusedAppInstanceId initialises to "").
+// result = "true", rc = ERROR_NONE.
+uint32_t Test_HandleRequest_PresentationFocused_Routed()
+{
+    return DelegateGetterTest("presentation.focused");
+}
+
+// TEST_ID: AGC_L0_099
+// presentation.focused result is always the literal string "true" or "false".
+// LifecycleDelegate::GetPresentationFocused never returns an error JSON — it
+// unconditionally sets result to one of the two boolean strings and returns ERROR_NONE.
+uint32_t Test_HandleRequest_PresentationFocused_ResultIsBooleanString()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "presentation.focused", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "presentation.focused returns ERROR_NONE");
+    const bool isBoolStr = (result == "true" || result == "false");
+    ExpectTrue(tr, isBoolStr, "presentation.focused result is 'true' or 'false'");
+
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_100
+// presentation.focused is case-insensitive: PRESENTATION.FOCUSED is lowered
+// internally and routes to the same handler as presentation.focused.
+uint32_t Test_HandleRequest_PresentationFocused_CaseInsensitive()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "PRESENTATION.FOCUSED", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "PRESENTATION.FOCUSED (uppercase) routes same as presentation.focused");
+
+    return tr.failures;
+}
+

@@ -328,7 +328,10 @@ namespace Plugin {
             (void)ctx;
             (void)payload;
             return self->GetNetworkConnected(result);
-        }}
+        }},
+        {"presentation.focused", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetPresentationFocused(ctx, payload, result);
+        }},
     };
 
     Core::hresult AppGatewayCommon::HandleAppGatewayRequest(const Exchange::GatewayContext &context /* @in */,
@@ -1237,6 +1240,11 @@ namespace Plugin {
         Core::hresult AppGatewayCommon::GetLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
             return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetLastIntent, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::GetPresentationFocused(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetPresentationFocused, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::CheckPermissionGroup(const string &appId /* @in */, const string &permissionGroup /* @in */, bool &allowed /* @out */)
