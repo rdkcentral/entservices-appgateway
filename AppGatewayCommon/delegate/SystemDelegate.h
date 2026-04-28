@@ -1000,14 +1000,14 @@ public:
     {
         result = "\"\"";
 
-        if (_shell == nullptr)
+        if (nullptr == _shell)
         {
             LOGERR("SystemDelegate: shell is null for GetDisplayEdid");
             return Core::ERROR_UNAVAILABLE;
         }
 
         auto* connProps = _shell->QueryInterfaceByCallsign<Exchange::IConnectionProperties>(DISPLAYINFO_CALLSIGN);
-        if (connProps == nullptr)
+        if (nullptr == connProps)
         {
             LOGWARN("SystemDelegate: IConnectionProperties unavailable for EDID (no display or plugin absent)");
             return Core::ERROR_NONE;
@@ -1051,14 +1051,14 @@ public:
     {
         result = "{\"width\":0,\"height\":0}";
 
-        if (_shell == nullptr)
+        if (nullptr == _shell)
         {
             LOGERR("SystemDelegate: shell is null for GetDisplaySize");
             return Core::ERROR_UNAVAILABLE;
         }
 
         auto* connProps = _shell->QueryInterfaceByCallsign<Exchange::IConnectionProperties>(DISPLAYINFO_CALLSIGN);
-        if (connProps == nullptr)
+        if (nullptr == connProps)
         {
             LOGWARN("SystemDelegate: IConnectionProperties unavailable for size (no display or plugin absent)");
             return Core::ERROR_NONE;
@@ -1093,14 +1093,14 @@ public:
     {
         result = "{\"width\":0,\"height\":0}";
 
-        if (_shell == nullptr)
+        if (nullptr == _shell)
         {
             LOGERR("SystemDelegate: shell is null for GetDisplayMaxResolution");
             return Core::ERROR_UNAVAILABLE;
         }
 
         auto* connProps = _shell->QueryInterfaceByCallsign<Exchange::IConnectionProperties>(DISPLAYINFO_CALLSIGN);
-        if (connProps == nullptr)
+        if (nullptr == connProps)
         {
             LOGWARN("SystemDelegate: IConnectionProperties unavailable for maxResolution (no display or plugin absent)");
             return Core::ERROR_NONE;
@@ -1201,7 +1201,7 @@ public:
 
     // PUBLIC_INTERFACE
     // Display.videoResolutions — reads supported resolutions from org.rdk.DisplaySettings.getSupportedResolutions.
-    // Maps Thunder resolution strings (e.g. "720p", "720p50", "1080p60") to Firebolt {width, height} objects.
+    // Maps Thunder resolution strings (e.g. "720p", "720p50", "1080p60") to Firebolt VideoResolution enum strings.
     // Only HD resolutions (720p and above) are included; results are deduplicated by resolution class.
     // Returns "[]" when no display is connected (STB/OTT) or the plugin is unavailable.
     Core::hresult GetDisplayVideoResolutions(std::string &result)
@@ -1223,9 +1223,6 @@ public:
             return Core::ERROR_NONE;
         }
 
-        // Iterate the supportedResolutions array and build a concatenated string for substring matching.
-        // Using Variant::Array() + element.String() follows the same pattern used elsewhere in this file
-        // (e.g. SetFlagsFromSupported) and avoids the unresolved Variant::ToString(std::string&) symbol.
         std::string arrJson;
         const WPEFramework::Core::JSON::Variant& resVar = response.Get(_T("supportedResolutions"));
         if (resVar.Content() == WPEFramework::Core::JSON::Variant::type::ARRAY)
@@ -1240,7 +1237,6 @@ public:
         }
         else
         {
-            // Fallback: treat it as a plain string (unlikely but safe)
             arrJson = resVar.String();
         }
 
@@ -1254,13 +1250,10 @@ public:
         //  - Specific "720p50" → 720p50 only; "720p60" → 720p60 only
         //  - Same pattern for 1080p and 2160p classes
         //  - "1080p24/25/30", "2160p24/25/30", "480p", "576p*", "768p*", "1080i*" → no Firebolt mapping
-        //
-        // Tokens are matched individually (not by substring on a concatenated string) to avoid
-        // false matches (e.g. "1080p50" being a substring of "1080p500" if that ever appeared).
         struct ThunderToFb {
-            const char* thunder;  // exact Thunder token (lowercase)
-            const char* fb1;      // first Firebolt enum (always non-null)
-            const char* fb2;      // second Firebolt enum (null if single mapping)
+            const char* thunder;
+            const char* fb1;
+            const char* fb2;
         };
         static const std::array<ThunderToFb, 9> kMap = {{
             { "720p",    "720p50",  "720p60"  },
