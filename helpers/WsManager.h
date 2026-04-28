@@ -465,6 +465,10 @@ public:
         LOGTRACE("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d response=%s", requestId, connectionId, result.c_str());
 
         // Send the response back to the WebSocket client
+        if (nullptr == mChannel) {
+            LOGWARN("[SendJSONRPCResponse] mChannel is null, dropping response for requestId=%d, connectionId=%d", requestId, connectionId);
+            return false;
+        }
         mChannel->Submit(connectionId, Core::ProxyType<Core::JSON::IElement>(response));
         
         #ifdef ENABLE_APP_GATEWAY_AUTOMATION
@@ -493,6 +497,10 @@ public:
         event->Designator = designator;
         event->Parameters = payload;
         LOGTRACE("Emit Event for method=%s, connectionId=%d params=%s", designator.c_str(), connectionId, payload.c_str());
+        if (nullptr == mChannel) {
+            LOGWARN("[DispatchNotificationToConnection] mChannel is null, dropping notification for method=%s, connectionId=%d", designator.c_str(), connectionId);
+            return false;
+        }
         mChannel->Submit(connectionId, Core::ProxyType<Core::JSON::IElement>(event));
         
         #ifdef ENABLE_APP_GATEWAY_AUTOMATION
@@ -523,6 +531,10 @@ public:
         request->Parameters = params;
 
         LOGTRACE("Send Request for method=%s, connectionId=%d params=%s", designator.c_str(), connectionId, params.c_str());
+        if (nullptr == mChannel) {
+            LOGWARN("[SendRequestToConnection] mChannel is null, dropping request for method=%s, connectionId=%d", designator.c_str(), connectionId);
+            return false;
+        }
         mChannel->Submit(connectionId, Core::ProxyType<Core::JSON::IElement>(request));
 
         #ifdef ENABLE_APP_GATEWAY_AUTOMATION
@@ -568,7 +580,7 @@ public:
         try
         {
             mChannel = new WebSocketChannel(remoteNode, *this);
-            if (mChannel == nullptr)
+            if (nullptr == mChannel)
             {
                 LOGERR("Failed to create WebSocket channel");
                 return false;
@@ -591,6 +603,10 @@ public:
 
     // Close connection for a given connection id
     void Close(const uint32_t connectionId) {
+        if (nullptr == mChannel) {
+            LOGWARN("[Close] mChannel is null, cannot close connectionId=%d", connectionId);
+            return;
+        }
         const auto& client = mChannel->Client(connectionId);
         client->Close(0);
     }
