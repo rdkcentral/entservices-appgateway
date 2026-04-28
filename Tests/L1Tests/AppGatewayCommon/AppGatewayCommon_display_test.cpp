@@ -170,13 +170,15 @@ public:
         return false;
     }
     bool Previous(Exchange::IDisplayProperties::ColorimetryType&) override { return false; }
-    void Reset() override { _pos = 0; }
+    // IIteratorType::Reset(const uint32_t position) — position 0 resets to start
+    void Reset(const uint32_t position) override { _pos = static_cast<size_t>(position); }
     bool IsValid() const override { return _pos < _values.size(); }
     uint32_t Count() const override { return static_cast<uint32_t>(_values.size()); }
-    bool Current(Exchange::IDisplayProperties::ColorimetryType& value) const override
+    // IIteratorType::Current() returns element by value
+    Exchange::IDisplayProperties::ColorimetryType Current() const override
     {
-        if (_pos > 0 && _pos <= _values.size()) { value = _values[_pos - 1]; return true; }
-        return false;
+        if (_pos > 0 && _pos <= _values.size()) { return _values[_pos - 1]; }
+        return Exchange::IDisplayProperties::COLORIMETRY_OTHER;
     }
 
 private:
@@ -465,6 +467,8 @@ TEST_F(DisplayDelegateTest, AGC_L1_155_DisplayColorimetry_Bt709AndBt2020)
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_NE(result.find("bt709"),  std::string::npos);
     EXPECT_NE(result.find("bt2020"), std::string::npos);
+    // Exact spec output: ["bt709","bt2020"]
+    EXPECT_EQ(result, "[\"bt709\",\"bt2020\"]");
 }
 
 // TEST_ID: AGC_L1_156
@@ -631,12 +635,37 @@ TEST_F(DisplayDelegateTest, AGC_L1_163_DisplayVideoResolutions_MissingField_Retu
 }
 
 // TEST_ID: AGC_L1_164
+// Display.videoResolutions: generic "2160p" token (no framerate suffix) expands to both
+// "2160p50" and "2160p60". Verifies the expansion rule for the 4K resolution class.
+TEST_F(DisplayDelegateTest, AGC_L1_164_DisplayVideoResolutions_Generic2160p_ExpandsToBoth)
+{
+    displaySettingsDisp.SetHandler("getSupportedResolutions", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"supportedResolutions":["720p50","720p60","1080p50","1080p60","2160p"],"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "display.videoresolutions", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // Generic "2160p" must expand to both 2160p50 and 2160p60
+    EXPECT_NE(result.find("2160p50"), std::string::npos);
+    EXPECT_NE(result.find("2160p60"), std::string::npos);
+    // Other explicit tokens must also be present
+    EXPECT_NE(result.find("720p50"),  std::string::npos);
+    EXPECT_NE(result.find("720p60"),  std::string::npos);
+    EXPECT_NE(result.find("1080p50"), std::string::npos);
+    EXPECT_NE(result.find("1080p60"), std::string::npos);
+}
+
+// TEST_ID: AGC_L1_165
 // Display.videoResolutions: real-world Thunder response with generic tokens ("720p", "1080p") and
 // non-Firebolt tokens ("576p50", "768p60", "1080p24", "1080i50", "2160p30") → generic tokens expand
 // to both 50Hz and 60Hz Firebolt enums; non-Firebolt tokens are dropped; result is deduplicated.
 // Input:  ["480i","480p","576p50","720p","720p50","768p60","1080p24","1080p","1080i50","1080i","2160p30","2160p60"]
 // Output: ["720p50","720p60","1080p50","1080p60","2160p60"]
-TEST_F(DisplayDelegateTest, AGC_L1_164_DisplayVideoResolutions_RealWorldResponse_GenericTokenExpansion)
+TEST_F(DisplayDelegateTest, AGC_L1_165_DisplayVideoResolutions_RealWorldResponse_GenericTokenExpansion)
 {
     displaySettingsDisp.SetHandler("getSupportedResolutions", [](const std::string&, const std::string&, std::string& resp) {
         resp = R"({"supportedResolutions":["480i","480p","576p50","720p","720p50","768p60","1080p24","1080p","1080i50","1080i","2160p30","2160p60"],"success":true})";
