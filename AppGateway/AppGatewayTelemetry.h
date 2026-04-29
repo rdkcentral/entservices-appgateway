@@ -635,11 +635,8 @@ namespace Plugin {
         // Reporting start time (for interval calculation)
         std::chrono::steady_clock::time_point mReportingStartTime;
 
-	// Initialization state.
-	// Access to this flag is coordinated with mAdminLock; RecordTelemetryEvent/
-	// RecordTelemetryMetric currently read it while holding mAdminLock, and
-	// Initialize()/Deinitialize() update it under the same lock.
-        std::atomic<bool> mInitialized;
+        // Initialization state
+        bool mInitialized;
     };
 
 } // namespace Plugin
