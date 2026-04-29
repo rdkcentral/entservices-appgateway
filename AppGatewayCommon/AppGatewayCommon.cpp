@@ -156,6 +156,11 @@ namespace Plugin {
             (void)payload;
             return self->GetCountryCode(result);
         }},
+        { "localization.country", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetCountryCode(result);
+        }},
         { "localization.timezone", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
             (void)payload;
@@ -265,6 +270,11 @@ namespace Plugin {
             return self->GetClosedCaptionsSettings(result);
         }},
         { "localization.language", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            (void)ctx;
+            (void)payload;
+            return self->GetPresentationLanguage(result);
+        }},
+        { "localization.presentationlanguage", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             (void)ctx;
             (void)payload;
             return self->GetPresentationLanguage(result);
