@@ -190,6 +190,10 @@ namespace WPEFramework {
                                           const string& payload /*@opaque */,
                                           string& result /*@out @opaque */);
             Core::hresult GetNetworkConnected(string &result /* @out */);
+            // Helper methods for Display APIs - called by HandleAppGatewayRequest
+            Core::hresult GetDisplayEdid(string &result /* @out */);
+            Core::hresult GetDisplaySize(string &result /* @out */);
+            Core::hresult GetDisplayMaxResolution(string &result /* @out */);
         private:
             PluginHost::IShell* mShell;
             uint32_t mConnectionId;
