@@ -1573,9 +1573,9 @@ private:
         // IDeviceInfo enum text values (from IDeviceInfo.h): "IpTv", "IpStb", "QamIpStb"
         // Firebolt Types.DeviceType: "tv", "stb", "ott"
         const std::string lower = ToLower(thunderType);
-        if (lower == "iptv")     return "tv";
-        if (lower == "ipstb")    return "stb";
-        if (lower == "qamipstb") return "stb";
+        if ("iptv"     == lower) return "tv";
+        if ("ipstb"    == lower) return "stb";
+        if ("qamipstb" == lower) return "stb";
         return "ott";  // fallback for OTT dongles / unrecognised types
     }
 

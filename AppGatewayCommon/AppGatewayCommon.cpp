@@ -1267,6 +1267,8 @@ namespace Plugin {
             auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
             if (!lifecycleDelegate) return Core::ERROR_UNAVAILABLE;
             return lifecycleDelegate->GetStatsMemoryUsage(appId, result);
+        }
+
         Core::hresult AppGatewayCommon::GetDisplayEdid(string &result)
         {
             result = "\"\"";
