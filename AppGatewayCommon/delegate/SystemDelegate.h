@@ -29,6 +29,8 @@
 #include <plugins/plugins.h>
 #include <core/JSON.h>
 #include <interfaces/IDisplayInfo.h>
+#include <interfaces/IDeviceInfo.h>
+#include <interfaces/IPowerManager.h>
 #include "UtilsLogging.h"
 #include "UtilsJsonrpcDirectLink.h"
 #include "UtilsController.h"
@@ -55,6 +57,14 @@ using namespace WPEFramework;
 
 #ifndef HDCPPROFILE_CALLSIGN
 #define HDCPPROFILE_CALLSIGN "org.rdk.HdcpProfile"
+#endif
+
+#ifndef DEVICEINFO_CALLSIGN
+#define DEVICEINFO_CALLSIGN "DeviceInfo"
+#endif
+
+#ifndef POWERMANAGER_CALLSIGN
+#define POWERMANAGER_CALLSIGN "org.rdk.PowerManager"
 #endif
 
 #ifndef DISPLAYINFO_CALLSIGN
@@ -906,6 +916,112 @@ public:
         return true;
     }
 
+    // ---- New Device info APIs (Firebolt Device module) ----
+
+    // PUBLIC_INTERFACE
+    Core::hresult GetDeviceChipsetId(std::string &chipset)
+    {
+        chipset.clear();
+        if (nullptr == _shell) return Core::ERROR_UNAVAILABLE;
+
+        auto* di = _shell->QueryInterfaceByCallsign<Exchange::IDeviceInfo>(DEVICEINFO_CALLSIGN);
+        if (nullptr == di)
+        {
+            LOGWARN("SystemDelegate: IDeviceInfo unavailable for ChipSet");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        Exchange::IDeviceInfo::DeviceChip chip{};
+        const Core::hresult rc = di->ChipSet(chip);
+        di->Release();
+
+        if (rc != Core::ERROR_NONE)
+        {
+            LOGERR("SystemDelegate: IDeviceInfo::ChipSet failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        chipset = "\"" + chip.chipset + "\"";
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    Core::hresult GetDeviceClass(std::string &typeOut)
+    {
+        typeOut.clear();
+        if (nullptr == _shell) return Core::ERROR_UNAVAILABLE;
+
+        auto* di = _shell->QueryInterfaceByCallsign<Exchange::IDeviceInfo>(DEVICEINFO_CALLSIGN);
+        if (nullptr == di)
+        {
+            LOGWARN("SystemDelegate: IDeviceInfo unavailable for DeviceType");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        Exchange::IDeviceInfo::DeviceTypeInfos info{};
+        const Core::hresult rc = di->DeviceType(info);
+        di->Release();
+
+        if (rc != Core::ERROR_NONE)
+        {
+            LOGERR("SystemDelegate: IDeviceInfo::DeviceType failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        typeOut = "\"" + MapDeviceTypeEnumToFirebolt(info.devicetype) + "\"";
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    Core::hresult GetDeviceUptime(std::string &uptime)
+    {
+        uptime.clear();
+        if (nullptr == _shell) return Core::ERROR_UNAVAILABLE;
+
+        auto* di = _shell->QueryInterfaceByCallsign<Exchange::IDeviceInfo>(DEVICEINFO_CALLSIGN);
+        if (nullptr == di)
+        {
+            LOGWARN("SystemDelegate: IDeviceInfo unavailable for SystemInfo");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        Exchange::IDeviceInfo::SystemInfos sysInfo{};
+        const Core::hresult rc = di->SystemInfo(sysInfo);
+        di->Release();
+
+        if (rc != Core::ERROR_NONE)
+        {
+            LOGERR("SystemDelegate: IDeviceInfo::SystemInfo failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        uptime = std::to_string(static_cast<uint64_t>(sysInfo.uptime));
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    Core::hresult GetDeviceTimeInActiveState(std::string &result)
+    {
+        result.clear();
+        if (nullptr == _shell) return Core::ERROR_UNAVAILABLE;
+
+        auto* pm = _shell->QueryInterfaceByCallsign<Exchange::IPowerManager>(POWERMANAGER_CALLSIGN);
+        if (nullptr == pm)
+        {
+            LOGWARN("SystemDelegate: IPowerManager unavailable for GetTimeSinceWakeup");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        Exchange::IPowerManager::TimeSinceWakeup tsw{};
+        const Core::hresult rc = pm->GetTimeSinceWakeup(tsw);
+        pm->Release();
+
+        if (rc != Core::ERROR_NONE)
+        {
+            LOGERR("SystemDelegate: IPowerManager::GetTimeSinceWakeup failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        result = std::to_string(static_cast<uint64_t>(tsw.secondsSinceWakeup));
+        return Core::ERROR_NONE;
+    }
+
     // PUBLIC_INTERFACE
     bool EmitOnTimezoneChanged(const WPEFramework::Core::JSON::VariantContainer& params)
     {
@@ -1480,6 +1596,18 @@ private:
             out.push_back(static_cast<char>(::tolower(static_cast<unsigned char>(c))));
         }
         return out;
+    }
+
+    static std::string MapDeviceTypeEnumToFirebolt(Exchange::IDeviceInfo::DeviceTypeInfo deviceType)
+    {
+        // Exchange::IDeviceInfo::DeviceTypeInfo enum → Firebolt Types.DeviceType string
+        switch (deviceType)
+        {
+            case Exchange::IDeviceInfo::DEVICE_TYPE_IPTV:     return "tv";
+            case Exchange::IDeviceInfo::DEVICE_TYPE_IPSTB:    return "stb";
+            case Exchange::IDeviceInfo::DEVICE_TYPE_QAMIPSTB: return "stb";
+            default:                                          return "ott";
+        }
     }
 
     static std::string TerritoryThunderToFirebolt(const std::string &terr, const std::string &deflt)
