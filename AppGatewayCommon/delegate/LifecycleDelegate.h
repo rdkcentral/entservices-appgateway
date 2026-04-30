@@ -246,15 +246,19 @@ class LifecycleDelegate : public BaseEventDelegate
     }
 
     Core::hresult GetStatsMemoryUsage(const std::string& appId, string& result /* @out */) {
+        auto returnDefaults = [&result]() {
+            JsonObject obj;
+            obj["userMemoryUsed"]  = static_cast<int64_t>(0);
+            obj["userMemoryLimit"] = static_cast<int64_t>(0);
+            obj["gpuMemoryUsed"]   = static_cast<int64_t>(0);
+            obj["gpuMemoryLimit"]  = static_cast<int64_t>(0);
+            obj.ToString(result);
+        };
+
         std::string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
         if (appInstanceId.empty()) {
             LOGERR("LifecycleDelegate: No appInstanceId found for appId=%s", appId.c_str());
-            JsonObject obj;
-            obj["userMemoryUsed"]  = static_cast<double>(0);
-            obj["userMemoryLimit"] = static_cast<double>(0);
-            obj["gpuMemoryUsed"]   = static_cast<double>(0);
-            obj["gpuMemoryLimit"]  = static_cast<double>(0);
-            obj.ToString(result);
+            returnDefaults();
             return Core::ERROR_NONE;
         }
 
@@ -262,7 +266,8 @@ class LifecycleDelegate : public BaseEventDelegate
             mShell->QueryInterfaceByCallsign<Exchange::IRuntimeManager>(RUNTIME_MANAGER_CALLSIGN);
         if (!runtimeManager) {
             LOGERR("LifecycleDelegate: Failed to get RuntimeManager COM interface");
-            return Core::ERROR_UNAVAILABLE;
+            returnDefaults();
+            return Core::ERROR_NONE;
         }
 
         string info;
@@ -272,34 +277,42 @@ class LifecycleDelegate : public BaseEventDelegate
 
         if (rc != Core::ERROR_NONE) {
             LOGERR("LifecycleDelegate: RuntimeManager.GetInfo failed rc=%u", rc);
-            return Core::ERROR_GENERAL;
+            returnDefaults();
+            return Core::ERROR_NONE;
         }
 
         // Parse the info JSON string returned by RuntimeManager::GetInfo.
         // Structure: { "memory": { "user": { "usage": ..., "limit": ... } },
         //              "gpu":    { "memory": { "usage": ..., "limit": ... } } }
+
         WPEFramework::Core::JSON::VariantContainer infoObj;
-        infoObj.FromString(info);
+        if (!infoObj.FromString(info)) {
+            LOGERR("LifecycleDelegate: GetInfo returned malformed JSON: %s", info.c_str());
+            returnDefaults();
+            return Core::ERROR_NONE;
+        }
         if (!infoObj.HasLabel(_T("memory")) || !infoObj.HasLabel(_T("gpu"))) {
             LOGERR("LifecycleDelegate: GetInfo missing memory or gpu field");
-            return Core::ERROR_GENERAL;
+            returnDefaults();
+            return Core::ERROR_NONE;
         }
 
         WPEFramework::Core::JSON::VariantContainer memoryObj = infoObj[_T("memory")].Object();
         WPEFramework::Core::JSON::VariantContainer gpuObj    = infoObj[_T("gpu")].Object();
         if (!memoryObj.HasLabel(_T("user")) || !gpuObj.HasLabel(_T("memory"))) {
             LOGERR("LifecycleDelegate: GetInfo missing memory.user or gpu.memory field");
-            return Core::ERROR_GENERAL;
+            returnDefaults();
+            return Core::ERROR_NONE;
         }
 
         WPEFramework::Core::JSON::VariantContainer userObj   = memoryObj[_T("user")].Object();
         WPEFramework::Core::JSON::VariantContainer gpuMemObj = gpuObj[_T("memory")].Object();
 
         JsonObject obj;
-        obj["userMemoryUsed"]  = userObj[_T("usage")].Number();
-        obj["userMemoryLimit"] = userObj[_T("limit")].Number();
-        obj["gpuMemoryUsed"]   = gpuMemObj[_T("usage")].Number();
-        obj["gpuMemoryLimit"]  = gpuMemObj[_T("limit")].Number();
+        obj["userMemoryUsed"]  = static_cast<int64_t>(userObj[_T("usage")].Number());
+        obj["userMemoryLimit"] = static_cast<int64_t>(userObj[_T("limit")].Number());
+        obj["gpuMemoryUsed"]   = static_cast<int64_t>(gpuMemObj[_T("usage")].Number());
+        obj["gpuMemoryLimit"]  = static_cast<int64_t>(gpuMemObj[_T("limit")].Number());
         obj.ToString(result);
         return Core::ERROR_NONE;
     }
