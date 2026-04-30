@@ -196,28 +196,28 @@ namespace WPEFramework
             
 
             // Shared pointer will automatically clean up
-            {
-                Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
-                mResolverPtr.reset();
-            }
+            mResolverPtr.reset();
         }
 
         uint32_t AppGatewayImplementation::Configure(PluginHost::IShell *shell)
         {
             LOGINFO("Configuring AppGateway");
+            uint32_t result = Core::ERROR_NONE;
             ASSERT(shell != nullptr);
             mService = shell;
             mService->AddRef();
 
-            return InitializeResolver();
+            result = InitializeResolver();
+            if (Core::ERROR_NONE != result) {
+                return result;
+            }
+            return result;
         }
         
         uint32_t AppGatewayImplementation::InitializeResolver() {
             // Initialize resolver after setting mService
             try {
-                ResolverPtr newResolver = std::make_shared<Resolver>(mService);
-                Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
-                mResolverPtr = std::move(newResolver);
+                mResolverPtr = std::make_shared<Resolver>(mService);
             } catch (const std::bad_alloc& e) {
                 LOGERR("Failed to create Resolver instance: %s", e.what());
                 return Core::ERROR_GENERAL;
@@ -387,15 +387,7 @@ namespace WPEFramework
         Core::hresult AppGatewayImplementation::FetchResolvedData(const Context &context, const string &method, const string &params, const string &origin, string& resolution) {
             JsonObject params_obj;
             Core::hresult result = Core::ERROR_NONE;
-
-            // Take a thread-safe local copy of mResolverPtr to avoid data races
-            ResolverPtr resolver;
-            {
-                Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
-                resolver = mResolverPtr;
-            }
-
-            if (resolver == nullptr)
+            if (mResolverPtr == nullptr)
             {
                 LOGERR("Resolver not initialized");
                 ErrorUtils::CustomInitialize("Resolver not initialized", resolution);
@@ -403,14 +395,14 @@ namespace WPEFramework
             }
 
             // Check if resolver has any resolutions loaded
-            if (!resolver->IsConfigured())
+            if (!mResolverPtr->IsConfigured())
             {
                 LOGERR("Resolver not configured - no resolutions loaded. Call Configure() first.");
                 ErrorUtils::CustomInitialize("Resolver not configured", resolution);
                 return Core::ERROR_GENERAL;
             }
             // Resolve the alias from the method
-            std::string alias = resolver->ResolveAlias(method);
+            std::string alias = mResolverPtr->ResolveAlias(method);
 
             if (alias.empty())
             {
@@ -420,7 +412,7 @@ namespace WPEFramework
             }
 
             std::string permissionGroup;
-            if (resolver->HasPermissionGroup(method, permissionGroup)) {
+            if (mResolverPtr->HasPermissionGroup(method, permissionGroup)) {
                 LOGTRACE("Method '%s' requires permission group '%s'", method.c_str(), permissionGroup.c_str());
                 if (nullptr != GetAppGatewayAuthenticatorInterface()) {
                     bool allowed = false;
@@ -440,16 +432,16 @@ namespace WPEFramework
             }
             LOGTRACE("Resolved method '%s' to alias '%s'", method.c_str(), alias.c_str());            
             // Check if the given method is an event
-            if (resolver->HasEvent(method)) {
+            if (mResolverPtr->HasEvent(method)) {
                 result = PreProcessEvent(context, alias, method, origin, params, resolution);
-            } else if(resolver->HasComRpcRequestSupport(method)) {
+            } else if(mResolverPtr->HasComRpcRequestSupport(method)) {
                 result = ProcessComRpcRequest(context, alias, method, params, origin, resolution);
             } else {
                 // Check if includeContext is enabled for this method
-                std::string finalParams = UpdateContext(context, method, params, origin, false, resolver);
+                std::string finalParams = UpdateContext(context, method, params, origin);
                 LOGTRACE("Final Request params alias=%s Params = %s", alias.c_str(), finalParams.c_str());
 
-                result = resolver->CallThunderPlugin(alias, finalParams, resolution);
+                result = mResolverPtr->CallThunderPlugin(alias, finalParams, resolution);
                 if (result != Core::ERROR_NONE) {
                     LOGERR("Failed to retrieve resolution from Thunder method %s", alias.c_str());
                     ErrorUtils::CustomInternal("Failed with internal error", resolution);
@@ -462,17 +454,11 @@ namespace WPEFramework
             return result;
         }
 
-        string AppGatewayImplementation::UpdateContext(const Context &context, const string& method, const string& params, const string& origin, const bool& onlyAdditionalContext, const ResolverPtr& resolverPtr) {
+        string AppGatewayImplementation::UpdateContext(const Context &context, const string& method, const string& params, const string& origin, const bool& onlyAdditionalContext) {
             // Check if includeContext is enabled for this method
             std::string finalParams = params;
             JsonValue additionalContext;
-            ResolverPtr resolver = resolverPtr;
-            if (resolver == nullptr) {
-                Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
-                resolver = mResolverPtr;
-            }
-
-            if ((resolver != nullptr) && resolver->HasIncludeContext(method, additionalContext)) {
+            if (mResolverPtr->HasIncludeContext(method, additionalContext)) {
                 LOGTRACE("Method '%s' requires context inclusion", method.c_str());
                 JsonObject paramsObj;
                 if (!paramsObj.FromString(params))

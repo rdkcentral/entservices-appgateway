@@ -68,7 +68,6 @@ namespace Plugin {
             )
                 : mParent(*parent), mPayload(payload), mContext(context), mDestination(destination)
             {
-                mParent.AddRef();
             }
 
         public:
@@ -77,7 +76,6 @@ namespace Plugin {
             RespondJob &operator=(const RespondJob &) = delete;
             ~RespondJob()
             {
-                mParent.Release();
             }
 
         public:
@@ -123,7 +121,6 @@ namespace Plugin {
 
         PluginHost::IShell* mService;
         ResolverPtr mResolverPtr;
-        mutable Core::CriticalSection mResolverLock;
         mutable Core::CriticalSection mAppNotificationsLock;
         mutable Core::CriticalSection mAppGatewayResponderLock;
         mutable Core::CriticalSection mInternalGatewayResponderLock;
@@ -136,7 +133,7 @@ namespace Plugin {
         uint32_t InitializeWebsocket();
         uint32_t ProcessComRpcRequest(const Context &context, const string& alias, const string& method, const string& params, const string& origin, string &resolution);
         uint32_t PreProcessEvent(const Context &context, const string& alias, const string &method, const string& origin, const string& params, string &resolution);
-        string UpdateContext(const Context &context, const string& method, const string& params, const string& origin, const bool& onlyAdditionalContext = false, const ResolverPtr& resolver = nullptr);
+        string UpdateContext(const Context &context, const string& method, const string& params, const string& origin, const bool& onlyAdditionalContext = false);
         Core::hresult InternalResolve(const Context &context, const string &method, const string &params, const string &origin, string& resolution);
         Core::hresult FetchResolvedData(const Context &context, const string &method, const string &params, const string &origin, string& resolution);
         Core::hresult InternalResolutionConfigure(std::vector<std::string>&& configPaths);
