@@ -1015,7 +1015,13 @@ public:
 
         // Check HDMI connection before requesting EDID
         bool connected = false;
-        connProps->Connected(connected);
+        const Core::hresult connRc = connProps->Connected(connected);
+        if (connRc != Core::ERROR_NONE)
+        {
+            LOGWARN("SystemDelegate: IConnectionProperties::Connected rc=%u — assuming no display, returning empty EDID", connRc);
+            connProps->Release();
+            return Core::ERROR_NONE;
+        }
         if (!connected)
         {
             LOGWARN("SystemDelegate: No display connected — returning empty EDID");
@@ -1135,14 +1141,14 @@ public:
     {
         result = "[]";
 
-        if (_shell == nullptr)
+        if (nullptr == _shell)
         {
             LOGERR("SystemDelegate: shell is null for GetDisplayColorimetry");
             return Core::ERROR_UNAVAILABLE;
         }
 
         auto* displayProps = _shell->QueryInterfaceByCallsign<Exchange::IDisplayProperties>(DISPLAYINFO_CALLSIGN);
-        if (displayProps == nullptr)
+        if (nullptr == displayProps)
         {
             LOGWARN("SystemDelegate: IDisplayProperties unavailable for colorimetry (no display or plugin absent)");
             return Core::ERROR_NONE;
@@ -1152,10 +1158,10 @@ public:
         const Core::hresult rc = displayProps->Colorimetry(iter);
         displayProps->Release();
 
-        if (rc != Core::ERROR_NONE || iter == nullptr)
+        if (rc != Core::ERROR_NONE || nullptr == iter)
         {
             LOGWARN("SystemDelegate: IDisplayProperties::Colorimetry rc=%u (no display or not supported)", rc);
-            if (iter != nullptr) iter->Release();
+            if (nullptr != iter) iter->Release();
             return Core::ERROR_NONE;
         }
 
@@ -1223,9 +1229,15 @@ public:
             return Core::ERROR_NONE;
         }
 
-        std::string arrJson;
         const WPEFramework::Core::JSON::Variant& resVar = response.Get(_T("supportedResolutions"));
-        if (resVar.Content() == WPEFramework::Core::JSON::Variant::type::ARRAY)
+        if (resVar.Content() != WPEFramework::Core::JSON::Variant::type::ARRAY)
+        {
+            LOGWARN("SystemDelegate: DisplaySettings.getSupportedResolutions: unexpected non-array type (%d) for supportedResolutions; treating as unsupported",
+                    static_cast<int>(resVar.Content()));
+            return Core::ERROR_NONE;
+        }
+
+        std::string arrJson;
         {
             auto arr = resVar.Array();
             const uint16_t n = arr.Length();
@@ -1234,10 +1246,6 @@ public:
                 arrJson += arr[i].String();
                 arrJson += ' ';
             }
-        }
-        else
-        {
-            arrJson = resVar.String();
         }
 
         LOGDBG("SystemDelegate: DisplaySettings.getSupportedResolutions supportedResolutions=%s", arrJson.c_str());
@@ -1268,16 +1276,17 @@ public:
         }};
 
         // Collect results preserving insertion order, deduplicated (e.g. "720p" + "720p50" → 720p50 once)
+        // resVar is guaranteed to be ARRAY here (non-array was rejected above).
         std::unordered_set<std::string> seen;
         std::vector<std::string> fbResults;
-        if (resVar.Content() == WPEFramework::Core::JSON::Variant::type::ARRAY)
         {
             auto arr = resVar.Array();
             const uint16_t n = arr.Length();
             for (uint16_t i = 0; i < n; ++i)
             {
                 std::string token = arr[i].String();
-                std::transform(token.begin(), token.end(), token.begin(), ::tolower);
+                std::transform(token.begin(), token.end(), token.begin(),
+                               [](unsigned char c){ return static_cast<char>(::tolower(c)); });
                 for (const auto& entry : kMap)
                 {
                     if (token == entry.thunder)
@@ -1651,7 +1660,7 @@ private:
     inline std::shared_ptr<WPEFramework::Utils::JSONRPCDirectLink> AcquireLink(const std::string& callsign) const
     {
         // Create a direct JSON-RPC link to the specified Thunder plugin using the Supporting_Files helper.
-        if (_shell == nullptr)
+        if (nullptr == _shell)
         {
             LOGERR("SystemDelegate: shell is null");
             return nullptr;

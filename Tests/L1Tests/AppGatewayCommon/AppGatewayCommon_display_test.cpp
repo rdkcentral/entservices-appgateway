@@ -305,10 +305,11 @@ TEST_F(DisplayDelegateTest, AGC_L1_147_DisplayEdid_Connected_ReturnBase64)
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "display.edid", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
-    // Result must be a non-empty quoted string (Base64)
+    // Guard against UB: assert non-empty before accessing front()/back()
+    ASSERT_GT(result.size(), 2u); // more than just "" — safe to access front/back
+    // Result must be a quoted Base64 string
     EXPECT_EQ(result.front(), '"');
     EXPECT_EQ(result.back(),  '"');
-    EXPECT_GT(result.size(), 2u); // more than just ""
 }
 
 // TEST_ID: AGC_L1_148
