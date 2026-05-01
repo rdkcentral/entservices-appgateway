@@ -409,6 +409,7 @@ set(APPGWC_L0_SOURCES
     AppGatewayCommon/AppGatewayCommon_routing_test.cpp
     AppGatewayCommon/AppGatewayCommon_setters_test.cpp
     AppGatewayCommon/AppGatewayCommon_events_test.cpp
+    AppGatewayCommon/AppGatewayCommon_display_test.cpp
     AppGatewayCommon/AppGatewayCommon_main_test.cpp
     common/L0Bootstrap.cpp
 )
