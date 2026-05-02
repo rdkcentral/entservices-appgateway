@@ -318,7 +318,7 @@ namespace Plugin {
             {
                 std::string name;
                 if (JsonValidation::ValidateAndExtractString(payload, name)) {
-                    return ResponseUtils::SetNullResponseForSuccess(SetDeviceName(name), result);
+                    return ResponseUtils::SetNullResponseForSuccess(SetDeviceName(std::move(name)), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
@@ -327,7 +327,7 @@ namespace Plugin {
             {
                 std::string countryCode;
                 if (JsonValidation::ValidateAndExtractString(payload, countryCode)) {
-                    return ResponseUtils::SetNullResponseForSuccess(SetCountryCode(countryCode), result);
+                    return ResponseUtils::SetNullResponseForSuccess(SetCountryCode(std::move(countryCode)), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
@@ -336,7 +336,7 @@ namespace Plugin {
             {
                 std::string timeZone;
                 if (JsonValidation::ValidateAndExtractString(payload, timeZone)) {
-                    return ResponseUtils::SetNullResponseForSuccess(SetTimeZone(timeZone), result);
+                    return ResponseUtils::SetNullResponseForSuccess(SetTimeZone(std::move(timeZone)), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
