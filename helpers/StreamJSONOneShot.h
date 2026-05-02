@@ -10,6 +10,13 @@
 #include <core/JSON.h>
 #include <core/core.h>
 #include <plugins/plugins.h>
+#include <mutex>
+#include <cstdio>
+#include <ctime>
+
+// Enable payload logging for debugging large JSON/MessagePack deserialization
+// Set to 1 to enable, 0 to disable. When disabled, no file I/O overhead is incurred.
+#define ENABLE_PAYLOAD_LOGGING 1
 
 namespace WPEFramework {
 namespace Core {
@@ -55,7 +62,7 @@ namespace Core {
                 _adminLock.Lock();
                 if (_sendQueue.Count() > 0) {
                     loaded = Serialize(_sendQueue[0], stream, length);
-                    // If fully sent or we’re not in a partial-send state, notify and pop
+                    // If fully sent or we're not in a partial-send state, notify and pop
                     if ((_offset == 0) || (loaded != length)) {
                         Core::ProxyType<INTERFACE> current = _sendQueue[0];
                         _parent.Send(current);
@@ -97,6 +104,7 @@ namespace Core {
                 : _parent(parent)
                 , _factory(slotSize)
                 , _current()
+                , _mutex()
                 , _offset(0)
             {
             }
@@ -105,32 +113,92 @@ namespace Core {
                 : _parent(parent)
                 , _factory(allocator)
                 , _current()
+                , _mutex()
                 , _offset(0)
             {
             }
 
             bool IsIdle() const {
-                return (_current.IsValid() == false);
+                std::lock_guard<std::mutex> lock(_mutex);
+                return (false == _current.IsValid());
             }
 
-            // One-shot entry: parse current buffer once.
+            // One-shot entry: parse current buffer once with RAII-based synchronization.
             uint16_t Deserialize(const uint8_t* stream, const uint16_t length) {
                 uint16_t loaded = 0;
+                Core::ProxyType<INTERFACE> deliver;
 
-                if (_current.IsValid() == false) {
-                    _current = Core::ProxyType<INTERFACE>(_factory.Element(EMPTY_STRING));
-                    _offset = 0;
-                }
-
-                if (_current.IsValid() == true) {
-                    loaded = Deserialize(_current, stream, length);
-
-                    // If message finished (offset reset by callee) or not all bytes used,
-                    // deliver the element now and reset.
-                    if ((_offset == 0) || (loaded != length)) {
-                        _parent.Received(_current);
-                        _current.Release();
+#if ENABLE_PAYLOAD_LOGGING
+                // Log incoming payload for debugging large 150KB+ JSON/MessagePack frames
+                static FILE* payloadFile = nullptr;
+                if (payloadFile == nullptr) {
+                    payloadFile = fopen("/tmp/appgateway_payload.log", "a");
+                    if (payloadFile) {
+                        fprintf(payloadFile, "\n===== StreamJSONOneShot::Deserialize Logging Initialized =====\n");
+                        fflush(payloadFile);
                     }
+                }
+                
+                if (payloadFile != nullptr && length > 0) {
+                    time_t now = std::time(nullptr);
+                    fprintf(payloadFile, "\n========== INCOMING PAYLOAD (Frame #%u bytes) ==========\n", length);
+                    fprintf(payloadFile, "Timestamp: %ld\n", now);
+                    fprintf(payloadFile, "Current Offset: %u\n", _offset);
+                    fprintf(payloadFile, "Is Parsing: %s\n", (_current.IsValid() ? "YES" : "NO"));
+                    fprintf(payloadFile, "------- PAYLOAD DATA (First 1000 bytes) -------\n");
+                    
+                    // Write first 1000 bytes or entire payload if smaller
+                    uint16_t bytesToLog = (length > 1000) ? 1000 : length;
+                    fwrite(stream, 1, bytesToLog, payloadFile);
+                    
+                    if (length > 1000) {
+                        fprintf(payloadFile, "\n... (truncated, total %u bytes) ...\n", length);
+                    }
+                    fprintf(payloadFile, "\n------- END PAYLOAD -------\n");
+                    fprintf(payloadFile, "==============================================\n");
+                    fflush(payloadFile);
+                }
+#endif
+
+                // RAII-based mutex synchronization prevents race conditions when
+                // multiple TCP frames arrive for large payloads across concurrent callbacks.
+                {
+                    std::lock_guard<std::mutex> lock(_mutex);
+
+                    if (false == _current.IsValid()) {
+                        _current = Core::ProxyType<INTERFACE>(_factory.Element(EMPTY_STRING));
+                        _offset = 0;
+                    }
+
+                    if (true == _current.IsValid()) {
+                        loaded = Deserialize(_current, stream, length);
+                        // Deliver message when:
+                        // 1. offset == 0: Parser reset (complete JSON was parsed in previous call or we're starting fresh)
+                        // 2. loaded < length: Parser found complete JSON and stopped mid-frame (didn't consume all bytes)
+                        // 
+                        // This ensures large payloads across multiple frames are fully reassembled before delivery.
+                        // The critical insight: loaded=bytes_consumed by parser, so if loaded < length, JSON is complete.
+                        if ((0 == _offset) || (length != loaded)) {
+                            // Detach completed message from shared state while holding the lock.
+                            ASSERT(_current.IsValid());
+                            // CRITICAL: Reset offset BEFORE release to ensure clean state for next message.
+                            // Without this, subsequent messages would start with stale offset value.
+                            _offset = 0;
+                            deliver = _current;
+                            _current.Release();
+                        }
+                    }
+                } // lock_guard automatically releases mutex
+
+#if ENABLE_PAYLOAD_LOGGING
+                if (deliver.IsValid() && payloadFile != nullptr) {
+                    fprintf(payloadFile, "[DELIVERY] Complete message parsed and delivering to parent handler\n");
+                    fflush(payloadFile);
+                }
+#endif
+
+                if (deliver.IsValid()) {
+                    _parent.Received(deliver);
                 }
 
                 return loaded;
@@ -151,6 +219,7 @@ namespace Core {
             ParentClass& _parent;
             ALLOCATOR _factory;
             Core::ProxyType<INTERFACE> _current;
+            mutable std::mutex _mutex;
             uint32_t _offset;
         };
 
@@ -263,4 +332,3 @@ namespace Core {
 
 } // namespace Core
 } // namespace WPEFramework
-
