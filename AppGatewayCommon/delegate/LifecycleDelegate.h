@@ -26,14 +26,17 @@
 #include "BaseEventDelegate.h"
 #include <interfaces/ILifecycleManagerState.h>
 #include <interfaces/IRDKWindowManager.h>
+#include <interfaces/IAppActions.h>
 #include "UtilsLogging.h"
 #include "UtilsCallsign.h"
 #include "UtilsFirebolt.h"
+#include <atomic>
 #include <set>
 using namespace WPEFramework;
 
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
-#define WINDOW_MANAGER_CALLSIGN "org.rdk.RDKWindowManager"
+#define WINDOW_MANAGER_CALLSIGN   "org.rdk.RDKWindowManager"
+#define APP_ACTIONS_CALLSIGN      "org.rdk.app.actions"
 
 // Valid lifecycle events that can be subscribed to
 static const std::set<string> VALID_LIFECYCLE_EVENT = {
@@ -43,14 +46,14 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
     "lifecycle.onsuspended",
     "lifecycle.onunloading",
     "lifecycle2.onstatechanged",
-    "discovery.onnavigateto",
+    "actions.onintent",
     "presentation.onfocusedchanged"
 };
 
 class LifecycleDelegate : public BaseEventDelegate
 {
     public:
-    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell), mLifecycleManagerState(nullptr), mWindowManager(nullptr), mNotificationHandler(*this), mWindowManagerNotificationHandler(*this)
+    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell), mLifecycleManagerState(nullptr), mWindowManager(nullptr), mAppActions(nullptr), mNotificationHandler(*this), mWindowManagerNotificationHandler(*this)
     {
         if (ConfigUtils::useAppManagers()) {
            Exchange::ILifecycleManagerState *lifecycleManagerState = GetLifecycleManagerStateInterface();
@@ -89,6 +92,11 @@ class LifecycleDelegate : public BaseEventDelegate
                 mWindowManager->Release();
                 mWindowManager = nullptr;
             }
+        }
+        if (nullptr != mAppActions)
+        {
+            mAppActions->Release();
+            mAppActions = nullptr;
         }
     }
 
@@ -239,7 +247,45 @@ class LifecycleDelegate : public BaseEventDelegate
     }
 
     Core::hresult GetLastIntent(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
-        GetLastKnownIntent(context.appId, result);
+        string intent;
+        uint32_t intentId = 0;
+        GetLastKnownIntent(context.appId, intent, intentId);
+        JsonObject obj;
+        obj["intentId"] = intentId;
+        obj["intent"]   = intent;
+        obj.ToString(result);
+        return Core::ERROR_NONE;
+    }
+
+    Core::hresult ActionsStart(const Exchange::GatewayContext& context, const string& payload /*@opaque*/, string& result /*@out @opaque*/)
+    {
+        if (payload.empty() || payload == "null") {
+            LOGERR("ActionsStart: intent payload is required");
+            result = "{\"error\":\"Intent payload is required\"}";
+            return Core::ERROR_BAD_REQUEST;
+        }
+        Exchange::IAppActions* appActions = GetAppActionsInterface();
+        if (nullptr == appActions) {
+            LOGERR("ActionsStart: IAppActions interface not available");
+            result = "{\"error\":\"AppActions plugin not available\"}";
+            return Core::ERROR_UNAVAILABLE;
+        }
+        Core::hresult rc = appActions->Start(context.appId, payload);
+        if (rc == Core::ERROR_NONE) {
+            result = "null";
+        }
+        return rc;
+    }
+
+    Core::hresult ActionsIntent(const Exchange::GatewayContext& context, const string& payload /*@opaque*/, string& result /*@out @opaque*/)
+    {
+        string intent;
+        uint32_t intentId = 0;
+        GetLastKnownIntent(context.appId, intent, intentId);
+        JsonObject obj;
+        obj["intentId"] = intentId;
+        obj["intent"]   = intent;
+        obj.ToString(result);
         return Core::ERROR_NONE;
     }
 
@@ -424,20 +470,28 @@ class LifecycleDelegate : public BaseEventDelegate
             std::mutex registryMutex;
     };
 
-    // create a class as registry to store appInstance Id and the intent string
+    // create a class as registry to store appInstance Id and the intent + monotonic index
     class NavigationIntentRegistry {
         public:
-            void AddNavigationIntent(const string& appInstanceId, const string& navigationIntent) {
+            struct IntentEntry {
+                string   intent;
+                uint32_t intentId;
+            };
+
+            void AddNavigationIntent(const string& appInstanceId, const string& intent) {
                 std::lock_guard<std::mutex> lock(intentMutex);
-                navigationIntentMap[appInstanceId] = navigationIntent;
+                navigationIntentMap[appInstanceId] = { intent, ++mIntentIndex };
             }
 
-            string GetNavigationIntent(const string& appInstanceId) {
+            bool GetNavigationIntent(const string& appInstanceId, string& intent, uint32_t& intentId) {
                 std::lock_guard<std::mutex> lock(intentMutex);
-                if (navigationIntentMap.find(appInstanceId) != navigationIntentMap.end()) {
-                    return navigationIntentMap[appInstanceId];
+                auto it = navigationIntentMap.find(appInstanceId);
+                if (it != navigationIntentMap.end()) {
+                    intent   = it->second.intent;
+                    intentId = it->second.intentId;
+                    return true;
                 }
-                return "";
+                return false;
             }
 
             void RemoveNavigationIntent(const string& appInstanceId) {
@@ -445,8 +499,9 @@ class LifecycleDelegate : public BaseEventDelegate
                 navigationIntentMap.erase(appInstanceId);
             }
         private:
-            std::map<string, string> navigationIntentMap;
+            std::map<string, IntentEntry> navigationIntentMap;
             std::mutex intentMutex;
+            std::atomic<uint32_t> mIntentIndex{0};
     };
 
     // create a class which stores the last app instance id which has focus
@@ -619,23 +674,44 @@ class LifecycleDelegate : public BaseEventDelegate
         return mWindowManager;
     }
 
-    // Dispatch last known intent for a given appId
+    // Dispatch last known intent for a given appId as Actions.onIntent event
     void DispatchLastKnownIntent(const string& appId)
     {
-        string navigationIntent;
-        GetLastKnownIntent(appId, navigationIntent);
-        if (!navigationIntent.empty()) {
-            Dispatch("Discovery.onNavigateTo", navigationIntent, appId);
+        string intent;
+        uint32_t intentId = 0;
+        GetLastKnownIntent(appId, intent, intentId);
+        if (!intent.empty()) {
+            JsonObject payloadObj;
+            payloadObj["intentId"] = intentId;
+            payloadObj["intent"]   = intent;
+            string payloadStr;
+            payloadObj.ToString(payloadStr);
+            Dispatch("Actions.onIntent", payloadStr, appId);
         }
     }
 
-    void GetLastKnownIntent(const string& appId, string& navigationIntent)
+    void GetLastKnownIntent(const string& appId, string& intent, uint32_t& intentId)
     {
-        navigationIntent.clear();
+        intent.clear();
+        intentId = 0;
         string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
         if (!appInstanceId.empty()) {
-            navigationIntent = mNavigationIntentRegistry.GetNavigationIntent(appInstanceId);
+            mNavigationIntentRegistry.GetNavigationIntent(appInstanceId, intent, intentId);
         }
+    }
+
+    Exchange::IAppActions* GetAppActionsInterface()
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(mAppActionsLock);
+        if (nullptr == mAppActions && nullptr != mShell) {
+            mAppActions = mShell->QueryInterfaceByCallsign<Exchange::IAppActions>(APP_ACTIONS_CALLSIGN);
+            if (nullptr == mAppActions) {
+                LOGERR("Failed to get IAppActions COM interface");
+            } else {
+                LOGINFO("IAppActions COM interface acquired successfully");
+            }
+        }
+        return mAppActions;
     }
 
     // Handle Lifecycle update for a given appInstanceId by accepting the previous and current lifecycle state
@@ -662,8 +738,10 @@ class LifecycleDelegate : public BaseEventDelegate
         PluginHost::IShell *mShell;
         mutable Core::CriticalSection mLifecycleManagerStateLock;
         mutable Core::CriticalSection mWindowManagerLock;
+        mutable Core::CriticalSection mAppActionsLock;
         Exchange::ILifecycleManagerState *mLifecycleManagerState;
         Exchange::IRDKWindowManager *mWindowManager;
+        Exchange::IAppActions *mAppActions;
         Core::Sink<LifecycleNotificationHandler> mNotificationHandler;
         Core::Sink<WindowManagerNotificationHandler> mWindowManagerNotificationHandler;
         // add all registries

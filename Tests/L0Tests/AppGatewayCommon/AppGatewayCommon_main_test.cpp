@@ -66,6 +66,9 @@ extern uint32_t Test_HandleRequest_Lifecycle2State();
 extern uint32_t Test_HandleRequest_Lifecycle2Close();
 extern uint32_t Test_HandleRequest_DispatchIntent();
 extern uint32_t Test_HandleRequest_GetLastIntent();
+extern uint32_t Test_HandleRequest_ActionsStart_NoPlugin();
+extern uint32_t Test_HandleRequest_ActionsStart_EmptyPayload();
+extern uint32_t Test_HandleRequest_ActionsIntent_EmptyRegistry();
 extern uint32_t Test_HandleRequest_AdvertisingId();
 extern uint32_t Test_HandleRequest_DeviceUid();
 extern uint32_t Test_HandleRequest_NetworkConnected();
@@ -194,7 +197,10 @@ int main()
         { "HandleRequest_Lifecycle2State",                Test_HandleRequest_Lifecycle2State },
         { "HandleRequest_Lifecycle2Close",                Test_HandleRequest_Lifecycle2Close },
         { "HandleRequest_DispatchIntent",                 Test_HandleRequest_DispatchIntent },
-        { "HandleRequest_GetLastIntent",                  Test_HandleRequest_GetLastIntent },
+        { "HandleRequest_GetLastIntent",                 Test_HandleRequest_GetLastIntent },
+        { "HandleRequest_ActionsStart_NoPlugin",          Test_HandleRequest_ActionsStart_NoPlugin },
+        { "HandleRequest_ActionsStart_EmptyPayload",      Test_HandleRequest_ActionsStart_EmptyPayload },
+        { "HandleRequest_ActionsIntent_EmptyRegistry",    Test_HandleRequest_ActionsIntent_EmptyRegistry },
         { "HandleRequest_AdvertisingId",                  Test_HandleRequest_AdvertisingId },
         { "HandleRequest_DeviceUid",                      Test_HandleRequest_DeviceUid },
         { "HandleRequest_NetworkConnected",               Test_HandleRequest_NetworkConnected },

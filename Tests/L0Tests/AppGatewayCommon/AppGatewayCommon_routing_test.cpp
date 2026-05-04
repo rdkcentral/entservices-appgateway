@@ -429,8 +429,8 @@ uint32_t Test_HandleRequest_DispatchIntent()
 }
 
 // TEST_ID: AGC_L0_053
-// commoninternal.getlastintent returns ERROR_NONE
-// LifecycleDelegate::GetLastIntent calls GetLastKnownIntent → empty map → empty result, returns ERROR_NONE.
+// commoninternal.getlastintent returns ERROR_NONE with JSON containing intentId and intent fields
+// When no intent is stored, intentId=0 and intent is empty string.
 uint32_t Test_HandleRequest_GetLastIntent()
 {
     TestResult tr;
@@ -440,6 +440,57 @@ uint32_t Test_HandleRequest_GetLastIntent()
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "commoninternal.getlastintent returns ERROR_NONE");
+    // Result must be a JSON object with intentId and intent fields
+    const bool hasIntentId = result.find("intentId") != std::string::npos;
+    const bool hasIntent   = result.find("intent")   != std::string::npos;
+    if (!hasIntentId) tr.failures++;
+    if (!hasIntent)   tr.failures++;
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_057
+// actions.start in L0 → IAppActions plugin unavailable → ERROR_UNAVAILABLE
+uint32_t Test_HandleRequest_ActionsStart_NoPlugin()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "actions.start", "{\"action\":\"play\"}", result);
+    ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "actions.start returns ERROR_UNAVAILABLE when plugin absent");
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_058
+// actions.start with empty payload → ERROR_BAD_REQUEST (validated before reaching plugin)
+uint32_t Test_HandleRequest_ActionsStart_EmptyPayload()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "actions.start", "", result);
+    ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "actions.start with empty payload returns ERROR_BAD_REQUEST");
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_059
+// actions.intent in L0 → no stored intent → returns JSON with intentId=0
+uint32_t Test_HandleRequest_ActionsIntent_EmptyRegistry()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "actions.intent", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "actions.intent returns ERROR_NONE");
+    const bool hasIntentId = result.find("intentId") != std::string::npos;
+    const bool hasIntent   = result.find("intent")   != std::string::npos;
+    if (!hasIntentId) tr.failures++;
+    if (!hasIntent)   tr.failures++;
     return tr.failures;
 }
 
