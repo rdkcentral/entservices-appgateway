@@ -247,6 +247,12 @@ namespace Plugin {
         { "lifecycle.finished", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->LifecycleFinished(ctx,payload,result);
         }},
+        { "actions.start", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->ActionsStart(ctx, payload, result);
+        }},
+        { "actions.intent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->ActionsIntent(ctx, payload, result);
+        }},
         { "commoninternal.dispatchintent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->DispatchLastIntent(ctx,payload,result);
         }},
@@ -1199,6 +1205,16 @@ namespace Plugin {
         Core::hresult AppGatewayCommon::GetLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
             return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetLastIntent, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::ActionsStart(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::ActionsStart, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::ActionsIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::ActionsIntent, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::CheckPermissionGroup(const string &appId /* @in */, const string &permissionGroup /* @in */, bool &allowed /* @out */)
