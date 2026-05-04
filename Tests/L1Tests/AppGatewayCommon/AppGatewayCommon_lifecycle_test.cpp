@@ -1031,9 +1031,9 @@ TEST_F(LifecycleDelegateTest, AGC_L1_205_ActionsIntent_NoStoredIntent_ReturnsZer
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "actions.intent", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
-    // intentId should be 0 and intent empty when no intent has been stored
+    // intentId is serialized as a JSON number; check for "intentId":0 (numeric, not quoted string)
     EXPECT_NE(result.find("intentId"), std::string::npos);
-    EXPECT_NE(result.find("\"0\""), std::string::npos);
+    EXPECT_NE(result.find("\"intentId\":0"), std::string::npos);
 }
 
 TEST_F(LifecycleDelegateTest, AGC_L1_206_ActionsOnIntent_SubscribeUnsubscribe)

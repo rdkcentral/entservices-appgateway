@@ -38,7 +38,6 @@ using namespace WPEFramework;
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
 #define WINDOW_MANAGER_CALLSIGN "org.rdk.RDKWindowManager"
 #define RUNTIME_MANAGER_CALLSIGN "org.rdk.RuntimeManager"
-#define WINDOW_MANAGER_CALLSIGN   "org.rdk.RDKWindowManager"
 #define APP_ACTIONS_CALLSIGN      "org.rdk.app.actions"
 
 // Valid lifecycle events that can be subscribed to
@@ -263,19 +262,21 @@ class LifecycleDelegate : public BaseEventDelegate
     Core::hresult ActionsStart(const Exchange::GatewayContext& context, const string& payload /*@opaque*/, string& result /*@out @opaque*/)
     {
         if (payload.empty() || payload == "null") {
-            LOGERR("ActionsStart: intent payload is required");
-            result = "{\"error\":\"Intent payload is required\"}";
+            LOGWARN("ActionsStart: intent payload is required");
+            ErrorUtils::CustomBadRequest("Intent payload is required", result);
             return Core::ERROR_BAD_REQUEST;
         }
         Exchange::IAppActions* appActions = GetAppActionsInterface();
         if (nullptr == appActions) {
-            LOGERR("ActionsStart: IAppActions interface not available");
-            result = "{\"error\":\"AppActions plugin not available\"}";
+            LOGWARN("ActionsStart: IAppActions interface not available");
+            ErrorUtils::CustomInitialize("AppActions plugin not available", result);
             return Core::ERROR_UNAVAILABLE;
         }
+        result = "null";
         Core::hresult rc = appActions->Start(context.appId, payload);
-        if (rc == Core::ERROR_NONE) {
-            result = "null";
+        if (rc != Core::ERROR_NONE) {
+            LOGERR("ActionsStart: IAppActions::Start failed with error %u", rc);
+            ErrorUtils::CustomInternal("Failed to start app action", result);
         }
         return rc;
     }
@@ -554,6 +555,9 @@ class LifecycleDelegate : public BaseEventDelegate
             };
 
             void AddNavigationIntent(const string& appInstanceId, const string& intent) {
+                if (intent.empty()) {
+                    return; // ignore empty intents; preserve the last non-empty intent and intentId
+                }
                 std::lock_guard<std::mutex> lock(intentMutex);
                 navigationIntentMap[appInstanceId] = { intent, ++mIntentIndex };
             }
