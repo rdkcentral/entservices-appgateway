@@ -551,9 +551,8 @@ POP_WARNING()
                                                      : static_cast<uint16_t>(_remainingPayload);
 
                                 const uint8_t* payloadPtr = &(dataFrame[result + headerSize]);
-                                uint16_t payloadConsumed = 0;
                                 if (bytesToPass > 0) {
-                                    payloadConsumed = _parent.ReceiveData(const_cast<uint8_t*>(payloadPtr), bytesToPass);
+                                    _parent.ReceiveData(const_cast<uint8_t*>(payloadPtr), bytesToPass);
                                 }
 
                                 // Always advance by the full decoder-reported availableSize to keep
