@@ -125,7 +125,7 @@ class AppDelegate {
             
             ErrorUtils::CustomInternal("Not Supported", result);
             return Core::ERROR_UNAVAILABLE;
-        } 
+        }
 
         Exchange::ISharedStorage* GetSharedStorage() {
             std::lock_guard<std::mutex> lock(mSharedStorageMutex);
