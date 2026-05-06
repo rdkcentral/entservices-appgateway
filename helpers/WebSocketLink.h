@@ -234,7 +234,6 @@ PUSH_WARNING(DISABLE_WARNING_THIS_IN_MEMBER_INITIALIZER_LIST)
                 , _webSocketMessage(Core::ProxyType<typename OUTBOUND::BaseElement>::Create())
                 , _pingFireTime(0)
                 , _remainingPayload(0)
-                , _totalDelivered(0)
             {
             }
             template <typename... Args>
@@ -253,7 +252,6 @@ PUSH_WARNING(DISABLE_WARNING_THIS_IN_MEMBER_INITIALIZER_LIST)
                 , _webSocketMessage(Core::ProxyType<typename OUTBOUND::BaseElement>::Create())
                 , _pingFireTime(0)
                 , _remainingPayload(0)
-                , _totalDelivered(0)
             {
             }
 POP_WARNING()
@@ -489,26 +487,41 @@ POP_WARNING()
                                     _commandData.clear();
                                 }
 
+                                #define HEADER_IDX_CONTROL   1
+                                #define HEADER_IDX_PLAYLOADSIZE  3
+                                #define HEADER_IDX_DATA     9
+
                                 payloadSizeInControlFrame = 0;
                                 // skip payload bytes for control frames:
-                                if (headerSize > 1) {
-                                   payloadSizeInControlFrame = dataFrame[result + 1] & 0x7F;
-                                   if (payloadSizeInControlFrame == 126) {
-				       if (headerSize > 3) {
-                                         payloadSizeInControlFrame = ((dataFrame[result + 2] << 8) + dataFrame[result + 3]);
-				       } else {
-                                         TRACE_L1("Header too small for 16-bit extended payload size");
-                                         payloadSizeInControlFrame = 0;
-                                      }
-                                   } else if (payloadSizeInControlFrame == 127) {
-                                      if (headerSize > 9) {
-                                         payloadSizeInControlFrame = dataFrame[result + 9];
-                                         for (int i = 8; i >= 2; i--) payloadSizeInControlFrame = (payloadSizeInControlFrame << 8) + dataFrame[result + i];
-                                      } else {
-                                         TRACE_L1("Header too small for 64-bit jumbo payload size ");
-                                         payloadSizeInControlFrame = 0;
-                                      }
-                                   }
+                                if (headerSize > HEADER_IDX_CONTROL)
+                                {
+                                    payloadSizeInControlFrame = dataFrame[result + 1] & 0x7F;
+                                    if (payloadSizeInControlFrame == 126)
+                                    {
+                                        if (headerSize > HEADER_IDX_PLAYLOADSIZE)
+                                        {
+                                            payloadSizeInControlFrame = ((dataFrame[result + 2] << 8) + dataFrame[result + 3]);
+                                        }
+                                        else
+                                        {
+                                            TRACE_L1("Header too small for 16-bit extended payload size");
+                                            payloadSizeInControlFrame = 0;
+                                        }
+                                    }
+                                    else if (payloadSizeInControlFrame == 127)
+                                    {
+                                        if (headerSize > HEADER_IDX_DATA)
+                                        {
+                                            payloadSizeInControlFrame = dataFrame[result + 9];
+                                            for (int i = 8; i >= 2; i--)
+                                                payloadSizeInControlFrame = (payloadSizeInControlFrame << 8) + dataFrame[result + i];
+                                        }
+                                        else
+                                        {
+                                            TRACE_L1("Header too small for 64-bit jumbo payload size ");
+                                            payloadSizeInControlFrame = 0;
+                                        }
+                                    }
                                 }
 
                                 result += static_cast<uint32_t>(headerSize) + payloadSizeInControlFrame;
@@ -536,7 +549,6 @@ POP_WARNING()
                                         }
                                     }
                                     _remainingPayload = static_cast<uint32_t>(declaredPayload);
-                                    _totalDelivered = 0;
                                 }
 
                                 // availableSize from Decoder() is the payload bytes for this TCP segment.
@@ -558,7 +570,6 @@ POP_WARNING()
                                 // Always advance by the full decoder-reported availableSize to keep
                                 // _handler._remaining in sync.
                                 result += static_cast<uint32_t>(headerSize) + static_cast<uint32_t>(availableSize);
-                                _totalDelivered += bytesToPass;
                                 _remainingPayload = (_remainingPayload >= availableSize) ? (_remainingPayload - availableSize) : 0;
                                 if (_remainingPayload == 0) {
                                     // The Thunder Protocol::Decoder has a byte-order bug when parsing
@@ -847,7 +858,6 @@ POP_WARNING()
             Core::ProxyType<typename OUTBOUND::BaseElement> _webSocketMessage;
             uint64_t _pingFireTime;
             uint32_t _remainingPayload; // tracks expected remaining payload bytes for current data frame
-            uint32_t _totalDelivered;   // tracks total bytes delivered to upper layer for current data frame
         };
 
     public:
