@@ -266,6 +266,23 @@ class LifecycleDelegate : public BaseEventDelegate
             ErrorUtils::CustomBadRequest("Intent payload is required", result);
             return Core::ERROR_BAD_REQUEST;
         }
+        JsonObject args;
+        if (!args.FromString(payload) || !args.HasLabel("intent")) {
+            LOGWARN("ActionsStart: 'intent' field is required in payload");
+            ErrorUtils::CustomBadRequest("'intent' field is required", result);
+            return Core::ERROR_BAD_REQUEST;
+        }
+
+        // Re-serialize the intent sub-document as an opaque JSON string
+        string intent;
+        args.Get("intent").Object().ToString(intent);
+
+        // Extract optional handlerAppId
+        string handlerAppId;
+        if (args.HasLabel("handlerAppId")) {
+            handlerAppId = args.Get("handlerAppId").String();
+        }
+
         Exchange::IAppActions* appActions = GetAppActionsInterface();
         if (nullptr == appActions) {
             LOGWARN("ActionsStart: IAppActions interface not available");
@@ -273,7 +290,7 @@ class LifecycleDelegate : public BaseEventDelegate
             return Core::ERROR_UNAVAILABLE;
         }
         result = "null";
-        Core::hresult rc = appActions->Start(context.appId, payload);
+        Core::hresult rc = appActions->Start(context.appId, intent, handlerAppId); // context.appId maps to 'initiator'
         if (rc != Core::ERROR_NONE) {
             LOGERR("ActionsStart: IAppActions::Start failed with error %u", rc);
             ErrorUtils::CustomInternal("Failed to start app action", result);

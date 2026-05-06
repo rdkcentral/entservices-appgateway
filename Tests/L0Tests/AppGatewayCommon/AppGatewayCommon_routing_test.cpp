@@ -457,7 +457,7 @@ uint32_t Test_HandleRequest_ActionsStart_NoPlugin()
     QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
-    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "actions.start", "{\"action\":\"play\"}", result);
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "actions.start", "{\"intent\":{\"action\":\"play\"}}", result);
     ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "actions.start returns ERROR_UNAVAILABLE when plugin absent");
     return tr.failures;
 }

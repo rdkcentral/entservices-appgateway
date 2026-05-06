@@ -981,14 +981,33 @@ TEST_F(LifecycleDelegateTest, AGC_L1_201_HandleEvent_PresentationFocusedChanged_
 TEST_F(LifecycleDelegateTest, AGC_L1_202_ActionsStart_RoutesToAppActionsPlugin)
 {
     EXPECT_CALL(mockAppActions, Start(::testing::StrEq("test.app"),
-                                      ::testing::StrEq("{\"action\":\"play\"}")))
+                                      ::testing::StrEq("{\"action\":\"play\"}"),
+                                      ::testing::StrEq("")))
         .WillOnce(::testing::Return(Core::ERROR_NONE));
     EXPECT_CALL(mockAppActions, AddRef()).Times(::testing::AnyNumber());
     EXPECT_CALL(mockAppActions, Release()).Times(::testing::AnyNumber()).WillRepeatedly(::testing::Return(0u));
 
     const auto ctx = MakeContext("test.app");
     string result;
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "actions.start", "{\"action\":\"play\"}", result);
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "actions.start", "{\"intent\":{\"action\":\"play\"}}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_202b_ActionsStart_WithHandlerAppId_RoutesToAppActionsPlugin)
+{
+    EXPECT_CALL(mockAppActions, Start(::testing::StrEq("test.app"),
+                                      ::testing::StrEq("{\"action\":\"play\"}"),
+                                      ::testing::StrEq("handler.app")))
+        .WillOnce(::testing::Return(Core::ERROR_NONE));
+    EXPECT_CALL(mockAppActions, AddRef()).Times(::testing::AnyNumber());
+    EXPECT_CALL(mockAppActions, Release()).Times(::testing::AnyNumber()).WillRepeatedly(::testing::Return(0u));
+
+    const auto ctx = MakeContext("test.app");
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "actions.start",
+        "{\"intent\":{\"action\":\"play\"},\"handlerAppId\":\"handler.app\"}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_EQ("null", result);
@@ -999,6 +1018,15 @@ TEST_F(LifecycleDelegateTest, AGC_L1_203_ActionsStart_EmptyPayload_ReturnsBadReq
     const auto ctx = MakeContext("test.app");
     string result;
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "actions.start", "", result);
+
+    EXPECT_EQ(Core::ERROR_BAD_REQUEST, rc);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_203b_ActionsStart_MissingIntentField_ReturnsBadRequest)
+{
+    const auto ctx = MakeContext("test.app");
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "actions.start", "{\"handlerAppId\":\"handler.app\"}", result);
 
     EXPECT_EQ(Core::ERROR_BAD_REQUEST, rc);
 }
