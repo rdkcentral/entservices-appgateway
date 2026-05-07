@@ -637,7 +637,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_190_LifecycleNotification_ActiveState_Dispa
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_EQ("\"initializing\"", result);
+    EXPECT_EQ("\"active\"", result);
 }
 
 TEST_F(LifecycleDelegateTest, AGC_L1_191_LifecycleNotification_PausedState)
