@@ -28,6 +28,7 @@ env:
   BUILD_TYPE: Debug
   THUNDER_REF: "R4.4.1"
   INTERFACES_REF: "RDKEMW-13978"
+  NETWORKMANAGER_REF: "cea0da05b03de770e4ce967f0446f28885fc6219"
   AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME }}
   AUTOMATICS_PASSCODE: ${{ secrets.AUTOMATICS_PASSCODE }}
 
@@ -411,20 +412,19 @@ jobs:
           test -f "$GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator/ConfigGeneratorConfig.cmake"
           echo "Found: $GITHUB_WORKSPACE/install/usr/lib/cmake/ConfigGenerator/ConfigGeneratorConfig.cmake"
 
+      - name: Checkout networkmanager
+        uses: actions/checkout@v3
+        with:
+          repository: rdkcentral/networkmanager
+          path: networkmanager
+          ref: ${{env.NETWORKMANAGER_REF}}
+
       - name: Stage INetworkManager.h into install prefix (required for AppGateway compile)
         run: |
           set -euo pipefail
 
-          # Some AppGateway builds expect this interface header to be available under the local prefix.
-          # Keep behavior aligned with native build_dependencies.sh by sourcing from
-          # a local networkmanager checkout, then staging into:
-          #   $GITHUB_WORKSPACE/install/usr/include/WPEFramework/interfaces/INetworkManager.h
           dst_dir="$GITHUB_WORKSPACE/install/usr/include/WPEFramework/interfaces"
           mkdir -p "$dst_dir"
-
-          if [ ! -d "$GITHUB_WORKSPACE/networkmanager" ]; then
-            git clone --depth 1 --branch main https://github.com/rdkcentral/networkmanager.git "$GITHUB_WORKSPACE/networkmanager"
-          fi
 
           cp -f "$GITHUB_WORKSPACE/networkmanager/interface/INetworkManager.h" "$dst_dir/INetworkManager.h"
 

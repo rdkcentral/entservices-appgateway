@@ -172,6 +172,12 @@ namespace WPEFramework {
             Core::hresult GetHdcp(string &result /* @out */);
             Core::hresult GetHdr(string &result /* @out */);
             Core::hresult GetAudio(string &result /* @out */);
+            // Helper methods for Device info APIs - called by HandleAppGatewayRequest
+            Core::hresult GetDeviceChipsetId(string &result /* @out */);
+            Core::hresult GetDeviceClass(string &result /* @out */);
+            Core::hresult GetDeviceUptime(string &result /* @out */);
+            Core::hresult GetDeviceTimeInActiveState(string &result /* @out */);
+            Core::hresult GetStatsMemoryUsage(const string &appId /* @in */, string &result /* @out */);
             Core::hresult LifecycleFinished(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult LifecycleClose(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
@@ -190,6 +196,10 @@ namespace WPEFramework {
                                           const string& payload /*@opaque */,
                                           string& result /*@out @opaque */);
             Core::hresult GetNetworkConnected(string &result /* @out */);
+            // Helper methods for Display APIs - called by HandleAppGatewayRequest
+            Core::hresult GetDisplayEdid(string &result /* @out */);
+            Core::hresult GetDisplaySize(string &result /* @out */);
+            Core::hresult GetDisplayMaxResolution(string &result /* @out */);
         private:
             PluginHost::IShell* mShell;
             uint32_t mConnectionId;
