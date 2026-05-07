@@ -395,6 +395,7 @@ uint32_t Test_HandleRequest_Lifecycle2State()
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "lifecycle2.state returns ERROR_NONE in L0");
+    ExpectEqStr(tr, result, "\"unloaded\"", "lifecycle2.state result is quoted unloaded");
     return tr.failures;
 }
 
