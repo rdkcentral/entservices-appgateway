@@ -206,7 +206,7 @@ class LifecycleDelegate : public BaseEventDelegate
         // Get current LifecycleState for given appInstanceId
         LifecycleStateInfo stateInfo = mLifecycleStateRegistry.GetLifecycleStateInfo(appInstanceId);
 
-        result = LifecycleStateToString(stateInfo.currentState);
+        result = "\""+ LifecycleStateToString(stateInfo.currentState) + "\"";
         return Core::ERROR_NONE;
     }
 
@@ -216,7 +216,7 @@ class LifecycleDelegate : public BaseEventDelegate
         // Get current LifecycleState for given appInstanceId
         LifecycleStateInfo stateInfo = mLifecycleStateRegistry.GetLifecycleStateInfo(appInstanceId);
 
-        result = Lifecycle2StateToLifecycle1String(stateInfo.currentState);
+        result = "\""+ Lifecycle2StateToLifecycle1String(stateInfo.currentState) + "\"";
         
         return Core::ERROR_NONE;
     }
