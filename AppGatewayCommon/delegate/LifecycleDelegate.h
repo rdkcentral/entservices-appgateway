@@ -245,7 +245,6 @@ class LifecycleDelegate : public BaseEventDelegate
         return Core::ERROR_NONE;
     }
 
-<<<<<<< HEAD
     Core::hresult GetStatsMemoryUsage(const std::string& appId, string& result /* @out */) {
         auto returnDefaults = [&result]() {
             JsonObject obj;
@@ -315,17 +314,6 @@ class LifecycleDelegate : public BaseEventDelegate
         obj["gpuMemoryUsed"]   = static_cast<int64_t>(gpuMemObj[_T("usage")].Number());
         obj["gpuMemoryLimit"]  = static_cast<int64_t>(gpuMemObj[_T("limit")].Number());
         obj.ToString(result);
-=======
-    Core::hresult GetPresentationFocused(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
-        // get appInstance Id from context.appId
-        string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(context.appId);
-        if (true == appInstanceId.empty()) {
-            LOGWARN("GetPresentationFocused called for unknown or unmapped appId=%s", context.appId.c_str());
-            result = "false";
-            return Core::ERROR_NONE;
-        }
-        result = mFocusedAppRegistry.IsAppInstanceIdFocused(appInstanceId) ? "true" : "false";
->>>>>>> ba37bae (RDKEMW-17100: Fixes for RDK8 API set (#121))
         return Core::ERROR_NONE;
     }
 
