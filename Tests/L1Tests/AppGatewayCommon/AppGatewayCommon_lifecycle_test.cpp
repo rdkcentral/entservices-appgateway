@@ -980,7 +980,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_201_HandleEvent_PresentationFocusedChanged_
 
 TEST_F(LifecycleDelegateTest, AGC_L1_202_ActionsStart_RoutesToAppActionsPlugin)
 {
-    EXPECT_CALL(mockAppActions, Start(::testing::StrEq("test.app"),
+    EXPECT_CALL(mockAppActions, ActionStart(::testing::StrEq("test.app"),
                                       ::testing::StrEq("{\"action\":\"play\"}"),
                                       ::testing::StrEq("")))
         .WillOnce(::testing::Return(Core::ERROR_NONE));
@@ -997,7 +997,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_202_ActionsStart_RoutesToAppActionsPlugin)
 
 TEST_F(LifecycleDelegateTest, AGC_L1_202b_ActionsStart_WithHandlerAppId_RoutesToAppActionsPlugin)
 {
-    EXPECT_CALL(mockAppActions, Start(::testing::StrEq("test.app"),
+    EXPECT_CALL(mockAppActions, ActionStart(::testing::StrEq("test.app"),
                                       ::testing::StrEq("{\"action\":\"play\"}"),
                                       ::testing::StrEq("handler.app")))
         .WillOnce(::testing::Return(Core::ERROR_NONE));

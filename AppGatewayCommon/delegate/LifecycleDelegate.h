@@ -38,7 +38,7 @@ using namespace WPEFramework;
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
 #define WINDOW_MANAGER_CALLSIGN "org.rdk.RDKWindowManager"
 #define RUNTIME_MANAGER_CALLSIGN "org.rdk.RuntimeManager"
-#define APP_ACTIONS_CALLSIGN      "org.rdk.app.actions"
+#define APP_ACTIONS_CALLSIGN      "org.rdk.AppActions"
 
 // Valid lifecycle events that can be subscribed to
 static const std::set<string> VALID_LIFECYCLE_EVENT = {
@@ -290,7 +290,7 @@ class LifecycleDelegate : public BaseEventDelegate
             return Core::ERROR_UNAVAILABLE;
         }
         result = "null";
-        Core::hresult rc = appActions->Start(context.appId, intent, handlerAppId); // context.appId maps to 'initiator'
+        Core::hresult rc = appActions->ActionStart(context.appId, intent, handlerAppId); // context.appId maps to 'initiator'
         if (rc != Core::ERROR_NONE) {
             LOGERR("ActionsStart: IAppActions::Start failed with error %u", rc);
             ErrorUtils::CustomInternal("Failed to start app action", result);

@@ -28,7 +28,7 @@ public:
     AppActionsMock() = default;
     virtual ~AppActionsMock() = default;
 
-    MOCK_METHOD(WPEFramework::Core::hresult, Start,
+    MOCK_METHOD(WPEFramework::Core::hresult, ActionStart,
                 (const std::string& initiator, const std::string& intent, const std::string& handlerAppId), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, Register,   (INotification* sink), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, Unregister, (INotification* sink), (override));
