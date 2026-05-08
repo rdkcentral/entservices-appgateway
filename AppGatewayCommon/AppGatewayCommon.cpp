@@ -293,7 +293,7 @@ namespace Plugin {
         }},
         {"presentation.focused", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->GetPresentationFocused(ctx, payload, result);
-        }},
+        }}
     };
 
     Core::hresult AppGatewayCommon::HandleAppGatewayRequest(const Exchange::GatewayContext &context /* @in */,
