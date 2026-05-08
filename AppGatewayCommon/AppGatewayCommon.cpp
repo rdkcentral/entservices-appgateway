@@ -290,7 +290,7 @@ namespace Plugin {
         }},
         { "display.maxresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDisplayMaxResolution(result);
-        }}
+        }},
         {"presentation.focused", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->GetPresentationFocused(ctx, payload, result);
         }},
