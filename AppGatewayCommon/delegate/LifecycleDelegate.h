@@ -55,7 +55,7 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
 class LifecycleDelegate : public BaseEventDelegate
 {
     public:
-    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell), mLifecycleManagerState(nullptr), mWindowManager(nullptr), mAppActions(nullptr), mNotificationHandler(*this), mWindowManagerNotificationHandler(*this)
+    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell), mLifecycleManagerState(nullptr), mWindowManager(nullptr), mNotificationHandler(*this), mWindowManagerNotificationHandler(*this)
     {
         if (ConfigUtils::useAppManagers()) {
            Exchange::ILifecycleManagerState *lifecycleManagerState = GetLifecycleManagerStateInterface();
@@ -94,11 +94,6 @@ class LifecycleDelegate : public BaseEventDelegate
                 mWindowManager->Release();
                 mWindowManager = nullptr;
             }
-        }
-        if (nullptr != mAppActions)
-        {
-            mAppActions->Release();
-            mAppActions = nullptr;
         }
     }
 
@@ -288,7 +283,7 @@ class LifecycleDelegate : public BaseEventDelegate
             handlerAppId = args.Get("handlerAppId").String();
         }
 
-        Exchange::IAppActions* appActions = GetAppActionsInterface();
+        Exchange::IAppActions* appActions = mShell->QueryInterfaceByCallsign<Exchange::IAppActions>(APP_ACTIONS_CALLSIGN);
         if (nullptr == appActions) {
             LOGWARN("ActionsStart: IAppActions interface not available");
             ErrorUtils::NotAvailable("AppActions plugin not available", result);
@@ -296,6 +291,8 @@ class LifecycleDelegate : public BaseEventDelegate
         }
         result = "null";
         Core::hresult rc = appActions->ActionStart(context.appId, intent, handlerAppId); // context.appId maps to 'initiator'
+        appActions->Release();
+        appActions = nullptr;
         if (rc != Core::ERROR_NONE) {
             LOGERR("ActionsStart: IAppActions::ActionStart failed with error %u", rc);
             ErrorUtils::CustomInternal("Failed to start app action", result);
@@ -813,20 +810,6 @@ class LifecycleDelegate : public BaseEventDelegate
         }
     }
 
-    Exchange::IAppActions* GetAppActionsInterface()
-    {
-        Core::SafeSyncType<Core::CriticalSection> lock(mAppActionsLock);
-        if (nullptr == mAppActions && nullptr != mShell) {
-            mAppActions = mShell->QueryInterfaceByCallsign<Exchange::IAppActions>(APP_ACTIONS_CALLSIGN);
-            if (nullptr == mAppActions) {
-                LOGWARN("Failed to get IAppActions COM interface");
-            } else {
-                LOGINFO("IAppActions COM interface acquired successfully");
-            }
-        }
-        return mAppActions;
-    }
-
     // Handle Lifecycle update for a given appInstanceId by accepting the previous and current lifecycle state
     void HandleLifecycleUpdate(const string& appInstanceId,  const Exchange::ILifecycleManager::LifecycleState oldLifecycleState, const Exchange::ILifecycleManager::LifecycleState newLifecycleState)
     {
@@ -851,10 +834,8 @@ class LifecycleDelegate : public BaseEventDelegate
         PluginHost::IShell *mShell;
         mutable Core::CriticalSection mLifecycleManagerStateLock;
         mutable Core::CriticalSection mWindowManagerLock;
-        mutable Core::CriticalSection mAppActionsLock;
         Exchange::ILifecycleManagerState *mLifecycleManagerState;
         Exchange::IRDKWindowManager *mWindowManager;
-        Exchange::IAppActions *mAppActions;
         Core::Sink<LifecycleNotificationHandler> mNotificationHandler;
         Core::Sink<WindowManagerNotificationHandler> mWindowManagerNotificationHandler;
         // add all registries
