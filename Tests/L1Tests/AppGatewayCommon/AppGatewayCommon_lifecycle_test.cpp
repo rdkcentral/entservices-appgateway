@@ -335,6 +335,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_174_Lifecycle2State_DefaultState)
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("\"unloaded\"", result);
 }
 
 /* ---------- DispatchLastIntent / GetLastIntent ---------- */
@@ -510,7 +511,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_185_Lifecycle2State_AfterLifecycleEvent)
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_FALSE(result.empty());
+    EXPECT_EQ("\"initializing\"", result);
 }
 
 /* ---------- GetLastIntent with populated intent ---------- */
@@ -647,7 +648,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_190_LifecycleNotification_ActiveState_Dispa
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_NE(result.find("active"), std::string::npos);
+    EXPECT_EQ("\"active\"", result);
 }
 
 TEST_F(LifecycleDelegateTest, AGC_L1_191_LifecycleNotification_PausedState)
@@ -726,7 +727,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_193_LifecycleNotification_TerminatingState)
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_NE(result.find("terminating"), std::string::npos);
+    EXPECT_EQ("\"terminating\"", result);
 }
 
 TEST_F(LifecycleDelegateTest, AGC_L1_194_LifecycleNotification_ActiveWithIntent_DispatchesLastIntent)
