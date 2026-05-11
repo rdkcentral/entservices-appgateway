@@ -143,7 +143,7 @@ protected:
                 return static_cast<Exchange::IRDKWindowManager*>(&mockWindowMgr);
             }));
 
-        ON_CALL(service, QueryInterfaceByCallsign(Exchange::IAppActions::ID, ::testing::StrEq("org.rdk.app.actions")))
+        ON_CALL(service, QueryInterfaceByCallsign(Exchange::IAppActions::ID, ::testing::StrEq("org.rdk.AppActions")))
             .WillByDefault(::testing::Invoke([this](uint32_t, const string&) -> void* {
                 mockAppActions.AddRef();
                 return static_cast<Exchange::IAppActions*>(&mockAppActions);
@@ -1048,9 +1048,9 @@ TEST_F(LifecycleDelegateTest, AGC_L1_204_ActionsIntent_ReturnsIntentIdAndIntent)
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "actions.intent", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_NE(result.find("intentId"),         std::string::npos);
-    EXPECT_NE(result.find("intent"),           std::string::npos);
-    EXPECT_NE(result.find("navigate"),         std::string::npos);
+    EXPECT_NE(result.find("\"intentId\":"),              std::string::npos);
+    EXPECT_NE(result.find("\"intent\":"),               std::string::npos);
+    EXPECT_NE(result.find("\"action\":\"navigate\""),   std::string::npos);
 }
 
 TEST_F(LifecycleDelegateTest, AGC_L1_205_ActionsIntent_NoStoredIntent_ReturnsZeroId)

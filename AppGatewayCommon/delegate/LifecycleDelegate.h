@@ -38,7 +38,7 @@ using namespace WPEFramework;
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
 #define WINDOW_MANAGER_CALLSIGN "org.rdk.RDKWindowManager"
 #define RUNTIME_MANAGER_CALLSIGN "org.rdk.RuntimeManager"
-#define APP_ACTIONS_CALLSIGN      "org.rdk.AppActions"
+#define APP_ACTIONS_CALLSIGN "org.rdk.AppActions"
 
 // Valid lifecycle events that can be subscribed to
 static const std::set<string> VALID_LIFECYCLE_EVENT = {
@@ -267,7 +267,12 @@ class LifecycleDelegate : public BaseEventDelegate
             return Core::ERROR_BAD_REQUEST;
         }
         JsonObject args;
-        if (!args.FromString(payload) || !args.HasLabel("intent")) {
+        if (!args.FromString(payload)) {
+            LOGWARN("ActionsStart: payload is not valid JSON");
+            ErrorUtils::CustomBadRequest("Invalid JSON payload", result);
+            return Core::ERROR_BAD_REQUEST;
+        }
+        if (!args.HasLabel("intent")) {
             LOGWARN("ActionsStart: 'intent' field is required in payload");
             ErrorUtils::CustomBadRequest("'intent' field is required", result);
             return Core::ERROR_BAD_REQUEST;
@@ -286,13 +291,13 @@ class LifecycleDelegate : public BaseEventDelegate
         Exchange::IAppActions* appActions = GetAppActionsInterface();
         if (nullptr == appActions) {
             LOGWARN("ActionsStart: IAppActions interface not available");
-            ErrorUtils::CustomInitialize("AppActions plugin not available", result);
+            ErrorUtils::NotAvailable("AppActions plugin not available", result);
             return Core::ERROR_UNAVAILABLE;
         }
         result = "null";
         Core::hresult rc = appActions->ActionStart(context.appId, intent, handlerAppId); // context.appId maps to 'initiator'
         if (rc != Core::ERROR_NONE) {
-            LOGERR("ActionsStart: IAppActions::Start failed with error %u", rc);
+            LOGERR("ActionsStart: IAppActions::ActionStart failed with error %u", rc);
             ErrorUtils::CustomInternal("Failed to start app action", result);
         }
         return rc;
@@ -814,7 +819,7 @@ class LifecycleDelegate : public BaseEventDelegate
         if (nullptr == mAppActions && nullptr != mShell) {
             mAppActions = mShell->QueryInterfaceByCallsign<Exchange::IAppActions>(APP_ACTIONS_CALLSIGN);
             if (nullptr == mAppActions) {
-                LOGERR("Failed to get IAppActions COM interface");
+                LOGWARN("Failed to get IAppActions COM interface");
             } else {
                 LOGINFO("IAppActions COM interface acquired successfully");
             }
