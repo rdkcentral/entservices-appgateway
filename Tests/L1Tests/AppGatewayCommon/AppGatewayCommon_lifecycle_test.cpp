@@ -532,8 +532,8 @@ TEST_F(LifecycleDelegateTest, AGC_L1_186_GetLastIntent_WithIntent)
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_NE(result.find("intentId"), std::string::npos);
-    EXPECT_NE(result.find("intent"),   std::string::npos);
+    EXPECT_NE(result.find("\"intentId\":"),  std::string::npos);
+    EXPECT_NE(result.find("\"intent\":"),   std::string::npos);
     EXPECT_NE(result.find("search://query=testing"), std::string::npos);
 }
 

@@ -442,10 +442,10 @@ uint32_t Test_HandleRequest_GetLastIntent()
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "commoninternal.getlastintent returns ERROR_NONE");
     // Result must be a JSON object with intentId and intent fields
-    const bool hasIntentId = result.find("intentId") != std::string::npos;
-    const bool hasIntent   = result.find("intent")   != std::string::npos;
+    const bool hasIntentId = result.find("\"intentId\":") != std::string::npos;
+    const bool hasIntent   = result.find("\"intent\":")   != std::string::npos;
     if (!hasIntentId) tr.failures++;
-    if (!hasIntent)   tr.failures++;
+    if (!hasIntent) tr.failures++;
     return tr.failures;
 }
 
@@ -488,10 +488,10 @@ uint32_t Test_HandleRequest_ActionsIntent_EmptyRegistry()
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "actions.intent", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "actions.intent returns ERROR_NONE");
-    const bool hasIntentId = result.find("intentId") != std::string::npos;
-    const bool hasIntent   = result.find("intent")   != std::string::npos;
+    const bool hasIntentId = result.find("\"intentId\":") != std::string::npos;
+    const bool hasIntent   = result.find("\"intent\":")   != std::string::npos;
     if (!hasIntentId) tr.failures++;
-    if (!hasIntent)   tr.failures++;
+    if (!hasIntent) tr.failures++;
     return tr.failures;
 }
 
