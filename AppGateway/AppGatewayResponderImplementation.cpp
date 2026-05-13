@@ -323,7 +323,7 @@ namespace WPEFramework
             } else {
                 // No App ID means the disconnect handler already ran and removed it from
                 // the registry. The connection is already gone; no explicit close needed.
-                LOGERR("No App ID found for connection %d, connection already disconnected", connectionId);
+                LOGWARN("No App ID found for connection %d, connection already disconnected", connectionId);
                 // Track failed call due to missing appId
                 AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
             }
