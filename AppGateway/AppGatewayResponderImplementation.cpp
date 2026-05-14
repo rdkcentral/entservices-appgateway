@@ -321,10 +321,11 @@ namespace WPEFramework
                     // Response will be sent asynchronously, so we will track success/failure when sending the response back to client
                 }
             } else {
-                LOGERR("No App ID found for connection %d. Terminate connection", connectionId);
+                // No App ID means the disconnect handler already ran and removed it from
+                // the registry. The connection is already gone; no explicit close needed.
+                LOGWARN("No App ID found for connection %d, connection already disconnected", connectionId);
                 // Track failed call due to missing appId
                 AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
-                mWsManager.Close(connectionId);
             }
         }
 
