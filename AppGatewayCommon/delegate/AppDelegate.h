@@ -102,7 +102,7 @@ class AppDelegate {
                 JsonObject response;
                 response["ifa"] = ifa;
                 response["ifa_type"] = ADVERTISING_TYPE;
-                response["limit"] = ADVERTISING_ID_LIMIT;
+                response["lmt"] = ADVERTISING_ID_LIMIT;
                 response.ToString(result);
                 return Core::ERROR_NONE;
             } else {

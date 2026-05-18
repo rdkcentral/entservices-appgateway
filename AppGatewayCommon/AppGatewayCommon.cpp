@@ -290,6 +290,9 @@ namespace Plugin {
         }},
         { "display.maxresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDisplayMaxResolution(result);
+        }},
+        {"presentation.focused", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetPresentationFocused(ctx, payload, result);
         }}
     };
 
@@ -1199,6 +1202,11 @@ namespace Plugin {
         Core::hresult AppGatewayCommon::GetLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
             return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetLastIntent, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::GetPresentationFocused(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetPresentationFocused, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::CheckPermissionGroup(const string &appId /* @in */, const string &permissionGroup /* @in */, bool &allowed /* @out */)
