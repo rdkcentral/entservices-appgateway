@@ -296,6 +296,9 @@ namespace Plugin {
         }},
         { "display.videoresolutions", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDisplayVideoResolutions(result);
+        }},
+        {"presentation.focused", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetPresentationFocused(ctx, payload, result);
         }}
     };
 
@@ -324,7 +327,7 @@ namespace Plugin {
             {
                 std::string name;
                 if (JsonValidation::ValidateAndExtractString(payload, name)) {
-                    return ResponseUtils::SetNullResponseForSuccess(SetDeviceName(name), result);
+                    return ResponseUtils::SetNullResponseForSuccess(SetDeviceName(std::move(name)), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
@@ -333,7 +336,7 @@ namespace Plugin {
             {
                 std::string countryCode;
                 if (JsonValidation::ValidateAndExtractString(payload, countryCode)) {
-                    return ResponseUtils::SetNullResponseForSuccess(SetCountryCode(countryCode), result);
+                    return ResponseUtils::SetNullResponseForSuccess(SetCountryCode(std::move(countryCode)), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
@@ -342,7 +345,7 @@ namespace Plugin {
             {
                 std::string timeZone;
                 if (JsonValidation::ValidateAndExtractString(payload, timeZone)) {
-                    return ResponseUtils::SetNullResponseForSuccess(SetTimeZone(timeZone), result);
+                    return ResponseUtils::SetNullResponseForSuccess(SetTimeZone(std::move(timeZone)), result);
                 }
                 result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
                 return Core::ERROR_BAD_REQUEST;
@@ -1205,6 +1208,11 @@ namespace Plugin {
         Core::hresult AppGatewayCommon::GetLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
             return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetLastIntent, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::GetPresentationFocused(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetPresentationFocused, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::CheckPermissionGroup(const string &appId /* @in */, const string &permissionGroup /* @in */, bool &allowed /* @out */)

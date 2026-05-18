@@ -206,7 +206,7 @@ class LifecycleDelegate : public BaseEventDelegate
         // Get current LifecycleState for given appInstanceId
         LifecycleStateInfo stateInfo = mLifecycleStateRegistry.GetLifecycleStateInfo(appInstanceId);
 
-        result = LifecycleStateToString(stateInfo.currentState);
+        result = "\""+ LifecycleStateToString(stateInfo.currentState) + "\"";
         return Core::ERROR_NONE;
     }
 
@@ -216,7 +216,7 @@ class LifecycleDelegate : public BaseEventDelegate
         // Get current LifecycleState for given appInstanceId
         LifecycleStateInfo stateInfo = mLifecycleStateRegistry.GetLifecycleStateInfo(appInstanceId);
 
-        result = Lifecycle2StateToLifecycle1String(stateInfo.currentState);
+        result = "\""+ Lifecycle2StateToLifecycle1String(stateInfo.currentState) + "\"";
         
         return Core::ERROR_NONE;
     }
@@ -314,6 +314,18 @@ class LifecycleDelegate : public BaseEventDelegate
         obj["gpuMemoryUsed"]   = static_cast<int64_t>(gpuMemObj[_T("usage")].Number());
         obj["gpuMemoryLimit"]  = static_cast<int64_t>(gpuMemObj[_T("limit")].Number());
         obj.ToString(result);
+        return Core::ERROR_NONE;
+    }
+    
+    Core::hresult GetPresentationFocused(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
+        // get appInstance Id from context.appId
+        string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(context.appId);
+        if (true == appInstanceId.empty()) {
+            LOGWARN("GetPresentationFocused called for unknown or unmapped appId=%s", context.appId.c_str());
+            result = "false";
+            return Core::ERROR_NONE;
+        }
+        result = mFocusedAppRegistry.IsAppInstanceIdFocused(appInstanceId) ? "true" : "false";
         return Core::ERROR_NONE;
     }
 
