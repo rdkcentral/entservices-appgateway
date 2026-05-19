@@ -286,7 +286,8 @@ class LifecycleDelegate : public BaseEventDelegate
         Exchange::IAppActions* appActions = mShell->QueryInterfaceByCallsign<Exchange::IAppActions>(APP_ACTIONS_CALLSIGN);
         if (nullptr == appActions) {
             LOGWARN("ActionsStart: IAppActions interface not available");
-            ErrorUtils::NotAvailable("AppActions plugin not available", result);
+//            ErrorUtils::NotAvailable("AppActions plugin not available", result);
+            ErrorUtils::NotAvailable(result);
             return Core::ERROR_UNAVAILABLE;
         }
         result = "null";

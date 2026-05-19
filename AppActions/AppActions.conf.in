@@ -1,0 +1,4 @@
+autostart = "@PLUGIN_APPACTIONS_AUTOSTART@"
+precondition = ["Platform"]
+callsign = "org.rdk.AppActions"
+startuporder = "@PLUGIN_APPACTIONS_STARTUPORDER@"
