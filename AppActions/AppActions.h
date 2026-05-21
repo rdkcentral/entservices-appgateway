@@ -1,4 +1,3 @@
-
 #pragma once
 #ifndef __APPACTIONS_H__
 #define __APPACTIONS_H__
@@ -12,11 +11,11 @@ namespace WPEFramework {
 namespace Plugin {
 
     class AppActions : public PluginHost::IPlugin, public PluginHost::JSONRPC {
+
         public:
-            static AppActions *_instance;
             AppActions(const AppActions&) = delete;
             AppActions& operator=(const AppActions&) = delete;
-
+            static AppActions *_instance;
             AppActions();
             ~AppActions() override;
 
@@ -25,7 +24,7 @@ namespace Plugin {
             void Deinitialize(PluginHost::IShell* service) override;
             string Information() const override;
 
-            BEGIN_INTERFACE_MAP(AppNotifications)
+            BEGIN_INTERFACE_MAP(AppActions)
             INTERFACE_ENTRY(PluginHost::IPlugin)
             INTERFACE_ENTRY(PluginHost::IDispatcher)
             INTERFACE_AGGREGATE(Exchange::IAppActions, mAppActions)
@@ -33,8 +32,6 @@ namespace Plugin {
 
         private:
             void Deactivated(RPC::IRemoteConnection* connection);
-
-            private:
             PluginHost::IShell *mService{};
             uint32_t mConnectionId{};
             Exchange::IAppActions *mAppActions{};
