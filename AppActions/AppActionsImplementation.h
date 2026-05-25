@@ -1,14 +1,20 @@
 #pragma once
 #ifndef __APPACTIONSIMPLEMENTATION_H__
 #define __APPACTIONSIMPLEMENTATION_H__
+#include "Module.h"
 #include <interfaces/IConfiguration.h>
 #include <interfaces/IAppActions.h>
 
 namespace WPEFramework {
 namespace Plugin {
 
-    class AppActionsImplementation : public PluginHost::IPlugin, Exchange::IAppActions, public Exchange::IConfiguration {
+class AppActionsImplementation :
+    public PluginHost::IPlugin,
+    public Exchange::IAppActions,
+    public Exchange::IConfiguration {
         public:
+            PluginHost::IShell *mService;
+
             AppActionsImplementation();
             ~AppActionsImplementation() override;
 
@@ -16,16 +22,31 @@ namespace Plugin {
             AppActionsImplementation(const AppActionsImplementation&) = delete;
             AppActionsImplementation& operator=(const AppActionsImplementation&) = delete;
 
-            BEGIN_INTERFACE_MAP(AppActionsImplementation)
-            INTERFACE_ENTRY(Exchange::IAppActions)
-            INTERFACE_ENTRY(Exchange::IConfiguration)
-            END_INTERFACE_MAP
+BEGIN_INTERFACE_MAP(AppActionsImplementation)
+    INTERFACE_ENTRY(Exchange::IConfiguration)
+    INTERFACE_ENTRY(PluginHost::IPlugin)
+    INTERFACE_ENTRY(Exchange::IAppActions)
+END_INTERFACE_MAP
 
-            Core::hresult ActionStart(const string& initiator, const string& intent, const string& handlerAppId) override;
-            Core::hresult Register(Exchange::IAppActions::INotification *notification) override;
+    const string Initialize(PluginHost::IShell* service) override;
+    void Deinitialize(PluginHost::IShell* service) override;
+    string Information() const override;
+    Core::hresult Configure(PluginHost::IShell* service) override;
 
-            /** Unregister notification interface */
-            Core::hresult Unregister(Exchange::IAppActions::INotification *notification) override;
+    // IAppActions
+    Core::hresult ActionStart(
+        const string& Initiator,
+        const string& Intent,
+        const string& HandlerAppId
+    ) override;
+
+    Core::hresult Register(
+        Exchange::IAppActions::INotification* notification
+    ) override;
+
+    Core::hresult Unregister(
+        Exchange::IAppActions::INotification* notification
+    ) override;
         
         private:
             std::list<Exchange::IAppActions::INotification*> mAppActionsNotifications;

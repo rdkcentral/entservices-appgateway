@@ -37,7 +37,6 @@ namespace Plugin {
 
         LOGINFO("AppActions::Initialize: PID=%u", getpid());
         SYSLOG(Logging::Startup, (_T("AppActions Initialize")));
-        // On success return empty, to indicate there is no error text.
         mService = service;
         mService->AddRef();
         mAppActions = mService->Root<Exchange::IAppActions>(mConnectionId, 5000, _T("AppActionsImplementation"));
@@ -52,14 +51,13 @@ namespace Plugin {
                 configConnection->Configure(service);
                 configConnection->Release();
             }
-
             //Invoking Plugin API register to wpeframework
             //Exchange::JAppActionsResolver::Resolver(*this, mAppActions);
         }
 
-        return (service != nullptr)
-            ? EMPTY_STRING
-            : _T("Could not retrieve the AppActions interface.");
+        LOGINFO("AppActions::Initialize status: %s", message.empty() ? "success" : "failed");
+        // On success return empty, to indicate there is no error text.
+        return message;
     }
 
     void AppActions::Deinitialize(PluginHost::IShell* service) {
@@ -108,6 +106,15 @@ namespace Plugin {
 
     string AppActions::Information() const {
         return string();
+    }
+
+    void AppActions::Deactivated(RPC::IRemoteConnection *connection)
+    {
+        if (connection->Id() == mConnectionId)
+        {
+            ASSERT(nullptr != mService);
+            Core::IWorkerPool::Instance().Submit(PluginHost::IShell::Job::Create(mService, PluginHost::IShell::DEACTIVATED, PluginHost::IShell::FAILURE));
+        }
     }
 
 } // namespace Plugin

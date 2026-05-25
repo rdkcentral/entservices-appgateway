@@ -16,12 +16,11 @@ set(MODULE_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
 
 set(PLUGIN_APPACTIONS_STARTUPORDER "" CACHE STRING "To configure startup order of AppActions plugin")
 set(PLUGIN_APPACTIONS_AUTOSTART "false" CACHE STRING "Automatically start AppActions")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
 find_package(${NAMESPACE}Plugins REQUIRED)
 find_package(${NAMESPACE}Definitions REQUIRED)
 find_package(CompileSettingsDebug CONFIG REQUIRED)
-
-message("Setup ${MODULE_NAME} v${MODULE_VERSION}")
 
 add_library(${MODULE_NAME} SHARED
         AppActions.cpp
@@ -68,7 +67,8 @@ target_link_libraries(${PLUGIN_IMPLEMENTATION}
         PRIVATE
         CompileSettingsDebug::CompileSettingsDebug
         ${NAMESPACE}Plugins::${NAMESPACE}Plugins
-        ${NAMESPACE}Definitions::${NAMESPACE}Definitions)
+        ${NAMESPACE}Definitions::${NAMESPACE}Definitions
+        uuid)
 
 install(TARGETS ${PLUGIN_IMPLEMENTATION}
         DESTINATION lib/${STORAGE_DIRECTORY}/plugins)
