@@ -25,8 +25,9 @@ namespace Plugin {
 
     Core::hresult AppActionsImplementation::ActionStart(const string& initiator, const string& intent, const string& handlerAppId)
     {
-        // Implementation of ActionStart method
         LOGINFO("ActionStart called with initiator: %s, intent: %s, handlerAppId: %s", initiator.c_str(), intent.c_str(), handlerAppId.c_str());
+        // Implementation of ActionStart method
+        DispatchActionStartRequest(initiator, intent, handlerAppId);
         // Return success or appropriate error code
         return Core::ERROR_NONE;
     }
@@ -112,5 +113,14 @@ namespace Plugin {
         return string();
     }
 
+    void AppActionsImplementation::DispatchActionStartRequest(
+        const string& initiator, const string& intent, const string& handlerAppId)
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+        LOGINFO("Dispatching ActionStartRequest to notifications: initiator=%s, intent=%s, handlerAppId=%s", initiator.c_str(), intent.c_str(), handlerAppId.c_str());
+        for (auto* notification : mAppActionsNotifications) {
+            notification->OnActionStartRequest(initiator, intent, handlerAppId);
+        }
+    }
 } // namespace Plugin
 } // namespace WPEFramework

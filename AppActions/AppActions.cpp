@@ -12,7 +12,7 @@ namespace Plugin {
 
     AppActions *AppActions::_instance = nullptr;
 
-    AppActions::AppActions() : PluginHost::IPlugin(), PluginHost::JSONRPC(), mService(nullptr), mConnectionId(0), mAppActions(nullptr), mAppActionsConfigure(nullptr) {
+    AppActions::AppActions() : PluginHost::IPlugin(), PluginHost::JSONRPC(), mService(nullptr), mConnectionId(0), mAppActions(nullptr), mAppActionsConfigure(nullptr), mAppActionsNotification(this) {
         LOGINFO("AppActions Constructor");
 
         // Register JSONRPC methods here
@@ -39,6 +39,7 @@ namespace Plugin {
         SYSLOG(Logging::Startup, (_T("AppActions Initialize")));
         mService = service;
         mService->AddRef();
+        mService->Register(&mAppActionsNotification);
         mAppActions = mService->Root<Exchange::IAppActions>(mConnectionId, 5000, _T("AppActionsImplementation"));
         if (nullptr == mAppActions)
         {
@@ -46,6 +47,9 @@ namespace Plugin {
             SYSLOG(Logging::Startup, (_T("AppActions::Initialize: object creation failed")));
             message = _T("AppActions plugin could not be initialised");
         } else {
+            mAppActions->Register(&mAppActionsNotification);
+            Exchange::JAppActions::Register(*this, mAppActions);
+
             auto configConnection = mAppActions->QueryInterface<Exchange::IConfiguration>();
             if (configConnection != nullptr) {
                 configConnection->Configure(service);
@@ -69,6 +73,8 @@ namespace Plugin {
         RPC::IRemoteConnection *connection = nullptr;
         VARIABLE_IS_NOT_USED uint32_t result = Core::ERROR_NONE;
 
+        mService->Unregister(&mAppActionsNotification);
+
         // Make sure the Activated and Deactivated are no longer called before we start cleaning up..
         if (nullptr != mAppActionsConfigure)
         {
@@ -90,7 +96,8 @@ namespace Plugin {
         }
         if (nullptr != mAppActions)
         {
-            //Exchange::JAppActionsResolver::Unregister(*this);
+            mAppActions->Unregister(&mAppActionsNotification);
+            Exchange::JAppActions::Unregister(*this);
             result = mAppActions->Release();
             mAppActions = nullptr;
 
