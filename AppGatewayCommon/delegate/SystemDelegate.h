@@ -25,6 +25,7 @@
 #include <memory>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 #include <plugins/plugins.h>
 #include <core/JSON.h>
@@ -1130,7 +1131,13 @@ public:
 
         // Check HDMI connection before requesting EDID
         bool connected = false;
-        connProps->Connected(connected);
+        const Core::hresult connRc = connProps->Connected(connected);
+        if (connRc != Core::ERROR_NONE)
+        {
+            LOGWARN("SystemDelegate: IConnectionProperties::Connected rc=%u — assuming no display, returning empty EDID", connRc);
+            connProps->Release();
+            return Core::ERROR_NONE;
+        }
         if (!connected)
         {
             LOGWARN("SystemDelegate: No display connected — returning empty EDID");
@@ -1238,6 +1245,196 @@ public:
         obj["width"]  = static_cast<int>(width);
         obj["height"] = static_cast<int>(height);
         obj.ToString(result);
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    // Display.colorimetry — reads colorimetry from DisplayInfo via ComRPC (Exchange::IDisplayProperties).
+    // Uses IDisplayProperties::Colorimetry(IColorimetryIterator*&) to get typed enum values directly,
+    // then maps them to Firebolt enum strings ("bt709", "bt2020").
+    // Returns "[]" when no display is connected (STB/OTT) or the interface is unavailable.
+    Core::hresult GetDisplayColorimetry(std::string &result)
+    {
+        result = "[]";
+
+        if (nullptr == _shell)
+        {
+            LOGERR("SystemDelegate: shell is null for GetDisplayColorimetry");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        auto* displayProps = _shell->QueryInterfaceByCallsign<Exchange::IDisplayProperties>(DISPLAYINFO_CALLSIGN);
+        if (nullptr == displayProps)
+        {
+            LOGWARN("SystemDelegate: IDisplayProperties unavailable for colorimetry (no display or plugin absent)");
+            return Core::ERROR_NONE;
+        }
+
+        Exchange::IDisplayProperties::IColorimetryIterator* iter = nullptr;
+        const Core::hresult rc = displayProps->Colorimetry(iter);
+        displayProps->Release();
+
+        if (rc != Core::ERROR_NONE || nullptr == iter)
+        {
+            LOGWARN("SystemDelegate: IDisplayProperties::Colorimetry rc=%u (no display or not supported)", rc);
+            if (nullptr != iter) iter->Release();
+            return Core::ERROR_NONE;
+        }
+
+        // Iterate and map ColorimetryType enum values to Firebolt strings.
+        // bt709  ← COLORIMETRY_BT709
+        // bt2020 ← COLORIMETRY_BT2020YCCBCBRC, COLORIMETRY_BT2020RGB_YCBCR
+        bool hasBt709  = false;
+        bool hasBt2020 = false;
+        Exchange::IDisplayProperties::ColorimetryType value{};
+        while (iter->Next(value) == true)
+        {
+            if (value == Exchange::IDisplayProperties::COLORIMETRY_BT709)
+                hasBt709 = true;
+            else if (value == Exchange::IDisplayProperties::COLORIMETRY_BT2020YCCBCBRC ||
+                     value == Exchange::IDisplayProperties::COLORIMETRY_BT2020RGB_YCBCR)
+                hasBt2020 = true;
+        }
+        iter->Release();
+
+        if (!hasBt709 && !hasBt2020)
+        {
+            LOGWARN("SystemDelegate: IDisplayProperties::Colorimetry: no recognized values in response");
+            return Core::ERROR_NONE;
+        }
+
+        result = "[";
+        bool first = true;
+        if (hasBt709)
+        {
+            result += "\"bt709\"";
+            first = false;
+        }
+        if (hasBt2020)
+        {
+            if (!first) result += ",";
+            result += "\"bt2020\"";
+        }
+        result += "]";
+
+        LOGDBG("SystemDelegate: GetDisplayColorimetry result=%s", result.c_str());
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    // Display.videoResolutions — reads supported resolutions from org.rdk.DisplaySettings.getSupportedResolutions.
+    // Maps Thunder resolution strings (e.g. "720p", "720p50", "1080p60") to Firebolt VideoResolution enum strings.
+    // Only HD resolutions (720p and above) are included; results are deduplicated by resolution class.
+    // Returns "[]" when no display is connected (STB/OTT) or the plugin is unavailable.
+    Core::hresult GetDisplayVideoResolutions(std::string &result)
+    {
+        result = "[]";
+        auto link = AcquireLink(DISPLAYSETTINGS_CALLSIGN);
+        if (!link)
+        {
+            LOGWARN("SystemDelegate: DisplaySettings link unavailable for getSupportedResolutions (no display or plugin absent)");
+            return Core::ERROR_NONE;
+        }
+
+        WPEFramework::Core::JSON::VariantContainer params;
+        WPEFramework::Core::JSON::VariantContainer response;
+        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getSupportedResolutions", params, response);
+        if (rc != Core::ERROR_NONE || !response.HasLabel(_T("supportedResolutions")))
+        {
+            LOGWARN("SystemDelegate: DisplaySettings.getSupportedResolutions rc=%u (no display or not supported)", rc);
+            return Core::ERROR_NONE;
+        }
+
+        const WPEFramework::Core::JSON::Variant& resVar = response.Get(_T("supportedResolutions"));
+        if (resVar.Content() != WPEFramework::Core::JSON::Variant::type::ARRAY)
+        {
+            LOGWARN("SystemDelegate: DisplaySettings.getSupportedResolutions: unexpected non-array type (%d) for supportedResolutions; treating as unsupported",
+                    static_cast<int>(resVar.Content()));
+            return Core::ERROR_NONE;
+        }
+
+        std::string arrJson;
+        {
+            auto arr = resVar.Array();
+            const uint16_t n = arr.Length();
+            for (uint16_t i = 0; i < n; ++i)
+            {
+                arrJson += arr[i].String();
+                arrJson += ' ';
+            }
+        }
+
+        LOGDBG("SystemDelegate: DisplaySettings.getSupportedResolutions supportedResolutions=%s", arrJson.c_str());
+
+        // Map each Thunder resolution token to Firebolt VideoResolution enum strings.
+        // Firebolt spec defines exactly 6 values: 720p50, 720p60, 1080p50, 1080p60, 2160p50, 2160p60.
+        //
+        // Mapping rules:
+        //  - Generic "720p"  (no framerate) → both 720p50 and 720p60 (display supports both rates)
+        //  - Specific "720p50" → 720p50 only; "720p60" → 720p60 only
+        //  - Same pattern for 1080p and 2160p classes
+        //  - "1080p24/25/30", "2160p24/25/30", "480p", "576p*", "768p*", "1080i*" → no Firebolt mapping
+        struct ThunderToFb {
+            const char* thunder;
+            const char* fb1;
+            const char* fb2;
+        };
+        static const std::array<ThunderToFb, 9> kMap = {{
+            { "720p",    "720p50",  "720p60"  },
+            { "720p50",  "720p50",  nullptr   },
+            { "720p60",  "720p60",  nullptr   },
+            { "1080p",   "1080p50", "1080p60" },
+            { "1080p50", "1080p50", nullptr   },
+            { "1080p60", "1080p60", nullptr   },
+            { "2160p",   "2160p50", "2160p60" },
+            { "2160p50", "2160p50", nullptr   },
+            { "2160p60", "2160p60", nullptr   },
+        }};
+
+        // Collect results preserving insertion order, deduplicated (e.g. "720p" + "720p50" → 720p50 once)
+        // resVar is guaranteed to be ARRAY here (non-array was rejected above).
+        std::unordered_set<std::string> seen;
+        std::vector<std::string> fbResults;
+        {
+            auto arr = resVar.Array();
+            const uint16_t n = arr.Length();
+            for (uint16_t i = 0; i < n; ++i)
+            {
+                std::string token = arr[i].String();
+                std::transform(token.begin(), token.end(), token.begin(),
+                               [](unsigned char c){ return static_cast<char>(::tolower(c)); });
+                for (const auto& entry : kMap)
+                {
+                    if (token == entry.thunder)
+                    {
+                        if (seen.insert(entry.fb1).second)
+                            fbResults.push_back(entry.fb1);
+                        if (entry.fb2 != nullptr && seen.insert(entry.fb2).second)
+                            fbResults.push_back(entry.fb2);
+                        break;
+                    }
+                }
+            }
+        }
+
+        std::string items;
+        for (const auto& en : fbResults)
+        {
+            if (!items.empty()) items += ',';
+            items += '"';
+            items += en;
+            items += '"';
+        }
+
+        if (items.empty())
+        {
+            LOGWARN("SystemDelegate: DisplaySettings.getSupportedResolutions: no Firebolt HD enum values in response: %s", arrJson.c_str());
+            return Core::ERROR_NONE;
+        }
+
+        result = "[" + items + "]";
+
+        LOGDBG("SystemDelegate: GetDisplayVideoResolutions result=%s", result.c_str());
         return Core::ERROR_NONE;
     }
 
@@ -1579,7 +1776,7 @@ private:
     inline std::shared_ptr<WPEFramework::Utils::JSONRPCDirectLink> AcquireLink(const std::string& callsign) const
     {
         // Create a direct JSON-RPC link to the specified Thunder plugin using the Supporting_Files helper.
-        if (_shell == nullptr)
+        if (nullptr == _shell)
         {
             LOGERR("SystemDelegate: shell is null");
             return nullptr;
