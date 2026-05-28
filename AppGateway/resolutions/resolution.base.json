@@ -541,7 +541,7 @@
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
         },
-		"display.edid": {
+        "display.edid": {
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
         },
