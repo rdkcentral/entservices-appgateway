@@ -30,6 +30,9 @@
 #define API_VERSION_NUMBER_MINOR    APPGATEWAY_MINOR_VERSION
 #define API_VERSION_NUMBER_PATCH    APPGATEWAY_PATCH_VERSION
 
+// Timeout (ms) for COM-RPC out-of-process object instantiation via IShell::Root()
+static constexpr uint32_t COMRPC_CONNECT_TIMEOUT_MS = 2000;
+
 
 namespace WPEFramework {
 
@@ -80,7 +83,7 @@ namespace Plugin {
         mTelemetry = &AppGatewayTelemetry::getInstance();
         mTelemetry->AddRef();
 
-        mAppGateway = service->Root<Exchange::IAppGatewayResolver>(mConnectionId, 2000, _T("AppGatewayImplementation"));
+        mAppGateway = service->Root<Exchange::IAppGatewayResolver>(mConnectionId, COMRPC_CONNECT_TIMEOUT_MS, _T("AppGatewayImplementation"));
        
         if (mAppGateway != nullptr) {
             auto configConnection = mAppGateway->QueryInterface<Exchange::IConfiguration>();
@@ -97,7 +100,7 @@ namespace Plugin {
             LOGERR("Failed to initialise AppGatewayResolver plugin!");
         }
 
-        mResponder = service->Root<Exchange::IAppGatewayResponder>(mConnectionId, 2000, _T("AppGatewayResponderImplementation"));
+        mResponder = service->Root<Exchange::IAppGatewayResponder>(mConnectionId, COMRPC_CONNECT_TIMEOUT_MS, _T("AppGatewayResponderImplementation"));
         if (mResponder != nullptr) {
             auto configConnectionResponder = mResponder->QueryInterface<Exchange::IConfiguration>();
             if (configConnectionResponder != nullptr) {
