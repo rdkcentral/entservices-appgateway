@@ -19,6 +19,7 @@
 
 #ifndef __CONTEXTUTILS_H__
 #define __CONTEXTUTILS_H__
+#include <cstddef>
 #include <interfaces/IAppGateway.h>
 #include <interfaces/IAppNotifications.h>
 #include "UtilsCallsign.h"
