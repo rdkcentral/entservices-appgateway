@@ -560,6 +560,10 @@
         "display.videoResolutions": {
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
+        },
+        "device.sku": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
         }
     }
 }
