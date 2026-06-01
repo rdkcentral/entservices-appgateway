@@ -67,10 +67,6 @@ target_include_directories(
     ../../helpers
     ../../AppGateway
     ../../../entservices-apis/apis/AppGateway
-    ../../../entservices-testframework/Tests/mocks
-    ../../../entservices-testframework/Tests/mocks/thunder
-    ../../../entservices-testframework/Tests/mocks/MockPlugin
-    ../../../entservices-testframework/Tests/L2Tests/L2TestsPlugin
     ${CMAKE_INSTALL_PREFIX}/include
     )
 

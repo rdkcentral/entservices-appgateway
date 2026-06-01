@@ -33,8 +33,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-// ─── Thunder L2 framework ────────────────────────────────────────────────────
-#include "L2TestsMock.h"
+// ─── Thunder JSON-RPC (self-contained, no device-display mock dependencies) ──
+#include <websocket/JSONRPCLink.h>
 
 // ─── Plugin interfaces ───────────────────────────────────────────────────────
 #include <interfaces/IAppGateway.h>
@@ -206,9 +206,64 @@ private:
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Self-contained L2 test base — no device-display mock dependencies
+// ═══════════════════════════════════════════════════════════════════════════════
+#ifndef THUNDER_PORT
+#define THUNDER_PORT "9998"
+#endif
+#define AGW_TEST_CALLSIGN _T("org.rdk.L2Tests.1")
+#define AGW_INVOKE_TIMEOUT 3000
+
+class AppGatewayL2TestBase : public ::testing::Test {
+protected:
+    AppGatewayL2TestBase()
+    {
+        std::string addr = std::string("127.0.0.1:") + THUNDER_PORT;
+        Core::SystemInfo::SetEnvironment(_T("THUNDER_ACCESS"), addr);
+    }
+    virtual ~AppGatewayL2TestBase() = default;
+
+    uint32_t InvokeServiceMethod(const char* callsign, const char* method,
+                                 JsonObject& params, JsonObject& results)
+    {
+        JSONRPC::LinkType<Core::JSON::IElement> jsonrpc(
+            std::string(callsign), AGW_TEST_CALLSIGN);
+        std::string msg;
+        params.ToString(msg);
+        TEST_LOG("Invoking %s.%s params=%s", callsign, method, msg.c_str());
+        results = JsonObject();
+        uint32_t status = jsonrpc.Invoke<JsonObject, JsonObject>(
+            AGW_INVOKE_TIMEOUT, std::string(method), params, results);
+        if (status == 11) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            status = jsonrpc.Invoke<JsonObject, JsonObject>(
+                AGW_INVOKE_TIMEOUT, std::string(method), params, results);
+        }
+        std::string reply;
+        results.ToString(reply);
+        TEST_LOG("Status %u results %s", status, reply.c_str());
+        return status;
+    }
+
+    uint32_t ActivateService(const char* callsign)
+    {
+        JsonObject params, result;
+        if (callsign) params["callsign"] = callsign;
+        return InvokeServiceMethod("Controller.1", "activate", params, result);
+    }
+
+    uint32_t DeactivateService(const char* callsign)
+    {
+        JsonObject params, result;
+        if (callsign) params["callsign"] = callsign;
+        return InvokeServiceMethod("Controller.1", "deactivate", params, result);
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // AppGateway_L2Test  — Resolver / Configure interface tests
 // ═══════════════════════════════════════════════════════════════════════════════
-class AppGateway_L2Test : public L2TestMocks
+class AppGateway_L2Test : public AppGatewayL2TestBase
 {
 protected:
     Exchange::IAppGatewayResolver* m_resolverPlugin   = nullptr;
@@ -222,7 +277,7 @@ protected:
 
 public:
     AppGateway_L2Test()
-        : L2TestMocks()
+        : AppGatewayL2TestBase()
     {
         // Write temp resolution config files
         m_baseJsonPath     = WriteTempJson(kBaseResolutionJson);
@@ -307,7 +362,7 @@ public:
 // ═══════════════════════════════════════════════════════════════════════════════
 // AppGatewayResponder_L2Test — Responder interface tests
 // ═══════════════════════════════════════════════════════════════════════════════
-class AppGatewayResponder_L2Test : public L2TestMocks
+class AppGatewayResponder_L2Test : public AppGatewayL2TestBase
 {
 protected:
     Exchange::IAppGatewayResponder* m_responderPlugin = nullptr;
@@ -320,7 +375,7 @@ protected:
 
 public:
     AppGatewayResponder_L2Test()
-        : L2TestMocks()
+        : AppGatewayL2TestBase()
     {
         uint32_t status    = Core::ERROR_GENERAL;
         int      retryCount = 0;
