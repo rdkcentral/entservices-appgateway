@@ -34,7 +34,6 @@
 #include <gtest/gtest.h>
 
 // ─── Thunder L2 framework ────────────────────────────────────────────────────
-#include "L2Tests.h"
 #include "L2TestsMock.h"
 
 // ─── Plugin interfaces ───────────────────────────────────────────────────────
