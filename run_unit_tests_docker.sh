@@ -29,7 +29,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --help|-h)
             cat <<EOF
-Usage: ./run_unit_tests_docker.sh [--rebuild-image] [run_unit_tests.sh options]
+Usage: ./run_unit_tests_docker.sh [--rebuild-image] [run options]
 
 Examples:
   ./run_unit_tests_docker.sh --l0
@@ -42,7 +42,7 @@ Notes:
   - Runs tests in a containerized Ubuntu environment to avoid host dependency installs.
   - Uses image: ${IMAGE}
     - Runs as root in-container by default; set RUN_AS_HOST_USER=ON on Linux to map uid/gid.
-  - Forwarded options are passed to run_unit_tests.sh inside container.
+    - Forwarded options are passed to run_unit_tests_core.sh inside container.
 EOF
             exit 0
             ;;

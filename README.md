@@ -11,10 +11,6 @@ Unit tests are docker-first by default to avoid host dependency setup and improv
 
 This delegates to Docker automatically on host machines.
 
-If you explicitly want host-native execution (for pre-provisioned environments), use:
-
-./run_unit_tests.sh --host --l0
-
 ### Build dependency image
 
 ./docker_build_test_image.sh
