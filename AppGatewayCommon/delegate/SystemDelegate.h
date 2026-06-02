@@ -117,25 +117,25 @@ private:
             _parent.OnSystemFriendlyNameChanged(params);
         }
 
-        void OnTimeZoneDSTChanged(const Exchange::ISystemServices::TimeZoneDSTChangedInfo& timeZoneDSTChangedInfo) override
+        void OnTimeZoneDSTChanged(const string& oldTimeZone, const string& newTimeZone, const string& oldAccuracy, const string& newAccuracy) override
         {
-            LOGINFO("[AppGatewayCommon|OnTimeZoneDSTChanged] newTimeZone=%s", timeZoneDSTChangedInfo.newTimeZone.c_str());
+            LOGINFO("[AppGatewayCommon|OnTimeZoneDSTChanged] newTimeZone=%s", newTimeZone.c_str());
             WPEFramework::Core::JSON::VariantContainer params;
-            params[_T("oldTimeZone")] = timeZoneDSTChangedInfo.oldTimeZone;
-            params[_T("newTimeZone")] = timeZoneDSTChangedInfo.newTimeZone;
-            params[_T("oldAccuracy")] = timeZoneDSTChangedInfo.oldAccuracy;
-            params[_T("newAccuracy")] = timeZoneDSTChangedInfo.newAccuracy;
+            params[_T("oldTimeZone")] = oldTimeZone;
+            params[_T("newTimeZone")] = newTimeZone;
+            params[_T("oldAccuracy")] = oldAccuracy;
+            params[_T("newAccuracy")] = newAccuracy;
             _parent.OnSystemTimezoneChanged(params);
         }
 
-        void OnTerritoryChanged(const Exchange::ISystemServices::TerritoryChangedInfo& territoryChangedInfo) override
+        void OnTerritoryChanged(const string& oldTerritory, const string& newTerritory, const string& oldRegion, const string& newRegion) override
         {
-            LOGINFO("[AppGatewayCommon|OnTerritoryChanged] newTerritory=%s", territoryChangedInfo.newTerritory.c_str());
+            LOGINFO("[AppGatewayCommon|OnTerritoryChanged] newTerritory=%s", newTerritory.c_str());
             WPEFramework::Core::JSON::VariantContainer params;
-            params[_T("oldTerritory")] = territoryChangedInfo.oldTerritory;
-            params[_T("newTerritory")] = territoryChangedInfo.newTerritory;
-            params[_T("oldRegion")] = territoryChangedInfo.oldRegion;
-            params[_T("newRegion")] = territoryChangedInfo.newRegion;
+            params[_T("oldTerritory")] = oldTerritory;
+            params[_T("newTerritory")] = newTerritory;
+            params[_T("oldRegion")] = oldRegion;
+            params[_T("newRegion")] = newRegion;
             _parent.OnSystemTerritoryChanged(params);
         }
 

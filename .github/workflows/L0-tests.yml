@@ -151,7 +151,7 @@ jobs:
         with:
           repository: rdkcentral/entservices-apis
           path: entservices-apis
-          ref: feature/RDKEMW-7075
+          ref: ${{env.INTERFACES_REF}}
 
       - name: Apply patches ThunderTools
         if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
