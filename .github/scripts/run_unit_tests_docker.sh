@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 IMAGE="${IMAGE:-entservices-appgateway-test-deps:local}"
 REBUILD_IMAGE="false"
 TTY_FLAG="-t"
@@ -54,7 +55,7 @@ EOF
 done
 
 if [[ "${REBUILD_IMAGE}" == "true" ]] || ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
-    "${SCRIPT_DIR}/docker_build_test_image.sh"
+    "${ROOT_DIR}/docker_build_test_image.sh"
 else
     echo "[run-unit-tests-docker] Using cached image: ${IMAGE}"
 fi
@@ -68,7 +69,7 @@ echo "[run-unit-tests-docker] Running inside ${IMAGE}"
 
 docker run --rm ${TTY_FLAG} \
     "${USER_ARGS[@]}" \
-    -v "${SCRIPT_DIR}:/workspace:ro" \
+    -v "${ROOT_DIR}:/workspace:ro" \
     -e SRC_DIR=/workspace \
     -e DEPS_PREFIX=/opt/entdeps/src/install/usr \
     --entrypoint /bin/bash \

@@ -22,10 +22,10 @@ rm -rf "${WORK_DIR}/build" "${WORK_DIR}/build-dev" "${WORK_DIR}/Tests/L0Tests/bu
 
 cd "${WORK_DIR}"
 
-if [[ ! -x ./run_unit_tests_core.sh ]]; then
-    echo "[docker-runner] ERROR: run_unit_tests_core.sh not found in copied workspace" >&2
+if [[ ! -x ./.github/scripts/run_unit_tests_core.sh ]]; then
+    echo "[docker-runner] ERROR: .github/scripts/run_unit_tests_core.sh not found in copied workspace" >&2
     exit 1
 fi
 
 exec env AUTO_DOCKER_ON_MISSING_DEPS=OFF RUNNING_IN_DOCKER=1 \
-    ./run_unit_tests_core.sh --prefix "${DEPS_PREFIX}" "$@"
+    ./.github/scripts/run_unit_tests_core.sh --prefix "${DEPS_PREFIX}" "$@"
