@@ -13,14 +13,14 @@ This delegates to Docker automatically on host machines.
 
 ### Build dependency image
 
-./docker_build_test_image.sh
+./.github/scripts/docker_build_test_image.sh
 
 This builds a local image named `entservices-appgateway-test-deps:local` (override with `IMAGE=...`).
 
 If your Docker daemon has DNS restrictions, you can override network/mirror settings:
 
-- `DOCKER_NETWORK_MODE=host ./docker_build_test_image.sh` (Linux)
-- `APT_MIRROR=http://<your-mirror>/ubuntu ./docker_build_test_image.sh`
+- `DOCKER_NETWORK_MODE=host ./.github/scripts/docker_build_test_image.sh` (Linux)
+- `APT_MIRROR=http://<your-mirror>/ubuntu ./.github/scripts/docker_build_test_image.sh`
 
 ### Run unit tests in container
 

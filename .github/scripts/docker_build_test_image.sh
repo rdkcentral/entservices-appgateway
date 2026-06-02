@@ -2,8 +2,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 IMAGE="${IMAGE:-entservices-appgateway-test-deps:local}"
-DOCKERFILE="${SCRIPT_DIR}/.github/docker/Dockerfile.unit-tests"
+DOCKERFILE="${ROOT_DIR}/.github/docker/Dockerfile.unit-tests"
 APT_MIRROR="${APT_MIRROR:-}"
 DOCKER_NETWORK_MODE="${DOCKER_NETWORK_MODE:-}"
 
@@ -19,9 +20,9 @@ calc_sha() {
 }
 
 RUNNER_SHA="$(calc_sha \
-    "${SCRIPT_DIR}/.github/docker/Dockerfile.unit-tests" \
-    "${SCRIPT_DIR}/.github/docker/run-in-container.sh" \
-    "${SCRIPT_DIR}/build_dependencies.sh")"
+    "${ROOT_DIR}/.github/docker/Dockerfile.unit-tests" \
+    "${ROOT_DIR}/.github/docker/run-in-container.sh" \
+    "${ROOT_DIR}/build_dependencies.sh")"
 
 if ! command -v docker >/dev/null 2>&1; then
     echo "[docker-build] ERROR: docker is not installed or not in PATH" >&2
@@ -46,6 +47,6 @@ if [[ -n "${DOCKER_NETWORK_MODE}" ]]; then
     echo "[docker-build] Using docker build network mode: ${DOCKER_NETWORK_MODE}"
 fi
 
-docker build "${BUILD_ARGS[@]}" -t "${IMAGE}" -f "${DOCKERFILE}" "${SCRIPT_DIR}"
+docker build "${BUILD_ARGS[@]}" -t "${IMAGE}" -f "${DOCKERFILE}" "${ROOT_DIR}"
 
 echo "[docker-build] Done"

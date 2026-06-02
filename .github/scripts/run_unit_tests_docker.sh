@@ -55,7 +55,7 @@ EOF
 done
 
 if [[ "${REBUILD_IMAGE}" == "true" ]] || ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
-    "${ROOT_DIR}/docker_build_test_image.sh"
+    "${ROOT_DIR}/.github/scripts/docker_build_test_image.sh"
 else
     echo "[run-unit-tests-docker] Using cached image: ${IMAGE}"
 fi
