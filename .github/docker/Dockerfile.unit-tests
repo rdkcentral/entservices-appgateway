@@ -1,0 +1,42 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ARG APT_MIRROR=
+ARG RUNNER_SHA=unknown
+LABEL org.rdk.entservices.runner-sha="${RUNNER_SHA}"
+
+RUN if [ -n "${APT_MIRROR}" ]; then \
+        sed -i "s|http://archive.ubuntu.com/ubuntu|${APT_MIRROR}|g" /etc/apt/sources.list; \
+    fi
+
+# Base tooling used by build_dependencies.sh and local CMake builds.
+RUN for i in 1 2 3; do apt-get update && break || sleep 5; done \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        git \
+        curl \
+        cmake \
+        ninja-build \
+        build-essential \
+        pkg-config \
+        python3 \
+        python3-pip \
+        libgtest-dev \
+        libgmock-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN ln -sf /usr/bin/pip3 /usr/local/bin/pip
+
+WORKDIR /opt/entdeps/src
+
+# Reuse the repo's dependency bootstrap to keep branch/patch behavior aligned.
+COPY build_dependencies.sh /opt/entdeps/src/build_dependencies.sh
+RUN chmod +x /opt/entdeps/src/build_dependencies.sh && /opt/entdeps/src/build_dependencies.sh
+RUN chmod -R a+rX /opt/entdeps/src/install
+
+# Runtime wrapper: copy mounted workspace into a writable temp dir and execute tests there
+# so host checkout remains clean except for explicit outputs users choose to persist.
+COPY .github/docker/run-in-container.sh /usr/local/bin/run-in-container.sh
+RUN chmod +x /usr/local/bin/run-in-container.sh
+
+ENTRYPOINT ["/usr/local/bin/run-in-container.sh"]

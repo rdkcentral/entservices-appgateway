@@ -9,8 +9,14 @@ cd ${GITHUB_WORKSPACE}
 # # ############################# 
 #1. Install Dependencies and packages
 
-apt update
-apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+if [ "$(id -u)" -eq 0 ]; then
+    APT_CMD="apt"
+else
+    APT_CMD="sudo apt"
+fi
+
+${APT_CMD} update
+${APT_CMD} install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 pip install jsonref
 
 ############################

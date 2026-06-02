@@ -6,6 +6,7 @@
 
 #include "AppGatewayResponderImplementation.h"
 #include "ServiceMock.h"
+#include "WsManager.h"
 
 #include <core/core.h>
 
@@ -310,6 +311,46 @@ uint32_t Test_AppGatewayResponderImplementation_Configure_And_Public_Methods_NoC
                responder.GetGatewayConnectionContext(10, "header.user-agent", out),
                ERROR_NONE,
                "No env injection configured => ERROR_NONE (current implementation)");
+
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
+uint32_t Test_AppGatewayResponderImplementation_NormalizeJsonRpcResult()
+{
+    // Lock down WsManager response-boundary behavior:
+    // valid JSON values pass through unchanged, invalid payloads become quoted strings.
+    TestResult tr;
+
+    ExpectEqStr(tr,
+                NormalizeJsonRpcResult("active"),
+                "\"active\"",
+                "Unquoted token is normalized as JSON string");
+
+    ExpectEqStr(tr,
+                NormalizeJsonRpcResult("\"already-quoted\""),
+                "\"already-quoted\"",
+                "Valid JSON string is preserved");
+
+    ExpectEqStr(tr,
+                NormalizeJsonRpcResult("{\"ok\":true}"),
+                "{\"ok\":true}",
+                "Valid JSON object is preserved");
+
+    ExpectEqStr(tr,
+                NormalizeJsonRpcResult("null"),
+                "null",
+                "Valid JSON null is preserved");
+
+    ExpectEqStr(tr,
+                NormalizeJsonRpcResult("search://query=testing"),
+                "\"search://query=testing\"",
+                "Navigation intent-like payload is normalized as JSON string");
+
+    ExpectEqStr(tr,
+                NormalizeJsonRpcResult(std::string("line\nbreak")),
+                "\"line\\nbreak\"",
+                "Control characters are escaped in normalized JSON string");
 
     return tr.failures;
 }

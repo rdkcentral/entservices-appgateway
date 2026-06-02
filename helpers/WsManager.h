@@ -21,6 +21,9 @@
 
 #include <mutex>
 #include <memory>
+#include <cctype>
+#include <iomanip>
+#include <sstream>
 #include <plugins/plugins.h>
 #include "UtilsLogging.h"
 #include "WebSocketLink.h"
@@ -32,6 +35,117 @@
 
 #define DEFAULT_SOCKET_ADDRESS "127.0.0.1"
 using namespace WPEFramework;
+
+inline std::string QuoteAsJsonString(const std::string& input)
+{
+    std::ostringstream output;
+    output << '"';
+    for (unsigned char ch : input) {
+        switch (ch) {
+        case '"': output << "\\\""; break;
+        case '\\': output << "\\\\"; break;
+        case '\b': output << "\\b"; break;
+        case '\f': output << "\\f"; break;
+        case '\n': output << "\\n"; break;
+        case '\r': output << "\\r"; break;
+        case '\t': output << "\\t"; break;
+        default:
+            if (ch < 0x20) {
+                output << "\\u"
+                       << std::hex << std::uppercase << std::setw(4) << std::setfill('0')
+                       << static_cast<int>(ch)
+                       << std::dec << std::nouppercase;
+            } else {
+                output << static_cast<char>(ch);
+            }
+        }
+    }
+    output << '"';
+    return output.str();
+}
+
+inline std::string TrimWhitespace(const std::string& input)
+{
+    size_t start = 0;
+    while ((start < input.size()) && (std::isspace(static_cast<unsigned char>(input[start])) != 0)) {
+        start++;
+    }
+
+    size_t end = input.size();
+    while ((end > start) && (std::isspace(static_cast<unsigned char>(input[end - 1])) != 0)) {
+        end--;
+    }
+
+    return input.substr(start, end - start);
+}
+
+inline bool IsValidJsonStringLiteral(const std::string& value)
+{
+    if ((value.size() < 2) || (value.front() != '"') || (value.back() != '"')) {
+        return false;
+    }
+
+    for (size_t i = 1; i + 1 < value.size(); ++i) {
+        const unsigned char ch = static_cast<unsigned char>(value[i]);
+        if (ch < 0x20) {
+            return false;
+        }
+
+        if (value[i] == '\\') {
+            if (i + 1 >= value.size() - 1) {
+                return false;
+            }
+
+            const char escape = value[++i];
+            switch (escape) {
+            case '"':
+            case '\\':
+            case '/':
+            case 'b':
+            case 'f':
+            case 'n':
+            case 'r':
+            case 't':
+                break;
+            case 'u': {
+                if (i + 4 >= value.size() - 1) {
+                    return false;
+                }
+                for (size_t j = 0; j < 4; ++j) {
+                    const char hex = value[++i];
+                    const bool isHex = ((hex >= '0') && (hex <= '9')) ||
+                                       ((hex >= 'a') && (hex <= 'f')) ||
+                                       ((hex >= 'A') && (hex <= 'F'));
+                    if (false == isHex) {
+                        return false;
+                    }
+                }
+                break;
+            }
+            default:
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+inline std::string NormalizeJsonRpcResult(const std::string& result)
+{
+    const std::string trimmed = TrimWhitespace(result);
+    if (true == IsValidJsonStringLiteral(trimmed)) {
+        return trimmed;
+    }
+
+    Core::JSON::VariantContainer parsed;
+    if (parsed.FromString(result)) {
+        return result;
+    }
+
+    LOGWARN("Result payload is not valid JSON value. Sending as quoted string: %s", result.c_str());
+    return QuoteAsJsonString(result);
+}
 
 class WebSocketConnectionManager
 {
@@ -181,7 +295,7 @@ public:
             Core::ProxyType<Core::JSONRPC::Message> response = Core::ProxyType<Core::JSONRPC::Message>::Create();
                     response->JSONRPC = Core::JSONRPC::Message::DefaultVersion;
                     response->Id = requestId;
-                    response->Result = result;
+                    response->Result = NormalizeJsonRpcResult(result);
 
                     LOGDBG("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d", requestId, connectionId);
                     LOGDBG("[SendJSONRPCResponse] Response: %s", result.c_str());
@@ -438,7 +552,7 @@ public:
         if (info.FromString(result) && info.Code.IsSet() && info.Text.IsSet()) {
             response->Error = info;
         } else {
-            response->Result = result;
+            response->Result = NormalizeJsonRpcResult(result);
         }
 
 

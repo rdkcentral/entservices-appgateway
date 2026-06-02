@@ -76,6 +76,7 @@ extern uint32_t Test_AppGatewayResponderImplementation_Register_Unregister_And_C
 extern uint32_t Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey();
 extern uint32_t Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps();
 extern uint32_t Test_AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash();
+extern uint32_t Test_AppGatewayResponderImplementation_NormalizeJsonRpcResult();
 
 // AppGatewayTelemetry coverage tests
 extern uint32_t Test_Telemetry_SettersAndConfig();
@@ -493,6 +494,7 @@ int main()
         { "AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey", Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey },
         { "AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps", Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps },
         { "AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash", Test_AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash },
+        { "AppGatewayResponderImplementation_NormalizeJsonRpcResult", Test_AppGatewayResponderImplementation_NormalizeJsonRpcResult },
 
         // AppGatewayTelemetry coverage tests
         { "Telemetry_SettersAndConfig", Test_Telemetry_SettersAndConfig },
