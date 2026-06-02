@@ -3,7 +3,17 @@ This repo contains the firebolt gateway implementation as a thunder plugin. This
 
 ## Containerized Unit Test Workflow
 
-Use the Docker-based flow when you want reproducible dependencies, no host package installs, and better portability across Linux and macOS.
+Unit tests are docker-first by default to avoid host dependency setup and improve portability across Linux and macOS.
+
+### Default one-shot entrypoint
+
+./run_unit_tests.sh --l0
+
+This delegates to Docker automatically on host machines.
+
+If you explicitly want host-native execution (for pre-provisioned environments), use:
+
+./run_unit_tests.sh --host --l0
 
 ### Build dependency image
 
@@ -30,6 +40,7 @@ Forward any existing `run_unit_tests.sh` options through this wrapper:
 Notes:
 
 - The wrapper executes the workspace script `.github/docker/run-in-container.sh` inside the container (mounted read-only), so script updates are picked up without rebuilding the image.
+- The wrapper only builds the image when needed: if the image already exists, it reuses the cached image and does not run a build.
 - Linux: wrapper runs as root in-container by default for dependency readability; set `RUN_AS_HOST_USER=ON` to map uid/gid when needed.
 - macOS: wrapper skips uid/gid mapping for Docker Desktop compatibility.
 - Source is mounted read-only and copied to a writable temp directory inside the container before test execution.

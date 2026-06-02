@@ -55,6 +55,8 @@ done
 
 if [[ "${REBUILD_IMAGE}" == "true" ]] || ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
     "${SCRIPT_DIR}/docker_build_test_image.sh"
+else
+    echo "[run-unit-tests-docker] Using cached image: ${IMAGE}"
 fi
 
 USER_ARGS=()

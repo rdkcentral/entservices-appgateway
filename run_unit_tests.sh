@@ -11,6 +11,8 @@ USER_SET_PREFIX="false"
 USER_SET_CMAKE_PREFIX="false"
 FORCE_DOCKER="false"
 AUTO_DOCKER_ON_MISSING_DEPS="${AUTO_DOCKER_ON_MISSING_DEPS:-ON}"
+DOCKER_ONLY_LOCAL="${DOCKER_ONLY_LOCAL:-ON}"
+FORCE_HOST="false"
 
 PREFIX="${PREFIX:-${ROOT_DIR}/install/usr}"
 CMAKE_PREFIX_PATH_INPUT="${CMAKE_PREFIX_PATH:-${PREFIX}}"
@@ -63,6 +65,7 @@ Options:
   --build-type <type>      CMake build type (default: Debug)
     --jobs <n>               Parallel build jobs (default: auto-detected)
     --thunder-r4 <ON|OFF>    Toggle USE_THUNDER_R4 for L1 (default: ON)
+    --host                   Run directly on host (opt-out of default docker-first flow)
     --docker                 Build/use Docker image and run tests in container
     --help                   Show this help
 
@@ -70,12 +73,13 @@ Examples:
     ./run_unit_tests.sh --l0
     ./run_unit_tests.sh --l1 --prefix /opt/wpe/install/usr
     ./run_unit_tests.sh --run AppGatewayCommonL1Test
-    ./run_unit_tests.sh --docker --l0
+    ./run_unit_tests.sh --host --l1
 
 Notes:
     - The build requires Thunder/WPEFramework headers, including:
             core/core.h, plugins/plugins.h, plugins/JSONRPC.h
-    - If missing, run ./build_dependencies.sh or pass a valid --prefix.
+    - By default, local runs delegate to Docker. Use --host to run directly on host.
+    - If running on host and deps are missing, run ./build_dependencies.sh or pass a valid --prefix.
 EOF
 }
 
@@ -237,6 +241,10 @@ while [[ $# -gt 0 ]]; do
             FORCE_DOCKER="true"
             shift
             ;;
+        --host)
+            FORCE_HOST="true"
+            shift
+            ;;
         --help|-h)
             print_help
             exit 0
@@ -251,7 +259,16 @@ if [[ "${USE_THUNDER_R4}" != "ON" && "${USE_THUNDER_R4}" != "OFF" ]]; then
     die "--thunder-r4 must be ON or OFF"
 fi
 
+if [[ "${FORCE_HOST}" == "true" ]]; then
+    DOCKER_ONLY_LOCAL="OFF"
+fi
+
 if [[ "${FORCE_DOCKER}" == "true" ]]; then
+    run_via_docker
+fi
+
+if [[ "${RUNNING_IN_DOCKER:-0}" != "1" && "${DOCKER_ONLY_LOCAL}" == "ON" ]]; then
+    log "Docker-first mode enabled; delegating to Docker runner (use --host to run on host)"
     run_via_docker
 fi
 
