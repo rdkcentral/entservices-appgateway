@@ -24,9 +24,24 @@
 
 using ::WPEFramework::Exchange::INetworkManager;
 
+namespace {
+template <typename T>
+struct MethodArgs;
+
+template <typename R, typename C, typename A1, typename A2>
+struct MethodArgs<R (C::*)(A1, A2)> {
+    using First = A1;
+    using Second = A2;
+};
+}
+
 class MockINetworkManager : public INetworkManager
 {
 public:
+    using StartWiFiScanSignature = decltype(&INetworkManager::StartWiFiScan);
+    using StartWiFiScanArg1 = typename MethodArgs<StartWiFiScanSignature>::First;
+    using StartWiFiScanArg2 = typename MethodArgs<StartWiFiScanSignature>::Second;
+
     MOCK_METHOD(uint32_t, GetAvailableInterfaces, (WPEFramework::Exchange::INetworkManager::IInterfaceDetailsIterator*& interfaces), (override));
     MOCK_METHOD(uint32_t, GetPrimaryInterface, (string& interface), (override));
     MOCK_METHOD(uint32_t, SetInterfaceState, (const string& interface, const bool enabled), (override));
@@ -42,7 +57,7 @@ public:
     MOCK_METHOD(uint32_t, GetPublicIP, (string& interface, string& ipversion, string& ipaddress), (override));
     MOCK_METHOD(uint32_t, Ping, (const string ipversion, const string endpoint, const uint32_t count, const uint16_t timeout, const string guid, string& response), (override));
     MOCK_METHOD(uint32_t, Trace, (const string ipversion, const string endpoint, const uint32_t nqueries, const string guid, string& response), (override));
-    MOCK_METHOD(uint32_t, StartWiFiScan, (IStringIterator* const frequencies, IStringIterator* const ssids), (override));
+    MOCK_METHOD(uint32_t, StartWiFiScan, (StartWiFiScanArg1 frequenciesOrFrequency, StartWiFiScanArg2 ssids), (override));
     MOCK_METHOD(uint32_t, StopWiFiScan, (), (override));
     MOCK_METHOD(uint32_t, GetKnownSSIDs, (IStringIterator*& ssids), (override));
     MOCK_METHOD(uint32_t, AddToKnownSSIDs, (const WiFiConnectTo& ssid), (override));
