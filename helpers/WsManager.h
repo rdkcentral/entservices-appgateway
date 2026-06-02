@@ -22,8 +22,7 @@
 #include <mutex>
 #include <memory>
 #include <cctype>
-#include <iomanip>
-#include <sstream>
+#include <cstring>
 #include <plugins/plugins.h>
 #include "UtilsLogging.h"
 #include "WebSocketLink.h"
@@ -35,34 +34,6 @@
 
 #define DEFAULT_SOCKET_ADDRESS "127.0.0.1"
 using namespace WPEFramework;
-
-inline std::string QuoteAsJsonString(const std::string& input)
-{
-    std::ostringstream output;
-    output << '"';
-    for (unsigned char ch : input) {
-        switch (ch) {
-        case '"': output << "\\\""; break;
-        case '\\': output << "\\\\"; break;
-        case '\b': output << "\\b"; break;
-        case '\f': output << "\\f"; break;
-        case '\n': output << "\\n"; break;
-        case '\r': output << "\\r"; break;
-        case '\t': output << "\\t"; break;
-        default:
-            if (ch < 0x20) {
-                output << "\\u"
-                       << std::hex << std::uppercase << std::setw(4) << std::setfill('0')
-                       << static_cast<int>(ch)
-                       << std::dec << std::nouppercase;
-            } else {
-                output << static_cast<char>(ch);
-            }
-        }
-    }
-    output << '"';
-    return output.str();
-}
 
 inline std::string TrimWhitespace(const std::string& input)
 {
@@ -79,62 +50,89 @@ inline std::string TrimWhitespace(const std::string& input)
     return input.substr(start, end - start);
 }
 
-inline bool IsValidJsonStringLiteral(const std::string& value)
+inline bool IsHexDigit(const char value)
+{
+    return (((value >= '0') && (value <= '9')) ||
+            ((value >= 'a') && (value <= 'f')) ||
+            ((value >= 'A') && (value <= 'F')));
+}
+
+inline bool LooksLikeJsonStringLiteral(const std::string& value)
 {
     if ((value.size() < 2) || (value.front() != '"') || (value.back() != '"')) {
         return false;
     }
 
+    bool escaped = false;
     for (size_t i = 1; i + 1 < value.size(); ++i) {
-        const unsigned char ch = static_cast<unsigned char>(value[i]);
-        if (ch < 0x20) {
+        const char ch = value[i];
+
+        if ((static_cast<unsigned char>(ch) < 0x20) || ((ch == '"') && (escaped == false))) {
             return false;
         }
 
-        if (value[i] == '\\') {
-            if (i + 1 >= value.size() - 1) {
-                return false;
-            }
-
-            const char escape = value[++i];
-            switch (escape) {
-            case '"':
-            case '\\':
-            case '/':
-            case 'b':
-            case 'f':
-            case 'n':
-            case 'r':
-            case 't':
-                break;
-            case 'u': {
+        if (escaped) {
+            if (ch == 'u') {
                 if (i + 4 >= value.size() - 1) {
                     return false;
                 }
-                for (size_t j = 0; j < 4; ++j) {
-                    const char hex = value[++i];
-                    const bool isHex = ((hex >= '0') && (hex <= '9')) ||
-                                       ((hex >= 'a') && (hex <= 'f')) ||
-                                       ((hex >= 'A') && (hex <= 'F'));
-                    if (false == isHex) {
+                for (size_t offset = 1; offset <= 4; ++offset) {
+                    if (false == IsHexDigit(value[i + offset])) {
                         return false;
                     }
                 }
-                break;
+                i += 4;
+            } else {
+                const char* legalEscapes = "\"\\/bfnrt";
+                if (nullptr == std::strchr(legalEscapes, ch)) {
+                    return false;
+                }
             }
-            default:
+            escaped = false;
+            continue;
+        }
+
+        if (ch == '\\') {
+            escaped = true;
+            if (i + 1 >= value.size() - 1) {
                 return false;
             }
         }
     }
 
-    return true;
+    return (false == escaped);
+}
+
+inline std::string EncodeAsJsonString(const std::string& value)
+{
+    Core::JSON::VariantContainer holder;
+    holder[_T("value")] = value;
+
+    std::string objectText;
+    holder.ToString(objectText);
+
+    const size_t separator = objectText.find(':');
+    const size_t objectEnd = objectText.rfind('}');
+    if ((std::string::npos == separator) || (std::string::npos == objectEnd) || (objectEnd <= separator + 1)) {
+        return "\"\"";
+    }
+
+    std::string encoded = TrimWhitespace(objectText.substr(separator + 1, objectEnd - separator - 1));
+
+    // Keep compatibility with prior responder output that does not escape '/'.
+    size_t pos = 0;
+    while ((pos = encoded.find("\\/", pos)) != std::string::npos) {
+        encoded.replace(pos, 2, "/");
+        ++pos;
+    }
+
+    return encoded;
 }
 
 inline std::string NormalizeJsonRpcResult(const std::string& result)
 {
     const std::string trimmed = TrimWhitespace(result);
-    if (true == IsValidJsonStringLiteral(trimmed)) {
+    if (true == LooksLikeJsonStringLiteral(trimmed)) {
         return trimmed;
     }
 
@@ -144,7 +142,7 @@ inline std::string NormalizeJsonRpcResult(const std::string& result)
     }
 
     LOGWARN("Result payload is not valid JSON value. Sending as quoted string: %s", result.c_str());
-    return QuoteAsJsonString(result);
+    return EncodeAsJsonString(result);
 }
 
 class WebSocketConnectionManager
