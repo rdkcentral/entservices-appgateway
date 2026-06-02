@@ -110,6 +110,16 @@ jobs:
           &&
           sudo apt install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libjsoncpp-dev gdb ninja-build uuid-dev
 
+      - name: Install lcov 2.4
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y libcapture-tiny-perl libdatetime-perl libtimedate-perl
+          cd /tmp
+          curl -sL https://github.com/linux-test-project/lcov/releases/download/v2.4/lcov-2.4.tar.gz -o lcov-2.4.tar.gz
+          tar xzf lcov-2.4.tar.gz
+          sudo make -C lcov-2.4 install PREFIX=/usr
+          lcov --version
+
       - name: Build trower-base64
         run: |
           if [ ! -d "trower-base64" ]; then
@@ -715,14 +725,35 @@ jobs:
 
           build_dir="$GITHUB_WORKSPACE/build/entservices-appgateway-l0tests-only"
 
-          lcov -c -o coverage.info -d "$build_dir" || true
+          # Detect lcov version — lcov 2.x uses different --rc key names and supports --ignore-errors
+          # no_exception_branch: excludes compiler-generated exception-handling branches (landing pads,
+          # stack unwinding) that are invisible in source code and untestable in practice.
+          LCOV_IGNORE=""
+          BRANCH_RC="--rc lcov_branch_coverage=1"
+          EXCL_BR=""
+          GENHTML_IGNORE=""
+          if lcov --version 2>&1 | grep -qE 'version 2\.'; then
+            LCOV_IGNORE="--ignore-errors version,gcov,mismatch,unused,inconsistent"
+            BRANCH_RC="--rc branch_coverage=1"
+            EXCL_BR="--rc no_exception_branch=1"
+            GENHTML_IGNORE="--ignore-errors version,unmapped,inconsistent,corrupt,source,empty,range,format,path,missing,mismatch,negative,branch,annotate,deprecated,package"
+          fi
+
+          lcov $LCOV_IGNORE $BRANCH_RC $EXCL_BR -c -o coverage.info -d "$build_dir" || true
+
+          echo "lcov version: $(lcov --version)"
+          BRDA_COUNT=$(grep -c "^BRDA:" coverage.info 2>/dev/null) || BRDA_COUNT=0
+          echo "BRDA lines in coverage.info: $BRDA_COUNT"
+          if [ "$BRDA_COUNT" = "0" ]; then
+            echo "WARNING: No branch data captured — branch coverage will be empty"
+          fi
 
           if [ ! -s coverage.info ]; then
             echo "coverage.info missing/empty; skipping filtering + HTML generation"
             exit 0
           fi
 
-          lcov \
+          lcov $LCOV_IGNORE $BRANCH_RC $EXCL_BR \
             -r coverage.info \
             '/usr/include/*' \
             '*/install/usr/include/*' \
@@ -735,10 +766,19 @@ jobs:
             exit 0
           fi
 
-          genhtml \
+          echo "Running genhtml with: $GENHTML_IGNORE $BRANCH_RC"
+          set +e
+          genhtml --keep-going $GENHTML_IGNORE $BRANCH_RC --branch-coverage \
             -o "$ARTIFACT_ROOT/coverage-html" \
             -t "entservices-appgateway L0 coverage" \
-            filtered_coverage.info || true
+            filtered_coverage.info 2>&1
+          genhtml_rc=$?
+          set -e
+          echo "genhtml exit code: $genhtml_rc"
+          if [ "$genhtml_rc" -ne 0 ]; then
+            echo "WARNING: genhtml failed — check error output above"
+          fi
+          ls -la "$ARTIFACT_ROOT/coverage-html/" || true
 
       - name: Upload artifacts
         if: ${{ !env.ACT }}

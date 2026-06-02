@@ -94,8 +94,6 @@ if(APPGW_L0_ENABLE_APPGATEWAY)
         APPGATEWAY_MAJOR_VERSION=1
         APPGATEWAY_MINOR_VERSION=0
         APPGATEWAY_PATCH_VERSION=0
-        LEGACY_FIREBOLT_VERSION="0"
-        RDK8_FIREBOLT_VERSION="8"
         ENABLE_DEBUG_FOR_CONNECTION="enableDebugForConnection"
         DISABLE_DEBUG_FOR_CONNECTION="disableDebugForConnection"
     )
@@ -409,6 +407,7 @@ set(APPGWC_L0_SOURCES
     AppGatewayCommon/AppGatewayCommon_routing_test.cpp
     AppGatewayCommon/AppGatewayCommon_setters_test.cpp
     AppGatewayCommon/AppGatewayCommon_events_test.cpp
+    AppGatewayCommon/AppGatewayCommon_display_test.cpp
     AppGatewayCommon/AppGatewayCommon_main_test.cpp
     common/L0Bootstrap.cpp
 )
@@ -420,8 +419,6 @@ target_compile_definitions(appgatewaycommon_l0test PRIVATE
     APPGATEWAYCOMMON_MAJOR_VERSION=1
     APPGATEWAYCOMMON_MINOR_VERSION=0
     APPGATEWAYCOMMON_PATCH_VERSION=0
-    LEGACY_FIREBOLT_VERSION="0"
-    RDK8_FIREBOLT_VERSION="8"
     ENABLE_DEBUG_FOR_CONNECTION="enableDebugForConnection"
     DISABLE_DEBUG_FOR_CONNECTION="disableDebugForConnection"
     DISABLE_SECURITY_TOKEN
