@@ -16,8 +16,28 @@ PREFIX="${PREFIX:-${ROOT_DIR}/install/usr}"
 CMAKE_PREFIX_PATH_INPUT="${CMAKE_PREFIX_PATH:-${PREFIX}}"
 L0_BUILD_DIR="${ROOT_DIR}/build/unit/l0"
 L1_BUILD_DIR="${ROOT_DIR}/build/unit/l1"
-JOBS="${JOBS:-$(nproc)}"
 FORWARD_ARGS=()
+
+detect_jobs() {
+    if command -v nproc >/dev/null 2>&1; then
+        nproc
+        return
+    fi
+
+    if command -v getconf >/dev/null 2>&1; then
+        getconf _NPROCESSORS_ONLN
+        return
+    fi
+
+    if command -v sysctl >/dev/null 2>&1; then
+        sysctl -n hw.ncpu
+        return
+    fi
+
+    echo 1
+}
+
+JOBS="${JOBS:-$(detect_jobs)}"
 
 REQUIRED_HEADERS=(
     "core/core.h"
@@ -41,7 +61,7 @@ Options:
   --prefix <path>          Install prefix for headers/libs (default: ./install/usr)
   --cmake-prefix <path>    CMAKE_PREFIX_PATH value (default: --prefix)
   --build-type <type>      CMake build type (default: Debug)
-  --jobs <n>               Parallel build jobs (default: nproc)
+    --jobs <n>               Parallel build jobs (default: auto-detected)
     --thunder-r4 <ON|OFF>    Toggle USE_THUNDER_R4 for L1 (default: ON)
     --docker                 Build/use Docker image and run tests in container
     --help                   Show this help
@@ -293,7 +313,15 @@ run_binary_if_selected() {
 
     log "Running ${bin_name}"
     if [[ -n "${runtime_lib_path}" ]]; then
-        LD_LIBRARY_PATH="${runtime_lib_path}" "${bin_path}"
+        if [[ "Darwin" == "$(uname -s)" ]]; then
+            local dyld_runtime_path="${runtime_lib_path}"
+            if [[ -n "${DYLD_LIBRARY_PATH:-}" ]]; then
+                dyld_runtime_path="${dyld_runtime_path}:${DYLD_LIBRARY_PATH}"
+            fi
+            DYLD_LIBRARY_PATH="${dyld_runtime_path}" LD_LIBRARY_PATH="${runtime_lib_path}" "${bin_path}"
+        else
+            LD_LIBRARY_PATH="${runtime_lib_path}" "${bin_path}"
+        fi
     else
         "${bin_path}"
     fi

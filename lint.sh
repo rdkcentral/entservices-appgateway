@@ -5,10 +5,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${ROOT_DIR}"
 
 # Include top-level scripts, test helpers, and docker helper scripts.
-mapfile -t scripts < <(
-    {
-        git ls-files '*.sh'
-    } | awk 'NF && !seen[$0]++' | sort
+scripts=()
+while IFS= read -r script; do
+    scripts+=("${script}")
+done < <(
+    git ls-files '*.sh' | awk 'NF && !seen[$0]++' | sort
 )
 
 if [[ ${#scripts[@]} -eq 0 ]]; then

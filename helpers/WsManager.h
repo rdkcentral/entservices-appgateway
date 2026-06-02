@@ -291,12 +291,13 @@ public:
 
         void SendJSONRPCResponse(const std::string &result, int requestId, uint32_t connectionId) {
             Core::ProxyType<Core::JSONRPC::Message> response = Core::ProxyType<Core::JSONRPC::Message>::Create();
+                    const std::string normalizedResult = NormalizeJsonRpcResult(result);
                     response->JSONRPC = Core::JSONRPC::Message::DefaultVersion;
                     response->Id = requestId;
-                    response->Result = NormalizeJsonRpcResult(result);
+                    response->Result = normalizedResult;
 
                     LOGDBG("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d", requestId, connectionId);
-                    LOGDBG("[SendJSONRPCResponse] Response: %s", result.c_str());
+                    LOGDBG("[SendJSONRPCResponse] Response: %s", normalizedResult.c_str());
 
                     // Send the response back to the WebSocket client
                     this->Submit(Core::ProxyType<Core::JSON::IElement>(response));
@@ -545,17 +546,17 @@ public:
         Core::ProxyType<Core::JSONRPC::Message> response = Core::ProxyType<Core::JSONRPC::Message>::Create();
         response->JSONRPC = Core::JSONRPC::Message::DefaultVersion;
         response->Id = requestId;
+        std::string automationPayload = result;
 
         Core::JSONRPC::Message::Info info;
         if (info.FromString(result) && info.Code.IsSet() && info.Text.IsSet()) {
             response->Error = info;
         } else {
-            response->Result = NormalizeJsonRpcResult(result);
+            automationPayload = NormalizeJsonRpcResult(result);
+            response->Result = automationPayload;
         }
 
-
-
-        LOGTRACE("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d response=%s", requestId, connectionId, result.c_str());
+    LOGTRACE("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d response=%s", requestId, connectionId, automationPayload.c_str());
 
         // Send the response back to the WebSocket client
         if (nullptr == mChannel) {
@@ -572,7 +573,7 @@ public:
             automationMsg.ConnectionId = connectionId;
             automationMsg.Type = "response";
             automationMsg.Id = requestId;
-            automationMsg.Payload = result;
+            automationMsg.Payload = automationPayload;
             
             string jsonMsg;
             automationMsg.ToString(jsonMsg);

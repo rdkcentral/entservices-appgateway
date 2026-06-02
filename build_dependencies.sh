@@ -15,9 +15,21 @@ else
     APT_CMD="sudo apt"
 fi
 
+if command -v python3 >/dev/null 2>&1; then
+    PIP_CMD="python3 -m pip"
+elif command -v pip3 >/dev/null 2>&1; then
+    PIP_CMD="pip3"
+else
+    PIP_CMD="pip"
+fi
+
 ${APT_CMD} update
 ${APT_CMD} install -y libsqlite3-dev libcurl4-openssl-dev valgrind lcov clang libsystemd-dev libboost-all-dev libwebsocketpp-dev meson libcunit1 libcunit1-dev curl protobuf-compiler-grpc libgrpc-dev libgrpc++-dev libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
-pip install jsonref
+if [ "$(id -u)" -eq 0 ]; then
+    ${PIP_CMD} install jsonref
+else
+    ${PIP_CMD} install --user jsonref
+fi
 
 ############################
 # Build trevor-base64
