@@ -44,7 +44,8 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
     "lifecycle.onunloading",
     "lifecycle2.onstatechanged",
     "discovery.onnavigateto",
-    "presentation.onfocusedchanged"
+    "presentation.onfocusedchanged",
+    "secondscreen.onlaunchrequest"  // DIAL launch event — fired by LaunchDelegate via IAppNotifications::Emit
 };
 
 class LifecycleDelegate : public BaseEventDelegate
