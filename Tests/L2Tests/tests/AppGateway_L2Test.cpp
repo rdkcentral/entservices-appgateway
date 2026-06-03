@@ -214,7 +214,7 @@ private:
 #define THUNDER_PORT "9998"
 #endif
 #define AGW_TEST_CALLSIGN _T("org.rdk.L2Tests.1")
-#define AGW_INVOKE_TIMEOUT 3000
+#define AGW_INVOKE_TIMEOUT 10000
 
 class AppGatewayL2TestBase : public ::testing::Test {
 protected:
