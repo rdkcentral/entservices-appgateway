@@ -331,6 +331,10 @@
             "event": "secondscreen.onLaunchRequest"
         },
         "accessibility.audioDescription": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "accessibility.onAudioDescriptionChanged": {
             "alias":"org.rdk.AppGatewayCommon",
             "event": "Accessibility.onAudioDescriptionChanged"
         },
@@ -523,5 +527,4 @@
          }
     }
 }
-
 
