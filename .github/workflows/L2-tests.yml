@@ -15,6 +15,7 @@ env:
   BUILD_TYPE: Debug
   THUNDER_REF: "R4.4.1"
   INTERFACES_REF: "develop"
+  NETWORKMANAGER_REF: "cea0da05b03de770e4ce967f0446f28885fc6219"
   AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME}}
   AUTOMATICS_PASSCODE: ${{ secrets. AUTOMATICS_PASSCODE}}
 
@@ -413,6 +414,20 @@ jobs:
           cmake --build build/entservices-deviceanddisplay -j8
           &&
           cmake --install build/entservices-deviceanddisplay
+
+      - name: Checkout networkmanager
+        uses: actions/checkout@v3
+        with:
+          repository: rdkcentral/networkmanager
+          path: networkmanager
+          ref: ${{env.NETWORKMANAGER_REF}}
+
+      - name: Stage INetworkManager.h into install prefix
+        run: |
+          set -euo pipefail
+          dst_dir="$GITHUB_WORKSPACE/install/usr/include/WPEFramework/interfaces"
+          mkdir -p "$dst_dir"
+          cp -f "$GITHUB_WORKSPACE/networkmanager/interface/INetworkManager.h" "$dst_dir/INetworkManager.h"
 
       - name: Build entservices-appgateway
         run: >
