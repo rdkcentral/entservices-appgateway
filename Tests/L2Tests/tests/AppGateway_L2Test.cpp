@@ -357,7 +357,7 @@ public:
     {
         using IterImpl =
             RPC::IteratorType<Exchange::IAppGatewayResolver::IStringIterator>;
-        return new IterImpl(paths);
+        return Core::Service<IterImpl>::Create<IterImpl>(paths);
     }
 };
 
@@ -657,7 +657,7 @@ static Core::hresult ConfigureThenResolve(
 {
     using IterImpl =
         RPC::IteratorType<Exchange::IAppGatewayResolver::IStringIterator>;
-    auto* iter = Core::ServiceType<IterImpl>::Create<IterImpl>(
+    auto* iter = Core::Service<IterImpl>::Create<IterImpl>(
         std::vector<std::string>{configPath});
     Core::hresult cfgResult = resolver->Configure(iter);
     iter->Release();
@@ -817,8 +817,9 @@ TEST_F(AppGateway_L2Test, Resolve_EventSubscribe_COMRPC)
                     if (resObj.FromString(resolution)) {
                         EXPECT_TRUE(resObj.HasLabel("listening"));
                         EXPECT_TRUE(resObj.HasLabel("event"));
-                        if (resObj.HasLabel("listening"))
+                        if (resObj.HasLabel("listening")) {
                             EXPECT_TRUE(resObj["listening"].Boolean());
+                        }
                     }
                 }
                 m_resolverPlugin->Release();
@@ -854,8 +855,9 @@ TEST_F(AppGateway_L2Test, Resolve_EventUnsubscribe_COMRPC)
                     JsonObject resObj;
                     if (resObj.FromString(resolution)) {
                         EXPECT_TRUE(resObj.HasLabel("listening"));
-                        if (resObj.HasLabel("listening"))
+                        if (resObj.HasLabel("listening")) {
                             EXPECT_FALSE(resObj["listening"].Boolean());
+                        }
                     }
                 }
                 m_resolverPlugin->Release();
