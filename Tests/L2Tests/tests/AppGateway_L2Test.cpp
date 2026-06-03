@@ -218,11 +218,7 @@ private:
 
 class AppGatewayL2TestBase : public ::testing::Test {
 protected:
-    AppGatewayL2TestBase()
-    {
-        std::string addr = std::string("127.0.0.1:") + THUNDER_PORT;
-        Core::SystemInfo::SetEnvironment(_T("THUNDER_ACCESS"), addr);
-    }
+    AppGatewayL2TestBase() = default;
     virtual ~AppGatewayL2TestBase() = default;
 
     uint32_t InvokeServiceMethod(const char* callsign, const char* method,
