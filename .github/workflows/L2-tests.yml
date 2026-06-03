@@ -489,7 +489,7 @@ jobs:
           -include $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/Dobby/DobbyProxy.h
           -include $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/Dobby/Public/Dobby/IDobbyProxy.h
           -include $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/Dobby/IpcService/IpcFactory.h
-          -Werror -Wall -Wno-unused-result -Wno-unused-variable -Wno-deprecated-declarations -Wno-error=format=
+          -Werror -Wall -Wno-unused-result -Wno-unused-variable -Wno-deprecated-declarations -Wno-error=format= -Wno-error=format-truncation
           -DUSE_IARMBUS
           -DHAS_RBUS
           -DRDK_SERVICE_L2_TEST
