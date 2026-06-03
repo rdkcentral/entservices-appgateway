@@ -657,8 +657,10 @@ class LifecycleDelegate : public BaseEventDelegate
         // Emit secondscreen.onLaunchRequest if DIAL payload present in navigationIntent
         std::string secondScreenJson;
         if (GetSecondScreenFromIntent(appId, secondScreenJson)) {
-            LOGINFO("DispatchLastKnownIntent: Emitting secondscreen.onLaunchRequest for appId=%s", appId.c_str());
-            Dispatch("secondscreen.onLaunchRequest", secondScreenJson, appId);
+            bool dispatched = Dispatch("secondscreen.onLaunchRequest", secondScreenJson, appId);
+            if (dispatched) {
+                LOGDBG("DispatchLastKnownIntent: Emitted secondscreen.onLaunchRequest for appId=%s", appId.c_str());
+            }
         }
     }
 

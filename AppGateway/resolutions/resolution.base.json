@@ -322,7 +322,7 @@
             "alias": "org.rdk.AppGatewayCommon",
             "event": "Presentation.onFocusedChanged"
         },
-        "secondscreen.onLaunchRequest": {
+        "secondscreen.onlaunchrequest": {
             "alias": "org.rdk.AppGatewayCommon",
             "event": "secondscreen.onLaunchRequest"
         },
