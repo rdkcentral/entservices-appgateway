@@ -24,8 +24,7 @@ If your Docker daemon has DNS restrictions, you can override network/mirror sett
 
 ### Run unit tests in container
 
-./.github/scripts/run_unit_tests_docker.sh --l0
-
+    ./run_unit_tests_docker.sh --l0
 Forward any existing `run_unit_tests.sh` options through this wrapper:
 
 - `./.github/scripts/run_unit_tests_docker.sh --l1`
