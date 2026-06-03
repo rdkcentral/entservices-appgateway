@@ -30,6 +30,9 @@
 #include "UtilsCallsign.h"
 #include "UtilsFirebolt.h"
 #include <set>
+#include <map>
+#include <unordered_map>
+#include <mutex>
 using namespace WPEFramework;
 
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
@@ -48,7 +51,27 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
     "secondscreen.onlaunchrequest"  // DIAL launch event — fired by LaunchDelegate via IAppNotifications::Emit
 };
 
-class LifecycleDelegate : public BaseEventDelegate
+// Generic per-app string registry — one-shot storage keyed by appId/appInstanceId
+class PerAppStringRegistry {
+public:
+    void Add(const std::string& key, const std::string& value) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        mMap[key] = value;
+    }
+    void Remove(const std::string& key) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        mMap.erase(key);
+    }
+    bool Get(const std::string& key, std::string& value) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        auto it = mMap.find(key);
+        if (it != mMap.end()) { value = it->second; return true; }
+        return false;
+    }
+private:
+    std::unordered_map<std::string, std::string> mMap;
+    std::mutex mMutex;
+};class LifecycleDelegate : public BaseEventDelegate
 {
     public:
     LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell), mLifecycleManagerState(nullptr), mWindowManager(nullptr), mNotificationHandler(*this), mWindowManagerNotificationHandler(*this)
@@ -260,6 +283,23 @@ class LifecycleDelegate : public BaseEventDelegate
 
             // add navigation intent to registry
             mParent.mNavigationIntentRegistry.AddNavigationIntent(appInstanceId, navigationIntent);
+
+            // Extract and store secondScreen payload from navigationIntent if DIAL launch
+            if (!navigationIntent.empty()) {
+                JsonObject intentObj;
+                if (intentObj.FromString(navigationIntent)) {
+                    if (intentObj.HasLabel("secondScreen") &&
+                        intentObj["secondScreen"].Content() == JsonValue::type::OBJECT)
+                    {
+                        JsonObject ssObj = intentObj["secondScreen"].Object();
+                        std::string ssJson;
+                        ssObj.ToString(ssJson);
+                        mParent.mSecondScreenRegistry.Add(appInstanceId, ssJson);
+                        LOGINFO("OnAppLifecycleStateChanged: Stored secondScreen payload for appInstanceId=%s",
+                                appInstanceId.c_str());
+                    }
+                }
+            }
 
             // if new Lifecycle state is INITIALIZING then add to app instance map
             if (newLifecycleState == Exchange::ILifecycleManager::INITIALIZING) {
@@ -628,6 +668,15 @@ class LifecycleDelegate : public BaseEventDelegate
         if (!navigationIntent.empty()) {
             Dispatch("Discovery.onNavigateTo", navigationIntent, appId);
         }
+
+        // Emit secondscreen.onLaunchRequest one-shot if DIAL payload stored
+        std::string secondScreenJson;
+        string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
+        if (!appInstanceId.empty() && mSecondScreenRegistry.Get(appInstanceId, secondScreenJson) && !secondScreenJson.empty()) {
+            LOGINFO("DispatchLastKnownIntent: Emitting secondscreen.onLaunchRequest for appId=%s", appId.c_str());
+            Dispatch("secondscreen.onLaunchRequest", secondScreenJson, appId);
+            mSecondScreenRegistry.Remove(appInstanceId);
+        }
     }
 
     void GetLastKnownIntent(const string& appId, string& navigationIntent)
@@ -671,6 +720,7 @@ class LifecycleDelegate : public BaseEventDelegate
         AppIdInstanceIdMap mAppIdInstanceIdMap;
         LifecycleStateRegistry mLifecycleStateRegistry;
         NavigationIntentRegistry mNavigationIntentRegistry;
+        PerAppStringRegistry     mSecondScreenRegistry;  // DIAL secondScreen payload, one-shot per launch
         FocusedAppRegistry mFocusedAppRegistry;
 };
 
