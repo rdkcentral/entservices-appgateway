@@ -55,9 +55,11 @@ using ::testing::Return;
 // Logging helpers
 // ═══════════════════════════════════════════════════════════════════════════════
 #define TEST_LOG(x, ...) \
-    fprintf(stderr, "\033[1;32m[%s:%d](%s) " x "\n\033[0m", \
-            __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__); \
-    fflush(stderr)
+    do { \
+        fprintf(stderr, "\033[1;32m[%s:%d](%s) " x "\n\033[0m", \
+                __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__); \
+        fflush(stderr); \
+    } while (0)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Constants
@@ -151,8 +153,8 @@ public:
 
     AppGatewayResponderNotificationHandler()
         : m_eventSignalled(NOTIF_NONE)
-        , m_lastConnected(false)
         , m_lastConnectionId(0)
+        , m_lastConnected(false)
     {}
 
     // ── INotification ────────────────────────────────────────────────────────
@@ -355,7 +357,7 @@ public:
     {
         using IterImpl =
             RPC::IteratorType<Exchange::IAppGatewayResolver::IStringIterator>;
-        return Core::ServiceType<IterImpl>::Create<IterImpl>(paths);
+        return new IterImpl(paths);
     }
 };
 
