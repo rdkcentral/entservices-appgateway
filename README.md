@@ -23,8 +23,10 @@ This builds a local image named `entservices-appgateway-test-deps:local` (overri
 
 If your Docker daemon has DNS restrictions, you can override network/mirror settings:
 
-- `DOCKER_NETWORK_MODE=host ./.github/scripts/docker_build_test_image.sh` (Linux)
-- `APT_MIRROR=http://<your-mirror>/ubuntu ./.github/scripts/docker_build_test_image.sh`
+```bash
+DOCKER_NETWORK_MODE=host ./.github/scripts/docker_build_test_image.sh  # Linux
+APT_MIRROR=http://<your-mirror>/ubuntu ./.github/scripts/docker_build_test_image.sh
+```
 
 ### Run unit tests in container
 
