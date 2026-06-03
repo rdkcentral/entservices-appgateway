@@ -531,6 +531,8 @@ jobs:
           &&
           cmake --build build/entservices-appgateway -j6
           &&
+          sudo mkdir -p /etc/app-gateway
+          &&
           cmake --install build/entservices-appgateway
 
       - name: Build entservices-testframework
