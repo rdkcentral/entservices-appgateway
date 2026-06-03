@@ -326,11 +326,11 @@
             "alias": "org.rdk.AppGatewayCommon",
             "event": "Presentation.onFocusedChanged"
         },
-        "accessibility.audioDescription": {
+        "secondscreen.onLaunchRequest": {
             "alias": "org.rdk.AppGatewayCommon",
-            "useComRpc": true
+            "event": "secondscreen.onLaunchRequest"
         },
-        "accessibility.onAudioDescriptionChanged": {
+        "accessibility.audioDescription": {
             "alias":"org.rdk.AppGatewayCommon",
             "event": "Accessibility.onAudioDescriptionChanged"
         },
