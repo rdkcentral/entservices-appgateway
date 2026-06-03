@@ -521,6 +521,8 @@ jobs:
           &&
           sudo mkdir -p /etc/app-gateway
           &&
+          sudo chmod 777 /etc/app-gateway
+          &&
           cmake --install build/entservices-appgateway
 
       - name: Build entservices-testframework
