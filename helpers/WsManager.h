@@ -141,7 +141,7 @@ inline std::string NormalizeJsonRpcResult(const std::string& result)
         return result;
     }
 
-    LOGWARN("Result payload is not valid JSON value. Sending as quoted string: %s", result.c_str());
+    LOGTRACE("Result payload is not valid JSON value; sending as quoted string (bytes=%u)", static_cast<unsigned int>(result.size()));
     return EncodeAsJsonString(result);
 }
 
