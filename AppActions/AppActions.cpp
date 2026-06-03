@@ -47,6 +47,18 @@ namespace Plugin {
             SYSLOG(Logging::Startup, (_T("AppActions::Initialize: object creation failed")));
             message = _T("AppActions plugin could not be initialised");
         } else {
+            mAppActionsConfigure = mAppActions->QueryInterface<Exchange::IConfiguration>();
+            if (nullptr == mAppActionsConfigure)
+            {
+                LOGERR("Failed to get IConfiguration interface from AppActions plugin!");
+                SYSLOG(Logging::Startup, (_T("AppActions::Initialize: IConfiguration interface not found")));
+                message = _T("AppActions plugin could not be initialised due to missing IConfiguration interface");
+            }
+            if (Core::ERROR_NONE != mAppActionsConfigure->Configure(mService))
+            {
+                SYSLOG(Logging::Startup, (_T("AppActions::Initialize: could not be configured")));
+                message = _T("AppActions could not be configured");
+            }
             mAppActions->Register(&mAppActionsNotification);
             Exchange::JAppActions::Register(*this, mAppActions);
 
@@ -81,7 +93,7 @@ namespace Plugin {
             mAppActionsConfigure->Release();
             mAppActionsConfigure = nullptr;
         }
-        if ((mAppActions != nullptr) && (mConnectionId != 0)) {
+        if (0 != mConnectionId) {
             connection = service->RemoteConnection(mConnectionId);
             // If this was running in a (container) process...
             if (nullptr != connection)

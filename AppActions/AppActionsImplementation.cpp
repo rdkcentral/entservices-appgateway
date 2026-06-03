@@ -36,8 +36,11 @@ namespace Plugin {
      */
     Core::hresult AppActionsImplementation::Register(Exchange::IAppActions::INotification *notification)
     {
+        if (nullptr == notification) {
+            LOGERR("Register called with null notification");
+            return Core::ERROR_BAD_REQUEST;
+        }
         Core::hresult status = Core::ERROR_GENERAL;
-        ASSERT(nullptr != notification);
         Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
 
         if (std::find(mAppActionsNotifications.begin(), mAppActionsNotifications.end(), notification) == mAppActionsNotifications.end())
@@ -49,7 +52,7 @@ namespace Plugin {
         }
         else
         {
-            LOGERR("notification already registered");
+            LOGWARN("notification already registered");
         }
         return status;
     }
@@ -58,9 +61,11 @@ namespace Plugin {
      */
     Core::hresult AppActionsImplementation::Unregister(Exchange::IAppActions::INotification *notification)
     {
+        if (nullptr == notification) {
+            LOGERR("Unregister called with null notification");
+            return Core::ERROR_BAD_REQUEST;
+        }
         Core::hresult status = Core::ERROR_GENERAL;
-
-        ASSERT(nullptr != notification);
         Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
 
         auto itr = std::find(mAppActionsNotifications.begin(), mAppActionsNotifications.end(), notification);
@@ -73,7 +78,7 @@ namespace Plugin {
         }
         else
         {
-            LOGERR("notification not found");
+            LOGWARN("notification not found");
         }
         return status;
     }
@@ -81,15 +86,16 @@ namespace Plugin {
     Core::hresult AppActionsImplementation::Configure(PluginHost::IShell* service)
     {
         Core::hresult status = Core::ERROR_GENERAL;
-        if (service != nullptr)
+        if (nullptr != service)
         {
             mService = service;
             mService->AddRef();
+            status = Core::ERROR_NONE;
             LOGDBG("AppActionsImplementation service configured successfully");
         }
         else
         {
-            LOGERR("AppActionsImplementation service configuration failed: service is null");
+            LOGWARN("AppActionsImplementation service configuration failed: service is null");
         }
         return status;
     }
@@ -102,8 +108,14 @@ namespace Plugin {
     void AppActionsImplementation::Deinitialize(PluginHost::IShell* service)
     {
         ASSERT(mService == service);
-        if (mService != nullptr)
+        if (nullptr != mService)
         {
+            Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+            LOGINFO("AppActionsImplementation Deinitialize: Unregistering notifications and releasing service");
+            for (auto* notification : mAppActionsNotifications) {
+                notification->Release();
+            }
+            mAppActionsNotifications.clear();
             mService->Release();
             mService = nullptr;
         }
@@ -116,8 +128,8 @@ namespace Plugin {
     void AppActionsImplementation::DispatchActionStartRequest(
         const string& initiator, const string& intent, const string& handlerAppId)
     {
+        LOGDBG("Dispatching ActionStartRequest to notifications: initiator=%s, intent=%s, handlerAppId=%s", initiator.c_str(), intent.c_str(), handlerAppId.c_str());
         Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
-        LOGINFO("Dispatching ActionStartRequest to notifications: initiator=%s, intent=%s, handlerAppId=%s", initiator.c_str(), intent.c_str(), handlerAppId.c_str());
         for (auto* notification : mAppActionsNotifications) {
             notification->OnActionStartRequest(initiator, intent, handlerAppId);
         }

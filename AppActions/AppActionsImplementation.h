@@ -1,6 +1,7 @@
 #pragma once
 #ifndef __APPACTIONSIMPLEMENTATION_H__
 #define __APPACTIONSIMPLEMENTATION_H__
+#include <list>
 #include "Module.h"
 #include <interfaces/IConfiguration.h>
 #include <interfaces/IAppActions.h>
@@ -13,7 +14,6 @@ class AppActionsImplementation :
     public Exchange::IAppActions,
     public Exchange::IConfiguration {
         public:
-            PluginHost::IShell *mService;
 
             AppActionsImplementation();
             ~AppActionsImplementation() override;
@@ -51,6 +51,7 @@ class AppActionsImplementation :
         void DispatchActionStartRequest(const string& initiator, const string& intent, const string& handlerAppId);
 
         private:
+            PluginHost::IShell *mService;
             std::list<Exchange::IAppActions::INotification*> mAppActionsNotifications;
             mutable Core::CriticalSection mAdminLock;
     };

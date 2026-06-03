@@ -43,14 +43,13 @@ target_link_libraries(${MODULE_NAME}
         uuid)
 
 install(TARGETS ${MODULE_NAME}
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/${STORAGE_DIRECTORY}/plugins)
+    DESTINATION lib/${STORAGE_DIRECTORY}/plugins)
 
 add_library(${PLUGIN_IMPLEMENTATION} SHARED
         AppActionsImplementation.cpp
         AppActionsImplementation.h
         Module.cpp)
 
-target_include_directories(${PLUGIN_IMPLEMENTATION} PRIVATE )
 target_include_directories(${PLUGIN_IMPLEMENTATION} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../helpers)
 
 set_target_properties(${PLUGIN_IMPLEMENTATION} PROPERTIES
