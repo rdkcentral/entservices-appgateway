@@ -556,7 +556,7 @@ public:
             response->Result = automationPayload;
         }
 
-    LOGTRACE("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d response=%s", requestId, connectionId, automationPayload.c_str());
+        LOGTRACE("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d response=%s", requestId, connectionId, automationPayload.c_str());
 
         // Send the response back to the WebSocket client
         if (nullptr == mChannel) {

@@ -7,13 +7,17 @@ Unit tests are docker-first by default to avoid host dependency setup and improv
 
 ### Default one-shot entrypoint
 
+```bash
 ./run_unit_tests.sh --l0
+```
 
 This delegates to Docker automatically on host machines.
 
 ### Build dependency image
 
+```bash
 ./.github/scripts/docker_build_test_image.sh
+```
 
 This builds a local image named `entservices-appgateway-test-deps:local` (override with `IMAGE=...`).
 
@@ -24,7 +28,9 @@ If your Docker daemon has DNS restrictions, you can override network/mirror sett
 
 ### Run unit tests in container
 
-    ./run_unit_tests_docker.sh --l0
+```bash
+./.github/scripts/run_unit_tests_docker.sh --l0
+```
 Forward any existing `run_unit_tests.sh` options through this wrapper:
 
 - `./.github/scripts/run_unit_tests_docker.sh --l1`
