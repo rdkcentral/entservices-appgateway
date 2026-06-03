@@ -30,14 +30,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --help|-h)
             cat <<EOF
-Usage: ./run_unit_tests_docker.sh [--rebuild-image] [run options]
+Usage: ./.github/scripts/run_unit_tests_docker.sh [--rebuild-image] [run options]
 
 Examples:
-  ./run_unit_tests_docker.sh --l0
-  ./run_unit_tests_docker.sh --l1
-  ./run_unit_tests_docker.sh --all
-  ./run_unit_tests_docker.sh --run appgateway_l0test
-  ./run_unit_tests_docker.sh --rebuild-image --l0
+  ./.github/scripts/run_unit_tests_docker.sh --l0
+  ./.github/scripts/run_unit_tests_docker.sh --l1
+  ./.github/scripts/run_unit_tests_docker.sh --all
+  ./.github/scripts/run_unit_tests_docker.sh --run appgateway_l0test
+  ./.github/scripts/run_unit_tests_docker.sh --rebuild-image --l0
 
 Notes:
   - Runs tests in a containerized Ubuntu environment to avoid host dependency installs.
