@@ -137,12 +137,12 @@ inline std::string NormalizeJsonRpcResult(const std::string& result)
     }
 
     Core::JSON::VariantContainer parsed;
-    if (parsed.FromString(result)) {
-        return result;
+    if (parsed.FromString(trimmed)) {
+        return trimmed;
     }
 
-    LOGTRACE("Result payload is not valid JSON value; sending as quoted string (bytes=%u)", static_cast<unsigned int>(result.size()));
-    return EncodeAsJsonString(result);
+    LOGTRACE("Result payload is not valid JSON value; sending as quoted string (bytes=%u)", static_cast<unsigned int>(trimmed.size()));
+    return EncodeAsJsonString(trimmed);
 }
 
 class WebSocketConnectionManager
@@ -291,16 +291,16 @@ public:
 
         void SendJSONRPCResponse(const std::string &result, int requestId, uint32_t connectionId) {
             Core::ProxyType<Core::JSONRPC::Message> response = Core::ProxyType<Core::JSONRPC::Message>::Create();
-                    const std::string normalizedResult = NormalizeJsonRpcResult(result);
-                    response->JSONRPC = Core::JSONRPC::Message::DefaultVersion;
-                    response->Id = requestId;
-                    response->Result = normalizedResult;
+            const std::string normalizedResult = NormalizeJsonRpcResult(result);
+            response->JSONRPC = Core::JSONRPC::Message::DefaultVersion;
+            response->Id = requestId;
+            response->Result = normalizedResult;
 
-                    LOGDBG("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d", requestId, connectionId);
-                    LOGDBG("[SendJSONRPCResponse] Response: %s", normalizedResult.c_str());
+            LOGDBG("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d", requestId, connectionId);
+            LOGDBG("[SendJSONRPCResponse] Response: %s", normalizedResult.c_str());
 
-                    // Send the response back to the WebSocket client
-                    this->Submit(Core::ProxyType<Core::JSON::IElement>(response));
+            // Send the response back to the WebSocket client
+            this->Submit(Core::ProxyType<Core::JSON::IElement>(response));
         }
 
     private:
@@ -556,7 +556,7 @@ public:
             response->Result = automationPayload;
         }
 
-        LOGTRACE("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d response=%s", requestId, connectionId, automationPayload.c_str());
+        LOGTRACE("[SendMessageToConnection] Sending response for requestId=%d, connectionId=%d response=%s", requestId, connectionId, automationPayload.c_str());
 
         // Send the response back to the WebSocket client
         if (nullptr == mChannel) {
