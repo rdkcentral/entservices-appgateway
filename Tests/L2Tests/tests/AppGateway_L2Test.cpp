@@ -312,6 +312,8 @@ public:
     {
         TEST_LOG("Deactivating AppGateway");
         DeactivateService(AGW_CALLSIGN);
+        TEST_LOG("Deactivating AppGatewayCommon");
+        DeactivateService("org.rdk.AppGatewayCommon");
         // Remove temp files
         if (!m_baseJsonPath.empty())     ::unlink(m_baseJsonPath.c_str());
         if (!m_regionalJsonPath.empty()) ::unlink(m_regionalJsonPath.c_str());
@@ -408,6 +410,8 @@ public:
     {
         TEST_LOG("Deactivating AppGateway (Responder suite)");
         DeactivateService(AGW_CALLSIGN);
+        TEST_LOG("Deactivating AppGatewayCommon (Responder suite)");
+        DeactivateService("org.rdk.AppGatewayCommon");
     }
 
     uint32_t CreateResponderInterfaceObject()
