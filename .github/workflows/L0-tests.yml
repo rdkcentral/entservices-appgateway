@@ -62,7 +62,7 @@ jobs:
           prefix_tools_primary="$GITHUB_WORKSPACE/install/tools/cmake"
           prefix_tools_alt="$GITHUB_WORKSPACE/install/usr/tools/cmake"
           prefix_tools=""
-          need_rebuild=0
+          need_rebuild=1
 
           framework_cfg="$(find "$prefix_usr" -type f -name 'WPEFrameworkConfig.cmake' -print -quit 2>/dev/null || true)"
           plugins_cfg="$(find "$prefix_usr" -type f -name 'WPEFrameworkPluginsConfig.cmake' -print -quit 2>/dev/null || true)"
