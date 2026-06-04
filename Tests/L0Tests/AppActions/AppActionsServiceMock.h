@@ -95,6 +95,72 @@ private:
 };
 
 // -----------------------------------------------------------------------
+// Fake RPC::IRemoteConnection
+// Used for testing Deactivated callback
+// -----------------------------------------------------------------------
+class AARemoteConnectionFake final : public WPEFramework::RPC::IRemoteConnection {
+public:
+    explicit AARemoteConnectionFake(uint32_t id = 1)
+        : _refCount(1)
+        , _id(id)
+    {
+    }
+
+    ~AARemoteConnectionFake() override = default;
+
+    void AddRef() const override
+    {
+        _refCount.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    uint32_t Release() const override
+    {
+        const uint32_t n = _refCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
+        if (0 == n) {
+            delete this;
+            return WPEFramework::Core::ERROR_DESTRUCTION_SUCCEEDED;
+        }
+        return WPEFramework::Core::ERROR_NONE;
+    }
+
+    void* QueryInterface(const uint32_t id) override
+    {
+        if (id == WPEFramework::RPC::IRemoteConnection::ID) {
+            AddRef();
+            return static_cast<WPEFramework::RPC::IRemoteConnection*>(this);
+        }
+        return nullptr;
+    }
+
+    uint32_t Id() const override { return _id; }
+    uint32_t RemoteId() const override { return _id; }
+
+    void* Acquire(const uint32_t /*waitTime*/,
+                  const string& /*className*/,
+                  const uint32_t /*interfaceId*/,
+                  const uint32_t /*version*/) override
+    {
+        return nullptr;
+    }
+
+    void Terminate() override
+    {
+        terminateCalled = true;
+    }
+
+    uint32_t Launch() override
+    {
+        return WPEFramework::Core::ERROR_NONE;
+    }
+
+    bool terminateCalled{false};
+
+private:
+    mutable std::atomic<uint32_t> _refCount;
+    uint32_t _id;
+};
+
+// -----------------------------------------------------------------------
 // Fake IAppActions Implementation
 // Used by AppActions plugin shell Initialize() to return via Instantiate().
 // -----------------------------------------------------------------------
@@ -408,6 +474,7 @@ public:
 
     // Access to internal state for testing
     AAImplFake* GetImplFake() const { return _implFake; }
+    uint32_t GetConnectionId() const { return _cfg.connectionId; }
 
 private:
     mutable std::atomic<uint32_t> _refCount;

@@ -176,7 +176,7 @@ uint32_t Test_AA_Deactivated_MatchingConnectionId()
         "Deactivated_MatchingConnectionId: Initialize should succeed");
 
     // Create a fake remote connection with matching ID
-    L0Test::AARemoteConnectionFake connection(ps.service->GetCOMLink()->_connectionId);
+    L0Test::AARemoteConnectionFake connection(ps.service->GetConnectionId());
 
     // This should trigger a deactivation job submission - must not crash
     // Note: We can't easily test the job submission without more infrastructure,
