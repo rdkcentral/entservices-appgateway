@@ -310,10 +310,14 @@ public:
 
     ~AppGateway_L2Test() override
     {
-        TEST_LOG("Deactivating AppGateway");
-        DeactivateService(AGW_CALLSIGN);
-        TEST_LOG("Deactivating AppGatewayCommon");
-        DeactivateService("org.rdk.AppGatewayCommon");
+        if (m_resolverPlugin != nullptr) {
+            m_resolverPlugin->Release();
+            m_resolverPlugin = nullptr;
+        }
+        if (m_controller_agw != nullptr) {
+            m_controller_agw->Release();
+            m_controller_agw = nullptr;
+        }
         // Remove temp files
         if (!m_baseJsonPath.empty())     ::unlink(m_baseJsonPath.c_str());
         if (!m_regionalJsonPath.empty()) ::unlink(m_regionalJsonPath.c_str());
@@ -408,10 +412,14 @@ public:
 
     ~AppGatewayResponder_L2Test() override
     {
-        TEST_LOG("Deactivating AppGateway (Responder suite)");
-        DeactivateService(AGW_CALLSIGN);
-        TEST_LOG("Deactivating AppGatewayCommon (Responder suite)");
-        DeactivateService("org.rdk.AppGatewayCommon");
+        if (m_responderPlugin != nullptr) {
+            m_responderPlugin->Release();
+            m_responderPlugin = nullptr;
+        }
+        if (m_controller_agw != nullptr) {
+            m_controller_agw->Release();
+            m_controller_agw = nullptr;
+        }
     }
 
     uint32_t CreateResponderInterfaceObject()
