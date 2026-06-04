@@ -516,6 +516,8 @@ jobs:
           -DPLUGIN_APPGATEWAY=ON
           -DPLUGIN_APPGATEWAYCOMMON=ON
           -DPLUGIN_APPNOTIFICATIONS=ON
+          -DPLUGIN_IMPLEMENTATION=WPEFrameworkAppGateway
+          -DPLUGIN_APPGATEWAYCOMMON_MODE=Local
           -DDS_FOUND=ON
           -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
           &&

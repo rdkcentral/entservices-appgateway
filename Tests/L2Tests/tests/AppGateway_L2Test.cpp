@@ -66,8 +66,8 @@ using ::testing::Return;
 // ═══════════════════════════════════════════════════════════════════════════════
 static constexpr uint32_t EVNT_TIMEOUT_MS = 5000u;   // 5-second event wait
 static constexpr int      MAX_RETRIES     = 10;
-static constexpr const char* AGW_CALLSIGN = "AppGateway";
-static constexpr const char* AGW_JSONRPC  = "AppGateway.1";
+static constexpr const char* AGW_CALLSIGN = "org.rdk.AppGateway";
+static constexpr const char* AGW_JSONRPC  = "org.rdk.AppGateway.1";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Temporary file helper
@@ -287,7 +287,7 @@ public:
 
         // Pre-activate AppGatewayCommon so that AppGateway::Initialize()'s
         // service->Root() calls find an already-running OOP process.
-        ActivateService("AppGatewayCommon");
+        ActivateService("org.rdk.AppGatewayCommon");
 
         // Activate the AppGateway plugin with retry
         uint32_t status    = Core::ERROR_GENERAL;
@@ -384,7 +384,7 @@ public:
         : AppGatewayL2TestBase()
     {
         // Pre-activate AppGatewayCommon so Root() finds a running OOP process.
-        ActivateService("AppGatewayCommon");
+        ActivateService("org.rdk.AppGatewayCommon");
 
         uint32_t status    = Core::ERROR_GENERAL;
         int      retryCount = 0;
