@@ -43,7 +43,7 @@ public:
     MOCK_METHOD(WPEFramework::Core::hresult, Unregister, (INotification *notification), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, Initialize, (WPEFramework::PluginHost::IShell* service), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, Deinitialize, (WPEFramework::PluginHost::IShell* service), (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, CreateDisplay, (const string& displayParams), (override));
+    MOCK_METHOD(uint32_t, CreateDisplay, (const string& displayParams), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, GetApps, (string& appsIds), (const, override));
     MOCK_METHOD(WPEFramework::Core::hresult, SetFocus, (const string& client), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, SetVisible, (const std::string& client, bool visible), (override));
