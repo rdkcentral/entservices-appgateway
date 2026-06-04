@@ -443,7 +443,8 @@ TEST_F(AppActionsImplementationTest, AA_L1_053_Deinitialize_WithoutInitialize)
 
 TEST_F(AppActionsImplementationTest, AA_L1_060_InterfaceMap_IPlugin)
 {
-    auto* pluginIface = impl.QueryInterface<PluginHost::IPlugin>();
+    auto* pluginIface = static_cast<PluginHost::IPlugin*>(
+        impl.QueryInterface(PluginHost::IPlugin::ID));
     EXPECT_NE(nullptr, pluginIface);
     if (nullptr != pluginIface) {
         pluginIface->Release();
@@ -452,7 +453,8 @@ TEST_F(AppActionsImplementationTest, AA_L1_060_InterfaceMap_IPlugin)
 
 TEST_F(AppActionsImplementationTest, AA_L1_061_InterfaceMap_IAppActions)
 {
-    auto* appActionsIface = impl.QueryInterface<Exchange::IAppActions>();
+    auto* appActionsIface = static_cast<Exchange::IAppActions*>(
+        impl.QueryInterface(Exchange::IAppActions::ID));
     EXPECT_NE(nullptr, appActionsIface);
     if (nullptr != appActionsIface) {
         appActionsIface->Release();
@@ -461,7 +463,8 @@ TEST_F(AppActionsImplementationTest, AA_L1_061_InterfaceMap_IAppActions)
 
 TEST_F(AppActionsImplementationTest, AA_L1_062_InterfaceMap_IConfiguration)
 {
-    auto* configIface = impl.QueryInterface<Exchange::IConfiguration>();
+    auto* configIface = static_cast<Exchange::IConfiguration*>(
+        impl.QueryInterface(Exchange::IConfiguration::ID));
     EXPECT_NE(nullptr, configIface);
     if (nullptr != configIface) {
         configIface->Release();
