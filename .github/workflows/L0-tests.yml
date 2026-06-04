@@ -62,7 +62,7 @@ jobs:
           prefix_tools_primary="$GITHUB_WORKSPACE/install/tools/cmake"
           prefix_tools_alt="$GITHUB_WORKSPACE/install/usr/tools/cmake"
           prefix_tools=""
-          need_rebuild=0
+          need_rebuild=1
 
           framework_cfg="$(find "$prefix_usr" -type f -name 'WPEFrameworkConfig.cmake' -print -quit 2>/dev/null || true)"
           plugins_cfg="$(find "$prefix_usr" -type f -name 'WPEFrameworkPluginsConfig.cmake' -print -quit 2>/dev/null || true)"
@@ -146,6 +146,7 @@ jobs:
           ref: R4.4.3
 
       - name: Checkout entservices-apis
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         uses: actions/checkout@v3
         with:
           repository: rdkcentral/entservices-apis
@@ -259,12 +260,14 @@ jobs:
           cmake --install build/Thunder
 
       - name: Apply patches entservices-apis
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: |
           cd $GITHUB_WORKSPACE/entservices-apis
           patch -p1 < $GITHUB_WORKSPACE/Tests/patches/RDKEMW-1007.patch
           cd -
 
       - name: Build entservices-apis
+        if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
         run: >
           set -euo pipefail
           &&
