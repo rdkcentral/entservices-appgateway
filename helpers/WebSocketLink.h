@@ -233,7 +233,6 @@ PUSH_WARNING(DISABLE_WARNING_THIS_IN_MEMBER_INITIALIZER_LIST)
                 , _origin()
                 , _webSocketMessage(Core::ProxyType<typename OUTBOUND::BaseElement>::Create())
                 , _pingFireTime(0)
-                , _remainingPayload(0)
             {
             }
             template <typename... Args>
@@ -251,7 +250,6 @@ PUSH_WARNING(DISABLE_WARNING_THIS_IN_MEMBER_INITIALIZER_LIST)
                 , _origin()
                 , _webSocketMessage(Core::ProxyType<typename OUTBOUND::BaseElement>::Create())
                 , _pingFireTime(0)
-                , _remainingPayload(0)
             {
             }
 POP_WARNING()
@@ -417,8 +415,7 @@ POP_WARNING()
             }
             uint16_t ReceiveData(uint8_t* dataFrame, const uint16_t receivedSize) override
             {
-                uint32_t result = 0;
-
+                uint16_t result = 0;
 
                 _adminLock.Lock();
 
@@ -428,20 +425,9 @@ POP_WARNING()
                     bool tooSmall = false;
 
                     // check for multiple messages if available...
-                    while ((result < static_cast<uint32_t>(receivedSize)) && (tooSmall == false)) {
-                        uint32_t actualDataSize = static_cast<uint32_t>(receivedSize) - result;
-                        uint16_t availableSize = static_cast<uint16_t>(actualDataSize);
-                        // Cap the input to the decoder to the bytes remaining in the current
-                        // WS frame.  The WPEFramework Protocol::Decoder does NOT internally
-                        // cap availableSize to _remaining, so when a TCP segment straddles two
-                        // WS frames the decoder underflows _remaining (~4 GB wrap-around),
-                        // causing the next frame to be treated as a continuation and discarded.
-                        // Capping here guarantees the decoder only processes bytes for the
-                        // current frame; the loop then picks up the leftover bytes fresh.
-                        if (_remainingPayload > 0 && static_cast<uint32_t>(availableSize) > _remainingPayload) {
-                            availableSize = static_cast<uint16_t>(_remainingPayload);
-                        }
-                        uint16_t headerSize = _handler.Decoder(const_cast<uint8_t*>(&dataFrame[result]), availableSize);
+                    while ((result < receivedSize) && (tooSmall == false)) {
+                        uint16_t actualDataSize = receivedSize - result;
+                        uint16_t headerSize = _handler.Decoder(const_cast<uint8_t*>(&dataFrame[result]), actualDataSize);
                         uint64_t payloadSizeInControlFrame;
 
                         tooSmall = ((headerSize == 0) && (actualDataSize == 0));
@@ -455,8 +441,7 @@ POP_WARNING()
                                 // ACTUALLINK::Close(0);
 
                                 // Nothing we can do with this shit..
-                                result = static_cast<uint32_t>(receivedSize);
-                                _remainingPayload = 0;
+                                result = receivedSize;
                             } else if ((_handler.FrameType() & 0x08) != 0) {
                                 // Build the associated message with this..
                                 // _commandData += dataFrame
@@ -487,108 +472,39 @@ POP_WARNING()
                                     _commandData.clear();
                                 }
 
-                                #define HEADER_IDX_CONTROL   1
-                                #define HEADER_IDX_PLAYLOADSIZE  3
-                                #define HEADER_IDX_DATA     9
-
                                 payloadSizeInControlFrame = 0;
                                 // skip payload bytes for control frames:
-                                if (headerSize > HEADER_IDX_CONTROL)
-                                {
-                                    payloadSizeInControlFrame = dataFrame[result + 1] & 0x7F;
-                                    if (payloadSizeInControlFrame == 126)
-                                    {
-                                        if (headerSize > HEADER_IDX_PLAYLOADSIZE)
-                                        {
-                                            payloadSizeInControlFrame = ((dataFrame[result + 2] << 8) + dataFrame[result + 3]);
-                                        }
-                                        else
-                                        {
-                                            TRACE_L1("Header too small for 16-bit extended payload size");
-                                            payloadSizeInControlFrame = 0;
-                                        }
-                                    }
-                                    else if (payloadSizeInControlFrame == 127)
-                                    {
-                                        if (headerSize > HEADER_IDX_DATA)
-                                        {
-                                            payloadSizeInControlFrame = dataFrame[result + 9];
-                                            for (int i = 8; i >= 2; i--)
-                                                payloadSizeInControlFrame = (payloadSizeInControlFrame << 8) + dataFrame[result + i];
-                                        }
-                                        else
-                                        {
-                                            TRACE_L1("Header too small for 64-bit jumbo payload size ");
-                                            payloadSizeInControlFrame = 0;
-                                        }
-                                    }
+                                if (headerSize > 1) {
+                                   payloadSizeInControlFrame = dataFrame[result + 1] & 0x7F;
+                                   if (payloadSizeInControlFrame == 126) {
+				       if (headerSize > 3) {
+                                         payloadSizeInControlFrame = ((dataFrame[result + 2] << 8) + dataFrame[result + 3]);
+				       } else {
+                                         TRACE_L1("Header too small for 16-bit extended payload size");
+                                         payloadSizeInControlFrame = 0;
+                                      }
+                                   } else if (payloadSizeInControlFrame == 127) {
+                                      if (headerSize > 9) {
+                                         payloadSizeInControlFrame = dataFrame[result + 9];
+                                         for (int i = 8; i >= 2; i--) payloadSizeInControlFrame = (payloadSizeInControlFrame << 8) + dataFrame[result + i];
+                                      } else {
+                                         TRACE_L1("Header too small for 64-bit jumbo payload size ");
+                                         payloadSizeInControlFrame = 0;
+                                      }
+                                   }
                                 }
 
-                                result += static_cast<uint32_t>(headerSize) + payloadSizeInControlFrame;
+                                result += static_cast<uint16_t>(headerSize + payloadSizeInControlFrame); // actualDataSize
 
                             } else {
-                                // When a new frame starts (headerSize > 0), parse the DECLARED total
-                                // payload size directly from the WS frame header bytes.  This is the
-                                // true frame payload length — not just the bytes in this TCP segment.
-                                // Without this, _remainingPayload would only track the first segment's
-                                // slice and go to zero while _handler._remaining still has bytes left,
-                                // causing an infinite loop (availableSize capped to 0, result never
-                                // advances) on subsequent continuation segments.
-                                if (headerSize > 0) {
-                                    uint64_t declaredPayload = 0;
-                                    if (headerSize > 1) {
-                                        uint8_t lenByte = dataFrame[result + 1] & 0x7F;
-                                        if (lenByte < 126) {
-                                            declaredPayload = lenByte;
-                                        } else if (lenByte == 126 && headerSize >= 4) {
-                                            declaredPayload = (static_cast<uint64_t>(dataFrame[result + 2]) << 8)
-                                                            | static_cast<uint64_t>(dataFrame[result + 3]);
-                                        } else if (lenByte == 127 && headerSize >= 10) {
-                                            for (int i = 2; i <= 9; i++)
-                                                declaredPayload = (declaredPayload << 8) | dataFrame[result + i];
-                                        }
-                                    }
-                                    _remainingPayload = static_cast<uint32_t>(declaredPayload);
-                                }
+                                _parent.ReceiveData(&(dataFrame[result + headerSize]), actualDataSize);
 
-                                // availableSize from Decoder() is the payload bytes for this TCP segment.
-                                // Pass min(availableSize, _remainingPayload) to the upper layer to avoid
-                                // feeding bytes that belong to the next frame when _handler._remaining
-                                // desyncs.  ALWAYS advance result by the full availableSize so the
-                                // decoder's internal _remaining stays in sync — never cap result.
-                                // Compare as uint32_t to avoid uint16_t truncation overflow when
-                                // _remainingPayload > 65535 (e.g. 66527 cast to uint16_t = 991).
-                                uint16_t bytesToPass = (static_cast<uint32_t>(availableSize) <= _remainingPayload)
-                                                     ? availableSize
-                                                     : static_cast<uint16_t>(_remainingPayload);
-
-                                const uint8_t* payloadPtr = &(dataFrame[result + headerSize]);
-                                if (bytesToPass > 0) {
-                                    _parent.ReceiveData(const_cast<uint8_t*>(payloadPtr), bytesToPass);
-                                }
-
-                                // Always advance by the full decoder-reported availableSize to keep
-                                // _handler._remaining in sync.
-                                result += static_cast<uint32_t>(headerSize) + static_cast<uint32_t>(availableSize);
-                                _remainingPayload = (_remainingPayload >= availableSize) ? (_remainingPayload - availableSize) : 0;
-                                if (_remainingPayload == 0) {
-                                    // The Thunder Protocol::Decoder has a byte-order bug when parsing
-                                    // 64-bit extended payload lengths (frames > 65535 bytes): it reads
-                                    // the 8 length bytes in reverse order, producing a garbage
-                                    // _pendingReceiveBytes value.  After we deliver all declared payload
-                                    // bytes (tracked correctly via _remainingPayload), the decoder's
-                                    // internal _pendingReceiveBytes is still a large non-zero value.
-                                    // Flush() resets _pendingReceiveBytes to 0 so the decoder returns
-                                    // to clean "new frame" state, allowing subsequent frames to be
-                                    // correctly parsed with headerSize > 0.
-                                    _handler.Flush();
-                                    break;
-                                }
+                                result += (headerSize + actualDataSize);
                             }
                         }
                     }
                 } else {
-                    result = static_cast<uint32_t>(_deserialiserImpl.Deserialize(dataFrame, receivedSize));
+                    result = _deserialiserImpl.Deserialize(dataFrame, receivedSize);
                 }
 
                 _adminLock.Unlock();
@@ -597,7 +513,7 @@ POP_WARNING()
                     CheckForClose(0);
                 }
 
-                return (static_cast<uint16_t>(result > 0xFFFF ? receivedSize : result));
+                return (result);
             }
 
             // Signal a state change, Opened, Closed, Accepted or Error
@@ -857,7 +773,6 @@ POP_WARNING()
             string _commandData;
             Core::ProxyType<typename OUTBOUND::BaseElement> _webSocketMessage;
             uint64_t _pingFireTime;
-            uint32_t _remainingPayload; // tracks expected remaining payload bytes for current data frame
         };
 
     public:
