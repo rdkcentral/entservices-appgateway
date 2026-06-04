@@ -88,6 +88,11 @@ namespace Plugin {
         Core::hresult status = Core::ERROR_GENERAL;
         if (nullptr != service)
         {
+            if (nullptr != mService)
+            {
+                mService->Release();
+                mService = nullptr;
+            }
             mService = service;
             mService->AddRef();
             status = Core::ERROR_NONE;

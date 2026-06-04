@@ -63,7 +63,7 @@ namespace Plugin {
             Exchange::JAppActions::Register(*this, mAppActions);
 
             auto configConnection = mAppActions->QueryInterface<Exchange::IConfiguration>();
-            if (configConnection != nullptr) {
+            if (nullptr != configConnection) {
                 configConnection->Configure(service);
                 configConnection->Release();
             }

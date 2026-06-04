@@ -485,6 +485,7 @@ jobs:
             -DNAMESPACE="$APPGW_NAMESPACE"
             -DPLUGIN_APPGATEWAY=ON
             -DPLUGIN_APPGATEWAYCOMMON=ON
+            -DPLUGIN_APPACTIONS=ON
             -DCMAKE_VERBOSE_MAKEFILE=ON
           )
 

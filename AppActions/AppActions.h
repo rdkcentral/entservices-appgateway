@@ -51,7 +51,7 @@ namespace Plugin {
                     _parent.Deactivated(connection);
                 }
 
-                void OnActionStartRequest(const string& initiator, const string& intent, const string& handlerAppId)
+                void OnActionStartRequest(const string& initiator, const string& intent, const string& handlerAppId) override
                 {
                     LOGINFO("AppActions on OnActionStartRequest: initiator=%s, intent=%s, handlerAppId=%s", initiator.c_str(), intent.c_str(), handlerAppId.c_str());
                     Exchange::JAppActions::Event::OnActionStartRequest(_parent, initiator, intent, handlerAppId);
