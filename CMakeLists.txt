@@ -70,6 +70,10 @@ if(PLUGIN_APPGATEWAYCOMMON)
     add_subdirectory(AppGatewayCommon)
 endif()
 
+if(PLUGIN_APPACTIONS)
+    add_subdirectory(AppActions)
+endif()
+
 
 if(WPEFRAMEWORK_CREATE_IPKG_TARGETS)
     set(CPACK_GENERATOR "DEB")
