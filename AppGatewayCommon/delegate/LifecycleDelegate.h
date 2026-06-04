@@ -31,6 +31,8 @@
 #include "UtilsCallsign.h"
 #include "UtilsFirebolt.h"
 #include <set>
+#include <map>
+#include <mutex>
 using namespace WPEFramework;
 
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
@@ -47,7 +49,7 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
     "lifecycle2.onstatechanged",
     "discovery.onnavigateto",
     "presentation.onfocusedchanged",
-    "secondscreen.onlaunchrequest"  // DIAL launch event — fired by LaunchDelegate via IAppNotifications::Emit
+    "secondscreen.onlaunchrequest"  // DIAL launch event — fired by AppGatewayCommon via Dispatch()
 };
 
 class LifecycleDelegate : public BaseEventDelegate
@@ -706,6 +708,29 @@ class LifecycleDelegate : public BaseEventDelegate
         return mWindowManager;
     }
 
+    // Extract secondScreen JSON from the stored navigationIntent for a given appId.
+    // Returns true if a secondScreen object is present, false otherwise.
+    bool GetSecondScreenFromIntent(const string& appId, string& secondScreenJson)
+    {
+        secondScreenJson.clear();
+        string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
+        if (appInstanceId.empty()) return false;
+
+        string navigationIntent = mNavigationIntentRegistry.GetNavigationIntent(appInstanceId);
+        if (navigationIntent.empty()) return false;
+
+        JsonObject intentObj;
+        if (!intentObj.FromString(navigationIntent)) return false;
+
+        if (intentObj.HasLabel("secondScreen") &&
+            intentObj["secondScreen"].Content() == JsonValue::type::OBJECT)
+        {
+            intentObj["secondScreen"].Object().ToString(secondScreenJson);
+            return !secondScreenJson.empty();
+        }
+        return false;
+    }
+
     // Dispatch last known intent for a given appId
     void DispatchLastKnownIntent(const string& appId)
     {
@@ -713,6 +738,15 @@ class LifecycleDelegate : public BaseEventDelegate
         GetLastKnownIntent(appId, navigationIntent);
         if (!navigationIntent.empty()) {
             Dispatch("Discovery.onNavigateTo", navigationIntent, appId);
+        }
+
+        // Emit secondscreen.onLaunchRequest if DIAL payload present in navigationIntent
+        std::string secondScreenJson;
+        if (GetSecondScreenFromIntent(appId, secondScreenJson)) {
+            bool dispatched = Dispatch("secondscreen.onLaunchRequest", secondScreenJson, appId);
+            if (dispatched) {
+                LOGDBG("DispatchLastKnownIntent: Emitted secondscreen.onLaunchRequest for appId=%s", appId.c_str());
+            }
         }
     }
 
