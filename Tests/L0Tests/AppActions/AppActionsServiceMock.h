@@ -95,18 +95,15 @@ private:
 };
 
 // -----------------------------------------------------------------------
-// Fake RPC::IRemoteConnection
-// Used for simulating plugin deactivation
+// Fake IAppActions Implementation
+// Used by AppActions plugin shell Initialize() to return via Instantiate().
 // -----------------------------------------------------------------------
-class AARemoteConnectionFake final : public WPEFramework::RPC::IRemoteConnection {
+class AAImplFake final : public WPEFramework::Exchange::IAppActions,
+                         public WPEFramework::Exchange::IConfiguration {
 public:
-    explicit AARemoteConnectionFake(uint32_t id = 1)
-        : _refCount(1)
-        , _id(id)
-    {
-    }
+    AAImplFake() = default;
 
-    ~AARemoteConnectionFake() override = default;
+    ~AAImplFake() override = default;
 
     void AddRef() const override
     {
@@ -125,146 +122,109 @@ public:
 
     void* QueryInterface(const uint32_t id) override
     {
-        if (id == WPEFramework::RPC::IRemoteConnection::ID) {
+        if (id == WPEFramework::Exchange::IAppActions::ID) {
             AddRef();
-            return static_cast<WPEFramework::RPC::IRemoteConnection*>(this);
+            return static_cast<WPEFramework::Exchange::IAppActions*>(this);
+        }
+        if (id == WPEFramework::Exchange::IConfiguration::ID) {
+            AddRef();
+            return static_cast<WPEFramework::Exchange::IConfiguration*>(this);
         }
         return nullptr;
     }
 
-    uint32_t Id() const override
+    // IConfiguration
+    uint32_t Configure(WPEFramework::PluginHost::IShell* /*shell*/) override
     {
-        return _id;
-    }
-
-    uint32_t RemoteId() const override
-    {
-        return _id;
-    }
-
-    void* Acquire(const uint32_t /*waitTime*/, const string& /*className*/, const uint32_t /*interfaceId*/, const uint32_t /*version*/) override
-    {
-        return nullptr;
-    }
-
-    void Terminate() override
-    {
-        terminateCalled = true;
-    }
-
-    uint32_t Launch() override
-    {
+        configureCount++;
         return WPEFramework::Core::ERROR_NONE;
     }
 
-    bool terminateCalled{false};
-
-private:
-    mutable std::atomic<uint32_t> _refCount;
-    uint32_t _id;
-};
-
-// -----------------------------------------------------------------------
-// Fake ICOMLink for L0 tests
-// -----------------------------------------------------------------------
-class AACOMFake final : public WPEFramework::PluginHost::IShell::ICOMLink {
-public:
-    explicit AACOMFake()
-        : _refCount(1)
+    // IAppActions
+    WPEFramework::Core::hresult ActionStart(const string& initiator,
+                                            const string& intent,
+                                            const string& handlerAppId) override
     {
+        actionStartCount++;
+        lastInitiator = initiator;
+        lastIntent = intent;
+        lastHandlerAppId = handlerAppId;
+        return WPEFramework::Core::ERROR_NONE;
     }
 
-    ~AACOMFake() override = default;
-
-    void AddRef() const override
+    WPEFramework::Core::hresult Register(INotification* notification) override
     {
-        _refCount.fetch_add(1, std::memory_order_relaxed);
-    }
-
-    uint32_t Release() const override
-    {
-        const uint32_t n = _refCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
-        if (0 == n) {
-            delete this;
-            return WPEFramework::Core::ERROR_DESTRUCTION_SUCCEEDED;
+        std::lock_guard<std::mutex> lock(_mutex);
+        if (std::find(_notifications.begin(), _notifications.end(), notification) == _notifications.end()) {
+            _notifications.push_back(notification);
+            notification->AddRef();
+            registerCount++;
         }
         return WPEFramework::Core::ERROR_NONE;
     }
 
-    void* QueryInterface(const uint32_t id) override
+    WPEFramework::Core::hresult Unregister(INotification* notification) override
     {
-        if (id == WPEFramework::PluginHost::IShell::ICOMLink::ID) {
-            AddRef();
-            return static_cast<WPEFramework::PluginHost::IShell::ICOMLink*>(this);
+        std::lock_guard<std::mutex> lock(_mutex);
+        auto it = std::find(_notifications.begin(), _notifications.end(), notification);
+        if (it != _notifications.end()) {
+            (*it)->Release();
+            _notifications.erase(it);
+            unregisterCount++;
         }
-        return nullptr;
+        return WPEFramework::Core::ERROR_NONE;
     }
 
-    void Register(WPEFramework::RPC::IRemoteConnection::INotification* /*notification*/) override {}
-    void Unregister(WPEFramework::RPC::IRemoteConnection::INotification* /*notification*/) override {}
+    // Observable state
+    uint32_t configureCount{0};
+    uint32_t actionStartCount{0};
+    uint32_t registerCount{0};
+    uint32_t unregisterCount{0};
+    string lastInitiator;
+    string lastIntent;
+    string lastHandlerAppId;
 
-    WPEFramework::RPC::IRemoteConnection* RemoteConnection(const uint32_t connectionId) override
-    {
-        if (provideRemoteConnection && connectionId == _connectionId) {
-            auto* conn = new AARemoteConnectionFake(connectionId);
-            return conn;
-        }
-        return nullptr;
-    }
-
-    void* Instantiate(const WPEFramework::RPC::Object& /*object*/,
-                      const uint32_t /*waitTime*/,
-                      uint32_t& connectionId) override
-    {
-        connectionId = _connectionId;
-        if (provideImplementation) {
-            // Use Core::Service to create the implementation
-            auto* impl = WPEFramework::Core::Service<WPEFramework::Plugin::AppActionsImplementation>::Create<WPEFramework::Exchange::IAppActions>();
-            return impl;
-        }
-        return nullptr;
-    }
-
-    // Configurable behavior
-    bool provideImplementation{true};
-    bool provideRemoteConnection{true};
-    uint32_t _connectionId{1};
+    mutable std::mutex _mutex;
+    std::list<INotification*> _notifications;
 
 private:
-    mutable std::atomic<uint32_t> _refCount;
+    mutable std::atomic<uint32_t> _refCount{1};
 };
 
 // -----------------------------------------------------------------------
 // AppActionsServiceMock
-// Main mock implementing PluginHost::IShell for AppActions plugin testing
+// Full IShell + ICOMLink mock for AppActions L0 tests.
 // -----------------------------------------------------------------------
-class AppActionsServiceMock final : public WPEFramework::PluginHost::IShell {
+class AppActionsServiceMock final
+    : public WPEFramework::PluginHost::IShell
+    , public WPEFramework::PluginHost::IShell::ICOMLink {
 public:
     struct Config {
         bool provideImplementation{true};
-        bool provideRemoteConnection{true};
         uint32_t connectionId{1};
+
+        explicit Config(bool impl = true)
+            : provideImplementation(impl)
+        {
+        }
     };
 
     explicit AppActionsServiceMock(const Config& cfg = Config())
         : _refCount(1)
-        , _state(WPEFramework::PluginHost::IShell::ACTIVATED)
-        , _reason(WPEFramework::PluginHost::IShell::REQUESTED)
-        , _comLink(new AACOMFake())
+        , _cfg(cfg)
+        , _implFake(nullptr)
     {
-        _comLink->provideImplementation = cfg.provideImplementation;
-        _comLink->provideRemoteConnection = cfg.provideRemoteConnection;
-        _comLink->_connectionId = cfg.connectionId;
     }
 
     ~AppActionsServiceMock() override
     {
-        if (nullptr != _comLink) {
-            _comLink->Release();
-            _comLink = nullptr;
+        if (nullptr != _implFake) {
+            _implFake->Release();
+            _implFake = nullptr;
         }
     }
 
+    // Core::IUnknown
     void AddRef() const override
     {
         _refCount.fetch_add(1, std::memory_order_relaxed);
@@ -286,159 +246,68 @@ public:
             AddRef();
             return static_cast<WPEFramework::PluginHost::IShell*>(this);
         }
-        if (id == WPEFramework::PluginHost::IShell::ICOMLink::ID) {
-            if (nullptr != _comLink) {
-                _comLink->AddRef();
-                return static_cast<WPEFramework::PluginHost::IShell::ICOMLink*>(_comLink);
-            }
-        }
         return nullptr;
     }
 
-    // IShell implementation
-    string Versions() const override { return "1.0.0"; }
+    // ----------------------------------------------------------------
+    // IShell
+    // ----------------------------------------------------------------
+    void EnableWebServer(const string& /*urlPath*/, const string& /*fsPath*/) override {}
+    void DisableWebServer() override {}
+
+    string Model() const override { return "l0test-device"; }
+    bool Background() const override { return false; }
+    string Accessor() const override { return "127.0.0.1:9998"; }
+    string WebPrefix() const override { return "/jsonrpc"; }
     string Locator() const override { return "libWPEFrameworkAppActionsImplementation.so"; }
     string ClassName() const override { return "AppActionsImplementation"; }
+    string Versions() const override { return "1.0.0"; }
     string Callsign() const override { return "org.rdk.AppActions"; }
-    string WebPrefix() const override { return "/AppActions"; }
-    string ConfigLine() const override { return "{}"; }
-    string PersistentPath() const override { return "/tmp/persistent"; }
-    string VolatilePath() const override { return "/tmp/volatile"; }
-    string DataPath() const override { return "/tmp/data"; }
 
-    state State() const override { return _state; }
+    string PersistentPath() const override { return "/tmp"; }
+    string VolatilePath() const override { return "/tmp"; }
+    string DataPath() const override { return "/tmp"; }
+    string ProxyStubPath() const override { return "/tmp"; }
+    string SystemPath() const override { return "/tmp"; }
+    string PluginPath() const override { return "/tmp"; }
+    string SystemRootPath() const override { return "/"; }
 
-#ifdef USE_THUNDER_R4
-    WPEFramework::Core::hresult Activate(const reason r) override
-    {
-        _state = ACTIVATED;
-        _reason = r;
-        return WPEFramework::Core::ERROR_NONE;
-    }
-
-    WPEFramework::Core::hresult Deactivate(const reason r) override
-    {
-        _state = DEACTIVATED;
-        _reason = r;
-        return WPEFramework::Core::ERROR_NONE;
-    }
-
-    WPEFramework::Core::hresult Unavailable(const reason r) override
-    {
-        _state = UNAVAILABLE;
-        _reason = r;
-        return WPEFramework::Core::ERROR_NONE;
-    }
-
-    WPEFramework::Core::hresult ConfigLine(const string& /*config*/) override
+    WPEFramework::Core::hresult SystemRootPath(const string& /*value*/) override
     {
         return WPEFramework::Core::ERROR_NONE;
     }
 
-    WPEFramework::Core::hresult SystemRootPath(const string& /*systemRootPath*/) override
-    {
-        return WPEFramework::Core::ERROR_NONE;
-    }
-
-    WPEFramework::Core::hresult Hibernate(const uint32_t /*timeout*/) override
-    {
-        return WPEFramework::Core::ERROR_NONE;
-    }
-
-    string SystemPath() const override { return "/usr"; }
-    string PluginPath() const override { return "/usr/lib/plugins"; }
-
-    WPEFramework::PluginHost::IShell::startup Startup() const override
-    {
-        return WPEFramework::PluginHost::IShell::ACTIVATED;
-    }
-
+    startup Startup() const override { return startup::ACTIVATED; }
     WPEFramework::Core::hresult Startup(const startup /*value*/) override
     {
         return WPEFramework::Core::ERROR_NONE;
     }
 
+    string Substitute(const string& input) const override { return input; }
+
+    bool Resumed() const override { return false; }
     WPEFramework::Core::hresult Resumed(const bool /*value*/) override
     {
         return WPEFramework::Core::ERROR_NONE;
     }
 
-    WPEFramework::Core::hresult Metadata(string& /*info*/) const override
-    {
-        return WPEFramework::Core::ERROR_NONE;
-    }
-#else
-    bool AutoStart() const override { return false; }
-    string Version() const override { return "1.0.0"; }
+    string HashKey() const override { return "hash"; }
 
-    uint32_t Activate(const reason r) override
-    {
-        _state = ACTIVATED;
-        _reason = r;
-        return WPEFramework::Core::ERROR_NONE;
-    }
-
-    uint32_t Deactivate(const reason r) override
-    {
-        _state = DEACTIVATED;
-        _reason = r;
-        return WPEFramework::Core::ERROR_NONE;
-    }
-
-    uint32_t Unavailable(const reason r) override
-    {
-        _state = UNAVAILABLE;
-        _reason = r;
-        return WPEFramework::Core::ERROR_NONE;
-    }
-
-    uint8_t Major() const override { return 1; }
-    uint8_t Minor() const override { return 0; }
-    uint8_t Patch() const override { return 0; }
-
-    uint32_t ConfigLine(const string& /*config*/) override
+    string ConfigLine() const override { return ""; }
+    WPEFramework::Core::hresult ConfigLine(const string& /*config*/) override
     {
         return WPEFramework::Core::ERROR_NONE;
     }
 
-    uint32_t SystemRootPath(const string& /*systemRootPath*/) override
+    WPEFramework::Core::hresult Metadata(string& info /*@out*/) const override
     {
+        info = R"({"name":"AppActions","version":"1.0.0"})";
         return WPEFramework::Core::ERROR_NONE;
     }
 
-    uint32_t Hibernate(const string& /*processSequence*/, const uint32_t /*timeout*/) override
-    {
-        return WPEFramework::Core::ERROR_NONE;
-    }
-
-    uint32_t Wakeup(const string& /*processSequence*/, const uint32_t /*timeout*/) override
-    {
-        return WPEFramework::Core::ERROR_NONE;
-    }
-#endif
-
-    bool Resumed() const override { return true; }
     bool IsSupported(const uint8_t /*version*/) const override { return true; }
-
-    void EnableWebServer(const string& /*path*/, const string& /*prefix*/) override {}
-    void DisableWebServer() override {}
-
     WPEFramework::PluginHost::ISubSystem* SubSystems() override { return nullptr; }
-#ifndef USE_THUNDER_R4
-    const WPEFramework::PluginHost::ISubSystem* SubSystems() const override { return nullptr; }
-#endif
-
-    uint32_t Submit(const uint32_t /*id*/, const WPEFramework::Core::ProxyType<WPEFramework::Core::JSON::IElement>& /*element*/) override
-    {
-        return WPEFramework::Core::ERROR_NONE;
-    }
-
     void Notify(const string& /*message*/) override {}
-
-    void* QueryInterfaceByCallsign(const uint32_t /*interfaceId*/, const string& /*callsign*/) override
-    {
-        return nullptr;
-    }
 
     void Register(WPEFramework::PluginHost::IPlugin::INotification* notification) override
     {
@@ -457,40 +326,93 @@ public:
         }
     }
 
-    string Model() const override { return "TestModel"; }
-    bool Background() const override { return false; }
-    string Accessor() const override { return "127.0.0.1:9998"; }
-    string ProxyStubPath() const override { return "/usr/lib/proxystubs"; }
-    string HashKey() const override { return "testhash"; }
-    string Substitute(const string& input) const override { return input; }
+    state State() const override { return state::ACTIVATED; }
 
-    WPEFramework::PluginHost::IShell::ICOMLink* COMLink() override
+    void* QueryInterfaceByCallsign(const uint32_t /*id*/, const string& /*name*/) override
     {
-        if (nullptr != _comLink) {
-            _comLink->AddRef();
-        }
-        return _comLink;
+        return nullptr;
     }
 
-    reason Reason() const override { return _reason; }
-    string SystemRootPath() const override { return "/"; }
-
-    WPEFramework::RPC::IRemoteConnection* RemoteConnection(const uint32_t connectionId)
+    WPEFramework::Core::hresult Activate(const reason /*why*/) override
     {
-        if (nullptr != _comLink) {
-            return _comLink->RemoteConnection(connectionId);
+        return WPEFramework::Core::ERROR_NONE;
+    }
+    WPEFramework::Core::hresult Deactivate(const reason /*why*/) override
+    {
+        return WPEFramework::Core::ERROR_NONE;
+    }
+    WPEFramework::Core::hresult Unavailable(const reason /*why*/) override
+    {
+        return WPEFramework::Core::ERROR_NONE;
+    }
+    WPEFramework::Core::hresult Hibernate(const uint32_t /*timeout*/) override
+    {
+        return WPEFramework::Core::ERROR_NONE;
+    }
+    reason Reason() const override { return reason::REQUESTED; }
+
+    uint32_t Submit(const uint32_t /*id*/,
+                    const WPEFramework::Core::ProxyType<WPEFramework::Core::JSON::IElement>& /*response*/) override
+    {
+        return WPEFramework::Core::ERROR_NONE;
+    }
+
+    WPEFramework::PluginHost::IShell::ICOMLink* COMLink() override { return this; }
+
+    // ----------------------------------------------------------------
+    // ICOMLink
+    // ----------------------------------------------------------------
+    void Register(WPEFramework::RPC::IRemoteConnection::INotification* /*sink*/) override {}
+    void Unregister(const WPEFramework::RPC::IRemoteConnection::INotification* /*sink*/) override {}
+    void Register(WPEFramework::PluginHost::IShell::ICOMLink::INotification* /*sink*/) override {}
+    void Unregister(WPEFramework::PluginHost::IShell::ICOMLink::INotification* /*sink*/) override {}
+
+    WPEFramework::RPC::IRemoteConnection* RemoteConnection(const uint32_t /*connectionId*/) override
+    {
+        return nullptr;
+    }
+
+    void* Instantiate(const WPEFramework::RPC::Object& object,
+                      const uint32_t /*waitTime*/,
+                      uint32_t& connectionId) override
+    {
+        connectionId = _cfg.connectionId;
+
+        const std::string className = object.ClassName();
+
+        // Accept any class name that ends with "AppActionsImplementation"
+        auto endsWith = [](const std::string& s, const std::string& suffix) -> bool {
+            if (s.size() < suffix.size()) {
+                return false;
+            }
+            return s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
+        };
+
+        if (endsWith(className, "AppActionsImplementation")
+            || endsWith(className, "::AppActionsImplementation")
+            || endsWith(className, "IAppActions")) {
+
+            if (!_cfg.provideImplementation) {
+                return nullptr;
+            }
+
+            if (nullptr == _implFake) {
+                _implFake = new AAImplFake();
+            }
+            _implFake->AddRef();
+            return static_cast<WPEFramework::Exchange::IAppActions*>(_implFake);
         }
+
         return nullptr;
     }
 
     // Access to internal state for testing
-    AACOMFake* GetCOMLink() const { return _comLink; }
+    AAImplFake* GetImplFake() const { return _implFake; }
 
 private:
     mutable std::atomic<uint32_t> _refCount;
-    state _state;
-    reason _reason;
-    AACOMFake* _comLink;
+    Config _cfg;
+    AAImplFake* _implFake;
     std::mutex _notificationMutex;
     std::list<WPEFramework::PluginHost::IPlugin::INotification*> _notifications;
 };
