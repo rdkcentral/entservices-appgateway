@@ -218,7 +218,11 @@ private:
 
 class AppGatewayL2TestBase : public ::testing::Test {
 protected:
-    AppGatewayL2TestBase() = default;
+    AppGatewayL2TestBase()
+    {
+        std::string addr = std::string("127.0.0.1:") + THUNDER_PORT;
+        Core::SystemInfo::SetEnvironment(_T("THUNDER_ACCESS"), addr);
+    }
     virtual ~AppGatewayL2TestBase() = default;
 
     uint32_t InvokeServiceMethod(const char* callsign, const char* method,
@@ -280,6 +284,10 @@ public:
         // Write temp resolution config files
         m_baseJsonPath     = WriteTempJson(kBaseResolutionJson);
         m_regionalJsonPath = WriteTempJson(MakeRegionalJson(m_baseJsonPath));
+
+        // Pre-activate AppGatewayCommon so that AppGateway::Initialize()'s
+        // service->Root() calls find an already-running OOP process.
+        ActivateService("AppGatewayCommon");
 
         // Activate the AppGateway plugin with retry
         uint32_t status    = Core::ERROR_GENERAL;
@@ -375,6 +383,9 @@ public:
     AppGatewayResponder_L2Test()
         : AppGatewayL2TestBase()
     {
+        // Pre-activate AppGatewayCommon so Root() finds a running OOP process.
+        ActivateService("AppGatewayCommon");
+
         uint32_t status    = Core::ERROR_GENERAL;
         int      retryCount = 0;
         while (status != Core::ERROR_NONE && retryCount < MAX_RETRIES) {
