@@ -153,6 +153,11 @@ public:
         return WPEFramework::Core::ERROR_NONE;
     }
 
+    void PostMortem() override
+    {
+        // No-op for test fake
+    }
+
     bool terminateCalled{false};
 
 private:
