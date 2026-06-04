@@ -247,10 +247,7 @@ class LifecycleDelegate : public BaseEventDelegate
         string intent;
         uint32_t intentId = 0;
         GetLastKnownIntent(context.appId, intent, intentId);
-        JsonObject obj;
-        obj["intentId"] = intentId;
-        obj["intent"]   = intent;
-        obj.ToString(result);
+        result = BuildIntentResult(intentId, intent);
         return Core::ERROR_NONE;
     }
 
@@ -305,10 +302,7 @@ class LifecycleDelegate : public BaseEventDelegate
         string intent;
         uint32_t intentId = 0;
         GetLastKnownIntent(context.appId, intent, intentId);
-        JsonObject obj;
-        obj["intentId"] = intentId;
-        obj["intent"]   = intent;
-        obj.ToString(result);
+        result = BuildIntentResult(intentId, intent);
         return Core::ERROR_NONE;
     }
 
@@ -798,6 +792,32 @@ class LifecycleDelegate : public BaseEventDelegate
             payloadObj.ToString(payloadStr);
             Dispatch("Actions.onIntent", payloadStr, appId);
         }
+    }
+
+    // Build a JSON response object {"intentId":<n>,"intent":<value>}.
+    // The intent is embedded as a raw JSON value when it looks like a JSON
+    // object or array, and as a quoted JSON string otherwise.  Building the
+    // string manually avoids Thunder's VariantContainer serializer escaping
+    // '/' unnecessarily, which would break plain-string intents such as URIs.
+    static string BuildIntentResult(uint32_t intentId, const string& intent)
+    {
+        string intentJson;
+        if (!intent.empty() && (intent[0] == '{' || intent[0] == '[')) {
+            // Intent is already a JSON object/array – embed verbatim
+            intentJson = intent;
+        } else {
+            // Plain string – wrap in quotes with minimal JSON escaping
+            // (only '"' and '\' must be escaped; '/' must not be)
+            intentJson.reserve(intent.size() + 2);
+            intentJson += '"';
+            for (char c : intent) {
+                if (c == '"')       intentJson += "\\\"";
+                else if (c == '\\') intentJson += "\\\\";
+                else                intentJson += c;
+            }
+            intentJson += '"';
+        }
+        return "{\"intentId\":" + std::to_string(intentId) + ",\"intent\":" + intentJson + "}";
     }
 
     void GetLastKnownIntent(const string& appId, string& intent, uint32_t& intentId)
