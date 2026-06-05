@@ -7,6 +7,8 @@
 
 #include <iostream>
 #include <string>
+#include <thread>
+#include <chrono>
 
 #include <core/core.h>
 #include <plugins/IShell.h>
@@ -21,6 +23,14 @@
 using WPEFramework::Core::ERROR_NONE;
 using WPEFramework::Core::ERROR_GENERAL;
 using WPEFramework::Plugin::AppActionsImplementation;
+
+namespace {
+// Brief sleep to allow WorkerPool to dispatch pending async NotifyJobs.
+static void DrainNotifyJobs()
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+}
+} // namespace
 
 // ---------------------------------------------------------------------------
 // AA-L0-040: Register notification succeeds
@@ -207,6 +217,7 @@ uint32_t Test_AA_Unregister_NoLongerReceivesEvents()
 
         // First event should be received
         impl->ActionStart("init1", "intent1", "app1");
+        DrainNotifyJobs();
         {
             std::lock_guard<std::mutex> lock(notification->_mutex);
             L0Test::ExpectEqU32(tr, notification->onActionStartRequestCount, 1,
@@ -218,6 +229,7 @@ uint32_t Test_AA_Unregister_NoLongerReceivesEvents()
 
         // Second event should NOT be received
         impl->ActionStart("init2", "intent2", "app2");
+        DrainNotifyJobs();
         {
             std::lock_guard<std::mutex> lock(notification->_mutex);
             L0Test::ExpectEqU32(tr, notification->onActionStartRequestCount, 1,
@@ -253,6 +265,7 @@ uint32_t Test_AA_Register_AfterUnregister()
 
         // Verify it receives events again
         impl->ActionStart("init", "intent", "app");
+        DrainNotifyJobs();
         {
             std::lock_guard<std::mutex> lock(notification->_mutex);
             L0Test::ExpectEqU32(tr, notification->onActionStartRequestCount, 1,
@@ -290,6 +303,8 @@ uint32_t Test_AA_Unregister_PartialFromMultiple()
 
         // Send event
         impl->ActionStart("init", "intent", "app");
+
+        DrainNotifyJobs();
 
         // notification1 should NOT receive event
         {

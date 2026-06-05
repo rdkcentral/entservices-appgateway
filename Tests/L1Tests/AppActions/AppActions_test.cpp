@@ -20,6 +20,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <string>
+#include <thread>
+#include <chrono>
 
 #include "Module.h"
 
@@ -74,6 +76,12 @@ private:
 };
 
 static WorkerPoolGuard gWorkerPool;
+
+// Brief sleep to allow WorkerPool to dispatch pending async NotifyJobs.
+static void DrainNotifyJobs()
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+}
 
 // --------------------------------------------------------------------------
 // Mock IAppActions::INotification for capturing callbacks
@@ -329,6 +337,7 @@ TEST_F(AppActionsImplementationTest, AA_L1_030_ActionStart_DispatchesToNotificat
     impl.Register(&notification);
     
     impl.ActionStart("voice", "{\"action\":\"play\"}", "netflix");
+    DrainNotifyJobs();
     
     impl.Unregister(&notification);
 }
@@ -350,6 +359,7 @@ TEST_F(AppActionsImplementationTest, AA_L1_031_ActionStart_DispatchesToMultipleN
     impl.Register(&notification2);
     
     impl.ActionStart("initiator", "intent", "appId");
+    DrainNotifyJobs();
     
     impl.Unregister(&notification1);
     impl.Unregister(&notification2);
@@ -366,10 +376,12 @@ TEST_F(AppActionsImplementationTest, AA_L1_032_ActionStart_NoDispatchAfterUnregi
     
     impl.Register(&notification);
     impl.ActionStart("init1", "intent1", "app1");
+    DrainNotifyJobs();
     impl.Unregister(&notification);
     
     // This should NOT trigger notification
     impl.ActionStart("init2", "intent2", "app2");
+    DrainNotifyJobs();
 }
 
 TEST_F(AppActionsImplementationTest, AA_L1_033_ActionStart_MultipleCalls)
@@ -385,6 +397,7 @@ TEST_F(AppActionsImplementationTest, AA_L1_033_ActionStart_MultipleCalls)
     impl.ActionStart("init1", "intent1", "app1");
     impl.ActionStart("init2", "intent2", "app2");
     impl.ActionStart("init3", "intent3", "app3");
+    DrainNotifyJobs();
     
     impl.Unregister(&notification);
 }
@@ -509,6 +522,7 @@ TEST_F(AppActionsImplementationTest, AA_L1_071_Unregister_PartialFromMultiple)
     EXPECT_CALL(notification2, OnActionStartRequest(_, _, _)).Times(1);
     
     impl.ActionStart("init", "intent", "app");
+    DrainNotifyJobs();
     
     impl.Unregister(&notification2);
 }

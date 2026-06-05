@@ -7,6 +7,8 @@
 
 #include <iostream>
 #include <string>
+#include <thread>
+#include <chrono>
 
 #include <core/core.h>
 #include <plugins/IShell.h>
@@ -21,6 +23,14 @@
 using WPEFramework::Core::ERROR_NONE;
 using WPEFramework::Core::ERROR_GENERAL;
 using WPEFramework::Plugin::AppActionsImplementation;
+
+namespace {
+// Brief sleep to allow WorkerPool to dispatch pending async NotifyJobs.
+static void DrainNotifyJobs()
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+}
+} // namespace
 
 // ---------------------------------------------------------------------------
 // AA-L0-020: ActionStart with valid parameters succeeds
@@ -148,6 +158,8 @@ uint32_t Test_AA_ActionStart_DispatchesToNotification()
         const auto rc = impl->ActionStart(initiator, intent, handlerAppId);
         L0Test::ExpectEqU32(tr, rc, ERROR_NONE, "ActionStart_DispatchesToNotification: ActionStart should succeed");
 
+        DrainNotifyJobs();
+
         // Verify notification was called
         {
             std::lock_guard<std::mutex> lock(notification->_mutex);
@@ -191,6 +203,8 @@ uint32_t Test_AA_ActionStart_MultipleNotifications()
 
         // Call ActionStart
         impl->ActionStart("initiator", "intent", "appId");
+
+        DrainNotifyJobs();
 
         // Verify both notifications were called
         {
@@ -253,6 +267,8 @@ uint32_t Test_AA_ActionStart_SpecialCharsInitiator()
         const std::string specialInitiator = "voice-assistant/v2.0@test";
         impl->ActionStart(specialInitiator, "intent", "appId");
 
+        DrainNotifyJobs();
+
         {
             std::lock_guard<std::mutex> lock(notification->_mutex);
             L0Test::ExpectEqStr(tr, notification->lastInitiator, specialInitiator,
@@ -284,6 +300,8 @@ uint32_t Test_AA_ActionStart_JsonIntent()
 
         const std::string jsonIntent = "{\"action\":\"play\",\"data\":{\"contentId\":\"movie123\",\"position\":0}}";
         impl->ActionStart("voice", jsonIntent, "player");
+
+        DrainNotifyJobs();
 
         {
             std::lock_guard<std::mutex> lock(notification->_mutex);
@@ -321,6 +339,8 @@ uint32_t Test_AA_ActionStart_LongStrings()
 
         impl->ActionStart(longInitiator, longIntent, longHandlerAppId);
 
+        DrainNotifyJobs();
+
         {
             std::lock_guard<std::mutex> lock(notification->_mutex);
             L0Test::ExpectEqU32(tr, notification->lastInitiator.length(), 1000,
@@ -357,6 +377,8 @@ uint32_t Test_AA_ActionStart_UnicodeChars()
         const std::string unicodeIntent = "{\"title\":\"日本語テスト\"}";
         impl->ActionStart("voice", unicodeIntent, "app");
 
+        DrainNotifyJobs();
+
         {
             std::lock_guard<std::mutex> lock(notification->_mutex);
             L0Test::ExpectEqStr(tr, notification->lastIntent, unicodeIntent,
@@ -390,6 +412,8 @@ uint32_t Test_AA_ActionStart_MultipleCalls()
         impl->ActionStart("init1", "intent1", "app1");
         impl->ActionStart("init2", "intent2", "app2");
         impl->ActionStart("init3", "intent3", "app3");
+
+        DrainNotifyJobs();
 
         {
             std::lock_guard<std::mutex> lock(notification->_mutex);
