@@ -115,10 +115,12 @@ namespace Plugin {
 
     void AppActionsImplementation::Deinitialize(PluginHost::IShell* service)
     {
-        ASSERT(mService == service);
         std::lock_guard<std::mutex> lock(mAdminLock);
         if (nullptr != mService)
         {
+            // Only assert when mService is non-null; asserting against nullptr is
+            // invalid and aborts when Deinitialize is called without prior Initialize.
+            ASSERT(mService == service);
             SYSLOG(Logging::Shutdown, (_T("AppActions Deinitialize Unregistering notifications and releasing service")));
             for (auto* notification : mAppActionsNotifications) {
                 notification->Release();
