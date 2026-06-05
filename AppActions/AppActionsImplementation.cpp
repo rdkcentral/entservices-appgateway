@@ -41,7 +41,7 @@ namespace Plugin {
             return Core::ERROR_BAD_REQUEST;
         }
         Core::hresult status = Core::ERROR_GENERAL;
-        Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+        std::lock_guard<std::mutex> lock(mAdminLock);
 
         if (std::find(mAppActionsNotifications.begin(), mAppActionsNotifications.end(), notification) == mAppActionsNotifications.end())
         {
@@ -66,7 +66,7 @@ namespace Plugin {
             return Core::ERROR_BAD_REQUEST;
         }
         Core::hresult status = Core::ERROR_GENERAL;
-        Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+        std::lock_guard<std::mutex> lock(mAdminLock);
 
         auto itr = std::find(mAppActionsNotifications.begin(), mAppActionsNotifications.end(), notification);
         if (itr != mAppActionsNotifications.end())
@@ -115,7 +115,7 @@ namespace Plugin {
         ASSERT(mService == service);
         if (nullptr != mService)
         {
-            Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+            std::lock_guard<std::mutex> lock(mAdminLock);
             LOGINFO("AppActionsImplementation Deinitialize: Unregistering notifications and releasing service");
             for (auto* notification : mAppActionsNotifications) {
                 notification->Release();
@@ -139,9 +139,9 @@ namespace Plugin {
         std::list<Exchange::IAppActions::INotification*> notifications;
 
         {
-            Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
-            // Copy the list while holding the lock
+            std::lock_guard<std::mutex> lock(mAdminLock);
             notifications = mAppActionsNotifications;
+            // AddRef while holding the lock to prevent objects from being destroyed
             for (auto* notification : notifications) {
                 if (nullptr != notification) {
                     notification->AddRef();
@@ -149,6 +149,7 @@ namespace Plugin {
             }
         }
 
+        // Call notifications outside the lock to prevent deadlock
         for (auto* notification : notifications) {
             if (nullptr != notification) {
                 notification->OnActionStartRequest(initiator, intent, handlerAppId);

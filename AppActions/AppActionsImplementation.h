@@ -2,6 +2,7 @@
 #ifndef __APPACTIONSIMPLEMENTATION_H__
 #define __APPACTIONSIMPLEMENTATION_H__
 #include <list>
+#include <mutex>
 #include "Module.h"
 #include <interfaces/IConfiguration.h>
 #include <interfaces/IAppActions.h>
@@ -53,7 +54,7 @@ class AppActionsImplementation :
         private:
             PluginHost::IShell *mService;
             std::list<Exchange::IAppActions::INotification*> mAppActionsNotifications;
-            mutable Core::CriticalSection mAdminLock;
+            mutable std::mutex mAdminLock;
     };
 
 } // namespace Plugin
