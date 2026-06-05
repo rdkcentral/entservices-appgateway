@@ -39,8 +39,8 @@ using string = std::string;
 class AANotificationFake final : public WPEFramework::Exchange::IAppActions::INotification {
 public:
     explicit AANotificationFake()
-        : _refCount(1)
-        , onActionStartRequestCount(0)
+        : onActionStartRequestCount(0)
+        , _refCount(1)
     {
     }
 

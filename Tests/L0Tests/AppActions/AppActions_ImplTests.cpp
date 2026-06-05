@@ -57,7 +57,8 @@ uint32_t Test_AA_Impl_Configure_NullService()
 
     if (nullptr != impl) {
         // Get the configuration interface
-        auto* configIface = impl->QueryInterface<WPEFramework::Exchange::IConfiguration>();
+        auto* configIface = reinterpret_cast<WPEFramework::Exchange::IConfiguration*>(
+            impl->QueryInterface(WPEFramework::Exchange::IConfiguration::ID));
         if (nullptr != configIface) {
             // Configure with null should return error
             const auto rc = configIface->Configure(nullptr);
@@ -158,7 +159,8 @@ uint32_t Test_AA_Impl_InterfaceMap_IPlugin()
     L0Test::ExpectTrue(tr, nullptr != impl, "Impl_InterfaceMap_IPlugin: impl should be non-null");
 
     if (nullptr != impl) {
-        auto* pluginIface = impl->QueryInterface<WPEFramework::PluginHost::IPlugin>();
+        auto* pluginIface = reinterpret_cast<WPEFramework::PluginHost::IPlugin*>(
+            impl->QueryInterface(WPEFramework::PluginHost::IPlugin::ID));
         L0Test::ExpectTrue(tr, nullptr != pluginIface, "Impl_InterfaceMap_IPlugin: should support IPlugin");
         
         if (nullptr != pluginIface) {
@@ -182,7 +184,8 @@ uint32_t Test_AA_Impl_InterfaceMap_IAppActions()
     L0Test::ExpectTrue(tr, nullptr != impl, "Impl_InterfaceMap_IAppActions: impl should be non-null");
 
     if (nullptr != impl) {
-        auto* appActionsIface = impl->QueryInterface<WPEFramework::Exchange::IAppActions>();
+        auto* appActionsIface = reinterpret_cast<WPEFramework::Exchange::IAppActions*>(
+            impl->QueryInterface(WPEFramework::Exchange::IAppActions::ID));
         L0Test::ExpectTrue(tr, nullptr != appActionsIface, "Impl_InterfaceMap_IAppActions: should support IAppActions");
         
         if (nullptr != appActionsIface) {
@@ -206,7 +209,8 @@ uint32_t Test_AA_Impl_InterfaceMap_IConfiguration()
     L0Test::ExpectTrue(tr, nullptr != impl, "Impl_InterfaceMap_IConfiguration: impl should be non-null");
 
     if (nullptr != impl) {
-        auto* configIface = impl->QueryInterface<WPEFramework::Exchange::IConfiguration>();
+        auto* configIface = reinterpret_cast<WPEFramework::Exchange::IConfiguration*>(
+            impl->QueryInterface(WPEFramework::Exchange::IConfiguration::ID));
         L0Test::ExpectTrue(tr, nullptr != configIface, "Impl_InterfaceMap_IConfiguration: should support IConfiguration");
         
         if (nullptr != configIface) {
@@ -256,7 +260,8 @@ uint32_t Test_AA_Impl_Dispatch_WithNotifications()
         impl->Register(notification);
 
         // Get the implementation to call DispatchActionStartRequest
-        auto* implCast = static_cast<AppActionsImplementation*>(impl->QueryInterface<WPEFramework::Exchange::IAppActions>());
+        auto* implCast = static_cast<AppActionsImplementation*>(
+            impl->QueryInterface(WPEFramework::Exchange::IAppActions::ID));
         if (nullptr != implCast) {
             // ActionStart calls DispatchActionStartRequest
             implCast->DispatchActionStartRequest("dispatch", "test", "app");
@@ -313,7 +318,8 @@ uint32_t Test_AA_Impl_DoubleConfigure()
         L0Test::AppActionsServiceMock service1;
         L0Test::AppActionsServiceMock service2;
         
-        auto* configIface = impl->QueryInterface<WPEFramework::Exchange::IConfiguration>();
+        auto* configIface = reinterpret_cast<WPEFramework::Exchange::IConfiguration*>(
+            impl->QueryInterface(WPEFramework::Exchange::IConfiguration::ID));
         if (nullptr != configIface) {
             configIface->Configure(&service1);
             configIface->Configure(&service2);  // Second configure
