@@ -102,12 +102,17 @@ namespace WPEFramework
             // Initialize WebSocket server
             WebSocketConnectionManager::Config config(APPGATEWAY_SOCKET_ADDRESS);
             std::string configLine = mService->ConfigLine();
-            Core::OptionalType<Core::JSON::Error> error;
-            if (config.FromString(configLine, error) == false)
-            {
-                LOGERR("Failed to parse config line, error: '%s', config line: '%s'.",
-                       (error.IsSet() ? error.Value().Message().c_str() : "Unknown"),
-                       configLine.c_str());
+            
+            // Only attempt to parse if configLine has meaningful content
+            // (not empty and not just an empty JSON object "{}")
+            if (!configLine.empty() && configLine != "{}") {
+                Core::OptionalType<Core::JSON::Error> error;
+                if (config.FromString(configLine, error) == false)
+                {
+                    LOGERR("Failed to parse config line, error: '%s', config line: '%s'.",
+                           (error.IsSet() ? error.Value().Message().c_str() : "Unknown"),
+                           configLine.c_str());
+                }
             }
 
             LOGINFO("Connector: %s", config.Connector.Value().c_str());
