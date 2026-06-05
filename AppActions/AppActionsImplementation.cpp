@@ -136,24 +136,34 @@ namespace Plugin {
         LOGDBG("Dispatching ActionStartRequest to notifications: initiator=%s, intent=%s, handlerAppId=%s",
             initiator.c_str(), intent.c_str(), handlerAppId.c_str());
 
-        std::list<Exchange::IAppActions::INotification*> notifications;
+        std::vector<Exchange::IAppActions::INotification*> notifications;
 
         {
             std::lock_guard<std::mutex> lock(mAdminLock);
-            notifications = mAppActionsNotifications;
-            // AddRef while holding the lock to prevent objects from being destroyed
+            notifications.assign(mAppActionsNotifications.begin(), mAppActionsNotifications.end());
+
             for (auto* notification : notifications) {
-                if (nullptr != notification) {
+                if (notification) {
                     notification->AddRef();
                 }
             }
         }
 
-        // Call notifications outside the lock to prevent deadlock
+        struct ScopedRelease {
+            Exchange::IAppActions::INotification* ptr;
+            ~ScopedRelease() { if (ptr) { ptr->Release(); } }
+        };
+
         for (auto* notification : notifications) {
-            if (nullptr != notification) {
+            ScopedRelease guard{notification};
+            if (!notification) {
+                continue;
+            }
+
+            try {
                 notification->OnActionStartRequest(initiator, intent, handlerAppId);
-                notification->Release();
+            } catch (...) {
+                LOGERR("OnActionStartRequest callback failed");
             }
         }
     }
