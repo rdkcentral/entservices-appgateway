@@ -87,6 +87,7 @@ namespace Plugin {
         Core::hresult status = Core::ERROR_GENERAL;
         if (nullptr != service)
         {
+            std::lock_guard<std::mutex> lock(mAdminLock);
             if (nullptr != mService)
             {
                 mService->Release();
