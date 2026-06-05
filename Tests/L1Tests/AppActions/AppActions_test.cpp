@@ -185,6 +185,16 @@ protected:
         EXPECT_CALL(service, AddRef()).Times(AnyNumber());
         EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     }
+
+    void TearDown() override
+    {
+        // Drain any pending async NotifyJobs before the fixture (and impl) destruct.
+        // ActionStart() submits a NotifyJob that holds AddRef() on impl. If the job
+        // has not yet run when Core::Sink<AppActionsImplementation> destructs, the
+        // Sink prints "Oops this is scary" and then the job executes against a
+        // destroyed object → pure virtual method called → abort.
+        DrainNotifyJobs();
+    }
 };
 
 /* ---------- ActionStart Tests ---------- */
