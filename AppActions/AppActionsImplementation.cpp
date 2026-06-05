@@ -146,27 +146,16 @@ namespace Plugin {
             notifications.assign(mAppActionsNotifications.begin(), mAppActionsNotifications.end());
 
             for (auto* notification : notifications) {
-                if (notification) {
+                if (nullptr != notification) {
                     notification->AddRef();
                 }
             }
         }
 
-        struct ScopedRelease {
-            Exchange::IAppActions::INotification* ptr;
-            ~ScopedRelease() { if (ptr) { ptr->Release(); } }
-        };
-
         for (auto* notification : notifications) {
-            ScopedRelease guard{notification};
-            if (!notification) {
-                continue;
-            }
-
-            try {
+            if (nullptr != notification) {
                 notification->OnActionStartRequest(initiator, intent, handlerAppId);
-            } catch (...) {
-                LOGERR("OnActionStartRequest callback failed");
+                notification->Release();
             }
         }
     }

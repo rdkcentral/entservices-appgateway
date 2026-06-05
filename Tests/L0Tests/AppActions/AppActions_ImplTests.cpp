@@ -269,21 +269,17 @@ uint32_t Test_AA_Impl_Dispatch_WithNotifications()
     // Drain any pending async NotifyJobs from prior tests
     DrainNotifyJobs();
 
-    auto* impl = L0Test::CreateRawImpl();
+    // Create impl directly as AppActionsImplementation* to get the correct this pointer.
+    // Using QueryInterface + static_cast<AppActionsImplementation*>(void*) is UNSAFE with
+    // multiple inheritance — the void* points to the IAppActions subobject, not the true base.
+    auto* impl = WPEFramework::Core::Service<AppActionsImplementation>::Create<AppActionsImplementation>();
     L0Test::ExpectTrue(tr, nullptr != impl, "Impl_Dispatch_WithNotifications: impl should be non-null");
 
     if (nullptr != impl) {
         auto* notification = new L0Test::AANotificationFake();
         impl->Register(notification);
 
-        // Get the implementation to call DispatchActionStartRequest
-        auto* implCast = static_cast<AppActionsImplementation*>(
-            impl->QueryInterface(WPEFramework::Exchange::IAppActions::ID));
-        if (nullptr != implCast) {
-            // ActionStart calls DispatchActionStartRequest
-            implCast->DispatchActionStartRequest("dispatch", "test", "app");
-            implCast->Release();
-        }
+        impl->DispatchActionStartRequest("dispatch", "test", "app");
 
         {
             std::lock_guard<std::mutex> lock(notification->_mutex);
