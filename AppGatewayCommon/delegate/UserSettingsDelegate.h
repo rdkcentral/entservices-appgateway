@@ -114,6 +114,85 @@ static const char* FontEdgeToString(Exchange::ITextTrackClosedCaptionsStyle::Fon
     }
 }
 
+static bool StringToFontFamily(const string& value, Exchange::ITextTrackClosedCaptionsStyle::FontFamily& family) {
+    if (value == "monospaced_serif") {
+        family = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::MONOSPACED_SERIF;
+        return true;
+    }
+    if (value == "proportional_serif") {
+        family = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::PROPORTIONAL_SERIF;
+        return true;
+    }
+    if (value == "monospaced_sanserif") {
+        family = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::MONOSPACE_SANS_SERIF;
+        return true;
+    }
+    if (value == "proportional_sanserif") {
+        family = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::PROPORTIONAL_SANS_SERIF;
+        return true;
+    }
+    if (value == "casual") {
+        family = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CASUAL;
+        return true;
+    }
+    if (value == "cursive") {
+        family = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::CURSIVE;
+        return true;
+    }
+    if (value == "smallcaps") {
+        family = Exchange::ITextTrackClosedCaptionsStyle::FontFamily::SMALL_CAPITAL;
+        return true;
+    }
+    return false;
+}
+
+static bool NumberToFontSize(const int size, Exchange::ITextTrackClosedCaptionsStyle::FontSize& fontSize) {
+    switch (size) {
+        case 0:
+            fontSize = Exchange::ITextTrackClosedCaptionsStyle::FontSize::SMALL;
+            return true;
+        case 1:
+            fontSize = Exchange::ITextTrackClosedCaptionsStyle::FontSize::REGULAR;
+            return true;
+        case 2:
+            fontSize = Exchange::ITextTrackClosedCaptionsStyle::FontSize::LARGE;
+            return true;
+        case 3:
+            fontSize = Exchange::ITextTrackClosedCaptionsStyle::FontSize::EXTRA_LARGE;
+            return true;
+        default:
+            return false;
+    }
+}
+
+static bool StringToFontEdge(const string& value, Exchange::ITextTrackClosedCaptionsStyle::FontEdge& edge) {
+    if (value == "none") {
+        edge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::NONE;
+        return true;
+    }
+    if (value == "raised") {
+        edge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RAISED;
+        return true;
+    }
+    if (value == "depressed") {
+        edge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::DEPRESSED;
+        return true;
+    }
+    if (value == "uniform") {
+        edge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::UNIFORM;
+        return true;
+    }
+    if (value == "drop_shadow_left") {
+        edge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::LEFT_DROP_SHADOW;
+        return true;
+    }
+    if (value == "drop_shadow_right") {
+        edge = Exchange::ITextTrackClosedCaptionsStyle::FontEdge::RIGHT_DROP_SHADOW;
+        return true;
+    }
+    return false;
+}
+
 // Helper function to parse comma-separated languages into JSON array
 // Parses: "eng,fra,spa" -> JSON array ["eng","fra","spa"]
 static void ParseCommaSeparatedLanguages(const string& commaSeparatedLanguages, JsonArray& jsonArray) {
@@ -515,6 +594,299 @@ class UserSettingsDelegate : public BaseEventDelegate{
                 result = "{\"error\":\"couldn't get closed captions style\"}";
                 return Core::ERROR_GENERAL;
             }
+        }
+
+        Core::hresult GetClosedCaptionsFontFamily(string& result) {
+            result.clear();
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            Exchange::ITextTrackClosedCaptionsStyle::FontFamily family;
+            Core::hresult rc = textTrack->GetFontFamily(family);
+            if (rc != Core::ERROR_NONE) {
+                return rc;
+            }
+
+            result = "\"" + string(FontFamilyToString(family)) + "\"";
+            return Core::ERROR_NONE;
+        }
+
+        Core::hresult SetClosedCaptionsFontFamily(const string& value) {
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            Exchange::ITextTrackClosedCaptionsStyle::FontFamily family;
+            if (!StringToFontFamily(value, family)) {
+                LOGERR("Unsupported fontFamily value: %s", value.c_str());
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            return textTrack->SetFontFamily(family);
+        }
+
+        Core::hresult GetClosedCaptionsFontSize(string& result) {
+            result.clear();
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            Exchange::ITextTrackClosedCaptionsStyle::FontSize size;
+            Core::hresult rc = textTrack->GetFontSize(size);
+            if (rc != Core::ERROR_NONE) {
+                return rc;
+            }
+
+            result = std::to_string(FontSizeToNumber(size));
+            return Core::ERROR_NONE;
+        }
+
+        Core::hresult SetClosedCaptionsFontSize(const int value) {
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            Exchange::ITextTrackClosedCaptionsStyle::FontSize size;
+            if (!NumberToFontSize(value, size)) {
+                LOGERR("Unsupported fontSize value: %d", value);
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            return textTrack->SetFontSize(size);
+        }
+
+        Core::hresult GetClosedCaptionsFontColor(string& result) {
+            result.clear();
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            string color;
+            Core::hresult rc = textTrack->GetFontColor(color);
+            if (rc != Core::ERROR_NONE) {
+                return rc;
+            }
+
+            result = "\"" + color + "\"";
+            return Core::ERROR_NONE;
+        }
+
+        Core::hresult SetClosedCaptionsFontColor(const string& value) {
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            return textTrack->SetFontColor(value);
+        }
+
+        Core::hresult GetClosedCaptionsFontEdge(string& result) {
+            result.clear();
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            Exchange::ITextTrackClosedCaptionsStyle::FontEdge edge;
+            Core::hresult rc = textTrack->GetFontEdge(edge);
+            if (rc != Core::ERROR_NONE) {
+                return rc;
+            }
+
+            result = "\"" + string(FontEdgeToString(edge)) + "\"";
+            return Core::ERROR_NONE;
+        }
+
+        Core::hresult SetClosedCaptionsFontEdge(const string& value) {
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            Exchange::ITextTrackClosedCaptionsStyle::FontEdge edge;
+            if (!StringToFontEdge(value, edge)) {
+                LOGERR("Unsupported fontEdge value: %s", value.c_str());
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            return textTrack->SetFontEdge(edge);
+        }
+
+        Core::hresult GetClosedCaptionsFontEdgeColor(string& result) {
+            result.clear();
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            string color;
+            Core::hresult rc = textTrack->GetFontEdgeColor(color);
+            if (rc != Core::ERROR_NONE) {
+                return rc;
+            }
+
+            result = "\"" + color + "\"";
+            return Core::ERROR_NONE;
+        }
+
+        Core::hresult SetClosedCaptionsFontEdgeColor(const string& value) {
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            return textTrack->SetFontEdgeColor(value);
+        }
+
+        Core::hresult GetClosedCaptionsFontOpacity(string& result) {
+            result.clear();
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            int8_t opacity = -1;
+            Core::hresult rc = textTrack->GetFontOpacity(opacity);
+            if (rc != Core::ERROR_NONE) {
+                return rc;
+            }
+
+            result = std::to_string(static_cast<int>(opacity));
+            return Core::ERROR_NONE;
+        }
+
+        Core::hresult SetClosedCaptionsFontOpacity(const int value) {
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            if (value < 0 || value > 100) {
+                LOGERR("Invalid fontOpacity value: %d", value);
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            return textTrack->SetFontOpacity(static_cast<int8_t>(value));
+        }
+
+        Core::hresult GetClosedCaptionsBackgroundColor(string& result) {
+            result.clear();
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            string color;
+            Core::hresult rc = textTrack->GetBackgroundColor(color);
+            if (rc != Core::ERROR_NONE) {
+                return rc;
+            }
+
+            result = "\"" + color + "\"";
+            return Core::ERROR_NONE;
+        }
+
+        Core::hresult SetClosedCaptionsBackgroundColor(const string& value) {
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            return textTrack->SetBackgroundColor(value);
+        }
+
+        Core::hresult GetClosedCaptionsBackgroundOpacity(string& result) {
+            result.clear();
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            int8_t opacity = -1;
+            Core::hresult rc = textTrack->GetBackgroundOpacity(opacity);
+            if (rc != Core::ERROR_NONE) {
+                return rc;
+            }
+
+            result = std::to_string(static_cast<int>(opacity));
+            return Core::ERROR_NONE;
+        }
+
+        Core::hresult SetClosedCaptionsBackgroundOpacity(const int value) {
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            if (value < 0 || value > 100) {
+                LOGERR("Invalid backgroundOpacity value: %d", value);
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            return textTrack->SetBackgroundOpacity(static_cast<int8_t>(value));
+        }
+
+        Core::hresult GetClosedCaptionsWindowColor(string& result) {
+            result.clear();
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            string color;
+            Core::hresult rc = textTrack->GetWindowColor(color);
+            if (rc != Core::ERROR_NONE) {
+                return rc;
+            }
+
+            result = "\"" + color + "\"";
+            return Core::ERROR_NONE;
+        }
+
+        Core::hresult SetClosedCaptionsWindowColor(const string& value) {
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            return textTrack->SetWindowColor(value);
+        }
+
+        Core::hresult GetClosedCaptionsWindowOpacity(string& result) {
+            result.clear();
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            int8_t opacity = -1;
+            Core::hresult rc = textTrack->GetWindowOpacity(opacity);
+            if (rc != Core::ERROR_NONE) {
+                return rc;
+            }
+
+            result = std::to_string(static_cast<int>(opacity));
+            return Core::ERROR_NONE;
+        }
+
+        Core::hresult SetClosedCaptionsWindowOpacity(const int value) {
+            Exchange::ITextTrackClosedCaptionsStyle* textTrack = GetTextTrackInterface();
+            if (textTrack == nullptr) {
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            if (value < 0 || value > 100) {
+                LOGERR("Invalid windowOpacity value: %d", value);
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            return textTrack->SetWindowOpacity(static_cast<int8_t>(value));
         }
 
         Core::hresult SetVoiceGuidance(const bool enabled) {
@@ -1120,7 +1492,6 @@ class UserSettingsDelegate : public BaseEventDelegate{
         PluginHost::IShell* mShell;
         Core::Sink<UserSettingsNotificationHandler> mNotificationHandler;
         Core::Sink<TextTrackNotificationHandler> mTextTrackNotificationHandler;
-        mutable std::mutex mRegistrationMutex;
-
+	mutable std::mutex mRegistrationMutex;
 };
 #endif

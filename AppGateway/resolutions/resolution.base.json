@@ -110,6 +110,92 @@
             "useComRpc": true,
             "permissionGroup": "org.rdk.permission.group.enhanced"
         },
+        "closedcaptions.fontFamily": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "closedcaptions.fontColor": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "closedcaptions.fontEdge": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "closedcaptions.fontEdgeColor": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "closedcaptions.fontOpacity": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "closedcaptions.backgroundColor": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "closedcaptions.backgroundOpacity": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "closedcaptions.windowColor": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "closedcaptions.windowOpacity": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "closedcaptions.setFontFamily": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "closedcaptions.setFontSize": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "closedcaptions.setFontColor": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "closedcaptions.setFontEdge": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "closedcaptions.setFontEdgeColor": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "closedcaptions.setFontOpacity": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "closedcaptions.setBackgroundColor": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "closedcaptions.setBackgroundOpacity": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "closedcaptions.setWindowColor": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
+        "closedcaptions.setWindowOpacity": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true,
+            "permissionGroup": "org.rdk.permission.group.enhanced"
+        },
         "voiceguidance.navigationHints": {
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
