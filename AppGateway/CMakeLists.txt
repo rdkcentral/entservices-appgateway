@@ -92,8 +92,11 @@ if(BUILD_ENABLE_TELEMETRY_LOGGING)
                         ${TELEMETRY_MSGSENDER_LIB})
 endif()
 
-# To error any missing links
-target_link_options(${MODULE_NAME} PRIVATE -Wl,-z,defs)
+# To error any missing links (skip for L2 test builds: -Wl,-z,defs embeds libgcov.a
+# statically, preventing __gcov_* symbol sharing and breaking coverage data collection)
+if(NOT RDK_SERVICE_L2_TEST)
+    target_link_options(${MODULE_NAME} PRIVATE -Wl,-z,defs)
+endif()
 
 if (RDK_SERVICE_L2_TEST)
    find_library(TESTMOCKLIB_LIBRARIES NAMES TestMocklib)
