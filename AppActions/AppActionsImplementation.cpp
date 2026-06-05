@@ -133,10 +133,27 @@ namespace Plugin {
     void AppActionsImplementation::DispatchActionStartRequest(
         const string& initiator, const string& intent, const string& handlerAppId)
     {
-        LOGDBG("Dispatching ActionStartRequest to notifications: initiator=%s, intent=%s, handlerAppId=%s", initiator.c_str(), intent.c_str(), handlerAppId.c_str());
-        Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
-        for (auto* notification : mAppActionsNotifications) {
-            notification->OnActionStartRequest(initiator, intent, handlerAppId);
+        LOGDBG("Dispatching ActionStartRequest to notifications: initiator=%s, intent=%s, handlerAppId=%s",
+            initiator.c_str(), intent.c_str(), handlerAppId.c_str());
+
+        std::list<Exchange::IAppActions::INotification*> notifications;
+
+        {
+            Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+            // Copy the list while holding the lock
+            notifications = mAppActionsNotifications;
+            for (auto* notification : notifications) {
+                if (nullptr != notification) {
+                    notification->AddRef();
+                }
+            }
+        }
+
+        for (auto* notification : notifications) {
+            if (nullptr != notification) {
+                notification->OnActionStartRequest(initiator, intent, handlerAppId);
+                notification->Release();
+            }
         }
     }
 } // namespace Plugin
