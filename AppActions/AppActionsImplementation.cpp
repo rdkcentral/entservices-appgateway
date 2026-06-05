@@ -26,9 +26,8 @@ namespace Plugin {
     Core::hresult AppActionsImplementation::ActionStart(const string& initiator, const string& intent, const string& handlerAppId)
     {
         LOGINFO("ActionStart called with initiator: %s, intent: %s, handlerAppId: %s", initiator.c_str(), intent.c_str(), handlerAppId.c_str());
-        // Implementation of ActionStart method
-        DispatchActionStartRequest(initiator, intent, handlerAppId);
-        // Return success or appropriate error code
+        // Dispatch notification asynchronously to avoid blocking the caller
+        Core::IWorkerPool::Instance().Submit(NotifyJob::Create(this, initiator, intent, handlerAppId));
         return Core::ERROR_NONE;
     }
     /**

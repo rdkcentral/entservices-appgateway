@@ -51,10 +51,46 @@ class AppActionsImplementation :
 
         void DispatchActionStartRequest(const string& initiator, const string& intent, const string& handlerAppId);
 
+    private:
+
+        class EXTERNAL NotifyJob : public Core::IDispatch
+        {
+        public:
+            NotifyJob(AppActionsImplementation* parent, const string& initiator, const string& intent, const string& handlerAppId)
+                : mParent(*parent), mInitiator(initiator), mIntent(intent), mHandlerAppId(handlerAppId)
+            {
+                mParent.AddRef();
+            }
+
+            NotifyJob() = delete;
+            NotifyJob(const NotifyJob&) = delete;
+            NotifyJob& operator=(const NotifyJob&) = delete;
+            ~NotifyJob()
+            {
+                mParent.Release();
+            }
+
+            static Core::ProxyType<Core::IDispatch> Create(AppActionsImplementation* parent,
+                const string& initiator, const string& intent, const string& handlerAppId)
+            {
+                return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<NotifyJob>::Create(parent, initiator, intent, handlerAppId)));
+            }
+
+            void Dispatch() override
+            {
+                mParent.DispatchActionStartRequest(mInitiator, mIntent, mHandlerAppId);
+            }
+
         private:
-            PluginHost::IShell *mService;
-            std::list<Exchange::IAppActions::INotification*> mAppActionsNotifications;
-            mutable std::mutex mAdminLock;
+            AppActionsImplementation& mParent;
+            const string mInitiator;
+            const string mIntent;
+            const string mHandlerAppId;
+        };
+
+        PluginHost::IShell *mService;
+        std::list<Exchange::IAppActions::INotification*> mAppActionsNotifications;
+        mutable std::mutex mAdminLock;
     };
 
 } // namespace Plugin
