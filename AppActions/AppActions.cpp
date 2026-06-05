@@ -36,7 +36,6 @@ namespace Plugin {
         SYSLOG(Logging::Startup, (_T("[%s] Initialize entry PID=%u"), __FUNCTION__, getpid()));
         mService = service;
         mService->AddRef();
-        mService->Register(&mAppActionsNotification);
         mAppActions = mService->Root<Exchange::IAppActions>(mConnectionId, 5000, _T("AppActionsImplementation"));
         if (nullptr == mAppActions)
         {
@@ -75,8 +74,6 @@ namespace Plugin {
 
         RPC::IRemoteConnection *connection = nullptr;
         VARIABLE_IS_NOT_USED uint32_t result = Core::ERROR_NONE;
-
-        mService->Unregister(&mAppActionsNotification);
 
         // Make sure the Activated and Deactivated are no longer called before we start cleaning up..
         if (nullptr != mAppActionsConfigure)
