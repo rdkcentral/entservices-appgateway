@@ -13,7 +13,6 @@ namespace Plugin {
     AppActions *AppActions::_instance = nullptr;
 
     AppActions::AppActions() : PluginHost::IPlugin(), PluginHost::JSONRPC(), mService(nullptr), mConnectionId(0), mAppActions(nullptr), mAppActionsConfigure(nullptr), mAppActionsNotification(this) {
-        LOGINFO("AppActions Constructor");
 
         // Register JSONRPC methods here
         if (nullptr == AppActions::_instance)
@@ -23,7 +22,6 @@ namespace Plugin {
     }
 
     AppActions::~AppActions() {
-        LOGINFO("AppActions Destructor");
         AppActions::_instance = nullptr;
     }
 
@@ -35,11 +33,10 @@ namespace Plugin {
         ASSERT(nullptr == mAppActions);
         ASSERT(0 == mConnectionId);
 
-        LOGINFO("AppActions::Initialize: PID=%u", getpid());
-        SYSLOG(Logging::Startup, (_T("AppActions Initialize")));
+        SYSLOG(Logging::Startup, (_T("[%s] Initialize entry PID=%u"), __FUNCTION__, getpid()));
         mService = service;
         mService->AddRef();
-        mService->Register(&mAppActionsNotification);
+        mService->Register(mAppActionsNotification);
         mAppActions = mService->Root<Exchange::IAppActions>(mConnectionId, 5000, _T("AppActionsImplementation"));
         if (nullptr == mAppActions)
         {
@@ -54,25 +51,19 @@ namespace Plugin {
                 SYSLOG(Logging::Startup, (_T("AppActions::Initialize: IConfiguration interface not found")));
                 message = _T("AppActions plugin could not be initialised due to missing IConfiguration interface");
             } else {
-                if (Core::ERROR_NONE != mAppActionsConfigure->Configure(mService))
+                if (Core::ERROR_NONE == mAppActionsConfigure->Configure(mService))
                 {
+                    mAppActions->Register(&mAppActionsNotification);
+                    //Invoking Plugin API register to wpeframework
+                    Exchange::JAppActions::Register(*this, mAppActions);
+                } else {
                     SYSLOG(Logging::Startup, (_T("AppActions::Initialize: could not be configured")));
                     message = _T("AppActions could not be configured");
                 }
-                mAppActions->Register(&mAppActionsNotification);
-                Exchange::JAppActions::Register(*this, mAppActions);
-
-                auto configConnection = mAppActions->QueryInterface<Exchange::IConfiguration>();
-                if (nullptr != configConnection) {
-                    configConnection->Configure(service);
-                    configConnection->Release();
-                }
-                //Invoking Plugin API register to wpeframework
-                //Exchange::JAppActionsResolver::Resolver(*this, mAppActions);
             }
         }
 
-        LOGINFO("AppActions::Initialize status: %s", message.empty() ? "success" : "failed");
+        SYSLOG(Logging::Startup, (_T("[%s] Initialize exit status=%s"), __FUNCTION__, message.empty() ? "success" : "failed"));
         // On success return empty, to indicate there is no error text.
         return message;
     }
@@ -80,13 +71,12 @@ namespace Plugin {
     void AppActions::Deinitialize(PluginHost::IShell* service) {
         // Deinitialization logic
         ASSERT(mService == service);
-        LOGINFO("AppActions Deinitialize");
         SYSLOG(Logging::Shutdown, (_T("AppActions Deinitialize")));
 
         RPC::IRemoteConnection *connection = nullptr;
         VARIABLE_IS_NOT_USED uint32_t result = Core::ERROR_NONE;
 
-        mService->Unregister(&mAppActionsNotification);
+        mService->Unregister(mAppActionsNotification);
 
         // Make sure the Activated and Deactivated are no longer called before we start cleaning up..
         if (nullptr != mAppActionsConfigure)

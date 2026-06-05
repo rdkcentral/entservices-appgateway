@@ -7,6 +7,8 @@
 
 #include <iostream>
 #include <string>
+#include <thread>
+#include <chrono>
 
 #include <core/core.h>
 #include <plugins/IShell.h>
@@ -21,6 +23,15 @@
 using WPEFramework::Core::ERROR_NONE;
 using WPEFramework::Core::ERROR_GENERAL;
 using WPEFramework::Plugin::AppActionsImplementation;
+
+namespace {
+// Brief sleep to allow WorkerPool to complete any pending async NotifyJobs
+// from prior tests before proceeding.
+static void DrainNotifyJobs()
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+} // namespace
 
 // ---------------------------------------------------------------------------
 // AA-L0-060: Implementation Configure with valid service
@@ -230,6 +241,9 @@ uint32_t Test_AA_Impl_Dispatch_NoNotifications()
     /** DispatchActionStartRequest should not crash with no registered notifications. */
     L0Test::TestResult tr;
 
+    // Drain any pending async NotifyJobs from prior tests
+    DrainNotifyJobs();
+
     auto* impl = WPEFramework::Core::Service<AppActionsImplementation>::Create<AppActionsImplementation>();
     L0Test::ExpectTrue(tr, nullptr != impl, "Impl_Dispatch_NoNotifications: impl should be non-null");
 
@@ -251,6 +265,9 @@ uint32_t Test_AA_Impl_Dispatch_WithNotifications()
 {
     /** DispatchActionStartRequest should call all registered notifications. */
     L0Test::TestResult tr;
+
+    // Drain any pending async NotifyJobs from prior tests
+    DrainNotifyJobs();
 
     auto* impl = L0Test::CreateRawImpl();
     L0Test::ExpectTrue(tr, nullptr != impl, "Impl_Dispatch_WithNotifications: impl should be non-null");

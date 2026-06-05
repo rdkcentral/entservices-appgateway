@@ -2,6 +2,9 @@
 #include "AppActionsImplementation.h"
 #include <plugins/IShell.h>
 
+ #include <algorithm>
+ #include <vector>
+
 #define API_VERSION_NUMBER_MAJOR    APPACTIONS_MAJOR_VERSION
 #define API_VERSION_NUMBER_MINOR    APPACTIONS_MINOR_VERSION
 #define API_VERSION_NUMBER_PATCH    APPACTIONS_PATCH_VERSION
@@ -9,7 +12,7 @@
 namespace WPEFramework {
 namespace Plugin {
 
-    SERVICE_REGISTRATION(AppActionsImplementation, 1, 0, API_VERSION_NUMBER_PATCH);
+    SERVICE_REGISTRATION(AppActionsImplementation, API_VERSION_NUMBER_MAJOR, API_VERSION_NUMBER_MINOR, API_VERSION_NUMBER_PATCH);
 
     AppActionsImplementation::AppActionsImplementation(): mService(nullptr), mAppActionsNotifications() {
         // Constructor implementation
@@ -116,7 +119,7 @@ namespace Plugin {
         std::lock_guard<std::mutex> lock(mAdminLock);
         if (nullptr != mService)
         {
-            LOGINFO("AppActionsImplementation Deinitialize: Unregistering notifications and releasing service");
+            SYSLOG(Logging::Shutdown, (_T("AppActions Deinitialize Unregistering notifications and releasing service")));
             for (auto* notification : mAppActionsNotifications) {
                 notification->Release();
             }
