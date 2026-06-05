@@ -103,9 +103,14 @@ namespace WPEFramework
             WebSocketConnectionManager::Config config(APPGATEWAY_SOCKET_ADDRESS);
             std::string configLine = mService->ConfigLine();
             
-            // Only attempt to parse if configLine has meaningful content
-            // (not empty and not just an empty JSON object "{}")
-            if (!configLine.empty() && configLine != "{}") {
+            // Only attempt to parse if configLine is a valid JSON object with content.
+            // Skip if empty, just "{}", or doesn't start with '{' (not a JSON object).
+            // Find first non-whitespace character to check if it's a JSON object.
+            size_t firstNonSpace = configLine.find_first_not_of(" \t\n\r");
+            bool isJsonObject = (firstNonSpace != std::string::npos && configLine[firstNonSpace] == '{');
+            bool hasContent = (configLine.length() > 2 && configLine != "{}");
+
+            if (isJsonObject && hasContent) {
                 Core::OptionalType<Core::JSON::Error> error;
                 if (config.FromString(configLine, error) == false)
                 {
