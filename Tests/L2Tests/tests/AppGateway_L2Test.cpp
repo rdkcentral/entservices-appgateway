@@ -645,10 +645,12 @@ TEST_F(AppGateway_L2Test, Resolve_UnknownMethod_COMRPC)
                 TEST_LOG("Resolve unknown method result=%d resolution=%s",
                          result, resolution.c_str());
                 m_resolverPlugin->Release();
+                m_resolverPlugin = nullptr;
             } else {
                 TEST_LOG("m_resolverPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -675,10 +677,12 @@ TEST_F(AppGateway_L2Test, Resolve_KnownPlainMethod_COMRPC)
                 // Resolution should be non-empty (either result or error payload)
                 EXPECT_FALSE(resolution.empty());
                 m_resolverPlugin->Release();
+                m_resolverPlugin = nullptr;
             } else {
                 TEST_LOG("m_resolverPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -704,10 +708,12 @@ TEST_F(AppGateway_L2Test, Resolve_PlainMethod_EmptyResult_COMRPC)
                          result, resolution.c_str());
                 EXPECT_FALSE(resolution.empty());
                 m_resolverPlugin->Release();
+                m_resolverPlugin = nullptr;
             } else {
                 TEST_LOG("m_resolverPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -734,10 +740,12 @@ TEST_F(AppGateway_L2Test, Resolve_ComRpcHandlerNotAvailable_COMRPC)
                 EXPECT_NE(result, Core::ERROR_NONE);
                 EXPECT_FALSE(resolution.empty());
                 m_resolverPlugin->Release();
+                m_resolverPlugin = nullptr;
             } else {
                 TEST_LOG("m_resolverPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -780,10 +788,12 @@ TEST_F(AppGateway_L2Test, Resolve_EventSubscribe_COMRPC)
                     }
                 }
                 m_resolverPlugin->Release();
+                m_resolverPlugin = nullptr;
             } else {
                 TEST_LOG("m_resolverPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -818,10 +828,12 @@ TEST_F(AppGateway_L2Test, Resolve_EventUnsubscribe_COMRPC)
                     }
                 }
                 m_resolverPlugin->Release();
+                m_resolverPlugin = nullptr;
             } else {
                 TEST_LOG("m_resolverPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -848,10 +860,12 @@ TEST_F(AppGateway_L2Test, Resolve_EventMissingListenParam_COMRPC)
                 TEST_LOG("TC-EVT-03 result=%d resolution=%s",
                          result, resolution.c_str());
                 m_resolverPlugin->Release();
+                m_resolverPlugin = nullptr;
             } else {
                 TEST_LOG("m_resolverPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -878,10 +892,12 @@ TEST_F(AppGateway_L2Test, Resolve_EventInvalidJsonParams_COMRPC)
                 TEST_LOG("TC-EVT-04 result=%d resolution=%s",
                          result, resolution.c_str());
                 m_resolverPlugin->Release();
+                m_resolverPlugin = nullptr;
             } else {
                 TEST_LOG("m_resolverPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -908,10 +924,12 @@ TEST_F(AppGateway_L2Test, Resolve_VersionedEvent_COMRPC)
                          result, resolution.c_str());
                 EXPECT_FALSE(resolution.empty());
                 m_resolverPlugin->Release();
+                m_resolverPlugin = nullptr;
             } else {
                 TEST_LOG("m_resolverPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -944,10 +962,12 @@ TEST_F(AppGateway_L2Test, Resolve_PermissionGroup_AuthenticatorAbsent_COMRPC)
                 // OR returns error — both are valid; resolution must be non-empty.
                 EXPECT_FALSE(resolution.empty());
                 m_resolverPlugin->Release();
+                m_resolverPlugin = nullptr;
             } else {
                 TEST_LOG("m_resolverPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -986,10 +1006,12 @@ TEST_F(AppGatewayResponder_L2Test, RegisterNotification_COMRPC)
                     TEST_LOG("Successfully unregistered notification handler");
 
                 m_responderPlugin->Release();
+                m_responderPlugin = nullptr;
             } else {
                 TEST_LOG("m_responderPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -1016,10 +1038,12 @@ TEST_F(AppGatewayResponder_L2Test, RegisterNotification_Duplicate_COMRPC)
 
                 m_responderPlugin->Unregister(&m_notifHandler);
                 m_responderPlugin->Release();
+                m_responderPlugin = nullptr;
             } else {
                 TEST_LOG("m_responderPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -1041,10 +1065,12 @@ TEST_F(AppGatewayResponder_L2Test, UnregisterNotification_NotRegistered_COMRPC)
                          result, Core::ErrorToString(result));
                 // Must not crash; error result is acceptable
                 m_responderPlugin->Release();
+                m_responderPlugin = nullptr;
             } else {
                 TEST_LOG("m_responderPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -1086,10 +1112,12 @@ TEST_F(AppGatewayResponder_L2Test, RecordAndGetGatewayConnectionContext_COMRPC)
                 }
 
                 m_responderPlugin->Release();
+                m_responderPlugin = nullptr;
             } else {
                 TEST_LOG("m_responderPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -1118,10 +1146,12 @@ TEST_F(AppGatewayResponder_L2Test, GetGatewayConnectionContext_KeyNotFound_COMRP
                     EXPECT_NE(result, Core::ERROR_NONE);
 
                 m_responderPlugin->Release();
+                m_responderPlugin = nullptr;
             } else {
                 TEST_LOG("m_responderPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -1158,10 +1188,12 @@ TEST_F(AppGatewayResponder_L2Test, RecordGatewayConnectionContext_Overwrite_COMR
                 }
 
                 m_responderPlugin->Release();
+                m_responderPlugin = nullptr;
             } else {
                 TEST_LOG("m_responderPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -1187,10 +1219,12 @@ TEST_F(AppGatewayResponder_L2Test, Respond_ValidContext_COMRPC)
                 // The important thing is it does not crash.
                 (void)result;
                 m_responderPlugin->Release();
+                m_responderPlugin = nullptr;
             } else {
                 TEST_LOG("m_responderPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -1215,10 +1249,12 @@ TEST_F(AppGatewayResponder_L2Test, Emit_EventToConnection_COMRPC)
                 // Acceptable regardless of WS state
                 (void)result;
                 m_responderPlugin->Release();
+                m_responderPlugin = nullptr;
             } else {
                 TEST_LOG("m_responderPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -1241,10 +1277,12 @@ TEST_F(AppGatewayResponder_L2Test, Request_ForwardToClient_COMRPC)
                 // Acceptable regardless of WS state
                 (void)result;
                 m_responderPlugin->Release();
+                m_responderPlugin = nullptr;
             } else {
                 TEST_LOG("m_responderPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
@@ -1306,10 +1344,12 @@ TEST_F(AppGateway_L2Test, Resolve_AfterFallbackConfig_COMRPC)
                          result, resolution.c_str());
                 EXPECT_FALSE(resolution.empty());
                 m_resolverPlugin->Release();
+                m_resolverPlugin = nullptr;
             } else {
                 TEST_LOG("m_resolverPlugin is NULL");
             }
             m_controller_agw->Release();
+            m_controller_agw = nullptr;
         }
     }
 }
