@@ -53,22 +53,23 @@ namespace Plugin {
                 LOGERR("Failed to get IConfiguration interface from AppActions plugin!");
                 SYSLOG(Logging::Startup, (_T("AppActions::Initialize: IConfiguration interface not found")));
                 message = _T("AppActions plugin could not be initialised due to missing IConfiguration interface");
-            }
-            if (Core::ERROR_NONE != mAppActionsConfigure->Configure(mService))
-            {
-                SYSLOG(Logging::Startup, (_T("AppActions::Initialize: could not be configured")));
-                message = _T("AppActions could not be configured");
-            }
-            mAppActions->Register(&mAppActionsNotification);
-            Exchange::JAppActions::Register(*this, mAppActions);
+            } else {
+                if (Core::ERROR_NONE != mAppActionsConfigure->Configure(mService))
+                {
+                    SYSLOG(Logging::Startup, (_T("AppActions::Initialize: could not be configured")));
+                    message = _T("AppActions could not be configured");
+                }
+                mAppActions->Register(&mAppActionsNotification);
+                Exchange::JAppActions::Register(*this, mAppActions);
 
-            auto configConnection = mAppActions->QueryInterface<Exchange::IConfiguration>();
-            if (nullptr != configConnection) {
-                configConnection->Configure(service);
-                configConnection->Release();
+                auto configConnection = mAppActions->QueryInterface<Exchange::IConfiguration>();
+                if (nullptr != configConnection) {
+                    configConnection->Configure(service);
+                    configConnection->Release();
+                }
+                //Invoking Plugin API register to wpeframework
+                //Exchange::JAppActionsResolver::Resolver(*this, mAppActions);
             }
-            //Invoking Plugin API register to wpeframework
-            //Exchange::JAppActionsResolver::Resolver(*this, mAppActions);
         }
 
         LOGINFO("AppActions::Initialize status: %s", message.empty() ? "success" : "failed");

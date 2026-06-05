@@ -11,7 +11,7 @@ namespace Plugin {
 
     SERVICE_REGISTRATION(AppActionsImplementation, 1, 0, API_VERSION_NUMBER_PATCH);
 
-    AppActionsImplementation::AppActionsImplementation() {
+    AppActionsImplementation::AppActionsImplementation(): mService(nullptr), mAppActionsNotifications() {
         // Constructor implementation
         //SYSLOG(Logging::Startup, (_T("AppActionsImplementation Constructor")));
         LOGINFO("AppActionsImplementation Constructor");
