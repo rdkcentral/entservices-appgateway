@@ -222,24 +222,23 @@ uint32_t Test_AA_Deactivated_NonMatchingConnectionId()
 // ---------------------------------------------------------------------------
 uint32_t Test_AA_Initialize_Twice_Idempotent()
 {
-    /** Calling Initialize twice should not crash. Thunder plugins expect
-     *  Initialize only once per activation; the second call hits ASSERT
-     *  guards (mService != nullptr) in a NDEBUG build but must not crash
-     *  in a debug build either — the second Initialize is expected to be
-     *  blocked by the ASSERT and return before touching state. */
+    /** A full Initialize → Deinitialize → Initialize → Deinitialize cycle must
+     *  succeed. This is the "idempotent" contract Thunder plugins must satisfy.
+     *  NOTE: calling Initialize twice WITHOUT an intervening Deinitialize is
+     *  illegal (it violates ASSERT(nullptr == mService) in AppActions::Initialize)
+     *  and is NOT tested here. */
     L0Test::TestResult tr;
 
     L0Test::AAPluginAndService ps;
 
-    // First Initialize — must succeed.
+    // First cycle.
     const std::string result1 = ps.plugin->Initialize(ps.service);
     L0Test::ExpectTrue(tr, result1.empty(), "Initialize_Twice: first Initialize should succeed");
+    ps.plugin->Deinitialize(ps.service);
 
-    // Second Initialize — must not crash (ASSERT fires in debug; in NDEBUG
-    // the second call returns immediately with mService already set).
+    // Second cycle — re-initialize after a clean Deinitialize must succeed.
     const std::string result2 = ps.plugin->Initialize(ps.service);
-    L0Test::ExpectTrue(tr, true, "Initialize_Twice: second Initialize did not crash");
-    (void)result2;
+    L0Test::ExpectTrue(tr, result2.empty(), "Initialize_Twice: re-Initialize after Deinitialize should succeed");
 
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
