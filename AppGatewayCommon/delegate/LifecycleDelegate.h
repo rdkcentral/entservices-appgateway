@@ -346,8 +346,12 @@ class LifecycleDelegate : public BaseEventDelegate
             LOGINFO("OnAppLifecycleStateChanged: appId=%s, appInstanceId=%s, oldState=%d, newState=%d, navigationIntent=%s",
                     appId.c_str(), appInstanceId.c_str(), oldLifecycleState, newLifecycleState, navigationIntent.c_str());
 
-            // add navigation intent to registry
-            mParent.mNavigationIntentRegistry.AddNavigationIntent(appInstanceId, navigationIntent);
+            // Only update the registry when a non-empty intent is provided.
+            // An empty intent on subsequent transitions (e.g. ACTIVE) must not
+            // overwrite a previously stored intent (e.g. secondScreen set on INITIALIZING).
+            if (!navigationIntent.empty()) {
+                mParent.mNavigationIntentRegistry.AddNavigationIntent(appInstanceId, navigationIntent);
+            }
 
             // if new Lifecycle state is INITIALIZING then add to app instance map
             if (newLifecycleState == Exchange::ILifecycleManager::INITIALIZING) {
