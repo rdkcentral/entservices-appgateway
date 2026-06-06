@@ -53,7 +53,10 @@ namespace Plugin {
 
                 void OnActionStartRequest(const string& initiator, const string& intent, const string& handlerAppId) override
                 {
-                    LOGINFO("AppActions on OnActionStartRequest: initiator=%s, intent=%s, handlerAppId=%s", initiator.c_str(), intent.c_str(), handlerAppId.c_str());
+                    // Log only metadata (lengths) to avoid leaking user/content data into logs
+                    // at high volume; full values are forwarded to JSONRPC subscribers below.
+                    LOGDBG("AppActions OnActionStartRequest: initiator=%s intentLen=%zu handlerAppId=%s",
+                           initiator.c_str(), intent.size(), handlerAppId.c_str());
                     Exchange::JAppActions::Event::OnActionStartRequest(_parent, initiator, intent, handlerAppId);
                 }
 
@@ -64,7 +67,6 @@ namespace Plugin {
         public:
             AppActions(const AppActions&) = delete;
             AppActions& operator=(const AppActions&) = delete;
-            static AppActions *_instance;
             AppActions();
             ~AppActions() override;
 

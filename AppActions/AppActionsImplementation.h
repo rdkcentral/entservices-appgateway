@@ -1,6 +1,7 @@
 #pragma once
 #ifndef __APPACTIONSIMPLEMENTATION_H__
 #define __APPACTIONSIMPLEMENTATION_H__
+#include <algorithm>
 #include <list>
 #include <mutex>
 #include "Module.h"

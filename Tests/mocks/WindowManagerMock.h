@@ -43,7 +43,7 @@ public:
     MOCK_METHOD(WPEFramework::Core::hresult, Unregister, (INotification *notification), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, Initialize, (WPEFramework::PluginHost::IShell* service), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, Deinitialize, (WPEFramework::PluginHost::IShell* service), (override));
-    MOCK_METHOD(Core::hresult, CreateDisplay,
+    MOCK_METHOD(WPEFramework::Core::hresult, CreateDisplay,
     (const string& clientId,
      const string& displayName,
      const uint32_t displayWidth,

@@ -28,7 +28,6 @@ add_library(${MODULE_NAME} SHARED
         Module.cpp)
 
 target_link_options(${MODULE_NAME} PRIVATE -Wl,-z,defs)
-target_include_directories(${MODULE_NAME} PRIVATE ../helpers)
 target_include_directories(${MODULE_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../helpers)
 
 set_target_properties(${MODULE_NAME} PROPERTIES

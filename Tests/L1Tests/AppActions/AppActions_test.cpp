@@ -31,7 +31,6 @@
 #undef private
 
 #include "ServiceMock.h"
-#include "AppActionsMock.h"
 #include "WorkerPoolImplementation.h"
 #include "ThunderPortability.h"
 
@@ -91,13 +90,104 @@ public:
     MockAppActionsNotification() = default;
     virtual ~MockAppActionsNotification() = default;
 
-    MOCK_METHOD(void, OnActionStartRequest, 
-                (const string& initiator, const string& intent, const string& handlerAppId), 
+    MOCK_METHOD(void, OnActionStartRequest,
+                (const string& initiator, const string& intent, const string& handlerAppId),
                 (override));
-    
+
     MOCK_METHOD(void, AddRef, (), (const, override));
     MOCK_METHOD(uint32_t, Release, (), (const, override));
     MOCK_METHOD(void*, QueryInterface, (const uint32_t interfaceNumber), (override));
+};
+
+// --------------------------------------------------------------------------
+// ICOMLink helpers for AppActionsPluginTest
+//
+// IShell::Root<T>() is implemented in libWPEFrameworkPlugins.so and calls
+// IShell::COMLink()->Instantiate(...). By providing a TestCOMLink that
+// returns a real AppActionsImplementation from Instantiate() we can exercise
+// the Initialize/Deinitialize paths deterministically without spawning an
+// out-of-process host.
+// --------------------------------------------------------------------------
+
+// Minimal IRemoteConnection stub — used to exercise the Deinitialize path
+// that calls connection->Terminate() when mConnectionId != 0.
+class AATestRemoteConnection : public WPEFramework::RPC::IRemoteConnection {
+public:
+    explicit AATestRemoteConnection(uint32_t id)
+        : mId(id), mRefCount(1), mTerminateCalled(false) {}
+
+    void AddRef() const override { ++mRefCount; }
+    uint32_t Release() const override {
+        uint32_t r = --mRefCount;
+        if (r == 0) delete this;
+        return r;
+    }
+    void* QueryInterface(const uint32_t) override { return nullptr; }
+    uint32_t Id() const override { return mId; }
+    uint32_t RemoteId() const override { return 0; }
+    void* Acquire(const uint32_t, const string&, const uint32_t, const uint32_t) override { return nullptr; }
+    void Terminate() override { mTerminateCalled = true; }
+    uint32_t Launch() override { return Core::ERROR_NONE; }
+    void PostMortem() override {}
+
+    bool WasTerminated() const { return mTerminateCalled; }
+
+private:
+    uint32_t mId;
+    mutable std::atomic<uint32_t> mRefCount;
+    bool mTerminateCalled;
+};
+
+// ICOMLink that returns a real AppActionsImplementation from Instantiate().
+class AATestCOMLink : public WPEFramework::PluginHost::IShell::ICOMLink {
+public:
+    AATestCOMLink() : mRemoteConnection(nullptr) {}
+
+    void Register(WPEFramework::RPC::IRemoteConnection::INotification*) override {}
+    void Unregister(const WPEFramework::RPC::IRemoteConnection::INotification*) override {}
+    void Register(WPEFramework::PluginHost::IShell::ICOMLink::INotification*) override {}
+    void Unregister(WPEFramework::PluginHost::IShell::ICOMLink::INotification*) override {}
+
+    WPEFramework::RPC::IRemoteConnection* RemoteConnection(const uint32_t) override {
+        if (mRemoteConnection != nullptr) {
+            mRemoteConnection->AddRef();
+        }
+        return mRemoteConnection;
+    }
+
+    void* Instantiate(const WPEFramework::RPC::Object& object,
+                      const uint32_t, uint32_t& connectionId) override {
+        connectionId = 42;
+        if (object.ClassName().find("AppActionsImplementation") != std::string::npos) {
+            // Core::Sink provides stable AddRef/Release (never self-deletes).
+            mImpl.AddRef();
+            return static_cast<Exchange::IAppActions*>(&mImpl);
+        }
+        return nullptr;
+    }
+
+    void SetRemoteConnection(WPEFramework::RPC::IRemoteConnection* conn) {
+        mRemoteConnection = conn;
+    }
+
+private:
+    WPEFramework::RPC::IRemoteConnection* mRemoteConnection;
+    Core::Sink<AppActionsImplementation> mImpl;
+};
+
+// ICOMLink that always fails instantiation (exercises the failure path).
+class AAFailingCOMLink : public WPEFramework::PluginHost::IShell::ICOMLink {
+public:
+    void Register(WPEFramework::RPC::IRemoteConnection::INotification*) override {}
+    void Unregister(const WPEFramework::RPC::IRemoteConnection::INotification*) override {}
+    void Register(WPEFramework::PluginHost::IShell::ICOMLink::INotification*) override {}
+    void Unregister(WPEFramework::PluginHost::IShell::ICOMLink::INotification*) override {}
+    WPEFramework::RPC::IRemoteConnection* RemoteConnection(const uint32_t) override { return nullptr; }
+    void* Instantiate(const WPEFramework::RPC::Object&, const uint32_t,
+                      uint32_t& connectionId) override {
+        connectionId = 0;
+        return nullptr;
+    }
 };
 
 // --------------------------------------------------------------------------
@@ -105,25 +195,16 @@ public:
 // --------------------------------------------------------------------------
 class AppActionsPluginTest : public ::testing::Test {
 protected:
-    Core::Sink<AppActions> plugin;
     NiceMock<ServiceMock> service;
-    NiceMock<AppActionsMock> mockAppActions;
-    bool initialized_ = false;
+    AATestCOMLink comLink;
+    AAFailingCOMLink failingComLink;
 
     void SetUp() override
     {
-        ON_CALL(service, QueryInterfaceByCallsign(_, _))
-            .WillByDefault(Return(nullptr));
-
-        EXPECT_CALL(service, AddRef()).Times(AnyNumber());
-        EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-    }
-
-    void TearDown() override
-    {
-        if (initialized_) {
-            plugin.Deinitialize(&service);
-        }
+        ON_CALL(service, AddRef()).WillByDefault(Return());
+        ON_CALL(service, Release()).WillByDefault(Return(Core::ERROR_NONE));
+        ON_CALL(service, QueryInterfaceByCallsign(_, _)).WillByDefault(Return(nullptr));
+        ON_CALL(service, COMLink()).WillByDefault(Return(&comLink));
     }
 };
 
@@ -131,43 +212,95 @@ protected:
 
 TEST_F(AppActionsPluginTest, AA_L1_001_Initialize_Success)
 {
-    // Note: In isolated tests, Thunder's Root() mechanism is used
-    // The real implementation is loaded via SERVICE_REGISTRATION
-    const string result = plugin.Initialize(&service);
-    initialized_ = result.empty();
-    
-    // Initialize may return error if impl can't be loaded in test env
-    // The test verifies no crash occurs
-    EXPECT_TRUE(true);
-}
+    // COMLink returns a real AppActionsImplementation — Initialize must succeed.
+    Core::Sink<AppActions> plugin;
+    ON_CALL(service, COMLink()).WillByDefault(Return(&comLink));
 
-TEST_F(AppActionsPluginTest, AA_L1_002_Information_ReturnsEmpty)
-{
     const string result = plugin.Initialize(&service);
-    initialized_ = result.empty();
-    
-    const string info = plugin.Information();
-    EXPECT_TRUE(info.empty());
-}
 
-TEST_F(AppActionsPluginTest, AA_L1_003_Deinitialize_NoCrash)
-{
-    plugin.Initialize(&service);
-    initialized_ = true;
-    
-    // Deinitialize should not crash
+    EXPECT_TRUE(result.empty()) << "Initialize should return empty string on success, got: " << result;
+    EXPECT_NE(nullptr, plugin.mAppActions) << "mAppActions must be non-null after successful Initialize";
+    EXPECT_NE(nullptr, plugin.mService)    << "mService must be set after Initialize";
+
     plugin.Deinitialize(&service);
-    initialized_ = false;
-    
-    EXPECT_TRUE(true);
+
+    EXPECT_EQ(nullptr, plugin.mAppActions) << "mAppActions must be null after Deinitialize";
+    EXPECT_EQ(nullptr, plugin.mService)    << "mService must be null after Deinitialize";
 }
 
-TEST_F(AppActionsPluginTest, AA_L1_004_Constructor_Destructor_Lifecycle)
+TEST_F(AppActionsPluginTest, AA_L1_002_Initialize_Failure_ReturnsErrorMessage)
 {
-    // Creating and destroying plugin without Initialize should be safe
+    // FailingCOMLink returns nullptr from Instantiate — Initialize must fail.
+    Core::Sink<AppActions> plugin;
+    ON_CALL(service, COMLink()).WillByDefault(Return(&failingComLink));
+
+    const string result = plugin.Initialize(&service);
+
+    EXPECT_FALSE(result.empty()) << "Initialize should return an error message when impl cannot be created";
+    EXPECT_EQ(nullptr, plugin.mAppActions) << "mAppActions must remain null when Initialize fails";
+
+    // Deinitialize is still safe to call after a partial/failed Initialize.
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppActionsPluginTest, AA_L1_003_Information_ReturnsEmpty)
+{
+    Core::Sink<AppActions> plugin;
+    ON_CALL(service, COMLink()).WillByDefault(Return(&comLink));
+
+    plugin.Initialize(&service);
+
+    EXPECT_TRUE(plugin.Information().empty());
+
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppActionsPluginTest, AA_L1_004_Initialize_Deinitialize_TwoCycles_NoLeak)
+{
+    // Two full Initialize + Deinitialize cycles must leave the plugin in a
+    // clean state with no dangling pointers or reference-count leaks.
+    Core::Sink<AppActions> plugin;
+    ON_CALL(service, COMLink()).WillByDefault(Return(&comLink));
+
+    // First cycle.
+    EXPECT_TRUE(plugin.Initialize(&service).empty());
+    plugin.Deinitialize(&service);
+    EXPECT_EQ(nullptr, plugin.mAppActions);
+    EXPECT_EQ(nullptr, plugin.mService);
+    EXPECT_EQ(0u,      plugin.mConnectionId);
+
+    // Second cycle.
+    EXPECT_TRUE(plugin.Initialize(&service).empty());
+    plugin.Deinitialize(&service);
+    EXPECT_EQ(nullptr, plugin.mAppActions);
+    EXPECT_EQ(nullptr, plugin.mService);
+    EXPECT_EQ(0u,      plugin.mConnectionId);
+}
+
+TEST_F(AppActionsPluginTest, AA_L1_005_Deinitialize_WithRemoteConnection_Terminates)
+{
+    // When mConnectionId != 0, Deinitialize must call Terminate() on the
+    // remote connection returned by service->RemoteConnection().
+    Core::Sink<AppActions> plugin;
+    auto* remoteConn = new AATestRemoteConnection(42);
+    comLink.SetRemoteConnection(remoteConn);
+    ON_CALL(service, COMLink()).WillByDefault(Return(&comLink));
+
+    EXPECT_TRUE(plugin.Initialize(&service).empty());
+    EXPECT_EQ(42u, plugin.mConnectionId);
+
+    plugin.Deinitialize(&service);
+
+    EXPECT_TRUE(remoteConn->WasTerminated())
+        << "Deinitialize must call Terminate() on the remote connection";
+    // remoteConn is now owned by comLink and will be released on its next Release() call.
+}
+
+TEST_F(AppActionsPluginTest, AA_L1_006_Constructor_Destructor_Lifecycle)
+{
+    // Constructing and destroying the plugin without Initialize must not crash.
     {
         Core::Sink<AppActions> tempPlugin;
-        // Just let it go out of scope
     }
     EXPECT_TRUE(true);
 }

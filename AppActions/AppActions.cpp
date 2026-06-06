@@ -10,19 +10,10 @@ namespace WPEFramework {
 namespace Plugin {
     SERVICE_REGISTRATION(AppActions, API_VERSION_NUMBER_MAJOR, API_VERSION_NUMBER_MINOR, API_VERSION_NUMBER_PATCH);
 
-    AppActions *AppActions::_instance = nullptr;
-
     AppActions::AppActions() : PluginHost::IPlugin(), PluginHost::JSONRPC(), mService(nullptr), mConnectionId(0), mAppActions(nullptr), mAppActionsConfigure(nullptr), mAppActionsNotification(this) {
-
-        // Register JSONRPC methods here
-        if (nullptr == AppActions::_instance)
-        {
-            AppActions::_instance = this;
-        }
     }
 
     AppActions::~AppActions() {
-        AppActions::_instance = nullptr;
     }
 
     const string AppActions::Initialize(PluginHost::IShell* service) {
@@ -36,6 +27,18 @@ namespace Plugin {
         SYSLOG(Logging::Startup, (_T("[%s] Initialize entry PID=%u"), __FUNCTION__, getpid()));
         mService = service;
         mService->AddRef();
+
+        // Register for out-of-process connection state changes so Notification::Deactivated
+        // is called if the AppActionsImplementation host process crashes.
+        // COMLink is null in in-process / test environments — warn but continue, as the
+        // plugin is still functional; crash-recovery simply won't be available.
+        PluginHost::IShell::ICOMLink* comLink = mService->COMLink();
+        if (nullptr != comLink) {
+            comLink->Register(&mAppActionsNotification);
+        } else {
+            SYSLOG(Logging::Startup, (_T("AppActions::Initialize: COMLink is not available; crash recovery will be unavailable")));
+        }
+
         mAppActions = mService->Root<Exchange::IAppActions>(mConnectionId, 5000, _T("AppActionsImplementation"));
         if (nullptr == mAppActions)
         {
@@ -70,12 +73,17 @@ namespace Plugin {
     void AppActions::Deinitialize(PluginHost::IShell* service) {
         // Deinitialization logic
         ASSERT(mService == service);
-        SYSLOG(Logging::Shutdown, (_T("AppActions Deinitialize")));
+        SYSLOG(Logging::Shutdown, (_T("[%s] Deinitialize entry"), __FUNCTION__));
 
         RPC::IRemoteConnection *connection = nullptr;
         VARIABLE_IS_NOT_USED uint32_t result = Core::ERROR_NONE;
 
         // Make sure the Activated and Deactivated are no longer called before we start cleaning up..
+        PluginHost::IShell::ICOMLink* comLink = mService->COMLink();
+        if (nullptr != comLink) {
+            comLink->Unregister(&mAppActionsNotification);
+        }
+
         if (nullptr != mAppActionsConfigure)
         {
             mAppActionsConfigure->Release();
@@ -109,6 +117,7 @@ namespace Plugin {
         mConnectionId = 0;
         mService->Release();
         mService = nullptr;
+        SYSLOG(Logging::Shutdown, (_T("[%s] Deinitialize exit"), __FUNCTION__));
     }
 
     string AppActions::Information() const {

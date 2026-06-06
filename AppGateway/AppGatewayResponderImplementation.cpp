@@ -118,6 +118,8 @@ namespace WPEFramework
                            (error.IsSet() ? error.Value().Message().c_str() : "Unknown"),
                            configLine.c_str());
                 }
+            } else if (!configLine.empty() && configLine != "{}") {
+                LOGWARN("Skipping config line parsing (expected JSON object). config line: '%s'.", configLine.c_str());
             }
 
             LOGINFO("Connector: %s", config.Connector.Value().c_str());

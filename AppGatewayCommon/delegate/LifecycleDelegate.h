@@ -290,7 +290,7 @@ class LifecycleDelegate : public BaseEventDelegate
         Core::hresult rc = appActions->ActionStart(context.appId, intent, handlerAppId); // context.appId maps to 'initiator'
         appActions->Release();
         appActions = nullptr;
-        if (rc != Core::ERROR_NONE) {
+        if (Core::ERROR_NONE != rc) {
             LOGERR("ActionsStart: IAppActions::ActionStart failed with error %u", rc);
             ErrorUtils::CustomInternal("Failed to start app action", result);
         }
@@ -580,7 +580,7 @@ class LifecycleDelegate : public BaseEventDelegate
             };
 
             void AddNavigationIntent(const string& appInstanceId, const string& intent) {
-                if (intent.empty()) {
+                if (true == intent.empty()) {
                     return; // ignore empty intents; preserve the last non-empty intent and intentId
                 }
                 std::lock_guard<std::mutex> lock(intentMutex);

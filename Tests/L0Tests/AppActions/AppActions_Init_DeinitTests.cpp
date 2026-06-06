@@ -255,10 +255,9 @@ uint32_t Test_AA_Deinitialize_Twice_NoCrash()
     // First Deinitialize
     ps.plugin->Deinitialize(ps.service);
     
-    // Note: Thunder plugins may not support double deinitialize safely
-    // This test documents the expected behavior
-    L0Test::ExpectTrue(tr, true, "Deinitialize_Twice: no crash on first Deinitialize");
-    
+    // Second Deinitialize (should be a no-op / no-crash)
+    ps.plugin->Deinitialize(ps.service);
+    L0Test::ExpectTrue(tr, true, "Deinitialize_Twice: no crash on second Deinitialize");
     return tr.failures;
 }
 

@@ -2,8 +2,7 @@
 #include "AppActionsImplementation.h"
 #include <plugins/IShell.h>
 
- #include <algorithm>
- #include <vector>
+#include <vector>
 
 #define API_VERSION_NUMBER_MAJOR    APPACTIONS_MAJOR_VERSION
 #define API_VERSION_NUMBER_MINOR    APPACTIONS_MINOR_VERSION
@@ -28,7 +27,7 @@ namespace Plugin {
 
     Core::hresult AppActionsImplementation::ActionStart(const string& initiator, const string& intent, const string& handlerAppId)
     {
-        LOGINFO("ActionStart called with initiator: %s, intent: %s, handlerAppId: %s", initiator.c_str(), intent.c_str(), handlerAppId.c_str());
+        LOGDBG("ActionStart called with initiator: %s, intent: %s, handlerAppId: %s", initiator.c_str(), intent.c_str(), handlerAppId.c_str());
         // Dispatch notification asynchronously to avoid blocking the caller
         Core::IWorkerPool::Instance().Submit(NotifyJob::Create(this, initiator, intent, handlerAppId));
         return Core::ERROR_NONE;
@@ -45,15 +44,13 @@ namespace Plugin {
         Core::hresult status = Core::ERROR_GENERAL;
         std::lock_guard<std::mutex> lock(mAdminLock);
 
-        if (std::find(mAppActionsNotifications.begin(), mAppActionsNotifications.end(), notification) == mAppActionsNotifications.end())
-        {
+        if (std::find(mAppActionsNotifications.begin(), mAppActionsNotifications.end(), notification) == mAppActionsNotifications.end()) {
             LOGINFO("Register notification");
             mAppActionsNotifications.push_back(notification);
             notification->AddRef();
             status = Core::ERROR_NONE;
         }
-        else
-        {
+        else {
             LOGWARN("notification already registered");
         }
         return status;
@@ -88,36 +85,38 @@ namespace Plugin {
     Core::hresult AppActionsImplementation::Configure(PluginHost::IShell* service)
     {
         Core::hresult status = Core::ERROR_GENERAL;
-        if (nullptr != service)
-        {
+        SYSLOG(Logging::Startup, (_T("AppActionsImplementation Configure entry")));
+        if (nullptr != service) {
             std::lock_guard<std::mutex> lock(mAdminLock);
-            if (nullptr != mService)
-            {
+            if (nullptr != mService) {
                 mService->Release();
                 mService = nullptr;
             }
             mService = service;
             mService->AddRef();
             status = Core::ERROR_NONE;
-            LOGDBG("AppActionsImplementation service configured successfully");
+            SYSLOG(Logging::Startup, (_T("AppActionsImplementation service configured successfully")));
         }
-        else
-        {
-            LOGWARN("AppActionsImplementation service configuration failed: service is null");
+        else {
+            SYSLOG(Logging::Startup, (_T("AppActionsImplementation service configuration failed: service is null")));
         }
+        SYSLOG(Logging::Startup, (_T("AppActionsImplementation Configure exit status=%s"), status == Core::ERROR_NONE ? "success" : "failed"));
         return status;
     }
 
     const string AppActionsImplementation::Initialize(PluginHost::IShell* service)
     {
-        return Configure(service) == Core::ERROR_NONE ? string() : _T("Failed to configure AppActionsImplementation plugin");
+         SYSLOG(Logging::Notification, (_T("[%s] Initialize entry"), __FUNCTION__));
+         const string result = (Configure(service) == Core::ERROR_NONE) ? string() : _T("Failed to configure AppActionsImplementation plugin");
+         SYSLOG(Logging::Notification, (_T("[%s] Initialize exit"), __FUNCTION__));
+         return result;
     }
 
     void AppActionsImplementation::Deinitialize(PluginHost::IShell* service)
     {
+        SYSLOG(Logging::Shutdown, (_T("AppActionsImplementation Deinitialize entry")));
         std::lock_guard<std::mutex> lock(mAdminLock);
-        if (nullptr != mService)
-        {
+        if (nullptr != mService) {
             // Only assert when mService is non-null; asserting against nullptr is
             // invalid and aborts when Deinitialize is called without prior Initialize.
             ASSERT(mService == service);
@@ -129,6 +128,7 @@ namespace Plugin {
             mService->Release();
             mService = nullptr;
         }
+        SYSLOG(Logging::Shutdown, (_T("AppActionsImplementation Deinitialize exit")));
     }
 
     string AppActionsImplementation::Information() const {
