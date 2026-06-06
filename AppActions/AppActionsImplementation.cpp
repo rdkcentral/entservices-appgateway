@@ -49,8 +49,7 @@ namespace Plugin {
             mAppActionsNotifications.push_back(notification);
             notification->AddRef();
             status = Core::ERROR_NONE;
-        }
-        else {
+        } else {
             LOGWARN("notification already registered");
         }
         return status;
@@ -74,9 +73,7 @@ namespace Plugin {
             LOGINFO("Unregister notification");
             mAppActionsNotifications.erase(itr);
             status = Core::ERROR_NONE;
-        }
-        else
-        {
+        } else {
             LOGWARN("notification not found");
         }
         return status;
@@ -96,8 +93,7 @@ namespace Plugin {
             mService->AddRef();
             status = Core::ERROR_NONE;
             SYSLOG(Logging::Startup, (_T("AppActionsImplementation service configured successfully")));
-        }
-        else {
+        } else {
             SYSLOG(Logging::Startup, (_T("AppActionsImplementation service configuration failed: service is null")));
         }
         SYSLOG(Logging::Startup, (_T("AppActionsImplementation Configure exit status=%s"), status == Core::ERROR_NONE ? "success" : "failed"));

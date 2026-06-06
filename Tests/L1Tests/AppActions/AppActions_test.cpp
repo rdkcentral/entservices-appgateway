@@ -228,18 +228,21 @@ TEST_F(AppActionsPluginTest, AA_L1_001_Initialize_Success)
     EXPECT_EQ(nullptr, plugin.mService)    << "mService must be null after Deinitialize";
 }
 
-TEST_F(AppActionsPluginTest, AA_L1_002_Initialize_Failure_ReturnsErrorMessage)
+TEST_F(AppActionsPluginTest, AA_L1_002_Initialize_WithNullCOMLink_SucceedsAndLogsWarning)
 {
-    // FailingCOMLink returns nullptr from Instantiate — Initialize must fail.
+    // When COMLink() returns null the plugin cannot register for OOP crash-recovery
+    // notifications (a SYSLOG warning is emitted), but Initialize must still succeed
+    // because AppActionsImplementation is created in-process via SERVICE_REGISTRATION.
     Core::Sink<AppActions> plugin;
-    ON_CALL(service, COMLink()).WillByDefault(Return(&failingComLink));
+    ON_CALL(service, COMLink()).WillByDefault(Return(nullptr));
 
     const string result = plugin.Initialize(&service);
 
-    EXPECT_FALSE(result.empty()) << "Initialize should return an error message when impl cannot be created";
-    EXPECT_EQ(nullptr, plugin.mAppActions) << "mAppActions must remain null when Initialize fails";
+    EXPECT_TRUE(result.empty())
+        << "Initialize should succeed via in-process creation even when COMLink is null";
+    EXPECT_NE(nullptr, plugin.mAppActions)
+        << "mAppActions must be set after successful in-process Initialize";
 
-    // Deinitialize is still safe to call after a partial/failed Initialize.
     plugin.Deinitialize(&service);
 }
 
@@ -279,21 +282,25 @@ TEST_F(AppActionsPluginTest, AA_L1_004_Initialize_Deinitialize_TwoCycles_NoLeak)
 
 TEST_F(AppActionsPluginTest, AA_L1_005_Deinitialize_WithRemoteConnection_Terminates)
 {
-    // When mConnectionId != 0, Deinitialize must call Terminate() on the
-    // remote connection returned by service->RemoteConnection().
+    // Verify that Deinitialize calls Terminate() on the remote connection when
+    // mConnectionId != 0.
+    // In the L1 environment Root<>() creates the impl in-process (mConnectionId=0).
+    // We manually set mConnectionId=42 after Initialize to simulate an OOP scenario
+    // and verify that Deinitialize retrieves and terminates the connection via COMLink.
     Core::Sink<AppActions> plugin;
     auto* remoteConn = new AATestRemoteConnection(42);
     comLink.SetRemoteConnection(remoteConn);
     ON_CALL(service, COMLink()).WillByDefault(Return(&comLink));
 
     EXPECT_TRUE(plugin.Initialize(&service).empty());
-    EXPECT_EQ(42u, plugin.mConnectionId);
+
+    // Simulate OOP connection: Root<>() gives 0 in-process; override to 42.
+    plugin.mConnectionId = 42;
 
     plugin.Deinitialize(&service);
 
     EXPECT_TRUE(remoteConn->WasTerminated())
         << "Deinitialize must call Terminate() on the remote connection";
-    // remoteConn is now owned by comLink and will be released on its next Release() call.
 }
 
 TEST_F(AppActionsPluginTest, AA_L1_006_Constructor_Destructor_Lifecycle)

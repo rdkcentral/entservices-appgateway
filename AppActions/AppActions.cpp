@@ -72,35 +72,52 @@ namespace Plugin {
 
     void AppActions::Deinitialize(PluginHost::IShell* service) {
         // Deinitialization logic
-        ASSERT(mService == service);
+        // Guard: if mService is null the plugin was never initialised or was already
+        // deinitialized — treat as a no-op to match the same pattern applied to
+        // AppActionsImplementation::Deinitialize and avoid an abort on double-Deinitialize.
         SYSLOG(Logging::Shutdown, (_T("[%s] Deinitialize entry"), __FUNCTION__));
+        if (nullptr == mService) {
+            SYSLOG(Logging::Shutdown, (_T("[%s] Deinitialize exit: no-op (not initialized)"), __FUNCTION__));
+            return;
+        }
+        ASSERT(mService == service);
 
         RPC::IRemoteConnection *connection = nullptr;
         VARIABLE_IS_NOT_USED uint32_t result = Core::ERROR_NONE;
 
         // Make sure the Activated and Deactivated are no longer called before we start cleaning up..
+        // COMLink may be null in in-process / test environments — skip OOP-specific cleanup
+        // in that case but always proceed to release mAppActions and mService below.
         PluginHost::IShell::ICOMLink* comLink = mService->COMLink();
         if (nullptr != comLink) {
             comLink->Unregister(&mAppActionsNotification);
+
+            if (0 != mConnectionId) {
+                // Use comLink rather than service->RemoteConnection(): the latter is not
+                // a pure virtual in IShell (no MOCK_METHOD in ServiceMock) and its default
+                // base implementation routes through COMLink anyway.
+                connection = comLink->RemoteConnection(mConnectionId);
+                // If this was running in a (container) process...
+                if (nullptr != connection)
+                {
+                    // Lets trigger the cleanup sequence for
+                    // out-of-process code. Which will guard
+                    // that unwilling processes, get shot if
+                    // not stopped friendly :-)
+                    connection->Terminate();
+                    connection->Release();
+                }
+            } else {
+                SYSLOG(Logging::Shutdown, (_T("[%s] Deinitialize exit: no-op (no remote connection)"), __FUNCTION__));
+            }
+        } else {
+            SYSLOG(Logging::Shutdown, (_T("[%s] Deinitialize exit: no-op (no COMLink)"), __FUNCTION__));
         }
 
         if (nullptr != mAppActionsConfigure)
         {
             mAppActionsConfigure->Release();
             mAppActionsConfigure = nullptr;
-        }
-        if (0 != mConnectionId) {
-            connection = service->RemoteConnection(mConnectionId);
-            // If this was running in a (container) process...
-            if (nullptr != connection)
-            {
-                // Lets trigger the cleanup sequence for
-                // out-of-process code. Which will guard
-                // that unwilling processes, get shot if
-                // not stopped friendly :-)
-                connection->Terminate();
-                connection->Release();
-            }
         }
         if (nullptr != mAppActions)
         {
