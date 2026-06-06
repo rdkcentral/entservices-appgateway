@@ -22,6 +22,7 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include <atomic>
 
 #include "Module.h"
 
@@ -557,9 +558,9 @@ TEST_F(AppActionsImplementationTest, AA_L1_033_ActionStart_MultipleCalls)
 TEST_F(AppActionsImplementationTest, AA_L1_040_Configure_ValidService)
 {
     const auto rc = impl.Configure(&service);
-    // Configure returns ERROR_GENERAL but sets service pointer
-    // Implementation behavior - Configure doesn't return ERROR_NONE
-    EXPECT_TRUE(true); // Just verify no crash
+    // Configure with a non-null service stores the pointer and returns ERROR_NONE
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    impl.Deinitialize(&service);
 }
 
 TEST_F(AppActionsImplementationTest, AA_L1_041_Configure_NullService)
@@ -573,10 +574,10 @@ TEST_F(AppActionsImplementationTest, AA_L1_041_Configure_NullService)
 TEST_F(AppActionsImplementationTest, AA_L1_050_Initialize_CallsConfigure)
 {
     const string result = impl.Initialize(&service);
-    // Initialize returns result of Configure
-    // May not be empty due to Configure returning ERROR_GENERAL
-    EXPECT_TRUE(true); // Verify no crash
-    
+    // Initialize delegates to Configure; for a non-null service Configure returns
+    // ERROR_NONE so Initialize returns an empty error string.
+    EXPECT_TRUE(result.empty());
+
     impl.Deinitialize(&service);
 }
 
@@ -584,9 +585,9 @@ TEST_F(AppActionsImplementationTest, AA_L1_051_Deinitialize_ReleasesService)
 {
     impl.Initialize(&service);
     impl.Deinitialize(&service);
-    
-    // Should not crash - verify proper cleanup
-    EXPECT_TRUE(true);
+
+    // Deinitialize must release and null-out the stored service pointer
+    EXPECT_EQ(nullptr, impl.mService);
 }
 
 TEST_F(AppActionsImplementationTest, AA_L1_052_Information_ReturnsEmpty)
@@ -597,9 +598,9 @@ TEST_F(AppActionsImplementationTest, AA_L1_052_Information_ReturnsEmpty)
 
 TEST_F(AppActionsImplementationTest, AA_L1_053_Deinitialize_WithoutInitialize)
 {
-    // Should not crash
+    // mService is null before Initialize; Deinitialize must be a no-op and not crash
     impl.Deinitialize(&service);
-    EXPECT_TRUE(true);
+    EXPECT_EQ(nullptr, impl.mService);
 }
 
 /* ---------- Interface Map Tests ---------- */

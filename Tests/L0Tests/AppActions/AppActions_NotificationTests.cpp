@@ -9,6 +9,7 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include <vector>
 
 #include <core/core.h>
 #include <plugins/IShell.h>

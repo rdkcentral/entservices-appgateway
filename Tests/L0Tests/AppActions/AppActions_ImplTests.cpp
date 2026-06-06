@@ -96,12 +96,9 @@ uint32_t Test_AA_Impl_Initialize_CallsConfigure()
     if (nullptr != implPlugin) {
         L0Test::AppActionsServiceMock service;
         
-        // Initialize calls Configure internally
+        // Initialize calls Configure internally; Configure returns ERROR_NONE for a
+        // non-null service, so Initialize returns an empty string on success.
         const std::string result = implPlugin->Initialize(&service);
-        
-        // In current implementation, Configure returns ERROR_GENERAL even with valid service
-        // so Initialize returns an error message
-        // This test documents the current behavior
         
         implPlugin->Deinitialize(&service);
         implPlugin->Release();
@@ -351,21 +348,23 @@ uint32_t Test_AA_Impl_DoubleConfigure()
 // ---------------------------------------------------------------------------
 uint32_t Test_AA_Impl_Deinitialize_WithoutInitialize()
 {
-    /** Deinitialize without prior Initialize should not crash. */
+    /** Deinitialize without prior Initialize should be a no-op (not crash).
+     *  AppActionsImplementation::Deinitialize guards on mService == nullptr
+     *  and returns early, so calling it before Initialize is safe. */
     L0Test::TestResult tr;
 
-    auto* implPlugin = WPEFramework::Core::Service<AppActionsImplementation>::Create<WPEFramework::PluginHost::IPlugin>();
-    L0Test::ExpectTrue(tr, nullptr != implPlugin, "Impl_Deinitialize_WithoutInitialize: impl should be non-null");
+    auto* impl = WPEFramework::Core::Service<AppActionsImplementation>::Create<AppActionsImplementation>();
+    L0Test::ExpectTrue(tr, nullptr != impl, "Impl_Deinitialize_WithoutInitialize: impl should be non-null");
 
-    if (nullptr != implPlugin) {
+    if (nullptr != impl) {
         L0Test::AppActionsServiceMock service;
-        
-        // Call Deinitialize without Initialize - should not crash
-        // Note: This will hit the ASSERT(mService == service) in production
-        // but in L0 tests we're testing robustness
-        implPlugin->Release();
-        
-        L0Test::ExpectTrue(tr, true, "Impl_Deinitialize_WithoutInitialize: no crash");
+
+        // Call Deinitialize without any prior Initialize — must not crash.
+        // The implementation guards on mService == nullptr and returns early.
+        impl->Deinitialize(&service);
+
+        L0Test::ExpectTrue(tr, true, "Impl_Deinitialize_WithoutInitialize: no crash calling Deinitialize before Initialize");
+        impl->Release();
     }
 
     return tr.failures;

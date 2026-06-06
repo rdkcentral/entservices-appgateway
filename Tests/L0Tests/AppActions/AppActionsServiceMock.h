@@ -433,8 +433,14 @@ public:
     // ----------------------------------------------------------------
     // ICOMLink
     // ----------------------------------------------------------------
-    void Register(WPEFramework::RPC::IRemoteConnection::INotification* /*sink*/) override {}
-    void Unregister(const WPEFramework::RPC::IRemoteConnection::INotification* /*sink*/) override {}
+    void Register(WPEFramework::RPC::IRemoteConnection::INotification* sink) override {
+        std::lock_guard<std::mutex> lock(_notificationMutex);
+        _rpcNotification = sink;
+    }
+    void Unregister(const WPEFramework::RPC::IRemoteConnection::INotification* /*sink*/) override {
+        std::lock_guard<std::mutex> lock(_notificationMutex);
+        _rpcNotification = nullptr;
+    }
     void Register(WPEFramework::PluginHost::IShell::ICOMLink::INotification* /*sink*/) override {}
     void Unregister(WPEFramework::PluginHost::IShell::ICOMLink::INotification* /*sink*/) override {}
 
@@ -481,10 +487,25 @@ public:
     AAImplFake* GetImplFake() const { return _implFake; }
     uint32_t GetConnectionId() const { return _cfg.connectionId; }
 
+    // Simulate an out-of-process connection Deactivated event.
+    // Calls Deactivated() on the registered RPC::IRemoteConnection::INotification sink
+    // (which is AppActions::Notification) with the given connection.
+    void SimulateDeactivated(WPEFramework::RPC::IRemoteConnection* connection) {
+        WPEFramework::RPC::IRemoteConnection::INotification* sink = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(_notificationMutex);
+            sink = _rpcNotification;
+        }
+        if (nullptr != sink) {
+            sink->Deactivated(connection);
+        }
+    }
+
 private:
     mutable std::atomic<uint32_t> _refCount;
     Config _cfg;
     AAImplFake* _implFake;
+    WPEFramework::RPC::IRemoteConnection::INotification* _rpcNotification{nullptr};
     std::mutex _notificationMutex;
     std::list<WPEFramework::PluginHost::IPlugin::INotification*> _notifications;
 };
