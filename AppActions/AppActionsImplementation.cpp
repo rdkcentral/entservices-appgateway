@@ -103,9 +103,9 @@ namespace Plugin {
     const string AppActionsImplementation::Initialize(PluginHost::IShell* service)
     {
          SYSLOG(Logging::Notification, (_T("[%s] Initialize entry"), __FUNCTION__));
-         const string result = (Configure(service) == Core::ERROR_NONE) ? string() : _T("Failed to configure AppActionsImplementation plugin");
+         string result = (Configure(service) == Core::ERROR_NONE) ? string() : _T("Failed to configure AppActionsImplementation plugin");
          SYSLOG(Logging::Notification, (_T("[%s] Initialize exit"), __FUNCTION__));
-         return result;
+         return std::move(result);
     }
 
     void AppActionsImplementation::Deinitialize(PluginHost::IShell* service)
