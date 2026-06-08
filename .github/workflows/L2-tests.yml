@@ -717,29 +717,39 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
           $GITHUB_WORKSPACE/entservices-testframework/Tests/L2Tests/pact/install-verifier-cli.sh
 
-      - name: Run unit tests without valgrind
-        run: >
-          PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
-          LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
-          RdkServicesL2Test &&
-          cp -rf $(pwd)/rdkL2TestResults.json $GITHUB_WORKSPACE/rdkL2TestResultsWithoutValgrind.json &&
-          rm -rf $(pwd)/rdkL2TestResults.json
+      - name: Install debug tools
+        run: sudo apt-get install -y gdb
 
-      - name: Run unit tests with valgrind
-        if: ${{ !env.ACT }}
-        run: >
-          PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
-          LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
-          valgrind
-          --tool=memcheck
-          --log-file=valgrind_log
-          --leak-check=yes
-          --show-reachable=yes
-          --track-fds=yes
-          --fair-sched=try
-          RdkServicesL2Test &&
-          cp -rf $(pwd)/rdkL2TestResults.json $GITHUB_WORKSPACE/rdkL2TestResultsWithValgrind.json &&
-          rm -rf $(pwd)/rdkL2TestResults.json
+      - name: Run unit tests without valgrind
+        run: |
+          ulimit -c unlimited
+          sudo sysctl -w kernel.core_pattern=/tmp/core.%e.%p
+          export PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
+          export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
+          RdkServicesL2Test
+          EXIT_CODE=$?
+          cp -f $(pwd)/rdkL2TestResults.json $GITHUB_WORKSPACE/rdkL2TestResultsWithoutValgrind.json 2>/dev/null || true
+          rm -f $(pwd)/rdkL2TestResults.json 2>/dev/null || true
+          exit $EXIT_CODE || true
+
+      - name: Analyze core dump
+        if: ${{ always() }}
+        run: |
+          CORE=$(ls /tmp/core.WPEFramework.* 2>/dev/null | head -1)
+          if [ -n "$CORE" ]; then
+            echo "=== Core dump found: $CORE ==="
+            WPE_BIN=$(which WPEFramework || echo "$GITHUB_WORKSPACE/install/usr/bin/WPEFramework")
+            gdb -batch \
+              -ex "set solib-search-path $GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins" \
+              -ex "thread apply all bt full" \
+              -ex "info registers" \
+              -ex "quit" \
+              "$WPE_BIN" "$CORE" 2>&1 | tee /tmp/gdb_backtrace.txt
+            echo "=== Backtrace saved to /tmp/gdb_backtrace.txt ==="
+          else
+            echo "No core dump found — process may have exited cleanly or core pattern not set"
+            ls /tmp/core.* 2>/dev/null || true
+          fi
 
       - name: Generate coverage
         if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
@@ -771,6 +781,22 @@ jobs:
           -t "entservices-appgateway coverage"
           filtered_coverage.info
 
+      - name: Run unit tests with valgrind
+        if: ${{ !env.ACT }}
+        run: >
+          PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
+          LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
+          valgrind
+          --tool=memcheck
+          --log-file=valgrind_log
+          --leak-check=yes
+          --show-reachable=yes
+          --track-fds=yes
+          --fair-sched=try
+          RdkServicesL2Test &&
+          cp -rf $(pwd)/rdkL2TestResults.json $GITHUB_WORKSPACE/rdkL2TestResultsWithValgrind.json &&
+          rm -rf $(pwd)/rdkL2TestResults.json
+
       - name: Upload artifacts
         if: ${{ !env.ACT }}
         uses: actions/upload-artifact@v4
@@ -781,4 +807,5 @@ jobs:
             valgrind_log
             rdkL2TestResultsWithoutValgrind.json
             rdkL2TestResultsWithValgrind.json
+            /tmp/gdb_backtrace.txt
           if-no-files-found: warn
