@@ -731,6 +731,7 @@ jobs:
           cat > /tmp/gcov_dlclose_wrap.c << 'CEOF'
           #define _GNU_SOURCE
           #include <dlfcn.h>
+          #include <stdint.h>
           #include <string.h>
           /*
            * Wrap dlclose() so that each plugin's __gcov_dump() is called before the
