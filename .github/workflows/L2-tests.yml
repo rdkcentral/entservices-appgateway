@@ -13,7 +13,7 @@ on:
 
 env:
   BUILD_TYPE: Debug
-  THUNDER_REF: "R4.4.1"
+  THUNDER_REF: "R4_4-RDK"
   INTERFACES_REF: "develop"
   NETWORKMANAGER_REF: "cea0da05b03de770e4ce967f0446f28885fc6219"
   AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME}}
@@ -517,8 +517,8 @@ jobs:
           -DPLUGIN_APPGATEWAYCOMMON=ON
           -DPLUGIN_APPNOTIFICATIONS=ON
           -DPLUGIN_IMPLEMENTATION=WPEFrameworkAppGateway
-          -DPLUGIN_APPGATEWAYCOMMON_MODE=Off
           -DPLUGIN_APPGATEWAY_MODE=Off
+          -DPLUGIN_APPGATEWAYCOMMON_MODE=Off
           -DDS_FOUND=ON
           -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
           &&
@@ -717,6 +717,40 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
           $GITHUB_WORKSPACE/entservices-testframework/Tests/L2Tests/pact/install-verifier-cli.sh
 
+      - name: Build gcov SIGSEGV flush helper
+        if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
+        run: |
+          cat > /tmp/gcov_sighandler.c << 'EOF'
+          /* LD_PRELOAD helper: flushes gcov .gcda files before a SIGSEGV kills the
+           * process.  Thunder R4.4.1 crashes during final RPC-connection cleanup when
+           * in-process OOP objects (service->Root<>() with mode=Off) are torn down.
+           * That crash bypasses the normal atexit() gcov flush, leaving zero coverage.
+           * This library intercepts SIGSEGV, calls __gcov_dump(), then re-raises so
+           * Thunder's own crash handler still runs normally. */
+          #include <signal.h>
+          #include <stdio.h>
+          extern void __gcov_dump(void) __attribute__((weak));
+          static struct sigaction _prev_sigsegv;
+          static void _gcov_sigsegv_handler(int sig, siginfo_t *info, void *ctx) {
+              if (__gcov_dump) {
+                  fprintf(stderr, "[gcov_sighandler] SIGSEGV caught – flushing gcov data\n");
+                  __gcov_dump();
+                  fprintf(stderr, "[gcov_sighandler] gcov flush done\n");
+              }
+              sigaction(SIGSEGV, &_prev_sigsegv, NULL);
+              raise(SIGSEGV);
+          }
+          static void __attribute__((constructor)) _install_gcov_handler(void) {
+              struct sigaction sa;
+              sigemptyset(&sa.sa_mask);
+              sa.sa_sigaction = _gcov_sigsegv_handler;
+              sa.sa_flags = SA_SIGINFO | SA_RESETHAND;
+              sigaction(SIGSEGV, &sa, &_prev_sigsegv);
+          }
+          EOF
+          gcc -shared -fPIC -o /tmp/libgcov_sighandler.so /tmp/gcov_sighandler.c
+          echo "Built /tmp/libgcov_sighandler.so"
+
       - name: Run unit tests without valgrind
         run: >
           PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
@@ -744,6 +778,13 @@ jobs:
       - name: Generate coverage
         if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
         run: >
+          PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
+          LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
+          LD_PRELOAD=/tmp/libgcov_sighandler.so
+          RdkServicesL2Test &&
+          cp -rf $(pwd)/rdkL2TestResults.json $GITHUB_WORKSPACE/rdkL2TestResultsCoverageRun.json ||
+          true
+          &&
           cp $GITHUB_WORKSPACE/entservices-testframework/Tests/L2Tests/.lcovrc_l2 ~/.lcovrc
           &&
           lcov -c
