@@ -31,3 +31,60 @@ jobs:
     secrets:
       RDKCM_RDKE: ${{ secrets.RDKCM_RDKE }}
 
+  coverage-gate:
+    name: Coverage Gate
+    if: always()
+    needs: [trigger-L0, trigger-L1]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Fetch baseline from build-metadata branch
+        # Gracefully handle a missing build-metadata branch (first-time setup).
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          if git fetch origin build-metadata 2>/dev/null; then
+            if git cat-file -e FETCH_HEAD:coverage-baseline.json 2>/dev/null; then
+              git show FETCH_HEAD:coverage-baseline.json > coverage-baseline.json
+              echo "Loaded coverage-baseline.json from build-metadata branch"
+            else
+              echo "build-metadata branch exists but coverage-baseline.json not found — skipping baseline comparison"
+              echo "{}" > coverage-baseline.json
+            fi
+          else
+            echo "build-metadata branch not found — absolute threshold check only (first-time setup)"
+            echo "{}" > coverage-baseline.json
+          fi
+
+      - name: Download L0 coverage artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: artifacts-L0-appgateway
+          path: ./l0-coverage
+
+      - name: Download L1 coverage artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: artifacts-L1-appgateway
+          path: ./l1-coverage
+
+      - name: Compare coverage to baseline
+        # Always exit 0 — informational only, never blocks a PR.
+        # continue-on-error guards against unexpected runner-level failures
+        # (e.g. Python interpreter unavailable) so the job never turns red.
+        continue-on-error: true
+        run: |
+          python3 .github/scripts/compare_coverage.py \
+            --baseline coverage-baseline.json \
+            --l0 ./l0-coverage/filtered_coverage.info \
+            --l1 ./l1-coverage/filtered_coverage.info
+
