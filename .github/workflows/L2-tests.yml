@@ -731,17 +731,40 @@ jobs:
           cat > /tmp/gcov_sigwrap.c << 'CEOF'
           #define _GNU_SOURCE
           #include <dlfcn.h>
+          #include <link.h>
           #include <signal.h>
           #include <unistd.h>
           #include <sys/wait.h>
           #include <string.h>
-          extern void __gcov_dump(void) __attribute__((weak));
+          /*
+           * Each .so compiled with -coverage has its OWN statically-linked copy of
+           * libgcov.a and therefore its OWN __gcov_dump() that flushes only that
+           * library's counters.  We must call __gcov_dump (or __gcov_flush) in every
+           * loaded shared object to flush all coverage data.
+           */
+          static int dump_gcov_lib(struct dl_phdr_info *info, size_t size, void *data) {
+            (void)size; (void)data;
+            void *handle;
+            const char *name = info->dlpi_name;
+            if (name && name[0] != '\0')
+              handle = dlopen(name, RTLD_NOLOAD | RTLD_LAZY);
+            else
+              handle = dlopen(NULL, RTLD_LAZY); /* main executable */
+            if (!handle) return 0;
+            typedef void (*gcov_fn)(void);
+            gcov_fn fn = (gcov_fn)(uintptr_t)dlsym(handle, "__gcov_dump");
+            if (!fn) fn = (gcov_fn)(uintptr_t)dlsym(handle, "__gcov_flush");
+            if (fn) fn();
+            dlclose(handle);
+            return 0;
+          }
           static struct sigaction orig_sa;
           static int orig_saved = 0;
           static void gcov_wrap_handler(int sig, siginfo_t *si, void *ctx) {
             pid_t pid = fork();
             if (pid == 0) {
-              if (__gcov_dump) __gcov_dump();
+              /* Single-threaded child: safe to walk loaded libs and call __gcov_dump */
+              dl_iterate_phdr(dump_gcov_lib, NULL);
               _exit(0);
             } else if (pid > 0) {
               int status;
