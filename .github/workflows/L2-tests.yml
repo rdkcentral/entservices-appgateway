@@ -805,16 +805,49 @@ jobs:
       - name: Generate coverage
         if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
         run: |
-          # Run tests with LD_PRELOAD so __gcov_dump() is called inside each
-          # dlclose() before the plugin .so is unmapped. This flushes .gcda files
-          # for AppGateway, AppGatewayCommon, etc. before Thunder's
-          # ServiceMap::Destroy() crash occurs.
+          # Wrap the WPEFramework binary so LD_PRELOAD is injected into the
+          # WPEFramework process itself, not just the L2testController parent.
+          # L2testController exec()s WPEFramework directly so a parent LD_PRELOAD
+          # is not inherited — the wrapper shell script forces it.
+          WPE_BIN=$GITHUB_WORKSPACE/install/usr/bin/WPEFramework
+          mv "$WPE_BIN" "${WPE_BIN}.real"
+          cat > "$WPE_BIN" << 'WEOF'
+          #!/bin/sh
+          export LD_PRELOAD=/tmp/libgcov_dlclose_wrap.so${LD_PRELOAD:+:$LD_PRELOAD}
+          exec "$(dirname "$0")/WPEFramework.real" "$@"
+          WEOF
+          chmod +x "$WPE_BIN"
           export PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
           export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
-          LD_PRELOAD=/tmp/libgcov_dlclose_wrap.so RdkServicesL2Test || true
+          RdkServicesL2Test || true
           rm -f $(pwd)/rdkL2TestResults.json 2>/dev/null || true
+          # Restore the original binary for the subsequent valgrind run
+          mv "${WPE_BIN}.real" "$WPE_BIN"
           echo "--- .gcda files found after coverage run ---"
           find build/entservices-appgateway -name '*.gcda' | sort
+          cp $GITHUB_WORKSPACE/entservices-testframework/Tests/L2Tests/.lcovrc_l2 ~/.lcovrc
+          lcov -c \
+            -o coverage.info \
+            -d build/entservices-appgateway
+          lcov \
+            -r coverage.info \
+            '/usr/include/*' \
+            '*/build/entservices-appgateway/_deps/*' \
+            '*/build/entservices-deviceanddisplay/_deps/*' \
+            '*/build/entservices-entservices-testframework/_deps/*' \
+            '*/install/usr/include/*' \
+            '*/Tests/headers/*' \
+            '*/Tests/mocks/*' \
+            '*/build/mocks/*' \
+            '*/Tests/L2Tests/*' \
+            '*/googlemock/*' \
+            '*/googletest/*' \
+            '*/sqlite/*' \
+            -o filtered_coverage.info
+          genhtml \
+            -o coverage \
+            -t "entservices-appgateway coverage" \
+            filtered_coverage.info
           cp $GITHUB_WORKSPACE/entservices-testframework/Tests/L2Tests/.lcovrc_l2 ~/.lcovrc
           lcov -c \
             -o coverage.info \
