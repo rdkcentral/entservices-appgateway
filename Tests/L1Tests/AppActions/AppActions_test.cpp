@@ -678,4 +678,127 @@ TEST_F(AppActionsImplementationTest, AA_L1_071_Unregister_PartialFromMultiple)
     impl.Unregister(&notification2);
 }
 
+// --------------------------------------------------------------------------
+// Mock IAppGatewayTelemetry — lets L1 tests verify telemetry calls are made
+// --------------------------------------------------------------------------
+class MockAppGatewayTelemetry : public Exchange::IAppGatewayTelemetry {
+public:
+    MockAppGatewayTelemetry() : mRefCount(1) {}
+
+    // Core::IUnknown — non-mock; refcount is not relevant to telemetry assertions.
+    void AddRef() const override { ++mRefCount; }
+    uint32_t Release() const override {
+        uint32_t r = --mRefCount;
+        if (r == 0) delete this;
+        return r;
+    }
+    void* QueryInterface(const uint32_t id) override {
+        if (id == Exchange::IAppGatewayTelemetry::ID) {
+            AddRef();
+            return static_cast<Exchange::IAppGatewayTelemetry*>(this);
+        }
+        return nullptr;
+    }
+
+    MOCK_METHOD(Core::hresult, RecordTelemetryEvent,
+                (const Exchange::GatewayContext&, const string&, const string&),
+                (override));
+    MOCK_METHOD(Core::hresult, RecordTelemetryMetric,
+                (const Exchange::GatewayContext&, const string&, const double,
+                 const string&),
+                (override));
+
+private:
+    mutable std::atomic<uint32_t> mRefCount;
+};
+
+/* ---------- Telemetry Tests ---------- */
+
+// AA_L1_080: When IAppGatewayTelemetry IS available (QueryInterfaceByCallsign
+// returns a real mock), a duplicate Register() must fire RecordTelemetryEvent
+// with the ENTS_ERROR_AppGwPluginApiError marker and ALREADY_REGISTERED payload.
+TEST_F(AppActionsImplementationTest, AA_L1_080_Register_Duplicate_TelemetryEvent_Reported)
+{
+    NiceMock<MockAppGatewayTelemetry> telemetry;
+
+    // Make the service return our telemetry mock for any QueryInterfaceByCallsign call.
+    ON_CALL(service, QueryInterfaceByCallsign(Exchange::IAppGatewayTelemetry::ID, _))
+        .WillByDefault(Return(static_cast<void*>(&telemetry)));
+    // Prevent the Release() inside TelemetryClient::Deinitialize() from deleting
+    // the stack-allocated mock by treating every Release as a no-op here.
+    EXPECT_CALL(telemetry, Release()).Times(AnyNumber()).WillRepeatedly(Return(1));
+    EXPECT_CALL(telemetry, AddRef()).Times(AnyNumber());
+
+    // Initialize so that AGW_TELEMETRY_INIT connects to the mock.
+    impl.Initialize(&service);
+
+    NiceMock<MockAppActionsNotification> notification;
+    EXPECT_CALL(notification, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(notification, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    impl.Register(&notification);  // first: succeeds
+
+    // On duplicate, RecordTelemetryEvent must be called once with the
+    // ENTS_ERROR_AppGwPluginApiError marker and a payload containing "ALREADY_REGISTERED".
+    EXPECT_CALL(telemetry, RecordTelemetryEvent(
+        _,
+        StrEq("ENTS_ERROR_AppGwPluginApiError"),
+        testing::HasSubstr("ALREADY_REGISTERED")))
+        .Times(1)
+        .WillOnce(Return(Core::ERROR_NONE));
+
+    const auto rc = impl.Register(&notification);  // duplicate → triggers telemetry
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+
+    impl.Unregister(&notification);
+    impl.Deinitialize(&service);
+}
+
+// AA_L1_081: When IAppGatewayTelemetry is NOT available (QueryInterfaceByCallsign
+// returns nullptr), a duplicate Register() must NOT crash — AGW_REPORT_API_ERROR
+// is a no-op because IsAvailable() returns false.
+TEST_F(AppActionsImplementationTest, AA_L1_081_Register_Duplicate_TelemetryNoOp_WhenUnavailable)
+{
+    // Telemetry not available — default SetUp already configures QueryInterfaceByCallsign → nullptr.
+    impl.Initialize(&service);
+
+    NiceMock<MockAppActionsNotification> notification;
+    EXPECT_CALL(notification, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(notification, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    impl.Register(&notification);
+
+    // Duplicate — AGW_REPORT_API_ERROR is a no-op; must not crash and must return ERROR_GENERAL.
+    const auto rc = impl.Register(&notification);
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+
+    impl.Unregister(&notification);
+    impl.Deinitialize(&service);
+}
+
+// AA_L1_082: Full telemetry lifecycle — Initialize() calls
+// QueryInterfaceByCallsign (AGW_TELEMETRY_INIT), Deinitialize() releases the
+// interface (AGW_TELEMETRY_DEINIT). Verifies the sequence is called correctly.
+TEST_F(AppActionsImplementationTest, AA_L1_082_TelemetryClient_InitDeinit_Lifecycle)
+{
+    NiceMock<MockAppGatewayTelemetry> telemetry;
+
+    // Expect QueryInterfaceByCallsign to be called at least once during Initialize.
+    EXPECT_CALL(service, QueryInterfaceByCallsign(Exchange::IAppGatewayTelemetry::ID, _))
+        .Times(AtLeast(1))
+        .WillRepeatedly(Return(static_cast<void*>(&telemetry)));
+    EXPECT_CALL(telemetry, AddRef()).Times(AnyNumber());
+    EXPECT_CALL(telemetry, Release()).Times(AnyNumber()).WillRepeatedly(Return(1));
+
+    // Initialize triggers AGW_TELEMETRY_INIT → QueryInterfaceByCallsign.
+    const string result = impl.Initialize(&service);
+    EXPECT_TRUE(result.empty()) << "Initialize should succeed";
+
+    // Deinitialize triggers AGW_TELEMETRY_DEINIT — releases the interface.
+    impl.Deinitialize(&service);
+
+    // mService must be null after Deinitialize.
+    EXPECT_EQ(nullptr, impl.mService);
+}
+
 } // anonymous namespace

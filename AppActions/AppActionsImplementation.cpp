@@ -1,5 +1,15 @@
-#include "UtilsLogging.h"
+// AppActionsImplementation.h must be first: it pulls in AppActions/Module.h which
+// defines MODULE_NAME=Plugin_AppActions. interfaces/Module.h (included transitively
+// by IAppGateway.h inside UtilsAppGatewayTelemetry.h) has the guard:
+//   #ifndef MODULE_NAME
+//   #define MODULE_NAME Interfaces   // ← the C++ symbol in libWPEFrameworkInterfaces
+//   #endif
+// If UtilsAppGatewayTelemetry.h is included first, MODULE_NAME becomes "Interfaces"
+// and SERVICE_REGISTRATION references Core::System::Interfaces, which is not linked
+// into this shared library → "undefined reference to 'Interfaces'" linker error.
 #include "AppActionsImplementation.h"
+#include "UtilsLogging.h"
+#include "UtilsAppGatewayTelemetry.h"
 #include <plugins/IShell.h>
 
 #include <vector>
@@ -7,6 +17,8 @@
 #define API_VERSION_NUMBER_MAJOR    APPACTIONS_MAJOR_VERSION
 #define API_VERSION_NUMBER_MINOR    APPACTIONS_MINOR_VERSION
 #define API_VERSION_NUMBER_PATCH    APPACTIONS_PATCH_VERSION
+
+AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_APPACTIONS)
 
 namespace WPEFramework {
 namespace Plugin {
@@ -51,6 +63,8 @@ namespace Plugin {
             status = Core::ERROR_NONE;
         } else {
             LOGWARN("notification already registered");
+            Exchange::GatewayContext ctx{};
+            AGW_REPORT_API_ERROR(ctx, "Register", AGW_ERROR_ALREADY_REGISTERED);
         }
         return status;
     }
@@ -104,6 +118,9 @@ namespace Plugin {
     {
          SYSLOG(Logging::Notification, (_T("[%s] Initialize entry"), __FUNCTION__));
          string result = (Configure(service) == Core::ERROR_NONE) ? string() : _T("Failed to configure AppActionsImplementation plugin");
+         if (result.empty()) {
+             AGW_TELEMETRY_INIT(service);
+         }
          SYSLOG(Logging::Notification, (_T("[%s] Initialize exit"), __FUNCTION__));
          return std::move(result);
     }
@@ -111,6 +128,7 @@ namespace Plugin {
     void AppActionsImplementation::Deinitialize(PluginHost::IShell* service)
     {
         SYSLOG(Logging::Shutdown, (_T("AppActionsImplementation Deinitialize entry")));
+        AGW_TELEMETRY_DEINIT();
         std::lock_guard<std::mutex> lock(mAdminLock);
         if (nullptr != mService) {
             // Only assert when mService is non-null; asserting against nullptr is

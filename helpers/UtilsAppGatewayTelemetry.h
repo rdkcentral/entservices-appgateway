@@ -221,7 +221,7 @@ namespace AppGatewayTelemetryHelper {
             std::string eventData;
             data.ToString(eventData);
             
-            LOGTRACE("TelemetryClient: Recording API error - plugin=%s, api=%s, error=%s",
+            LOGINFO("TelemetryClient: Recording API error - plugin=%s, api=%s, error=%s",
                      mPluginName.c_str(), apiName.c_str(), errorCode.c_str());
 
             return RecordEvent(context, AGW_MARKER_PLUGIN_API_ERROR, eventData);

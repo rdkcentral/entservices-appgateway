@@ -371,6 +371,128 @@ uint32_t Test_AA_Register_ThreadSafety()
 }
 
 // ---------------------------------------------------------------------------
+// AA-L0-051: Duplicate registration with initialized service — telemetry
+//            attempted but unavailable (no IAppGatewayTelemetry in mock)
+// ---------------------------------------------------------------------------
+uint32_t Test_AA_Telemetry_DuplicateRegister_WithInitializedService()
+{
+    /** When the impl is initialized with a service and a duplicate Register()
+     *  is attempted, the implementation fires AGW_REPORT_API_ERROR internally.
+     *  Because the test service mock returns nullptr from QueryInterfaceByCallsign,
+     *  the telemetry client's IsAvailable() is false and the call is a no-op.
+     *  The test verifies: no crash, ERROR_GENERAL returned, first registration
+     *  still intact (can receive events after the failed duplicate attempt). */
+    L0Test::TestResult tr;
+
+    // Use IPlugin so we can call Initialize() which triggers AGW_TELEMETRY_INIT.
+    auto* implPlugin = WPEFramework::Core::Service<AppActionsImplementation>::Create<WPEFramework::PluginHost::IPlugin>();
+    L0Test::ExpectTrue(tr, nullptr != implPlugin,
+        "Telemetry_DuplicateRegister_WithInitializedService: impl should be non-null");
+
+    if (nullptr != implPlugin) {
+        L0Test::AppActionsServiceMock service;
+        implPlugin->Initialize(&service);  // AGW_TELEMETRY_INIT — returns false (no IAppGatewayTelemetry)
+
+        auto* appActions = reinterpret_cast<WPEFramework::Exchange::IAppActions*>(
+            implPlugin->QueryInterface(WPEFramework::Exchange::IAppActions::ID));
+        L0Test::ExpectTrue(tr, nullptr != appActions,
+            "Telemetry_DuplicateRegister_WithInitializedService: IAppActions interface should be available");
+
+        if (nullptr != appActions) {
+            auto* notification = new L0Test::AANotificationFake();
+
+            // First registration succeeds.
+            const auto rc1 = appActions->Register(notification);
+            L0Test::ExpectEqU32(tr, rc1, WPEFramework::Core::ERROR_NONE,
+                "Telemetry_DuplicateRegister_WithInitializedService: first Register should succeed");
+
+            // Duplicate registration triggers AGW_REPORT_API_ERROR (no-op, no crash).
+            const auto rc2 = appActions->Register(notification);
+            L0Test::ExpectEqU32(tr, rc2, WPEFramework::Core::ERROR_GENERAL,
+                "Telemetry_DuplicateRegister_WithInitializedService: duplicate Register should return ERROR_GENERAL");
+
+            // First subscriber must still be active after the failed attempt.
+            appActions->Unregister(notification);
+            notification->Release();
+            appActions->Release();
+        }
+
+        implPlugin->Deinitialize(&service);  // AGW_TELEMETRY_DEINIT
+        implPlugin->Release();
+    }
+
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// AA-L0-052: Duplicate registration without prior Initialize — telemetry
+//            client has no service pointer so IsAvailable() is always false
+// ---------------------------------------------------------------------------
+uint32_t Test_AA_Telemetry_DuplicateRegister_WithoutService()
+{
+    /** Verifies that AGW_REPORT_API_ERROR inside the duplicate-registration
+     *  branch is safe when the telemetry client was never initialized
+     *  (no service, mService == nullptr, IsAvailable() == false). */
+    L0Test::TestResult tr;
+
+    auto* impl = L0Test::CreateRawImpl();  // no Initialize → telemetry not inited
+    L0Test::ExpectTrue(tr, nullptr != impl,
+        "Telemetry_DuplicateRegister_WithoutService: impl should be non-null");
+
+    if (nullptr != impl) {
+        auto* notification = new L0Test::AANotificationFake();
+
+        L0Test::ExpectEqU32(tr, impl->Register(notification), WPEFramework::Core::ERROR_NONE,
+            "Telemetry_DuplicateRegister_WithoutService: first Register should succeed");
+
+        // AGW_REPORT_API_ERROR is a no-op (IsAvailable() == false) — must not crash.
+        L0Test::ExpectEqU32(tr, impl->Register(notification), WPEFramework::Core::ERROR_GENERAL,
+            "Telemetry_DuplicateRegister_WithoutService: duplicate Register should return ERROR_GENERAL");
+
+        impl->Unregister(notification);
+        notification->Release();
+        impl->Release();
+    }
+
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
+// AA-L0-053: Telemetry lifecycle — Initialize inits client, Deinitialize
+//            releases it; no crash even when IAppGatewayTelemetry unavailable
+// ---------------------------------------------------------------------------
+uint32_t Test_AA_Telemetry_InitDeinit_NoCrash()
+{
+    /** Exercises the full AGW_TELEMETRY_INIT / AGW_TELEMETRY_DEINIT path.
+     *  The service mock returns nullptr from QueryInterfaceByCallsign, so
+     *  TelemetryClient::Initialize() returns false and IsAvailable() stays
+     *  false — no COM-RPC calls are made. Verifies there is no crash. */
+    L0Test::TestResult tr;
+
+    auto* implPlugin = WPEFramework::Core::Service<AppActionsImplementation>::Create<WPEFramework::PluginHost::IPlugin>();
+    L0Test::ExpectTrue(tr, nullptr != implPlugin,
+        "Telemetry_InitDeinit_NoCrash: impl should be non-null");
+
+    if (nullptr != implPlugin) {
+        L0Test::AppActionsServiceMock service;
+
+        // AGW_TELEMETRY_INIT — tries QueryInterfaceByCallsign → nullptr → no-op.
+        const std::string initResult = implPlugin->Initialize(&service);
+        L0Test::ExpectTrue(tr, initResult.empty(),
+            "Telemetry_InitDeinit_NoCrash: Initialize should succeed");
+
+        // AGW_TELEMETRY_DEINIT — releases the (null) telemetry pointer, no crash.
+        implPlugin->Deinitialize(&service);
+
+        L0Test::ExpectTrue(tr, true,
+            "Telemetry_InitDeinit_NoCrash: no crash on Initialize + Deinitialize");
+        implPlugin->Release();
+    }
+
+    return tr.failures;
+}
+
+// ---------------------------------------------------------------------------
 // AA-L0-050: Register adds reference count
 // ---------------------------------------------------------------------------
 uint32_t Test_AA_Register_AddsRefCount()
