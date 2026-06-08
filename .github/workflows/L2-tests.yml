@@ -721,34 +721,66 @@ jobs:
         if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
         run: |
           cat > /tmp/gcov_sighandler.c << 'EOF'
-          /* LD_PRELOAD helper: flushes gcov .gcda files before a SIGSEGV kills the
-           * process.  Thunder R4.4.1 crashes during final RPC-connection cleanup when
-           * in-process OOP objects (service->Root<>() with mode=Off) are torn down.
-           * That crash bypasses the normal atexit() gcov flush, leaving zero coverage.
-           * This library intercepts SIGSEGV, calls __gcov_dump(), then re-raises so
-           * Thunder's own crash handler still runs normally. */
+          /*
+           * LD_PRELOAD helper — wraps sigaction() so that whenever Thunder installs
+           * its own SIGSEGV handler we silently replace it with a wrapper that:
+           *   1. calls __gcov_dump() to flush .gcda coverage files, then
+           *   2. calls Thunder's original SIGSEGV handler (preserving crash dump).
+           *
+           * Background: AppGateway calls service->Root<>() twice (Resolver +
+           * Responder) with mode=Off. Thunder R4.x corrupts its RPC connection
+           * table during final Controller shutdown, causing a SIGSEGV after all
+           * plugin code has finished. That crash bypasses atexit(), so gcov never
+           * writes .gcda files. Wrapping sigaction() ensures __gcov_dump() runs
+           * inside Thunder's own crash path regardless of handler install order.
+           */
+          #define _GNU_SOURCE
           #include <signal.h>
+          #include <dlfcn.h>
           #include <stdio.h>
+          #include <string.h>
+
           extern void __gcov_dump(void) __attribute__((weak));
-          static struct sigaction _prev_sigsegv;
-          static void _gcov_sigsegv_handler(int sig, siginfo_t *info, void *ctx) {
+
+          static int (*real_sigaction)(int, const struct sigaction *, struct sigaction *) = NULL;
+          static struct sigaction g_thunder_sigsegv;
+          static int g_thunder_saved = 0;
+
+          static void _gcov_then_thunder(int sig, siginfo_t *info, void *ctx)
+          {
               if (__gcov_dump) {
-                  fprintf(stderr, "[gcov_sighandler] SIGSEGV caught – flushing gcov data\n");
+                  fprintf(stderr, "[gcov_wrap] SIGSEGV: flushing gcov data\n");
                   __gcov_dump();
-                  fprintf(stderr, "[gcov_sighandler] gcov flush done\n");
+                  fprintf(stderr, "[gcov_wrap] gcov flush done\n");
               }
-              sigaction(SIGSEGV, &_prev_sigsegv, NULL);
-              raise(SIGSEGV);
+              if (g_thunder_saved) {
+                  if (g_thunder_sigsegv.sa_flags & SA_SIGINFO)
+                      g_thunder_sigsegv.sa_sigaction(sig, info, ctx);
+                  else if (g_thunder_sigsegv.sa_handler != SIG_DFL &&
+                           g_thunder_sigsegv.sa_handler != SIG_IGN)
+                      g_thunder_sigsegv.sa_handler(sig);
+              }
           }
-          static void __attribute__((constructor)) _install_gcov_handler(void) {
-              struct sigaction sa;
-              sigemptyset(&sa.sa_mask);
-              sa.sa_sigaction = _gcov_sigsegv_handler;
-              sa.sa_flags = SA_SIGINFO | SA_RESETHAND;
-              sigaction(SIGSEGV, &sa, &_prev_sigsegv);
+
+          int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
+          {
+              if (!real_sigaction)
+                  real_sigaction = dlsym(RTLD_NEXT, "sigaction");
+
+              if (signum == SIGSEGV && act) {
+                  /* Save Thunder's intended handler, install our wrapper instead */
+                  memcpy(&g_thunder_sigsegv, act, sizeof(*act));
+                  g_thunder_saved = 1;
+                  struct sigaction wrap;
+                  sigemptyset(&wrap.sa_mask);
+                  wrap.sa_sigaction = _gcov_then_thunder;
+                  wrap.sa_flags = SA_SIGINFO;
+                  return real_sigaction(signum, &wrap, oldact);
+              }
+              return real_sigaction(signum, act, oldact);
           }
           EOF
-          gcc -shared -fPIC -o /tmp/libgcov_sighandler.so /tmp/gcov_sighandler.c
+          gcc -shared -fPIC -o /tmp/libgcov_sighandler.so /tmp/gcov_sighandler.c -ldl
           echo "Built /tmp/libgcov_sighandler.so"
 
       - name: Run unit tests without valgrind
