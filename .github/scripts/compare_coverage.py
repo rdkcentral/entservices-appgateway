@@ -14,6 +14,7 @@ NOTE: This script is INFORMATIONAL ONLY — it always exits 0 and never blocks
 """
 
 import argparse
+import datetime
 import json
 import os
 import sys
@@ -22,6 +23,9 @@ from typing import Optional
 
 # Minimum acceptable line coverage percentage (advisory, not enforced yet).
 THRESHOLD = 75.0
+
+_SEP    = "\u2500" * 63
+_HEADER = "\u2500\u2500 Coverage Gate Report " + "\u2500" * 39
 
 
 # ---------------------------------------------------------------------------
@@ -91,59 +95,77 @@ def load_baseline(path: str) -> dict:
 # Reporting helpers
 # ---------------------------------------------------------------------------
 
+def _fmt_timestamp(ts: str) -> str:
+    """Convert '2026-05-28T12:00:00Z' -> '2026-05-28 12:00 UTC'."""
+    try:
+        dt = datetime.datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ")
+        return dt.strftime("%Y-%m-%d %H:%M UTC")
+    except ValueError:
+        return ts
+
+
 def _delta_str(current: float, baseline: float) -> str:
     delta = current - baseline
     sign = "+" if delta >= 0 else ""
     return f"{sign}{delta:.2f}%"
 
 
-def _threshold_label(value: float) -> str:
-    return "PASS" if value >= THRESHOLD else f"WARN  (below {THRESHOLD}% threshold)"
-
-
-def _regression_label(current: float, baseline: float) -> str:
-    if current >= baseline:
-        return "PASS"
-    return f"WARN  (regression: {_delta_str(current, baseline)} vs baseline)"
-
-
-def report_suite(
-    name: str,
-    current: Optional[float],
-    baseline: Optional[float],
-) -> bool:
-    """Print a per-suite summary block.  Returns True when all checks pass."""
-
-    sep = "-" * 56
-    print(sep)
-    print(f"  Suite : {name}")
-
+def _suite_result(current: Optional[float], baseline: Optional[float]) -> tuple:
+    """Return (result_label, threshold_ok, regression_ok, skipped)."""
     if current is None:
-        print("  Status: SKIP  (coverage data not available)")
-        print(f"          Check that the {name} test job ran and uploaded")
-        print(f"          filtered_coverage.info as part of its artifacts.")
-        print(sep)
-        return True  # Treat unavailable data as a pass (non-blocking).
-
-    print(f"  Current  : {current:.2f}%")
-
-    if baseline is not None:
-        print(f"  Baseline : {baseline:.2f}%  (delta: {_delta_str(current, baseline)})")
-        regression_ok = current >= baseline
-    else:
-        print("  Baseline : N/A  (first-time setup — regression check skipped)")
-        regression_ok = True
-
+        return "SKIP", True, True, True
     threshold_ok = current >= THRESHOLD
-    print(f"  Threshold: {_threshold_label(current)}")
-    if baseline is not None:
-        print(f"  Regression: {_regression_label(current, baseline)}")
+    regression_ok = baseline is None or current >= baseline
+    if not threshold_ok:
+        label = "WARN (below threshold)"
+    elif not regression_ok:
+        label = "WARN (regression)"
+    else:
+        label = "PASS"
+    return label, threshold_ok, regression_ok, False
 
-    all_ok = threshold_ok and regression_ok
-    status = "PASS" if all_ok else "WARN  (advisory — PR is not blocked)"
-    print(f"  Result   : {status}")
-    print(sep)
-    return all_ok
+
+def _join_names(names: list) -> str:
+    return names[0] if len(names) == 1 else " and ".join(names)
+
+
+def _build_summary(suite_data: list) -> str:
+    """Return a concise single-sentence summary.
+
+    suite_data: list of (name, threshold_ok, regression_ok, skipped)
+    """
+    active = [(n, t, r) for n, t, r, sk in suite_data if not sk]
+    if not active:
+        return "Coverage data unavailable — checks skipped."
+
+    below_and_regressed = [n for n, t, r in active if not t and not r]
+    below_only          = [n for n, t, r in active if not t and r]
+    regressed_only      = [n for n, t, r in active if t and not r]
+
+    if not below_and_regressed and not below_only and not regressed_only:
+        return "All checks passed."
+
+    parts = []
+    # Same suites are both below threshold AND regressed — combine into one clause.
+    if below_and_regressed and not below_only:
+        names = _join_names(below_and_regressed)
+        verb = "is" if len(below_and_regressed) == 1 else "are"
+        hv   = "has" if len(below_and_regressed) == 1 else "have"
+        parts.append(
+            f"{names} {verb} below the {THRESHOLD}% target and {hv} regressed vs baseline"
+        )
+    else:
+        all_below = below_and_regressed + below_only
+        if all_below:
+            names = _join_names(all_below)
+            verb  = "is" if len(all_below) == 1 else "are"
+            parts.append(f"{names} {verb} below the {THRESHOLD}% target")
+        if regressed_only:
+            names = _join_names(regressed_only)
+            hv    = "has" if len(regressed_only) == 1 else "have"
+            parts.append(f"{names} {hv} regressed vs baseline")
+
+    return ". ".join(parts) + "."
 
 
 # ---------------------------------------------------------------------------
@@ -157,95 +179,60 @@ def main() -> None:
             "Always exits 0 — coverage gate is informational only."
         )
     )
-    parser.add_argument(
-        "--baseline",
-        required=True,
-        metavar="PATH",
-        help="Path to coverage-baseline.json (from the build-metadata branch).",
-    )
-    parser.add_argument(
-        "--l0",
-        required=False,
-        metavar="PATH",
-        help="Path to the L0 lcov filtered_coverage.info file.",
-    )
-    parser.add_argument(
-        "--l1",
-        required=False,
-        metavar="PATH",
-        help="Path to the L1 lcov filtered_coverage.info file.",
-    )
+    parser.add_argument("--baseline", required=True, metavar="PATH",
+                        help="Path to coverage-baseline.json.")
+    parser.add_argument("--l0", required=False, metavar="PATH",
+                        help="Path to the L0 lcov filtered_coverage.info file.")
+    parser.add_argument("--l1", required=False, metavar="PATH",
+                        help="Path to the L1 lcov filtered_coverage.info file.")
     args = parser.parse_args()
 
-    baseline = load_baseline(args.baseline)
+    baseline    = load_baseline(args.baseline)
     baseline_l0: Optional[float] = baseline.get("L0")
     baseline_l1: Optional[float] = baseline.get("L1")
 
     l0_coverage = parse_lcov_coverage(args.l0) if args.l0 else None
     l1_coverage = parse_lcov_coverage(args.l1) if args.l1 else None
 
+    l0_result, l0_t_ok, l0_r_ok, l0_skip = _suite_result(l0_coverage, baseline_l0)
+    l1_result, l1_t_ok, l1_r_ok, l1_skip = _suite_result(l1_coverage, baseline_l1)
+
+    suite_data = [
+        ("L0", l0_t_ok, l0_r_ok, l0_skip),
+        ("L1", l1_t_ok, l1_r_ok, l1_skip),
+    ]
+    all_ok         = all(t and r for _, t, r, sk in suite_data if not sk)
+    overall_status = "PASS" if all_ok else "WARN (advisory — PR not blocked)"
+    summary        = _build_summary(suite_data)
+
     # ------------------------------------------------------------------
-    # Header
+    # Output
     # ------------------------------------------------------------------
-    eq = "=" * 56
     print()
-    print(eq)
-    print("  Coverage Gate Report  (informational — not blocking)")
-    print(eq)
+    print(_HEADER)
     if baseline:
         commit = baseline.get("commit", "unknown")
-        ts = baseline.get("timestamp", "unknown")
-        print(f"  Baseline commit   : {commit}")
-        print(f"  Baseline timestamp: {ts}")
-        print(f"  Baseline L0       : {baseline_l0 if baseline_l0 is not None else 'N/A'}%")
-        print(f"  Baseline L1       : {baseline_l1 if baseline_l1 is not None else 'N/A'}%")
+        ts     = _fmt_timestamp(baseline.get("timestamp", ""))
+        print(f"  Baseline  {commit}  ({ts})")
     else:
-        print("  Baseline: not found — first-time setup, regression check skipped.")
-    print()
+        print("  Baseline  N/A  (first-time setup — regression check skipped)")
+    print(f"  Threshold {THRESHOLD}%  |  Status {overall_status}")
+    print(_SEP)
 
-    # ------------------------------------------------------------------
-    # Per-suite checks
-    # ------------------------------------------------------------------
-    l0_ok = report_suite("L0 (unit tests)",        l0_coverage, baseline_l0)
-    print()
-    l1_ok = report_suite("L1 (integration tests)", l1_coverage, baseline_l1)
-    print()
+    # Table
+    print(f"  {'Suite':<10}{'Current':<10}{'Baseline':<11}{'Delta':<10}Result")
+    for name, current, base, result in [
+        ("L0", l0_coverage, baseline_l0, l0_result),
+        ("L1", l1_coverage, baseline_l1, l1_result),
+    ]:
+        cur_str   = f"{current:.2f}%" if current is not None else "N/A"
+        base_str  = f"{base:.2f}%"    if base    is not None else "N/A"
+        delta_str = _delta_str(current, base) if (current is not None and base is not None) else "N/A"
+        print(f"  {name:<10}{cur_str:<10}{base_str:<11}{delta_str:<10}{result}")
 
-    # ------------------------------------------------------------------
-    # Summary
-    # ------------------------------------------------------------------
-    print(eq)
-    if l0_ok and l1_ok:
-        print("  Overall: PASS")
-    else:
-        print("  Overall: WARN  (advisory — PR is NOT blocked)")
-        print()
-        print("  Action items:")
-        if l0_coverage is not None and l0_coverage < THRESHOLD:
-            print(f"    - L0 coverage {l0_coverage:.2f}% is below the {THRESHOLD}% target.")
-        if (
-            baseline_l0 is not None
-            and l0_coverage is not None
-            and l0_coverage < baseline_l0
-        ):
-            print(
-                f"    - L0 coverage has regressed by "
-                f"{_delta_str(l0_coverage, baseline_l0)} vs develop baseline "
-                f"({baseline_l0:.2f}%)."
-            )
-        if l1_coverage is not None and l1_coverage < THRESHOLD:
-            print(f"    - L1 coverage {l1_coverage:.2f}% is below the {THRESHOLD}% target.")
-        if (
-            baseline_l1 is not None
-            and l1_coverage is not None
-            and l1_coverage < baseline_l1
-        ):
-            print(
-                f"    - L1 coverage has regressed by "
-                f"{_delta_str(l1_coverage, baseline_l1)} vs develop baseline "
-                f"({baseline_l1:.2f}%)."
-            )
-    print(eq)
+    print(_SEP)
+    print(f"  {summary}")
+    print(_SEP)
     print()
 
     # Always exit 0 — this gate is informational only.
