@@ -717,69 +717,119 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
           $GITHUB_WORKSPACE/entservices-testframework/Tests/L2Tests/pact/install-verifier-cli.sh
 
-      - name: Install debug tools
-        run: sudo apt-get install -y gdb
-
       - name: Run unit tests without valgrind
         run: |
-          ulimit -c unlimited
-          sudo sysctl -w kernel.core_pattern=/tmp/core.%e.%p
           export PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
           export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
-          RdkServicesL2Test
-          EXIT_CODE=$?
+          RdkServicesL2Test || true
           cp -f $(pwd)/rdkL2TestResults.json $GITHUB_WORKSPACE/rdkL2TestResultsWithoutValgrind.json 2>/dev/null || true
           rm -f $(pwd)/rdkL2TestResults.json 2>/dev/null || true
-          exit $EXIT_CODE || true
 
-      - name: Analyze core dump
-        if: ${{ always() }}
+      - name: Build gcov SIGSEGV flush helper
+        if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
         run: |
-          CORE=$(ls /tmp/core.WPEFramework.* 2>/dev/null | head -1)
-          if [ -n "$CORE" ]; then
-            echo "=== Core dump found: $CORE ==="
-            WPE_BIN=$(which WPEFramework || echo "$GITHUB_WORKSPACE/install/usr/bin/WPEFramework")
-            gdb -batch \
-              -ex "set solib-search-path $GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins" \
-              -ex "thread apply all bt full" \
-              -ex "info registers" \
-              -ex "quit" \
-              "$WPE_BIN" "$CORE" 2>&1 | tee /tmp/gdb_backtrace.txt
-            echo "=== Backtrace saved to /tmp/gdb_backtrace.txt ==="
-          else
-            echo "No core dump found — process may have exited cleanly or core pattern not set"
-            ls /tmp/core.* 2>/dev/null || true
-          fi
+          cat > /tmp/gcov_sigwrap.c << 'CEOF'
+          #define _GNU_SOURCE
+          #include <dlfcn.h>
+          #include <signal.h>
+          #include <unistd.h>
+          #include <sys/wait.h>
+          #include <string.h>
+          extern void __gcov_dump(void) __attribute__((weak));
+          static struct sigaction orig_sa;
+          static int orig_saved = 0;
+          static void gcov_wrap_handler(int sig, siginfo_t *si, void *ctx) {
+            pid_t pid = fork();
+            if (pid == 0) {
+              if (__gcov_dump) __gcov_dump();
+              _exit(0);
+            } else if (pid > 0) {
+              int status;
+              waitpid(pid, &status, 0);
+            }
+            if (orig_saved) {
+              if (orig_sa.sa_flags & SA_SIGINFO) {
+                orig_sa.sa_sigaction(sig, si, ctx);
+              } else if (orig_sa.sa_handler != SIG_DFL && orig_sa.sa_handler != SIG_IGN) {
+                orig_sa.sa_handler(sig);
+              } else {
+                signal(sig, SIG_DFL); raise(sig);
+              }
+            } else {
+              signal(sig, SIG_DFL); raise(sig);
+            }
+          }
+          int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
+            static int (*real_sigaction)(int, const struct sigaction*, struct sigaction*) = NULL;
+            if (!real_sigaction) real_sigaction = dlsym(RTLD_NEXT, "sigaction");
+            if (signum == SIGSEGV && act != NULL) {
+              orig_sa = *act;
+              orig_saved = 1;
+              struct sigaction wrap_sa;
+              memset(&wrap_sa, 0, sizeof(wrap_sa));
+              wrap_sa.sa_sigaction = gcov_wrap_handler;
+              wrap_sa.sa_flags = SA_SIGINFO | SA_RESETHAND;
+              sigemptyset(&wrap_sa.sa_mask);
+              return real_sigaction(signum, &wrap_sa, oldact);
+            }
+            return real_sigaction(signum, act, oldact);
+          }
+          typedef void (*sighandler_t)(int);
+          sighandler_t signal(int signum, sighandler_t handler) {
+            static sighandler_t (*real_signal)(int, sighandler_t) = NULL;
+            if (!real_signal) real_signal = dlsym(RTLD_NEXT, "signal");
+            if (signum == SIGSEGV && handler != SIG_DFL && handler != SIG_IGN) {
+              memset(&orig_sa, 0, sizeof(orig_sa));
+              orig_sa.sa_handler = handler;
+              orig_saved = 1;
+              struct sigaction wrap_sa;
+              memset(&wrap_sa, 0, sizeof(wrap_sa));
+              wrap_sa.sa_sigaction = gcov_wrap_handler;
+              wrap_sa.sa_flags = SA_SIGINFO | SA_RESETHAND;
+              sigemptyset(&wrap_sa.sa_mask);
+              sigaction(signum, &wrap_sa, NULL);
+              return SIG_DFL;
+            }
+            return real_signal(signum, handler);
+          }
+          CEOF
+          gcc -O2 -shared -fPIC -o /tmp/libgcov_sigwrap.so /tmp/gcov_sigwrap.c -ldl
+          echo "Built /tmp/libgcov_sigwrap.so"
 
       - name: Generate coverage
         if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
-        run: >
+        run: |
+          # Run tests with LD_PRELOAD so the fork-based SIGSEGV handler flushes
+          # .gcda files before Thunder crashes in ServiceMap::Destroy().
+          export PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
+          export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
+          LD_PRELOAD=/tmp/libgcov_sigwrap.so RdkServicesL2Test || true
+          rm -f $(pwd)/rdkL2TestResults.json 2>/dev/null || true
+          echo "--- .gcda files found after coverage run ---"
+          find build/entservices-appgateway -name '*.gcda' | sort
           cp $GITHUB_WORKSPACE/entservices-testframework/Tests/L2Tests/.lcovrc_l2 ~/.lcovrc
-          &&
-          lcov -c
-          -o coverage.info
-          -d build/entservices-appgateway
-          &&
-          lcov
-          -r coverage.info
-          '/usr/include/*'
-          '*/build/entservices-appgateway/_deps/*'
-          '*/build/entservices-deviceanddisplay/_deps/*'
-          '*/build/entservices-entservices-testframework/_deps/*'
-          '*/install/usr/include/*'
-          '*/Tests/headers/*'
-          '*/Tests/mocks/*'
-          '*/build/mocks/*'
-          '*/Tests/L2Tests/*'
-          '*/googlemock/*'
-          '*/googletest/*'
-          '*/sqlite/*'
-          -o filtered_coverage.info
-          &&
-          genhtml
-          -o coverage
-          -t "entservices-appgateway coverage"
-          filtered_coverage.info
+          lcov -c \
+            -o coverage.info \
+            -d build/entservices-appgateway
+          lcov \
+            -r coverage.info \
+            '/usr/include/*' \
+            '*/build/entservices-appgateway/_deps/*' \
+            '*/build/entservices-deviceanddisplay/_deps/*' \
+            '*/build/entservices-entservices-testframework/_deps/*' \
+            '*/install/usr/include/*' \
+            '*/Tests/headers/*' \
+            '*/Tests/mocks/*' \
+            '*/build/mocks/*' \
+            '*/Tests/L2Tests/*' \
+            '*/googlemock/*' \
+            '*/googletest/*' \
+            '*/sqlite/*' \
+            -o filtered_coverage.info
+          genhtml \
+            -o coverage \
+            -t "entservices-appgateway coverage" \
+            filtered_coverage.info
 
       - name: Run unit tests with valgrind
         if: ${{ !env.ACT }}
@@ -807,5 +857,4 @@ jobs:
             valgrind_log
             rdkL2TestResultsWithoutValgrind.json
             rdkL2TestResultsWithValgrind.json
-            /tmp/gdb_backtrace.txt
           if-no-files-found: warn
