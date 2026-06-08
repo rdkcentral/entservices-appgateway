@@ -725,108 +725,54 @@ jobs:
           cp -f $(pwd)/rdkL2TestResults.json $GITHUB_WORKSPACE/rdkL2TestResultsWithoutValgrind.json 2>/dev/null || true
           rm -f $(pwd)/rdkL2TestResults.json 2>/dev/null || true
 
-      - name: Build gcov SIGSEGV flush helper
+      - name: Build gcov dlclose flush helper
         if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
         run: |
-          cat > /tmp/gcov_sigwrap.c << 'CEOF'
+          cat > /tmp/gcov_dlclose_wrap.c << 'CEOF'
           #define _GNU_SOURCE
           #include <dlfcn.h>
-          #include <link.h>
-          #include <signal.h>
-          #include <unistd.h>
-          #include <sys/wait.h>
           #include <string.h>
           /*
-           * Each .so compiled with -coverage has its OWN statically-linked copy of
-           * libgcov.a and therefore its OWN __gcov_dump() that flushes only that
-           * library's counters.  We must call __gcov_dump (or __gcov_flush) in every
-           * loaded shared object to flush all coverage data.
+           * Wrap dlclose() so that each plugin's __gcov_dump() is called before the
+           * .so is unmapped from memory.
+           *
+           * Background: WPEFramework deactivates (dlclose's) AppGateway.so BEFORE the
+           * process crashes in ServiceMap::Destroy().  By the time the SIGSEGV fires
+           * the AppGateway translation units are already unmapped, so their .gcda
+           * files can never be written via a signal handler.
+           *
+           * Solution: intercept every dlclose() call.  If the library being closed
+           * exposes __gcov_dump (gcc ≥ 7) or __gcov_flush (gcc ≤ 6) we call it
+           * while the library is still mapped, then proceed with the real dlclose().
            */
-          static int dump_gcov_lib(struct dl_phdr_info *info, size_t size, void *data) {
-            (void)size; (void)data;
-            void *handle;
-            const char *name = info->dlpi_name;
-            if (name && name[0] != '\0')
-              handle = dlopen(name, RTLD_NOLOAD | RTLD_LAZY);
-            else
-              handle = dlopen(NULL, RTLD_LAZY); /* main executable */
-            if (!handle) return 0;
-            typedef void (*gcov_fn)(void);
-            gcov_fn fn = (gcov_fn)(uintptr_t)dlsym(handle, "__gcov_dump");
-            if (!fn) fn = (gcov_fn)(uintptr_t)dlsym(handle, "__gcov_flush");
-            if (fn) fn();
-            dlclose(handle);
-            return 0;
-          }
-          static struct sigaction orig_sa;
-          static int orig_saved = 0;
-          static void gcov_wrap_handler(int sig, siginfo_t *si, void *ctx) {
-            pid_t pid = fork();
-            if (pid == 0) {
-              /* Single-threaded child: safe to walk loaded libs and call __gcov_dump */
-              dl_iterate_phdr(dump_gcov_lib, NULL);
-              _exit(0);
-            } else if (pid > 0) {
-              int status;
-              waitpid(pid, &status, 0);
+          int dlclose(void *handle) {
+            static int (*real_dlclose)(void *) = NULL;
+            if (!real_dlclose)
+              real_dlclose = (int (*)(void *))dlsym(RTLD_NEXT, "dlclose");
+            if (handle) {
+              typedef void (*gcov_fn)(void);
+              gcov_fn fn = (gcov_fn)(uintptr_t)dlsym(handle, "__gcov_dump");
+              if (!fn)
+                fn = (gcov_fn)(uintptr_t)dlsym(handle, "__gcov_flush");
+              if (fn)
+                fn();
             }
-            if (orig_saved) {
-              if (orig_sa.sa_flags & SA_SIGINFO) {
-                orig_sa.sa_sigaction(sig, si, ctx);
-              } else if (orig_sa.sa_handler != SIG_DFL && orig_sa.sa_handler != SIG_IGN) {
-                orig_sa.sa_handler(sig);
-              } else {
-                signal(sig, SIG_DFL); raise(sig);
-              }
-            } else {
-              signal(sig, SIG_DFL); raise(sig);
-            }
-          }
-          int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact) {
-            static int (*real_sigaction)(int, const struct sigaction*, struct sigaction*) = NULL;
-            if (!real_sigaction) real_sigaction = dlsym(RTLD_NEXT, "sigaction");
-            if (signum == SIGSEGV && act != NULL) {
-              orig_sa = *act;
-              orig_saved = 1;
-              struct sigaction wrap_sa;
-              memset(&wrap_sa, 0, sizeof(wrap_sa));
-              wrap_sa.sa_sigaction = gcov_wrap_handler;
-              wrap_sa.sa_flags = SA_SIGINFO | SA_RESETHAND;
-              sigemptyset(&wrap_sa.sa_mask);
-              return real_sigaction(signum, &wrap_sa, oldact);
-            }
-            return real_sigaction(signum, act, oldact);
-          }
-          typedef void (*sighandler_t)(int);
-          sighandler_t signal(int signum, sighandler_t handler) {
-            static sighandler_t (*real_signal)(int, sighandler_t) = NULL;
-            if (!real_signal) real_signal = dlsym(RTLD_NEXT, "signal");
-            if (signum == SIGSEGV && handler != SIG_DFL && handler != SIG_IGN) {
-              memset(&orig_sa, 0, sizeof(orig_sa));
-              orig_sa.sa_handler = handler;
-              orig_saved = 1;
-              struct sigaction wrap_sa;
-              memset(&wrap_sa, 0, sizeof(wrap_sa));
-              wrap_sa.sa_sigaction = gcov_wrap_handler;
-              wrap_sa.sa_flags = SA_SIGINFO | SA_RESETHAND;
-              sigemptyset(&wrap_sa.sa_mask);
-              sigaction(signum, &wrap_sa, NULL);
-              return SIG_DFL;
-            }
-            return real_signal(signum, handler);
+            return real_dlclose(handle);
           }
           CEOF
-          gcc -O2 -shared -fPIC -o /tmp/libgcov_sigwrap.so /tmp/gcov_sigwrap.c -ldl
-          echo "Built /tmp/libgcov_sigwrap.so"
+          gcc -O2 -shared -fPIC -o /tmp/libgcov_dlclose_wrap.so /tmp/gcov_dlclose_wrap.c -ldl
+          echo "Built /tmp/libgcov_dlclose_wrap.so"
 
       - name: Generate coverage
         if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
         run: |
-          # Run tests with LD_PRELOAD so the fork-based SIGSEGV handler flushes
-          # .gcda files before Thunder crashes in ServiceMap::Destroy().
+          # Run tests with LD_PRELOAD so __gcov_dump() is called inside each
+          # dlclose() before the plugin .so is unmapped. This flushes .gcda files
+          # for AppGateway, AppGatewayCommon, etc. before Thunder's
+          # ServiceMap::Destroy() crash occurs.
           export PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
           export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
-          LD_PRELOAD=/tmp/libgcov_sigwrap.so RdkServicesL2Test || true
+          LD_PRELOAD=/tmp/libgcov_dlclose_wrap.so RdkServicesL2Test || true
           rm -f $(pwd)/rdkL2TestResults.json 2>/dev/null || true
           echo "--- .gcda files found after coverage run ---"
           find build/entservices-appgateway -name '*.gcda' | sort
