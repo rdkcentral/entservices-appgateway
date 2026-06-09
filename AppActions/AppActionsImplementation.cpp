@@ -1,5 +1,15 @@
-#include "UtilsLogging.h"
+// AppActionsImplementation.h must be first: it pulls in AppActions/Module.h which
+// defines MODULE_NAME=Plugin_AppActions. interfaces/Module.h (included transitively
+// by IAppGateway.h inside UtilsAppGatewayTelemetry.h) has the guard:
+//   #ifndef MODULE_NAME
+//   #define MODULE_NAME Interfaces   // ← the C++ symbol in libWPEFrameworkInterfaces
+//   #endif
+// If UtilsAppGatewayTelemetry.h is included first, MODULE_NAME becomes "Interfaces"
+// and SERVICE_REGISTRATION references Core::System::Interfaces, which is not linked
+// into this shared library → "undefined reference to 'Interfaces'" linker error.
 #include "AppActionsImplementation.h"
+#include "UtilsLogging.h"
+#include "UtilsAppGatewayTelemetry.h"
 #include <plugins/IShell.h>
 
 #include <vector>
@@ -7,6 +17,8 @@
 #define API_VERSION_NUMBER_MAJOR    APPACTIONS_MAJOR_VERSION
 #define API_VERSION_NUMBER_MINOR    APPACTIONS_MINOR_VERSION
 #define API_VERSION_NUMBER_PATCH    APPACTIONS_PATCH_VERSION
+
+AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_APPACTIONS)
 
 namespace WPEFramework {
 namespace Plugin {
@@ -42,15 +54,27 @@ namespace Plugin {
             return Core::ERROR_BAD_REQUEST;
         }
         Core::hresult status = Core::ERROR_GENERAL;
-        std::lock_guard<std::mutex> lock(mAdminLock);
+        bool alreadyRegistered = false;
 
-        if (std::find(mAppActionsNotifications.begin(), mAppActionsNotifications.end(), notification) == mAppActionsNotifications.end()) {
-            LOGINFO("Register notification");
-            mAppActionsNotifications.push_back(notification);
-            notification->AddRef();
-            status = Core::ERROR_NONE;
-        } else {
-            LOGWARN("notification already registered");
+        {
+            std::lock_guard<std::mutex> lock(mAdminLock);
+            if (std::find(mAppActionsNotifications.begin(), mAppActionsNotifications.end(), notification) == mAppActionsNotifications.end()) {
+                LOGINFO("Register notification");
+                mAppActionsNotifications.push_back(notification);
+                notification->AddRef();
+                status = Core::ERROR_NONE;
+            } else {
+                LOGWARN("notification already registered");
+                alreadyRegistered = true;
+            }
+        } // mAdminLock released here before any COM-RPC calls
+
+        // AGW_REPORT_API_ERROR calls IsAvailable() which may call QueryInterfaceByCallsign
+        // (COM-RPC), and then RecordTelemetryEvent (another COM-RPC). Both must be made
+        // outside mAdminLock to avoid deadlock.
+        if (alreadyRegistered) {
+            Exchange::GatewayContext ctx{};
+            AGW_REPORT_API_ERROR(ctx, "Register", AGW_ERROR_ALREADY_REGISTERED);
         }
         return status;
     }
@@ -84,14 +108,29 @@ namespace Plugin {
         Core::hresult status = Core::ERROR_GENERAL;
         SYSLOG(Logging::Startup, (_T("AppActionsImplementation Configure entry")));
         if (nullptr != service) {
-            std::lock_guard<std::mutex> lock(mAdminLock);
-            if (nullptr != mService) {
-                mService->Release();
-                mService = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(mAdminLock);
+                if (nullptr != mService) {
+                    mService->Release();
+                    mService = nullptr;
+                }
+                mService = service;
+                mService->AddRef();
+                status = Core::ERROR_NONE;
             }
-            mService = service;
-            mService->AddRef();
-            status = Core::ERROR_NONE;
+            // Initialize telemetry OUTSIDE mAdminLock: QueryInterfaceByCallsign is
+            // a COM-RPC call; holding the mutex across it risks deadlock.
+            // TelemetryClient stores mService and lazy-reconnects via IsAvailable()
+            // if AppGateway is not yet active at this point.
+            AGW_TELEMETRY_INIT(service);
+            // SYSLOG so init status appears in the WPEFramework syslog stream.
+            // LOGINFO/LOGWARN inside TelemetryClient go to stderr (fprintf), not syslog.
+            // If AppGateway is not yet active the client stores mService and lazy-reconnects
+            // via IsAvailable() the first time a telemetry event is reported.
+            SYSLOG(Logging::Startup, (_T("AppActionsImplementation telemetry client: %s"),
+                GetLocalTelemetryClient().IsAvailable()
+                    ? "connected to AppGateway"
+                    : "AppGateway not yet active - will lazy-connect on first use"));
             SYSLOG(Logging::Startup, (_T("AppActionsImplementation service configured successfully")));
         } else {
             SYSLOG(Logging::Startup, (_T("AppActionsImplementation service configuration failed: service is null")));
@@ -111,6 +150,7 @@ namespace Plugin {
     void AppActionsImplementation::Deinitialize(PluginHost::IShell* service)
     {
         SYSLOG(Logging::Shutdown, (_T("AppActionsImplementation Deinitialize entry")));
+        AGW_TELEMETRY_DEINIT();
         std::lock_guard<std::mutex> lock(mAdminLock);
         if (nullptr != mService) {
             // Only assert when mService is non-null; asserting against nullptr is

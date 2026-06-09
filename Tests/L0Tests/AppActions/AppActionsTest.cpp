@@ -65,6 +65,13 @@ extern uint32_t Test_AA_Register_ThreadSafety();
 extern uint32_t Test_AA_Register_AddsRefCount();
 
 // -----------------------------------------------------------------------
+// Forward declarations for telemetry tests in AppActions_NotificationTests.cpp
+// -----------------------------------------------------------------------
+extern uint32_t Test_AA_Telemetry_DuplicateRegister_WithInitializedService();
+extern uint32_t Test_AA_Telemetry_DuplicateRegister_WithoutService();
+extern uint32_t Test_AA_Telemetry_InitDeinit_NoCrash();
+
+// -----------------------------------------------------------------------
 // Forward declarations for tests in AppActions_ImplTests.cpp
 // -----------------------------------------------------------------------
 extern uint32_t Test_AA_Impl_Configure_ValidService();
@@ -133,6 +140,11 @@ int main()
         { "AA_Unregister_PartialFromMultiple",        Test_AA_Unregister_PartialFromMultiple        },
         { "AA_Register_ThreadSafety",                 Test_AA_Register_ThreadSafety                 },
         { "AA_Register_AddsRefCount",                 Test_AA_Register_AddsRefCount                 },
+
+        // Telemetry tests (AA-L0-051 to AA-L0-053)
+        { "AA_Telemetry_DuplicateRegister_WithInitializedService", Test_AA_Telemetry_DuplicateRegister_WithInitializedService },
+        { "AA_Telemetry_DuplicateRegister_WithoutService",         Test_AA_Telemetry_DuplicateRegister_WithoutService         },
+        { "AA_Telemetry_InitDeinit_NoCrash",                       Test_AA_Telemetry_InitDeinit_NoCrash                       },
 
         // Implementation tests (AA-L0-060 to AA-L0-072)
         { "AA_Impl_Configure_ValidService",           Test_AA_Impl_Configure_ValidService           },
