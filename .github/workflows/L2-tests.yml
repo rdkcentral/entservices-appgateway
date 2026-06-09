@@ -783,13 +783,24 @@ jobs:
               }
               if (!symtab || !strtab) return NULL;
 
+              /* Match any of the gcov flush symbols.
+               * __gcov_dump  : GCC 11+ public API  (_gcov_dump.o  — often NOT pulled in)
+               * __gcov_flush : GCC <=10 public API (_gcov_flush.o — often NOT pulled in)
+               * __gcov_exit  : atexit handler      (_gcov.o       — ALWAYS pulled in via
+               *                __gcov_init→atexit(__gcov_exit)); use as primary target.
+               */
+          #define IS_GCOV_FN(n) \
+              (strcmp((n), "__gcov_exit")  == 0 || \
+               strcmp((n), "__gcov_dump")  == 0 || \
+               strcmp((n), "__gcov_flush") == 0)
+
               /* SysV hash: [nbuckets][nchain][buckets…][chains…] */
               if (hash) {
                   uint32_t nchain = hash[1];
                   for (uint32_t i = 1; i < nchain; i++) {
                       if (!symtab[i].st_value) continue;
                       const char *n = strtab + symtab[i].st_name;
-                      if (strcmp(n, "__gcov_dump") == 0 || strcmp(n, "__gcov_flush") == 0)
+                      if (IS_GCOV_FN(n))
                           return (gcov_fn_t)(info->dlpi_addr + symtab[i].st_value);
                   }
               }
@@ -807,7 +818,7 @@ jobs:
                       for (;;) {
                           if (symtab[idx].st_value) {
                               const char *n = strtab + symtab[idx].st_name;
-                              if (strcmp(n, "__gcov_dump") == 0 || strcmp(n, "__gcov_flush") == 0)
+                              if (IS_GCOV_FN(n))
                                   return (gcov_fn_t)(info->dlpi_addr + symtab[idx].st_value);
                           }
                           if (chains[idx - symoffset] & 1u) break;
@@ -815,6 +826,7 @@ jobs:
                       }
                   }
               }
+          #undef IS_GCOV_FN
               return NULL;
           }
 
@@ -826,7 +838,7 @@ jobs:
               if (!info->dlpi_name || !info->dlpi_name[0]) return 0;
               gcov_fn_t fn = find_gcov_fn(info);
               if (fn) {
-                  fprintf(stderr, "[gcov_segv] cache: found gcov_dump in %s\n", info->dlpi_name);
+                  fprintf(stderr, "[gcov_segv] cache: found gcov fn in %s\n", info->dlpi_name);
                   ctx->arr[ctx->count++] = fn;
               }
               return 0;
@@ -835,17 +847,19 @@ jobs:
           /* Background thread: safely scan loaded .so files and cache gcov pointers */
           static void *cache_thread(void *arg) {
               (void)arg;
-              /* Wait for plugins to load (they load ~1-2s after WPEFramework starts) */
-              sleep(4);
+              fprintf(stderr, "[gcov_segv] cache thread: started\n");
+              /* Plugins load ~1-2s after WPEFramework starts; 1s sleep is enough */
+              sleep(1);
               for (;;) {
                   gcov_fn_t tmp[MAX_GCOV_ENTRIES];
                   CacheCtx ctx = { 0, tmp };
                   dl_iterate_phdr(cache_one, &ctx);
+                  /* Always print scan result so CI log shows thread is alive */
+                  fprintf(stderr, "[gcov_segv] cache thread: scanned, found %d gcov entries\n", ctx.count);
                   if (ctx.count > 0) {
                       memcpy((void *)s_gcov_cache, tmp, (size_t)ctx.count * sizeof(gcov_fn_t));
                       __sync_synchronize(); /* ensure array visible before count */
                       s_gcov_cache_count = ctx.count;
-                      fprintf(stderr, "[gcov_segv] cache updated: %d entries\n", ctx.count);
                   }
                   sleep(2);
               }
