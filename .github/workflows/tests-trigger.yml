@@ -77,10 +77,7 @@ jobs:
           path: ./l1-coverage
 
       - name: Compare coverage to baseline
-        # Always exit 0 — informational only, never blocks a PR.
-        # continue-on-error guards against unexpected runner-level failures
-        # (e.g. Python interpreter unavailable) so the job never turns red.
-        continue-on-error: true
+        continue-on-error: false
         run: |
           python3 .github/scripts/compare_coverage.py \
             --baseline coverage-baseline.json \

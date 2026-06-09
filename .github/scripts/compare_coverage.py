@@ -31,7 +31,7 @@ import sys
 from typing import Optional
 
 
-# Minimum acceptable line coverage percentage (advisory, not enforced yet).
+# Minimum acceptable line coverage percentage — enforced: PRs below this are blocked.
 THRESHOLD = 75.0
 
 _GREEN = "\033[32m"
@@ -151,13 +151,13 @@ def _suite_analysis(current: Optional[float], baseline: Optional[float]):
     if baseline is None:
         # No baseline stored — threshold check only.
         regression_ok = True
-        detail        = "" if threshold_ok else "below target"
+        detail        = "" if threshold_ok else "below threshold"
         delta_disp    = "N/A"
     elif baseline == 0.0:
         # A zero baseline is unreliable — skip regression check.
         regression_ok = True
         base_note  = "baseline unreliable (0%) \u00b7 delta skipped"
-        detail     = f"below target \u00b7 {base_note}" if not threshold_ok else base_note
+        detail     = f"below threshold \u00b7 {base_note}" if not threshold_ok else base_note
         delta_disp = "N/A"
     else:
         regression_ok = current >= baseline
@@ -165,11 +165,11 @@ def _suite_analysis(current: Optional[float], baseline: Optional[float]):
         if threshold_ok and regression_ok:
             detail = ""
         elif not threshold_ok and not regression_ok:
-            detail = "below target \u00b7 dropped from baseline"
+            detail = "below threshold \u00b7 dropped from baseline"
         elif not threshold_ok:
-            detail = "below target but baseline improved"
+            detail = "below threshold but baseline improved"
         else:
-            detail = "above target but dropped from baseline"
+            detail = "above threshold but dropped from baseline"
 
     overall_ok  = threshold_ok and regression_ok
     token       = _colored("[PASS]", True) if overall_ok else _colored("[WARN]", False)
@@ -197,7 +197,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Compare L0/L1 coverage against the develop baseline.\n"
-            "Always exits 0 \u2014 coverage gate is informational only."
+            "Exits 1 when coverage fails threshold or regresses from baseline."
         )
     )
     parser.add_argument("--baseline", required=True, metavar="PATH",
@@ -263,7 +263,7 @@ def main() -> None:
         print(f"  Baseline   {commit}  ({ts})")
     else:
         print("  Baseline   N/A  (first-time setup \u2014 regression check skipped)")
-    print(f"  Threshold  {THRESHOLD}%  |  Status  {status_token}  (advisory \u2014 PR not blocked)")
+    print(f"  Threshold  {THRESHOLD}%  |  Status  {status_token}  (enforcing \u2014 PR blocked on WARN)")
     print(_SEP)
 
     # ------------------------------------------------------------------
@@ -296,8 +296,8 @@ def main() -> None:
     print(f"{left} OVERALL: {status_token} {right}")
     print()
 
-    # Always exit 0 \u2014 this gate is informational only.
-    sys.exit(0)
+    # Exit 1 when any suite has an advisory issue — gate is now enforcing.
+    sys.exit(0 if all_ok else 1)
 
 
 if __name__ == "__main__":
