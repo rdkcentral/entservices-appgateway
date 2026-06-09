@@ -729,33 +729,35 @@ jobs:
           #include <string.h>
           #include <stdint.h>
           #include <elf.h>
+          #include <pthread.h>
+          #include <unistd.h>
 
           /*
-           * Problem: WPEFramework installs its own SIGSEGV handler in main() AFTER
-           * our LD_PRELOAD constructor runs, replacing our handler.  When the crash
-           * fires, Thunder's handler runs first, triggers graceful plugin shutdown
-           * (dlclose-ing the .so files), then re-raises.  By the time our handler
-           * would normally run (SIGSEGV #2) the plugin .gcda data may be gone.
+           * Strategy: avoid calling dl_iterate_phdr inside the signal handler.
+           * dl_iterate_phdr acquires _dl_load_lock; if the SIGSEGV fires while
+           * that lock is already held (e.g. during COM channel teardown), calling
+           * dl_iterate_phdr from the handler causes a second fatal SIGSEGV.
            *
-           * Solution: interpose sigaction().  When WPEFramework calls
-           *   sigaction(SIGSEGV, &thunder_handler, &old)
-           * we save thunder_handler as our chain target but keep OUR handler
-           * installed.  Our handler therefore runs first on the original SIGSEGV
-           * while ALL plugin .so files are still mapped — then chains to Thunder.
+           * Instead: a background thread pre-caches __gcov_dump pointers every 2s.
+           * The signal handler reads only from the pre-built cache — no dl locking.
+           *
+           * sigaction() interposer ensures our handler stays installed even after
+           * WPEFramework's main() calls sigaction(SIGSEGV, ...) to replace it.
            */
 
           typedef void (*gcov_fn_t)(void);
           typedef int  (*real_sigaction_fn_t)(int, const struct sigaction *, struct sigaction *);
 
           static real_sigaction_fn_t s_real_sigaction = NULL;
-
-          /* WPEFramework's handler — we chain to it after flushing gcov */
           static struct sigaction s_chained_sa;
-
-          /* Flush only once (first SIGSEGV, plugins still loaded) */
           static volatile int s_flushed = 0;
 
-          /* ---- ELF scanner: find __gcov_dump in a mapped .so without dlopen ---- */
+          /* Pre-cached gcov flush pointers — written by thread, read by signal handler */
+          #define MAX_GCOV_ENTRIES 512
+          static gcov_fn_t s_gcov_cache[MAX_GCOV_ENTRIES];
+          static volatile int s_gcov_cache_count = 0;
+
+          /* ---- ELF scanner: search dynsym for __gcov_dump without dlopen ---- */
           static gcov_fn_t find_gcov_fn(struct dl_phdr_info *info) {
               const ElfW(Dyn) *dyn = NULL;
               for (ElfW(Half) i = 0; i < info->dlpi_phnum; i++) {
@@ -781,6 +783,7 @@ jobs:
               }
               if (!symtab || !strtab) return NULL;
 
+              /* SysV hash: [nbuckets][nchain][buckets…][chains…] */
               if (hash) {
                   uint32_t nchain = hash[1];
                   for (uint32_t i = 1; i < nchain; i++) {
@@ -791,6 +794,7 @@ jobs:
                   }
               }
 
+              /* GNU hash */
               if (gnuhash) {
                   uint32_t nbuckets  = gnuhash[0];
                   uint32_t symoffset = gnuhash[1];
@@ -799,7 +803,7 @@ jobs:
                   const uint32_t *chains  = buckets + nbuckets;
                   for (uint32_t b = 0; b < nbuckets; b++) {
                       uint32_t idx = buckets[b];
-                      if (!idx) continue;
+                      if (idx < symoffset) continue;
                       for (;;) {
                           if (symtab[idx].st_value) {
                               const char *n = strtab + symtab[idx].st_name;
@@ -814,36 +818,60 @@ jobs:
               return NULL;
           }
 
-          static int flush_one(struct dl_phdr_info *info, size_t sz, void *data) {
-              (void)sz; (void)data;
+          typedef struct { int count; gcov_fn_t *arr; } CacheCtx;
+
+          static int cache_one(struct dl_phdr_info *info, size_t sz, void *data) {
+              CacheCtx *ctx = (CacheCtx *)data;
+              if (ctx->count >= MAX_GCOV_ENTRIES) return 1;
               if (!info->dlpi_name || !info->dlpi_name[0]) return 0;
               gcov_fn_t fn = find_gcov_fn(info);
               if (fn) {
-                  fprintf(stderr, "[gcov_segv] flushing %s\n", info->dlpi_name);
-                  fn();
+                  fprintf(stderr, "[gcov_segv] cache: found gcov_dump in %s\n", info->dlpi_name);
+                  ctx->arr[ctx->count++] = fn;
               }
               return 0;
           }
 
-          /* ---- Our SIGSEGV handler ---- */
+          /* Background thread: safely scan loaded .so files and cache gcov pointers */
+          static void *cache_thread(void *arg) {
+              (void)arg;
+              /* Wait for plugins to load (they load ~1-2s after WPEFramework starts) */
+              sleep(4);
+              for (;;) {
+                  gcov_fn_t tmp[MAX_GCOV_ENTRIES];
+                  CacheCtx ctx = { 0, tmp };
+                  dl_iterate_phdr(cache_one, &ctx);
+                  if (ctx.count > 0) {
+                      memcpy((void *)s_gcov_cache, tmp, (size_t)ctx.count * sizeof(gcov_fn_t));
+                      __sync_synchronize(); /* ensure array visible before count */
+                      s_gcov_cache_count = ctx.count;
+                      fprintf(stderr, "[gcov_segv] cache updated: %d entries\n", ctx.count);
+                  }
+                  sleep(2);
+              }
+              return NULL;
+          }
+
+          /* ---- Signal handler: only touches pre-built cache, no dl calls ---- */
           static void segv_handler(int sig, siginfo_t *si, void *ctx) {
-              /* Flush gcov data exactly once — on first SIGSEGV, plugins still loaded */
               if (!s_flushed) {
                   s_flushed = 1;
-                  fprintf(stderr, "[gcov_segv] SIGSEGV #1 caught — flushing all gcov data\n");
-                  dl_iterate_phdr(flush_one, NULL);
+                  int count = s_gcov_cache_count;
+                  fprintf(stderr, "[gcov_segv] SIGSEGV caught — calling %d cached gcov_dump()\n", count);
+                  for (int i = 0; i < count; i++) {
+                      if (s_gcov_cache[i]) s_gcov_cache[i]();
+                  }
                   fprintf(stderr, "[gcov_segv] flush done — chaining to Thunder handler\n");
               }
-              /* Chain to WPEFramework's handler (ExitDaemonHandler) */
+              /* Chain to WPEFramework's SIGSEGV handler */
               if (s_chained_sa.sa_flags & SA_SIGINFO) {
                   if (s_chained_sa.sa_sigaction)
                       s_chained_sa.sa_sigaction(sig, si, ctx);
-              } else if (s_chained_sa.sa_handler != SIG_DFL &&
-                         s_chained_sa.sa_handler != SIG_IGN &&
-                         s_chained_sa.sa_handler != NULL) {
+              } else if (s_chained_sa.sa_handler &&
+                         s_chained_sa.sa_handler != SIG_DFL &&
+                         s_chained_sa.sa_handler != SIG_IGN) {
                   s_chained_sa.sa_handler(sig);
               } else {
-                  /* No chain — restore default and re-raise for core dump */
                   struct sigaction dfl;
                   memset(&dfl, 0, sizeof(dfl));
                   dfl.sa_handler = SIG_DFL;
@@ -852,41 +880,39 @@ jobs:
               }
           }
 
-          /*
-           * sigaction() interposer.
-           * When WPEFramework calls sigaction(SIGSEGV, &thunder_sa, &old):
-           *   - we save thunder_sa as our chain target
-           *   - we do NOT replace our handler
-           *   - we return the previously chained handler as old
-           * For all other signals (or act==NULL queries), pass through unchanged.
-           */
+          /* sigaction interposer: intercept WPEFramework's sigaction(SIGSEGV,...) call */
           int sigaction(int sig, const struct sigaction *act, struct sigaction *oldact) {
               if (!s_real_sigaction)
                   s_real_sigaction = (real_sigaction_fn_t)(uintptr_t)dlsym(RTLD_NEXT, "sigaction");
               if (sig == SIGSEGV && act != NULL) {
                   if (oldact) *oldact = s_chained_sa;
-                  s_chained_sa = *act;
-                  /* Keep our handler installed — do not call real sigaction */
-                  return 0;
+                  s_chained_sa = *act; /* save Thunder's handler as chain target */
+                  return 0;           /* keep our handler installed */
               }
               return s_real_sigaction(sig, act, oldact);
           }
 
-          /* Installed at .so load time via LD_PRELOAD — before WPEFramework main() */
           __attribute__((constructor))
           static void install_handler(void) {
               s_real_sigaction = (real_sigaction_fn_t)(uintptr_t)dlsym(RTLD_NEXT, "sigaction");
               struct sigaction sa;
               memset(&sa, 0, sizeof(sa));
               sa.sa_sigaction = segv_handler;
-              /* SA_SIGINFO only — no SA_RESETHAND, stay installed for SIGSEGV #2 */
               sa.sa_flags = SA_SIGINFO;
-              /* Use real sigaction to actually install (bypasses our own interposer) */
               s_real_sigaction(SIGSEGV, &sa, &s_chained_sa);
-              fprintf(stderr, "[gcov_segv] SIGSEGV gcov-flush handler installed (with sigaction interposer)\n");
+
+              /* Launch background cache thread */
+              pthread_t tid;
+              pthread_attr_t attr;
+              pthread_attr_init(&attr);
+              pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+              pthread_create(&tid, &attr, cache_thread, NULL);
+              pthread_attr_destroy(&attr);
+
+              fprintf(stderr, "[gcov_segv] handler installed + cache thread started\n");
           }
           CEOF
-          gcc -O0 -shared -fPIC -o /tmp/libgcov_segv_flush.so /tmp/gcov_segv_flush.c -ldl
+          gcc -O0 -shared -fPIC -o /tmp/libgcov_segv_flush.so /tmp/gcov_segv_flush.c -ldl -lpthread
           echo "Built /tmp/libgcov_segv_flush.so"
 
       - name: Run unit tests without valgrind
