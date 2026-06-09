@@ -731,17 +731,23 @@ jobs:
           #include <elf.h>
           #include <pthread.h>
           #include <unistd.h>
+          #include <fcntl.h>
+          #include <stdlib.h>
+          #include <sys/types.h>
 
           /*
-           * Strategy: avoid calling dl_iterate_phdr inside the signal handler.
-           * dl_iterate_phdr acquires _dl_load_lock; if the SIGSEGV fires while
-           * that lock is already held (e.g. during COM channel teardown), calling
-           * dl_iterate_phdr from the handler causes a second fatal SIGSEGV.
+           * Strategy: background thread pre-caches gcov flush pointers every 2s.
+           * Signal handler reads only from the pre-built cache — no dl locking.
            *
-           * Instead: a background thread pre-caches __gcov_dump pointers every 2s.
-           * The signal handler reads only from the pre-built cache — no dl locking.
+           * Key insight: __gcov_exit (from libgcov.a _gcov.o) is ALWAYS linked in
+           * via __gcov_init → atexit(__gcov_exit).  However it may have STV_HIDDEN
+           * visibility and therefore NOT appear in .dynsym.
            *
-           * sigaction() interposer ensures our handler stays installed even after
+           * Solution: scan the .so FILE ON DISK via its .symtab section (not
+           * .dynsym).  .symtab contains ALL symbols regardless of visibility.
+           * This is safe to do in a background thread (file I/O + malloc are OK).
+           *
+           * sigaction() interposer keeps our handler installed even after
            * WPEFramework's main() calls sigaction(SIGSEGV, ...) to replace it.
            */
 
@@ -757,108 +763,137 @@ jobs:
           static gcov_fn_t s_gcov_cache[MAX_GCOV_ENTRIES];
           static volatile int s_gcov_cache_count = 0;
 
-          /* ---- ELF scanner: search dynsym for __gcov_dump without dlopen ---- */
-          static gcov_fn_t find_gcov_fn(struct dl_phdr_info *info) {
-              const ElfW(Dyn) *dyn = NULL;
-              for (ElfW(Half) i = 0; i < info->dlpi_phnum; i++) {
-                  if (info->dlpi_phdr[i].p_type == PT_DYNAMIC) {
-                      dyn = (const ElfW(Dyn) *)(info->dlpi_addr + info->dlpi_phdr[i].p_vaddr);
-                      break;
-                  }
-              }
-              if (!dyn) return NULL;
-
-              const ElfW(Sym) *symtab  = NULL;
-              const char      *strtab  = NULL;
-              const uint32_t  *hash    = NULL;
-              const uint32_t  *gnuhash = NULL;
-
-              for (const ElfW(Dyn) *d = dyn; d->d_tag != DT_NULL; d++) {
-                  switch (d->d_tag) {
-                      case DT_SYMTAB:   symtab  = (const ElfW(Sym) *)d->d_un.d_ptr; break;
-                      case DT_STRTAB:   strtab  = (const char *)d->d_un.d_ptr;      break;
-                      case DT_HASH:     hash    = (const uint32_t *)d->d_un.d_ptr;  break;
-                      case DT_GNU_HASH: gnuhash = (const uint32_t *)d->d_un.d_ptr;  break;
-                  }
-              }
-              if (!symtab || !strtab) return NULL;
-
-              /* Match any of the gcov flush symbols.
-               * __gcov_dump  : GCC 11+ public API  (_gcov_dump.o  — often NOT pulled in)
-               * __gcov_flush : GCC <=10 public API (_gcov_flush.o — often NOT pulled in)
-               * __gcov_exit  : atexit handler      (_gcov.o       — ALWAYS pulled in via
-               *                __gcov_init→atexit(__gcov_exit)); use as primary target.
-               */
           #define IS_GCOV_FN(n) \
               (strcmp((n), "__gcov_exit")  == 0 || \
                strcmp((n), "__gcov_dump")  == 0 || \
                strcmp((n), "__gcov_flush") == 0)
 
-              /* SysV hash: [nbuckets][nchain][buckets…][chains…] */
-              if (hash) {
-                  uint32_t nchain = hash[1];
-                  for (uint32_t i = 1; i < nchain; i++) {
-                      if (!symtab[i].st_value) continue;
-                      const char *n = strtab + symtab[i].st_name;
-                      if (IS_GCOV_FN(n))
-                          return (gcov_fn_t)(info->dlpi_addr + symtab[i].st_value);
-                  }
+          /*
+           * Disk-based ELF scanner: reads .symtab from the .so file on disk.
+           * Finds __gcov_exit even when it is STV_HIDDEN (absent from .dynsym).
+           * Uses pread + malloc — safe in a regular thread, NOT for signal context.
+           */
+          static gcov_fn_t find_gcov_fn_disk(struct dl_phdr_info *info)
+          {
+              if (!info->dlpi_name || info->dlpi_name[0] == '\0') return NULL;
+
+              gcov_fn_t   result   = NULL;
+              char       *shdrs_buf = NULL;
+              char       *shnames   = NULL;
+              char       *strtab    = NULL;
+              char       *syms_buf  = NULL;
+
+              int fd = open(info->dlpi_name, O_RDONLY);
+              if (fd < 0) return NULL;
+
+              ElfW(Ehdr) ehdr;
+              if (pread(fd, &ehdr, sizeof(ehdr), 0) != (ssize_t)sizeof(ehdr)) goto done;
+              /* Basic magic check */
+              if (ehdr.e_ident[0] != 0x7f || ehdr.e_ident[1] != 'E' ||
+                  ehdr.e_ident[2] != 'L'  || ehdr.e_ident[3] != 'F') goto done;
+              if (ehdr.e_shoff == 0 || ehdr.e_shnum == 0) goto done; /* stripped */
+              if (ehdr.e_shentsize != sizeof(ElfW(Shdr)))            goto done;
+
+              /* Read all section headers */
+              shdrs_buf = (char *)malloc((size_t)ehdr.e_shnum * sizeof(ElfW(Shdr)));
+              if (!shdrs_buf) goto done;
+              if (pread(fd, shdrs_buf, (size_t)ehdr.e_shnum * sizeof(ElfW(Shdr)),
+                        (off_t)ehdr.e_shoff)
+                      != (ssize_t)((size_t)ehdr.e_shnum * sizeof(ElfW(Shdr)))) goto done;
+              ElfW(Shdr) *shdrs = (ElfW(Shdr) *)shdrs_buf;
+
+              /* Read .shstrtab so we can compare section names (optional but tidy) */
+              if (ehdr.e_shstrndx == 0 || ehdr.e_shstrndx >= (uint16_t)ehdr.e_shnum) goto done;
+              {
+                  ElfW(Shdr) *shstrtab_sh = &shdrs[ehdr.e_shstrndx];
+                  shnames = (char *)malloc(shstrtab_sh->sh_size + 1);
+                  if (!shnames) goto done;
+                  if (pread(fd, shnames, shstrtab_sh->sh_size,
+                            (off_t)shstrtab_sh->sh_offset)
+                          != (ssize_t)shstrtab_sh->sh_size) goto done;
+                  shnames[shstrtab_sh->sh_size] = '\0';
               }
 
-              /* GNU hash */
-              if (gnuhash) {
-                  uint32_t nbuckets  = gnuhash[0];
-                  uint32_t symoffset = gnuhash[1];
-                  uint32_t bloom_sz  = gnuhash[2];
-                  const uint32_t *buckets = gnuhash + 4 + bloom_sz * (sizeof(ElfW(Addr)) / 4);
-                  const uint32_t *chains  = buckets + nbuckets;
-                  for (uint32_t b = 0; b < nbuckets; b++) {
-                      uint32_t idx = buckets[b];
-                      if (idx < symoffset) continue;
-                      for (;;) {
-                          if (symtab[idx].st_value) {
-                              const char *n = strtab + symtab[idx].st_name;
-                              if (IS_GCOV_FN(n))
-                                  return (gcov_fn_t)(info->dlpi_addr + symtab[idx].st_value);
-                          }
-                          if (chains[idx - symoffset] & 1u) break;
-                          idx++;
+              /* Locate SHT_SYMTAB section (there is at most one per .so) */
+              ElfW(Shdr) *sym_sh = NULL;
+              for (int i = 0; i < (int)ehdr.e_shnum; i++) {
+                  if (shdrs[i].sh_type == SHT_SYMTAB) { sym_sh = &shdrs[i]; break; }
+              }
+              if (!sym_sh || sym_sh->sh_size == 0) goto done; /* stripped */
+              if (sym_sh->sh_link == 0 || sym_sh->sh_link >= (uint32_t)ehdr.e_shnum) goto done;
+
+              /* .strtab for symbol names is pointed to by sym_sh->sh_link */
+              {
+                  ElfW(Shdr) *str_sh = &shdrs[sym_sh->sh_link];
+                  strtab = (char *)malloc(str_sh->sh_size + 1);
+                  if (!strtab) goto done;
+                  if (pread(fd, strtab, str_sh->sh_size, (off_t)str_sh->sh_offset)
+                          != (ssize_t)str_sh->sh_size) goto done;
+                  strtab[str_sh->sh_size] = '\0';
+              }
+
+              /* Read entire .symtab and search for a gcov function */
+              {
+                  size_t entsize = sym_sh->sh_entsize ? sym_sh->sh_entsize : sizeof(ElfW(Sym));
+                  size_t nsyms   = sym_sh->sh_size / entsize;
+                  syms_buf = (char *)malloc(sym_sh->sh_size);
+                  if (!syms_buf) goto done;
+                  if (pread(fd, syms_buf, sym_sh->sh_size, (off_t)sym_sh->sh_offset)
+                          != (ssize_t)sym_sh->sh_size) goto done;
+
+                  ElfW(Shdr) *str_sh = &shdrs[sym_sh->sh_link];
+                  for (size_t i = 0; i < nsyms && !result; i++) {
+                      ElfW(Sym) *sym = (ElfW(Sym) *)(syms_buf + i * entsize);
+                      if (!sym->st_value) continue;
+                      if ((sym->st_info & 0xf) != STT_FUNC) continue;
+                      if (sym->st_name >= (ElfW(Word))str_sh->sh_size) continue;
+                      const char *n = strtab + sym->st_name;
+                      if (IS_GCOV_FN(n)) {
+                          result = (gcov_fn_t)(info->dlpi_addr + sym->st_value);
+                          fprintf(stderr, "[gcov_segv] found %s in %s → %p\n",
+                                  n, info->dlpi_name, (void *)result);
                       }
                   }
               }
-          #undef IS_GCOV_FN
-              return NULL;
+
+          done:
+              free(syms_buf);
+              free(strtab);
+              free(shnames);
+              free(shdrs_buf);
+              close(fd);
+              return result;
           }
 
           typedef struct { int count; gcov_fn_t *arr; } CacheCtx;
 
           static int cache_one(struct dl_phdr_info *info, size_t sz, void *data) {
+              (void)sz;
               CacheCtx *ctx = (CacheCtx *)data;
               if (ctx->count >= MAX_GCOV_ENTRIES) return 1;
               if (!info->dlpi_name || !info->dlpi_name[0]) return 0;
-              gcov_fn_t fn = find_gcov_fn(info);
-              if (fn) {
-                  fprintf(stderr, "[gcov_segv] cache: found gcov fn in %s\n", info->dlpi_name);
-                  ctx->arr[ctx->count++] = fn;
-              }
+              gcov_fn_t fn = find_gcov_fn_disk(info);
+              if (fn) ctx->arr[ctx->count++] = fn;
               return 0;
           }
 
-          /* Background thread: safely scan loaded .so files and cache gcov pointers */
+          /*
+           * Background thread: calls dl_iterate_phdr (safe here — not signal context),
+           * then disk-scans each mapped .so to find __gcov_exit/__gcov_dump.
+           * Rescans every 2s to pick up plugins loaded by test cases (autostart=false).
+           * Signal handler reads only the pre-built cache — no locking needed there.
+           */
           static void *cache_thread(void *arg) {
               (void)arg;
-              fprintf(stderr, "[gcov_segv] cache thread: started\n");
-              /* Plugins load ~1-2s after WPEFramework starts; 1s sleep is enough */
-              sleep(1);
+              fprintf(stderr, "[gcov_segv] cache thread started\n");
               for (;;) {
                   gcov_fn_t tmp[MAX_GCOV_ENTRIES];
                   CacheCtx ctx = { 0, tmp };
                   dl_iterate_phdr(cache_one, &ctx);
-                  /* Always print scan result so CI log shows thread is alive */
-                  fprintf(stderr, "[gcov_segv] cache thread: scanned, found %d gcov entries\n", ctx.count);
+                  fprintf(stderr, "[gcov_segv] cache scan: %d gcov entries found\n", ctx.count);
                   if (ctx.count > 0) {
                       memcpy((void *)s_gcov_cache, tmp, (size_t)ctx.count * sizeof(gcov_fn_t));
-                      __sync_synchronize(); /* ensure array visible before count */
+                      __sync_synchronize();   /* store-store barrier before publishing count */
                       s_gcov_cache_count = ctx.count;
                   }
                   sleep(2);
@@ -866,12 +901,12 @@ jobs:
               return NULL;
           }
 
-          /* ---- Signal handler: only touches pre-built cache, no dl calls ---- */
+          /* ---- Signal handler: only reads pre-built cache, no dl/malloc calls ---- */
           static void segv_handler(int sig, siginfo_t *si, void *ctx) {
               if (!s_flushed) {
                   s_flushed = 1;
                   int count = s_gcov_cache_count;
-                  fprintf(stderr, "[gcov_segv] SIGSEGV caught — calling %d cached gcov_dump()\n", count);
+                  fprintf(stderr, "[gcov_segv] SIGSEGV caught — calling %d cached gcov fn(s)\n", count);
                   for (int i = 0; i < count; i++) {
                       if (s_gcov_cache[i]) s_gcov_cache[i]();
                   }
@@ -915,7 +950,7 @@ jobs:
               sa.sa_flags = SA_SIGINFO;
               s_real_sigaction(SIGSEGV, &sa, &s_chained_sa);
 
-              /* Launch background cache thread */
+              /* Launch background cache thread — scans immediately, refreshes every 2s */
               pthread_t tid;
               pthread_attr_t attr;
               pthread_attr_init(&attr);
@@ -923,7 +958,7 @@ jobs:
               pthread_create(&tid, &attr, cache_thread, NULL);
               pthread_attr_destroy(&attr);
 
-              fprintf(stderr, "[gcov_segv] handler installed + cache thread started\n");
+              fprintf(stderr, "[gcov_segv] handler installed, cache thread launched\n");
           }
           CEOF
           gcc -O0 -shared -fPIC -o /tmp/libgcov_segv_flush.so /tmp/gcov_segv_flush.c -ldl -lpthread
