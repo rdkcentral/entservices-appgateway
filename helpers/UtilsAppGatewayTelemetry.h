@@ -124,7 +124,7 @@ namespace AppGatewayTelemetryHelper {
             // Query for the AppGateway telemetry interface
             mTelemetry = service->QueryInterfaceByCallsign<Exchange::IAppGatewayTelemetry>(APP_GATEWAY_CALLSIGN);
             if (nullptr == mTelemetry) {
-                LOGWARN("TelemetryClient: AppGateway telemetry interface not available");
+                LOGWARN("TelemetryClient: AppGateway telemetry interface not available: %s", pluginName.c_str());
                 return false;
             }
 
