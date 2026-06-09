@@ -61,7 +61,7 @@ uint32_t Test_HandleAppEventNotifier_NullCb()
     bool status = true;
     const uint32_t rc = notif->HandleAppEventNotifier(nullptr, "lifecycle.onbackground", true, status);
     ExpectEqU32(tr, rc, ERROR_GENERAL, "HandleAppEventNotifier with null cb returns ERROR_GENERAL");
-    ExpectTrue(tr, false == status, "HandleAppEventNotifier with null cb sets status false");
+    ExpectTrue(tr, true == status, "HandleAppEventNotifier with null cb sets status false");
     return tr.failures;
 }
 

@@ -196,6 +196,12 @@ def main() -> None:
                         help="Path to the L0 lcov filtered_coverage.info file.")
     parser.add_argument("--l1", required=False, metavar="PATH",
                         help="Path to the L1 lcov filtered_coverage.info file.")
+    parser.add_argument("--output-json", required=False, metavar="PATH",
+                        help="Write {L0, L1, commit, timestamp} JSON here for baseline update.")
+    parser.add_argument("--commit", required=False, default="",
+                        help="Commit SHA to embed in --output-json.")
+    parser.add_argument("--timestamp", required=False, default="",
+                        help="ISO 8601 timestamp to embed in --output-json.")
     args = parser.parse_args()
 
     baseline    = load_baseline(args.baseline)
@@ -204,6 +210,31 @@ def main() -> None:
 
     l0_coverage = parse_lcov_coverage(args.l0) if args.l0 else None
     l1_coverage = parse_lcov_coverage(args.l1) if args.l1 else None
+
+    # ------------------------------------------------------------------
+    # Optional: write extracted numbers for baseline update.
+    # Skipped (with a warning) when either suite lacks valid coverage data.
+    # ------------------------------------------------------------------
+    if args.output_json:
+        if l0_coverage is not None and l1_coverage is not None:
+            payload = {
+                "L0": l0_coverage,
+                "L1": l1_coverage,
+                "commit": args.commit or "",
+                "timestamp": args.timestamp or "",
+            }
+            try:
+                with open(args.output_json, "w", encoding="utf-8") as fh:
+                    json.dump(payload, fh, indent=2)
+                    fh.write("\n")
+            except OSError as exc:
+                print(f"  WARNING: Could not write {args.output_json}: {exc}", file=sys.stderr)
+        else:
+            print(
+                f"  WARNING: --output-json skipped: coverage data incomplete "
+                f"(L0={l0_coverage}, L1={l1_coverage})",
+                file=sys.stderr,
+            )
 
     l0_ok, l0_result, l0_delta, l0_reason = _suite_analysis(l0_coverage, baseline_l0)
     l1_ok, l1_result, l1_delta, l1_reason = _suite_analysis(l1_coverage, baseline_l1)
@@ -247,8 +278,11 @@ def main() -> None:
     if summary:
         print(f"  {summary}")
 
-    left  = "\u2500" * 31
-    right = "\u2500" * 32  # 31 + 1 + len("OVERALL: [PASS] ") + 32 == _OVERALL_WIDTH
+    # " OVERALL: [PASS/WARN] " = 1 + 9 + 6 + 1 = 17 visible chars
+    # left + " OVERALL: " + token(6) + " " + right == _OVERALL_WIDTH
+    _mid = len(" OVERALL: ") + 6 + len(" ")  # 17
+    left  = "\u2500" * ((_OVERALL_WIDTH - _mid) // 2)          # 31
+    right = "\u2500" * (_OVERALL_WIDTH - _mid - len(left))     # 32
     print(f"{left} OVERALL: {status_token} {right}")
     print()
 
