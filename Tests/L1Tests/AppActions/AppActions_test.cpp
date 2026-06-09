@@ -25,6 +25,10 @@
 #include <atomic>
 
 #include "Module.h"
+// IAppGateway.h must come after Module.h (so MODULE_NAME=Plugin_AppActions is
+// already defined) and before #define private public (to avoid exposing
+// private members of Thunder internals).
+#include <interfaces/IAppGateway.h>
 
 #define private public
 #include "AppActions.h"
@@ -685,12 +689,14 @@ class MockAppGatewayTelemetry : public Exchange::IAppGatewayTelemetry {
 public:
     MockAppGatewayTelemetry() : mRefCount(1) {}
 
-    // Core::IUnknown — non-mock; refcount is not relevant to telemetry assertions.
+    // Refcount management — never self-deletes because this class is always
+    // stack-allocated (NiceMock<MockAppGatewayTelemetry>) inside a test fixture.
+    // TelemetryClient::Deinitialize() calls Release() exactly once; without this
+    // guard the refcount reaches 0 and delete-on-stack triggers UB/crash.
     void AddRef() const override { ++mRefCount; }
     uint32_t Release() const override {
-        uint32_t r = --mRefCount;
-        if (r == 0) delete this;
-        return r;
+        if (mRefCount > 0) { --mRefCount; }
+        return mRefCount;  // never deletes; lifetime is managed by the test stack
     }
     void* QueryInterface(const uint32_t id) override {
         if (id == Exchange::IAppGatewayTelemetry::ID) {
@@ -724,10 +730,6 @@ TEST_F(AppActionsImplementationTest, AA_L1_080_Register_Duplicate_TelemetryEvent
     // Make the service return our telemetry mock for any QueryInterfaceByCallsign call.
     ON_CALL(service, QueryInterfaceByCallsign(Exchange::IAppGatewayTelemetry::ID, _))
         .WillByDefault(Return(static_cast<void*>(&telemetry)));
-    // Prevent the Release() inside TelemetryClient::Deinitialize() from deleting
-    // the stack-allocated mock by treating every Release as a no-op here.
-    EXPECT_CALL(telemetry, Release()).Times(AnyNumber()).WillRepeatedly(Return(1));
-    EXPECT_CALL(telemetry, AddRef()).Times(AnyNumber());
 
     // Initialize so that AGW_TELEMETRY_INIT connects to the mock.
     impl.Initialize(&service);
@@ -785,10 +787,8 @@ TEST_F(AppActionsImplementationTest, AA_L1_082_TelemetryClient_InitDeinit_Lifecy
 
     // Expect QueryInterfaceByCallsign to be called at least once during Initialize.
     EXPECT_CALL(service, QueryInterfaceByCallsign(Exchange::IAppGatewayTelemetry::ID, _))
-        .Times(AtLeast(1))
+        .Times(testing::AtLeast(1))
         .WillRepeatedly(Return(static_cast<void*>(&telemetry)));
-    EXPECT_CALL(telemetry, AddRef()).Times(AnyNumber());
-    EXPECT_CALL(telemetry, Release()).Times(AnyNumber()).WillRepeatedly(Return(1));
 
     // Initialize triggers AGW_TELEMETRY_INIT → QueryInterfaceByCallsign.
     const string result = impl.Initialize(&service);
