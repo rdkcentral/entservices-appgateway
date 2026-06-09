@@ -722,44 +722,105 @@ jobs:
         run: |
           cat > /tmp/gcov_segv_flush.c << 'CEOF'
           #define _GNU_SOURCE
-          #include <dlfcn.h>
           #include <link.h>
           #include <signal.h>
           #include <stdio.h>
           #include <string.h>
           #include <stdint.h>
+          #include <elf.h>
 
-          /* Called for every loaded .so; calls __gcov_dump inside it */
+          typedef void (*gcov_fn_t)(void);
+
+          /*
+           * Scan a loaded .so's .dynsym table directly from mapped memory.
+           * No dlopen/dlsym needed — those acquire _dl_load_lock which is already
+           * held by the dlclose() call that triggered the SIGSEGV.  Reading ELF
+           * structures from the process address space is safe in a signal handler.
+           * Handles STV_HIDDEN symbols that dlsym() would silently skip.
+           */
+          static gcov_fn_t find_gcov_fn(struct dl_phdr_info *info) {
+              const ElfW(Dyn) *dyn = NULL;
+              for (ElfW(Half) i = 0; i < info->dlpi_phnum; i++) {
+                  if (info->dlpi_phdr[i].p_type == PT_DYNAMIC) {
+                      dyn = (const ElfW(Dyn) *)(info->dlpi_addr + info->dlpi_phdr[i].p_vaddr);
+                      break;
+                  }
+              }
+              if (!dyn) return NULL;
+
+              const ElfW(Sym) *symtab  = NULL;
+              const char      *strtab  = NULL;
+              const uint32_t  *hash    = NULL;   /* SysV DT_HASH  */
+              const uint32_t  *gnuhash = NULL;   /* GNU  DT_GNU_HASH */
+
+              for (const ElfW(Dyn) *d = dyn; d->d_tag != DT_NULL; d++) {
+                  switch (d->d_tag) {
+                      case DT_SYMTAB:   symtab  = (const ElfW(Sym) *)d->d_un.d_ptr; break;
+                      case DT_STRTAB:   strtab  = (const char *)d->d_un.d_ptr;      break;
+                      case DT_HASH:     hash    = (const uint32_t *)d->d_un.d_ptr;  break;
+                      case DT_GNU_HASH: gnuhash = (const uint32_t *)d->d_un.d_ptr;  break;
+                  }
+              }
+              if (!symtab || !strtab) return NULL;
+
+              /* ---- SysV hash: [nbucket][nchain][buckets…][chains…] ---- */
+              if (hash) {
+                  uint32_t nchain = hash[1];
+                  for (uint32_t i = 1; i < nchain; i++) {
+                      if (!symtab[i].st_value) continue;
+                      const char *n = strtab + symtab[i].st_name;
+                      if (strcmp(n, "__gcov_dump") == 0 || strcmp(n, "__gcov_flush") == 0)
+                          return (gcov_fn_t)(info->dlpi_addr + symtab[i].st_value);
+                  }
+              }
+
+              /* ---- GNU hash (used when no SysV hash present) ---- */
+              if (gnuhash) {
+                  uint32_t nbuckets  = gnuhash[0];
+                  uint32_t symoffset = gnuhash[1];
+                  uint32_t bloom_sz  = gnuhash[2];
+                  /* bloom filter: bloom_sz words of ElfW(Addr) size */
+                  const uint32_t *buckets = gnuhash + 4 + bloom_sz * (sizeof(ElfW(Addr)) / 4);
+                  const uint32_t *chains  = buckets + nbuckets;
+                  for (uint32_t b = 0; b < nbuckets; b++) {
+                      uint32_t idx = buckets[b];
+                      if (!idx) continue;
+                      for (;;) {
+                          if (symtab[idx].st_value) {
+                              const char *n = strtab + symtab[idx].st_name;
+                              if (strcmp(n, "__gcov_dump") == 0 || strcmp(n, "__gcov_flush") == 0)
+                                  return (gcov_fn_t)(info->dlpi_addr + symtab[idx].st_value);
+                          }
+                          if (chains[idx - symoffset] & 1u) break;
+                          idx++;
+                      }
+                  }
+              }
+              return NULL;
+          }
+
           static int flush_one(struct dl_phdr_info *info, size_t sz, void *data) {
               (void)sz; (void)data;
               if (!info->dlpi_name || !info->dlpi_name[0]) return 0;
-              /* Re-open with RTLD_GLOBAL so hidden __gcov_dump becomes visible */
-              void *h = dlopen(info->dlpi_name, RTLD_NOLOAD | RTLD_LAZY | RTLD_GLOBAL);
-              if (!h) h = dlopen(info->dlpi_name, RTLD_LAZY | RTLD_GLOBAL);
-              if (!h) return 0;
-              typedef void (*gcov_fn)(void);
-              gcov_fn fn = (gcov_fn)(uintptr_t)dlsym(h, "__gcov_dump");
-              if (!fn) fn = (gcov_fn)(uintptr_t)dlsym(h, "__gcov_flush");
+              gcov_fn_t fn = find_gcov_fn(info);
               if (fn) {
                   fprintf(stderr, "[gcov_segv] flushing %s\n", info->dlpi_name);
                   fn();
               }
-              dlclose(h);
               return 0;
           }
 
           static struct sigaction s_prev_sa;
 
           static void segv_handler(int sig, siginfo_t *si, void *ctx) {
+              (void)si; (void)ctx;
               fprintf(stderr, "[gcov_segv] SIGSEGV caught — flushing all gcov data\n");
               dl_iterate_phdr(flush_one, NULL);
               fprintf(stderr, "[gcov_segv] flush done — re-raising signal\n");
-              /* Restore Thunder's handler and re-raise */
               sigaction(SIGSEGV, &s_prev_sa, NULL);
               raise(sig);
           }
 
-          /* Installed at .so load time */
           __attribute__((constructor))
           static void install_handler(void) {
               struct sigaction sa;
@@ -770,7 +831,7 @@ jobs:
               fprintf(stderr, "[gcov_segv] SIGSEGV gcov-flush handler installed\n");
           }
           CEOF
-          gcc -O0 -shared -fPIC -o /tmp/libgcov_segv_flush.so /tmp/gcov_segv_flush.c -ldl
+          gcc -O0 -shared -fPIC -o /tmp/libgcov_segv_flush.so /tmp/gcov_segv_flush.c
           echo "Built /tmp/libgcov_segv_flush.so"
 
       - name: Run unit tests without valgrind
