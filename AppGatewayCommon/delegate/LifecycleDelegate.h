@@ -825,8 +825,11 @@ class LifecycleDelegate : public BaseEventDelegate
         intent.clear();
         intentId = 0;
         string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
+        LOGDBG("Appid: %s AppInstanceId: %s", appId.c_str(), appInstanceId.c_str());
         if (!appInstanceId.empty()) {
             mNavigationIntentRegistry.GetNavigationIntent(appInstanceId, intent, intentId);
+        } else {
+            LOGERR("Failed to get AppInstanceId for Appid: %s", appId.c_str());
         }
     }
 
