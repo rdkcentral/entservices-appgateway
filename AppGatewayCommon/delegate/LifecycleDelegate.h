@@ -27,9 +27,11 @@
 #include <interfaces/ILifecycleManagerState.h>
 #include <interfaces/IRDKWindowManager.h>
 #include <interfaces/IRuntimeManager.h>
+#include <interfaces/IAppActions.h>
 #include "UtilsLogging.h"
 #include "UtilsCallsign.h"
 #include "UtilsFirebolt.h"
+#include <atomic>
 #include <set>
 #include <map>
 #include <mutex>
@@ -38,6 +40,7 @@ using namespace WPEFramework;
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
 #define WINDOW_MANAGER_CALLSIGN "org.rdk.RDKWindowManager"
 #define RUNTIME_MANAGER_CALLSIGN "org.rdk.RuntimeManager"
+#define APP_ACTIONS_CALLSIGN "org.rdk.AppActions"
 
 // Valid lifecycle events that can be subscribed to
 static const std::set<string> VALID_LIFECYCLE_EVENT = {
@@ -47,7 +50,7 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
     "lifecycle.onsuspended",
     "lifecycle.onunloading",
     "lifecycle2.onstatechanged",
-    "discovery.onnavigateto",
+    "actions.onintent",
     "presentation.onfocusedchanged",
     "secondscreen.onlaunchrequest"  // DIAL launch event — fired by AppGatewayCommon via Dispatch()
 };
@@ -244,7 +247,65 @@ class LifecycleDelegate : public BaseEventDelegate
     }
 
     Core::hresult GetLastIntent(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
-        GetLastKnownIntent(context.appId, result);
+        string intent;
+        uint32_t intentId = 0;
+        GetLastKnownIntent(context.appId, intent, intentId);
+        result = BuildIntentResult(intentId, intent);
+        return Core::ERROR_NONE;
+    }
+
+    Core::hresult ActionsStart(const Exchange::GatewayContext& context, const string& payload /*@opaque*/, string& result /*@out @opaque*/)
+    {
+        if (payload.empty() || payload == "null") {
+            LOGWARN("ActionsStart: intent payload is required");
+            ErrorUtils::CustomBadRequest("Intent payload is required", result);
+            return Core::ERROR_BAD_REQUEST;
+        }
+        JsonObject args;
+        if (!args.FromString(payload)) {
+            LOGWARN("ActionsStart: payload is not valid JSON");
+            ErrorUtils::CustomBadRequest("Invalid JSON payload", result);
+            return Core::ERROR_BAD_REQUEST;
+        }
+        if (!args.HasLabel("intent")) {
+            LOGWARN("ActionsStart: 'intent' field is required in payload");
+            ErrorUtils::CustomBadRequest("'intent' field is required", result);
+            return Core::ERROR_BAD_REQUEST;
+        }
+
+        // Re-serialize the intent sub-document as an opaque JSON string
+        string intent;
+        args.Get("intent").Object().ToString(intent);
+
+        // Extract optional handlerAppId
+        string handlerAppId;
+        if (args.HasLabel("handlerAppId")) {
+            handlerAppId = args.Get("handlerAppId").String();
+        }
+
+        Exchange::IAppActions* appActions = mShell->QueryInterfaceByCallsign<Exchange::IAppActions>(APP_ACTIONS_CALLSIGN);
+        if (nullptr == appActions) {
+            LOGWARN("ActionsStart: IAppActions interface not available");
+            ErrorUtils::NotAvailable(result);
+            return Core::ERROR_UNAVAILABLE;
+        }
+        result = "null";
+        Core::hresult rc = appActions->ActionStart(context.appId, intent, handlerAppId); // context.appId maps to 'initiator'
+        appActions->Release();
+        appActions = nullptr;
+        if (Core::ERROR_NONE != rc) {
+            LOGERR("ActionsStart: IAppActions::ActionStart failed with error %u", rc);
+            ErrorUtils::CustomInternal("Failed to start app action", result);
+        }
+        return rc;
+    }
+
+    Core::hresult ActionsIntent(const Exchange::GatewayContext& context, const string& payload /*@opaque*/, string& result /*@out @opaque*/)
+    {
+        string intent;
+        uint32_t intentId = 0;
+        GetLastKnownIntent(context.appId, intent, intentId);
+        result = BuildIntentResult(intentId, intent);
         return Core::ERROR_NONE;
     }
 
@@ -517,20 +578,31 @@ class LifecycleDelegate : public BaseEventDelegate
             std::mutex registryMutex;
     };
 
-    // create a class as registry to store appInstance Id and the intent string
+    // create a class as registry to store appInstance Id and the intent + monotonic index
     class NavigationIntentRegistry {
         public:
-            void AddNavigationIntent(const string& appInstanceId, const string& navigationIntent) {
+            struct IntentEntry {
+                string   intent;
+                uint32_t intentId;
+            };
+
+            void AddNavigationIntent(const string& appInstanceId, const string& intent) {
+                if (true == intent.empty()) {
+                    return; // ignore empty intents; preserve the last non-empty intent and intentId
+                }
                 std::lock_guard<std::mutex> lock(intentMutex);
-                navigationIntentMap[appInstanceId] = navigationIntent;
+                navigationIntentMap[appInstanceId] = { intent, ++mIntentIndex };
             }
 
-            string GetNavigationIntent(const string& appInstanceId) {
+            bool GetNavigationIntent(const string& appInstanceId, string& intent, uint32_t& intentId) {
                 std::lock_guard<std::mutex> lock(intentMutex);
-                if (navigationIntentMap.find(appInstanceId) != navigationIntentMap.end()) {
-                    return navigationIntentMap[appInstanceId];
+                auto it = navigationIntentMap.find(appInstanceId);
+                if (it != navigationIntentMap.end()) {
+                    intent   = it->second.intent;
+                    intentId = it->second.intentId;
+                    return true;
                 }
-                return "";
+                return false;
             }
 
             void RemoveNavigationIntent(const string& appInstanceId) {
@@ -538,8 +610,9 @@ class LifecycleDelegate : public BaseEventDelegate
                 navigationIntentMap.erase(appInstanceId);
             }
         private:
-            std::map<string, string> navigationIntentMap;
+            std::map<string, IntentEntry> navigationIntentMap;
             std::mutex intentMutex;
+            std::atomic<uint32_t> mIntentIndex{0};
     };
 
     // create a class which stores the last app instance id which has focus
@@ -720,7 +793,9 @@ class LifecycleDelegate : public BaseEventDelegate
         string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
         if (appInstanceId.empty()) return false;
 
-        string navigationIntent = mNavigationIntentRegistry.GetNavigationIntent(appInstanceId);
+        string navigationIntent;
+        uint32_t intentId = 0; 
+        mNavigationIntentRegistry.GetNavigationIntent(appInstanceId,navigationIntent,intentId);
         if (navigationIntent.empty()) return false;
 
         JsonObject intentObj;
@@ -735,13 +810,15 @@ class LifecycleDelegate : public BaseEventDelegate
         return false;
     }
 
-    // Dispatch last known intent for a given appId
+    // Dispatch last known intent for a given appId as Actions.onIntent event
     void DispatchLastKnownIntent(const string& appId)
     {
-        string navigationIntent;
-        GetLastKnownIntent(appId, navigationIntent);
-        if (!navigationIntent.empty()) {
-            Dispatch("Discovery.onNavigateTo", navigationIntent, appId);
+        string intent;
+        uint32_t intentId = 0;
+        GetLastKnownIntent(appId, intent, intentId);
+        if (!intent.empty()) {
+            string payloadStr = BuildIntentResult(intentId, intent);
+            Dispatch("Actions.onIntent", payloadStr, appId);
         }
 
         // Emit secondscreen.onLaunchRequest if DIAL payload present in navigationIntent
@@ -754,12 +831,41 @@ class LifecycleDelegate : public BaseEventDelegate
         }
     }
 
-    void GetLastKnownIntent(const string& appId, string& navigationIntent)
+    // Build a JSON response object {"intentId":<n>,"intent":<value>}.
+    // The intent is embedded as a raw JSON value when it looks like a JSON
+    // object or array, and as a quoted JSON string otherwise.  Building the
+    // string manually avoids Thunder's VariantContainer serializer escaping
+    // '/' unnecessarily, which would break plain-string intents such as URIs.
+    static string BuildIntentResult(uint32_t intentId, const string& intent)
     {
-        navigationIntent.clear();
+        string intentJson;
+        if (!intent.empty() && (intent[0] == '{' || intent[0] == '[')) {
+            // Intent is already a JSON object/array – embed verbatim
+            intentJson = intent;
+        } else {
+            // Plain string – wrap in quotes with minimal JSON escaping
+            // (only '"' and '\' must be escaped; '/' must not be)
+            intentJson.reserve(intent.size() + 2);
+            intentJson += '"';
+            for (char c : intent) {
+                if (c == '"')       intentJson += "\\\"";
+                else if (c == '\\') intentJson += "\\\\";
+                else                intentJson += c;
+            }
+            intentJson += '"';
+        }
+        return "{\"intentId\":" + std::to_string(intentId) + ",\"intent\":" + intentJson + "}";
+    }
+
+    void GetLastKnownIntent(const string& appId, string& intent, uint32_t& intentId)
+    {
+        intent.clear();
+        intentId = 0;
         string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(appId);
         if (!appInstanceId.empty()) {
-            navigationIntent = mNavigationIntentRegistry.GetNavigationIntent(appInstanceId);
+            mNavigationIntentRegistry.GetNavigationIntent(appInstanceId, intent, intentId);
+        } else {
+            LOGERR("Failed to get AppInstanceId for Appid: %s", appId.c_str());
         }
     }
 
