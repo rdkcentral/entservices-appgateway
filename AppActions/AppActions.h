@@ -42,12 +42,12 @@ namespace Plugin {
 
                 void Activated(RPC::IRemoteConnection *) override
                 {
-                    LOGINFO("AppActions Notification Activated");
+                    LOGDBG("AppActions Notification Activated");
                 }
 
                 void Deactivated(RPC::IRemoteConnection *connection) override
                 {
-                    LOGINFO("AppActions Notification Deactivated");
+                    LOGDBG("AppActions Notification Deactivated");
                     _parent.Deactivated(connection);
                 }
 

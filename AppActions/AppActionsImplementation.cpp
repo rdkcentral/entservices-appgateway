@@ -54,15 +54,25 @@ namespace Plugin {
             return Core::ERROR_BAD_REQUEST;
         }
         Core::hresult status = Core::ERROR_GENERAL;
-        std::lock_guard<std::mutex> lock(mAdminLock);
+        bool alreadyRegistered = false;
 
-        if (std::find(mAppActionsNotifications.begin(), mAppActionsNotifications.end(), notification) == mAppActionsNotifications.end()) {
-            LOGINFO("Register notification");
-            mAppActionsNotifications.push_back(notification);
-            notification->AddRef();
-            status = Core::ERROR_NONE;
-        } else {
-            LOGWARN("notification already registered");
+        {
+            std::lock_guard<std::mutex> lock(mAdminLock);
+            if (std::find(mAppActionsNotifications.begin(), mAppActionsNotifications.end(), notification) == mAppActionsNotifications.end()) {
+                LOGINFO("Register notification");
+                mAppActionsNotifications.push_back(notification);
+                notification->AddRef();
+                status = Core::ERROR_NONE;
+            } else {
+                LOGWARN("notification already registered");
+                alreadyRegistered = true;
+            }
+        } // mAdminLock released here before any COM-RPC calls
+
+        // AGW_REPORT_API_ERROR calls IsAvailable() which may call QueryInterfaceByCallsign
+        // (COM-RPC), and then RecordTelemetryEvent (another COM-RPC). Both must be made
+        // outside mAdminLock to avoid deadlock.
+        if (alreadyRegistered) {
             Exchange::GatewayContext ctx{};
             AGW_REPORT_API_ERROR(ctx, "Register", AGW_ERROR_ALREADY_REGISTERED);
         }
@@ -98,14 +108,29 @@ namespace Plugin {
         Core::hresult status = Core::ERROR_GENERAL;
         SYSLOG(Logging::Startup, (_T("AppActionsImplementation Configure entry")));
         if (nullptr != service) {
-            std::lock_guard<std::mutex> lock(mAdminLock);
-            if (nullptr != mService) {
-                mService->Release();
-                mService = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(mAdminLock);
+                if (nullptr != mService) {
+                    mService->Release();
+                    mService = nullptr;
+                }
+                mService = service;
+                mService->AddRef();
+                status = Core::ERROR_NONE;
             }
-            mService = service;
-            mService->AddRef();
-            status = Core::ERROR_NONE;
+            // Initialize telemetry OUTSIDE mAdminLock: QueryInterfaceByCallsign is
+            // a COM-RPC call; holding the mutex across it risks deadlock.
+            // TelemetryClient stores mService and lazy-reconnects via IsAvailable()
+            // if AppGateway is not yet active at this point.
+            AGW_TELEMETRY_INIT(service);
+            // SYSLOG so init status appears in the WPEFramework syslog stream.
+            // LOGINFO/LOGWARN inside TelemetryClient go to stderr (fprintf), not syslog.
+            // If AppGateway is not yet active the client stores mService and lazy-reconnects
+            // via IsAvailable() the first time a telemetry event is reported.
+            SYSLOG(Logging::Startup, (_T("AppActionsImplementation telemetry client: %s"),
+                GetLocalTelemetryClient().IsAvailable()
+                    ? "connected to AppGateway"
+                    : "AppGateway not yet active - will lazy-connect on first use"));
             SYSLOG(Logging::Startup, (_T("AppActionsImplementation service configured successfully")));
         } else {
             SYSLOG(Logging::Startup, (_T("AppActionsImplementation service configuration failed: service is null")));
@@ -118,9 +143,6 @@ namespace Plugin {
     {
          SYSLOG(Logging::Notification, (_T("[%s] Initialize entry"), __FUNCTION__));
          string result = (Configure(service) == Core::ERROR_NONE) ? string() : _T("Failed to configure AppActionsImplementation plugin");
-         if (result.empty()) {
-             AGW_TELEMETRY_INIT(service);
-         }
          SYSLOG(Logging::Notification, (_T("[%s] Initialize exit"), __FUNCTION__));
          return std::move(result);
     }

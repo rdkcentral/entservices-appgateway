@@ -157,6 +157,11 @@ namespace AppGatewayTelemetryHelper {
 
             if (nullptr == mTelemetry) {
                 mTelemetry = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayTelemetry>(APP_GATEWAY_CALLSIGN);
+                // Log when lazy-reconnect succeeds so plugins that start before AppGateway
+                // (e.g. AppActions) still produce a visible confirmation in the log.
+                if (nullptr != mTelemetry) {
+                    LOGINFO("TelemetryClient: Initialized for plugin '%s' (lazy-connected to AppGateway)", mPluginName.c_str());
+                }
             }
             return nullptr != mTelemetry;
         }
