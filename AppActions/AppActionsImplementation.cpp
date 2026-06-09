@@ -32,8 +32,13 @@ namespace Plugin {
     }
 
     AppActionsImplementation::~AppActionsImplementation() {
-        // Destructor implementation
-        //SYSLOG(Logging::Shutdown, (_T("AppActionsImplementation Destructor")));
+        // Ensure the static TelemetryClient is cleaned up even when
+        // AppActionsImplementation::Deinitialize() was never called.
+        // AppActions::Deinitialize() only calls mAppActions->Release() which
+        // destroys the impl without going through Deinitialize(), leaving the
+        // static TelemetryClient with a dangling mService pointer.
+        // Calling DEINIT here is safe: if Deinitialize() already ran it is a no-op.
+        AGW_TELEMETRY_DEINIT();
         LOGINFO("AppActionsImplementation Destructor");
     }
 
