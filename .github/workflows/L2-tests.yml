@@ -717,10 +717,72 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:${PATH}"
           $GITHUB_WORKSPACE/entservices-testframework/Tests/L2Tests/pact/install-verifier-cli.sh
 
+      - name: Build gcov SIGSEGV flush helper
+        if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
+        run: |
+          cat > /tmp/gcov_segv_flush.c << 'CEOF'
+          #define _GNU_SOURCE
+          #include <dlfcn.h>
+          #include <link.h>
+          #include <signal.h>
+          #include <stdio.h>
+          #include <string.h>
+          #include <stdint.h>
+
+          /* Called for every loaded .so; calls __gcov_dump inside it */
+          static int flush_one(struct dl_phdr_info *info, size_t sz, void *data) {
+              (void)sz; (void)data;
+              if (!info->dlpi_name || !info->dlpi_name[0]) return 0;
+              /* Re-open with RTLD_GLOBAL so hidden __gcov_dump becomes visible */
+              void *h = dlopen(info->dlpi_name, RTLD_NOLOAD | RTLD_LAZY | RTLD_GLOBAL);
+              if (!h) h = dlopen(info->dlpi_name, RTLD_LAZY | RTLD_GLOBAL);
+              if (!h) return 0;
+              typedef void (*gcov_fn)(void);
+              gcov_fn fn = (gcov_fn)(uintptr_t)dlsym(h, "__gcov_dump");
+              if (!fn) fn = (gcov_fn)(uintptr_t)dlsym(h, "__gcov_flush");
+              if (fn) {
+                  fprintf(stderr, "[gcov_segv] flushing %s\n", info->dlpi_name);
+                  fn();
+              }
+              dlclose(h);
+              return 0;
+          }
+
+          static struct sigaction s_prev_sa;
+
+          static void segv_handler(int sig, siginfo_t *si, void *ctx) {
+              fprintf(stderr, "[gcov_segv] SIGSEGV caught — flushing all gcov data\n");
+              dl_iterate_phdr(flush_one, NULL);
+              fprintf(stderr, "[gcov_segv] flush done — re-raising signal\n");
+              /* Restore Thunder's handler and re-raise */
+              sigaction(SIGSEGV, &s_prev_sa, NULL);
+              raise(sig);
+          }
+
+          /* Installed at .so load time */
+          __attribute__((constructor))
+          static void install_handler(void) {
+              struct sigaction sa;
+              memset(&sa, 0, sizeof(sa));
+              sa.sa_sigaction = segv_handler;
+              sa.sa_flags = SA_SIGINFO | SA_RESETHAND;
+              sigaction(SIGSEGV, &sa, &s_prev_sa);
+              fprintf(stderr, "[gcov_segv] SIGSEGV gcov-flush handler installed\n");
+          }
+          CEOF
+          gcc -O0 -shared -fPIC -o /tmp/libgcov_segv_flush.so /tmp/gcov_segv_flush.c -ldl
+          echo "Built /tmp/libgcov_segv_flush.so"
+
       - name: Run unit tests without valgrind
         run: |
           export PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
           export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
+          # For coverage builds, preload the SIGSEGV handler into WPEFramework so
+          # __gcov_dump() is called on all plugin .so files before the process dies.
+          # The handler is a no-op for non-coverage builds (file won't exist).
+          if [ -f /tmp/libgcov_segv_flush.so ]; then
+            export LD_PRELOAD=/tmp/libgcov_segv_flush.so
+          fi
           RdkServicesL2Test || true
           cp -f $(pwd)/rdkL2TestResults.json $GITHUB_WORKSPACE/rdkL2TestResultsWithoutValgrind.json 2>/dev/null || true
           rm -f $(pwd)/rdkL2TestResults.json 2>/dev/null || true
