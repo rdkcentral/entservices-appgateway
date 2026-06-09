@@ -782,16 +782,18 @@ jobs:
           # RdkServicesL2Test clears its env when spawning WPEFramework, so setting
           # LD_PRELOAD in the parent shell is not enough — the wrapper ensures it.
           WPE_BIN=$GITHUB_WORKSPACE/install/usr/bin/WPEFramework
-          if [ -f /tmp/libgcov_segv_flush.so ] && [ -f "$WPE_BIN" ] && [ ! -L "$WPE_BIN" ]; then
-            mv "$WPE_BIN" "${WPE_BIN}.real"
-            printf '#!/bin/sh\nexport LD_PRELOAD=/tmp/libgcov_segv_flush.so${LD_PRELOAD:+:$LD_PRELOAD}\nexec "%s.real" "$@"\n' "$WPE_BIN" > "$WPE_BIN"
-            chmod +x "$WPE_BIN"
-            echo "Wrapped WPEFramework with gcov SIGSEGV handler"
+          # Resolve symlink so we wrap the actual ELF binary, not the symlink itself
+          WPE_REAL=$(readlink -f "$WPE_BIN" 2>/dev/null || echo "$WPE_BIN")
+          if [ -f /tmp/libgcov_segv_flush.so ] && [ -f "$WPE_REAL" ] && [ ! -f "${WPE_REAL}.real" ]; then
+            mv "$WPE_REAL" "${WPE_REAL}.real"
+            printf '#!/bin/sh\nexport LD_PRELOAD=/tmp/libgcov_segv_flush.so${LD_PRELOAD:+:$LD_PRELOAD}\nexec "%s.real" "$@"\n' "$WPE_REAL" > "$WPE_REAL"
+            chmod +x "$WPE_REAL"
+            echo "Wrapped WPEFramework with gcov SIGSEGV handler (real: $WPE_REAL)"
           fi
           RdkServicesL2Test || true
           # Restore original binary
-          if [ -f "${WPE_BIN}.real" ]; then
-            mv "${WPE_BIN}.real" "$WPE_BIN"
+          if [ -f "${WPE_REAL}.real" ]; then
+            mv "${WPE_REAL}.real" "$WPE_REAL"
           fi
           cp -f $(pwd)/rdkL2TestResults.json $GITHUB_WORKSPACE/rdkL2TestResultsWithoutValgrind.json 2>/dev/null || true
           rm -f $(pwd)/rdkL2TestResults.json 2>/dev/null || true
