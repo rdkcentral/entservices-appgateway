@@ -56,6 +56,7 @@ namespace Plugin {
                 if (Core::ERROR_NONE == mAppActionsConfigure->Configure(mService))
                 {
                     mAppActions->Register(&mAppActionsNotification);
+                    mAppActions->Register(&mAppActionsNotification);
                     //Invoking Plugin API register to wpeframework
                     Exchange::JAppActions::Register(*this, mAppActions);
                 } else {
