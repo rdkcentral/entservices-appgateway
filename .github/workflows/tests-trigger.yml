@@ -87,9 +87,6 @@ jobs:
             --l0 ./l0-coverage/filtered_coverage.info \
             --l1 ./l1-coverage/filtered_coverage.info
 
-  # ---------------------------------------------------------------------------
-  # Baseline auto-update (develop push only, both test suites must pass)
-  # ---------------------------------------------------------------------------
   update-baseline:
     name: Update Coverage Baseline
     # Runs ONLY on a direct push to develop AND only when both suites pass.
