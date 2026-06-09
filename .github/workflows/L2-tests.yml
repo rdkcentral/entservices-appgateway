@@ -777,13 +777,22 @@ jobs:
         run: |
           export PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
           export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
-          # For coverage builds, preload the SIGSEGV handler into WPEFramework so
-          # __gcov_dump() is called on all plugin .so files before the process dies.
-          # The handler is a no-op for non-coverage builds (file won't exist).
-          if [ -f /tmp/libgcov_segv_flush.so ]; then
-            export LD_PRELOAD=/tmp/libgcov_segv_flush.so
+          # For coverage builds, wrap the WPEFramework binary with a shell script
+          # that forces LD_PRELOAD into the WPEFramework process itself.
+          # RdkServicesL2Test clears its env when spawning WPEFramework, so setting
+          # LD_PRELOAD in the parent shell is not enough — the wrapper ensures it.
+          WPE_BIN=$GITHUB_WORKSPACE/install/usr/bin/WPEFramework
+          if [ -f /tmp/libgcov_segv_flush.so ] && [ -f "$WPE_BIN" ] && [ ! -L "$WPE_BIN" ]; then
+            mv "$WPE_BIN" "${WPE_BIN}.real"
+            printf '#!/bin/sh\nexport LD_PRELOAD=/tmp/libgcov_segv_flush.so${LD_PRELOAD:+:$LD_PRELOAD}\nexec "%s.real" "$@"\n' "$WPE_BIN" > "$WPE_BIN"
+            chmod +x "$WPE_BIN"
+            echo "Wrapped WPEFramework with gcov SIGSEGV handler"
           fi
           RdkServicesL2Test || true
+          # Restore original binary
+          if [ -f "${WPE_BIN}.real" ]; then
+            mv "${WPE_BIN}.real" "$WPE_BIN"
+          fi
           cp -f $(pwd)/rdkL2TestResults.json $GITHUB_WORKSPACE/rdkL2TestResultsWithoutValgrind.json 2>/dev/null || true
           rm -f $(pwd)/rdkL2TestResults.json 2>/dev/null || true
 
