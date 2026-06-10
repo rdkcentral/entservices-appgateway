@@ -254,6 +254,21 @@ protected:
         return InvokeServiceMethod("Controller.1", "activate", params, result);
     }
 
+    void TryActivateOptionalService(const char* callsign)
+    {
+        if (callsign == nullptr) {
+            return;
+        }
+
+        const uint32_t status = ActivateService(callsign);
+        if (status == Core::ERROR_NONE) {
+            TEST_LOG("Optional service '%s' activated", callsign);
+        } else {
+            TEST_LOG("Optional service '%s' unavailable (%u: %s)",
+                     callsign, status, Core::ErrorToString(status));
+        }
+    }
+
     uint32_t DeactivateService(const char* callsign)
     {
         JsonObject params, result;
@@ -288,6 +303,9 @@ public:
         // Pre-activate AppGatewayCommon so that AppGateway::Initialize()'s
         // service->Root() calls find an already-running OOP process.
         ActivateService("org.rdk.AppGatewayCommon");
+
+        // Use AppNotifications when available to exercise real event paths.
+        TryActivateOptionalService("org.rdk.AppNotifications");
 
         // Activate the AppGateway plugin with retry
         uint32_t status    = Core::ERROR_GENERAL;
@@ -391,6 +409,9 @@ public:
     {
         // Pre-activate AppGatewayCommon so Root() finds a running OOP process.
         ActivateService("org.rdk.AppGatewayCommon");
+
+        // Use AppNotifications when available to exercise real event paths.
+        TryActivateOptionalService("org.rdk.AppNotifications");
 
         uint32_t status    = Core::ERROR_GENERAL;
         int      retryCount = 0;

@@ -11,6 +11,7 @@ This is different from:
 
 | Level | What runs | What is mocked |
 |---|---|---|
+| **L0 (component test)** | Individual plugin logic in isolation | Thunder service stubs, external interfaces |
 | **L1 (unit test)** | Individual C++ class methods | Thunder, all interfaces |
 | **L2 (integration test)** | Full Thunder + real plugins | Hardware HAL only |
 | **L3 (system test)** | Real device | Nothing |
@@ -75,10 +76,12 @@ flowchart TD
     A[ThunderTools R4.4.3\nCMake code-gen tools] --> B
     B[Thunder R4.4.1\npatched × 6\nport 9998, binding 127.0.0.1] --> C
     C[entservices-apis\nIAppGateway.h stubs\npatched × 2] --> D
-    D[mocks\nlibWPEFrameworkMocks.so\nTestMocklib — HAL intercept] --> E
-    E[entservices-deviceanddisplay\nSystemServices / PowerManager\n-DRDK_SERVICE_L2_TEST=ON] --> F
-    F[entservices-appgateway\n-DPLUGIN_APPGATEWAY=ON\n-DPLUGIN_APPGATEWAYCOMMON=ON\n-DPLUGIN_APPNOTIFICATIONS=ON\n-DPLUGIN_APPGATEWAYCOMMON_MODE=Off\n-DRDK_SERVICE_L2_TEST=ON\nNO -Wl,-z,defs for AppGateway/AppGatewayCommon] --> G
-    G[entservices-testframework\nL2TestsIN.so — GTest host\nRdkServicesL2Test binary] --> H[Run tests]
+    D[googletest v1.15.0\nGTest/GMock for L2 host] --> E
+    E[mocks\nTestframework mock libs\nHAL/system shim wrappers] --> F
+    F[entservices-deviceanddisplay\nSystemServices / PowerManager\n-DRDK_SERVICE_L2_TEST=ON] --> G
+    G[networkmanager\nstage INetworkManager.h\ninto install include path] --> H
+    H[entservices-appgateway\n-DPLUGIN_APPGATEWAY=ON\n-DPLUGIN_APPGATEWAYCOMMON=ON\n-DPLUGIN_APPNOTIFICATIONS=ON\n-DPLUGIN_APPGATEWAYCOMMON_MODE=Off\n-DRDK_SERVICE_L2_TEST=ON\nNO -Wl,-z,defs for AppGateway/AppGatewayCommon] --> I
+    I[entservices-testframework\nL2TestsIN.so — GTest host\nRdkServicesL2Test binary] --> J[Run tests]
 ```
 
 ### Critical build flags for AppGateway plugins
@@ -122,6 +125,7 @@ sequenceDiagram
 
     Note over Runner,L2: GTest SetUp() in fixture constructor
     Runner->>Ctrl: JSON-RPC activate("org.rdk.AppGatewayCommon")
+    Runner->>Ctrl: JSON-RPC activate("org.rdk.AppNotifications") [optional]
     Ctrl->>AGWC: Initialize(IShell)
     AGWC-->>Ctrl: "" (success, starts WS server)
 
@@ -253,7 +257,7 @@ TC-COMRPC-04: test.comrpc → QueryInterfaceByCallsign → IAppGatewayRequestHan
 | **TestMocklib** (`-DRDK_SERVICE_L2_TEST`) | Other plugins (SystemServices, PersistentStore etc.) | Intercepted by CMake HAL shim |
 | **Temp JSON config files** (`mkstemps`) | TC-INIT / TC-CFG resolution config files | Written inline in test fixture, deleted on teardown |
 | **Real Thunder Controller** | Plugin activate/deactivate, JSON-RPC forward | Live Thunder instance, no mock |
-| **Real AppNotifications plugin** | TC-EVT-01..05 event subscribe/unsubscribe | Real plugin, activated by AppGateway during `Initialize` |
+| **Real AppNotifications plugin (when available)** | TC-EVT-01..05 event subscribe/unsubscribe | Fixture attempts `Controller.1.activate("org.rdk.AppNotifications")`; AppGateway then uses `QueryInterfaceByCallsign` |
 | **Real AppGatewayCommon plugin** | TC-COMRPC-04, all TC-NOTIF/CTX/RESP | Real plugin, mode=Off |
 
 ---
