@@ -16,6 +16,17 @@ This is different from:
 | **L2 (integration test)** | Full Thunder + real plugins | Hardware HAL only |
 | **L3 (system test)** | Real device | Nothing |
 
+### Scope For This Document
+
+Primary focus is **AppGateway plugin L2 behaviour** (`IAppGatewayResolver` path):
+- Resolver configuration and method resolution (`Configure` / `Resolve`)
+- Event subscribe/unsubscribe path via AppNotifications
+- Permission and COM-RPC forwarding paths from AppGateway
+
+`AppGatewayCommon` is documented as a **runtime dependency** needed by AppGateway for
+`IAppGatewayRequestHandler` / authenticator flows, plus secondary coverage from the
+`AppGatewayResponder_L2Test` fixture that is part of the same suite.
+
 ---
 
 ## 2. Architecture Overview
@@ -140,7 +151,7 @@ sequenceDiagram
 
 ---
 
-## 5. Two Test Fixtures
+## 5. Test Fixtures In This Suite
 
 ### 5.1 `AppGateway_L2Test` — tests the **Resolver** interface
 
@@ -158,7 +169,7 @@ AppGateway_L2Test
 Tests covered: TC-CFG-01..06, TC-CFG-JSONRPC-01/02, TC-RES-03..05,  
 TC-COMRPC-04, TC-EVT-01..05, TC-PERM-01, TC-INIT-01/03/06 — **22 tests**
 
-### 5.2 `AppGatewayResponder_L2Test` — tests the **Responder** interface (AppGatewayCommon)
+### 5.2 `AppGatewayResponder_L2Test` — secondary fixture for **Responder** interface (AppGatewayCommon)
 
 ```
 AppGatewayResponder_L2Test
@@ -211,7 +222,7 @@ flowchart TD
 
 ---
 
-## 7. Mocking Strategy
+## 7. AppGateway-Focused Dependency Strategy
 
 ### 7.1 What AppGatewayCommon Implements (No Mocking Required)
 
@@ -258,7 +269,7 @@ TC-COMRPC-04: test.comrpc → QueryInterfaceByCallsign → IAppGatewayRequestHan
 | **Temp JSON config files** (`mkstemps`) | TC-INIT / TC-CFG resolution config files | Written inline in test fixture, deleted on teardown |
 | **Real Thunder Controller** | Plugin activate/deactivate, JSON-RPC forward | Live Thunder instance, no mock |
 | **Real AppNotifications plugin (when available)** | TC-EVT-01..05 event subscribe/unsubscribe | Fixture attempts `Controller.1.activate("org.rdk.AppNotifications")`; AppGateway then uses `QueryInterfaceByCallsign` |
-| **Real AppGatewayCommon plugin** | TC-COMRPC-04, all TC-NOTIF/CTX/RESP | Real plugin, mode=Off |
+| **Real AppGatewayCommon plugin** | AppGateway dependency path (TC-COMRPC-04) + responder fixture (TC-NOTIF/CTX/RESP) | Real plugin, mode=Off |
 
 ---
 
