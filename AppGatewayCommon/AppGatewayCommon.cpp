@@ -247,6 +247,12 @@ namespace Plugin {
         { "lifecycle.finished", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->LifecycleFinished(ctx,payload,result);
         }},
+        { "actions.start", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->ActionsStart(ctx, payload, result);
+        }},
+        { "actions.intent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->ActionsIntent(ctx, payload, result);
+        }},
         { "commoninternal.dispatchintent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->DispatchLastIntent(ctx,payload,result);
         }},
@@ -290,6 +296,12 @@ namespace Plugin {
         }},
         { "display.maxresolution", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDisplayMaxResolution(result);
+        }},
+        { "display.colorimetry", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetDisplayColorimetry(result);
+        }},
+        { "display.videoresolutions", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetDisplayVideoResolutions(result);
         }},
         {"presentation.focused", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->GetPresentationFocused(ctx, payload, result);
@@ -1204,6 +1216,16 @@ namespace Plugin {
             return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetLastIntent, ctx, payload, result);
         }
 
+        Core::hresult AppGatewayCommon::ActionsStart(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::ActionsStart, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::ActionsIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::ActionsIntent, ctx, payload, result);
+        }
+        
         Core::hresult AppGatewayCommon::GetPresentationFocused(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
             return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetPresentationFocused, ctx, payload, result);
@@ -1302,6 +1324,24 @@ namespace Plugin {
             auto systemDelegate = mDelegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDisplayMaxResolution(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetDisplayColorimetry(string &result)
+        {
+            result = "[]";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDisplayColorimetry(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetDisplayVideoResolutions(string &result)
+        {
+            result = "[]";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDisplayVideoResolutions(result);
         }
 
 } // namespace Plugin

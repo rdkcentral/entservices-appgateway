@@ -186,6 +186,8 @@ namespace WPEFramework {
             Core::hresult Lifecycle2Close(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult DispatchLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult GetLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult ActionsStart(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult ActionsIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult GetPresentationFocused(const Exchange::GatewayContext& ctx, const std::string& payload, std::string &result /* @out */);
             
             // EventRegistrationJob helper method (AppGatewayCommon-specific)
@@ -201,6 +203,8 @@ namespace WPEFramework {
             Core::hresult GetDisplayEdid(string &result /* @out */);
             Core::hresult GetDisplaySize(string &result /* @out */);
             Core::hresult GetDisplayMaxResolution(string &result /* @out */);
+            Core::hresult GetDisplayColorimetry(string &result /* @out */);
+            Core::hresult GetDisplayVideoResolutions(string &result /* @out */);
         private:
             PluginHost::IShell* mShell;
             uint32_t mConnectionId;

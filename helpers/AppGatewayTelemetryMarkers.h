@@ -334,6 +334,7 @@
 #define AGW_PLUGIN_APPGATEWAY                       "AppGateway"
 #define AGW_PLUGIN_APPGATEWAYCOMMON                 "AppGatewayCommon"
 #define AGW_PLUGIN_APPNOTIFICATIONS                 "AppNotifications"
+#define AGW_PLUGIN_APPACTIONS                       "AppActions"
 #define AGW_PLUGIN_FBADVERTISING                    "FbAdvertising"
 #define AGW_PLUGIN_FBDISCOVERY                      "FbDiscovery"
 #define AGW_PLUGIN_FBENTOS                          "FbEntos"
@@ -381,6 +382,7 @@
 #define AGW_ERROR_COLLECTION_FAILED                 "COLLECTION_FAILED"
 #define AGW_ERROR_ENUMERATE_PERMISSIONS_FAILED      "ENUMERATE_PERMISSIONS_FAILED"
 #define AGW_ERROR_GENERAL                           "GENERAL_ERROR"
+#define AGW_ERROR_ALREADY_REGISTERED                "ALREADY_REGISTERED"
 
 //=============================================================================
 // USAGE EXAMPLES

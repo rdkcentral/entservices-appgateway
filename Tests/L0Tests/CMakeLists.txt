@@ -9,9 +9,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(APPGW_TEST_ENABLE_WARNINGS "Enable additional compiler warnings for appgateway_l0test" ON)
 option(APPGW_ENABLE_COVERAGE "Enable coverage flags for appgateway_l0test" ON)
 option(APPNOTIF_ENABLE_COVERAGE "Enable coverage flags for appnotifications_l0test" ON)
+option(APPACTIONS_ENABLE_COVERAGE "Enable coverage flags for appactions_l0test" ON)
 option(APPGW_L0_ENABLE_APPGATEWAY "Build AppGateway L0 test target" ON)
 option(APPGW_L0_ENABLE_APPGATEWAYCOMMON "Build AppGatewayCommon L0 test target" ON)
 option(APPGW_L0_ENABLE_APPNOTIFICATIONS "Build AppNotifications L0 test target" ON)
+option(APPGW_L0_ENABLE_APPACTIONS "Build AppActions L0 test target" ON)
 
 if(NOT DEFINED PREFIX OR "${PREFIX}" STREQUAL "")
     if(DEFINED ENV{PREFIX} AND NOT "$ENV{PREFIX}" STREQUAL "")
@@ -61,6 +63,19 @@ set(APPNOTIF_L0_SOURCES
     common/L0Bootstrap.cpp
 )
 
+set(APPACTIONS_L0_SOURCES
+    ${CMAKE_SOURCE_DIR}/../../AppActions/Module.cpp
+    ${CMAKE_SOURCE_DIR}/../../AppActions/AppActions.cpp
+    ${CMAKE_SOURCE_DIR}/../../AppActions/AppActionsImplementation.cpp
+    AppActions/AppActionsTestHelpers.cpp
+    AppActions/AppActionsTest.cpp
+    AppActions/AppActions_Init_DeinitTests.cpp
+    AppActions/AppActions_ActionStartTests.cpp
+    AppActions/AppActions_NotificationTests.cpp
+    AppActions/AppActions_ImplTests.cpp
+    common/L0Bootstrap.cpp
+)
+
 # ---------------------------------------------------------------------------
 # Declare targets
 # ---------------------------------------------------------------------------
@@ -81,7 +96,11 @@ if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
     add_executable(appnotifications_l0test ${APPNOTIF_L0_SOURCES})
 endif()
 
-if(APPGW_L0_PRIMARY_TARGET STREQUAL "" AND NOT APPGW_L0_ENABLE_APPNOTIFICATIONS)
+if(APPGW_L0_ENABLE_APPACTIONS)
+    add_executable(appactions_l0test ${APPACTIONS_L0_SOURCES})
+endif()
+
+if(APPGW_L0_PRIMARY_TARGET STREQUAL "" AND NOT APPGW_L0_ENABLE_APPNOTIFICATIONS AND NOT APPGW_L0_ENABLE_APPACTIONS)
     message(FATAL_ERROR "No L0 target enabled. Enable at least one APPGW_L0_ENABLE_* option.")
 endif()
 
@@ -94,8 +113,6 @@ if(APPGW_L0_ENABLE_APPGATEWAY)
         APPGATEWAY_MAJOR_VERSION=1
         APPGATEWAY_MINOR_VERSION=0
         APPGATEWAY_PATCH_VERSION=0
-        LEGACY_FIREBOLT_VERSION="0"
-        RDK8_FIREBOLT_VERSION="8"
         ENABLE_DEBUG_FOR_CONNECTION="enableDebugForConnection"
         DISABLE_DEBUG_FOR_CONNECTION="disableDebugForConnection"
     )
@@ -166,6 +183,45 @@ if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
 endif()
 
 # ---------------------------------------------------------------------------
+# AppActions target compile options / definitions / includes
+# ---------------------------------------------------------------------------
+if(APPGW_L0_ENABLE_APPACTIONS)
+    target_compile_definitions(appactions_l0test PRIVATE
+        MODULE_NAME=AppActions_L0Test
+        APPACTIONS_MAJOR_VERSION=1
+        APPACTIONS_MINOR_VERSION=0
+        APPACTIONS_PATCH_VERSION=0
+        DISABLE_SECURITY_TOKEN=1
+        USE_THUNDER_R4=1
+    )
+
+    if(APPACTIONS_ENABLE_COVERAGE)
+        target_compile_options(appactions_l0test PRIVATE -O0 -g --coverage)
+        target_link_options(appactions_l0test PRIVATE --coverage)
+    endif()
+
+    if(APPGW_TEST_ENABLE_WARNINGS)
+        target_compile_options(appactions_l0test PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    endif()
+
+    target_include_directories(appactions_l0test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/AppActions
+        ${CMAKE_CURRENT_SOURCE_DIR}/common
+        ${CMAKE_SOURCE_DIR}/../..
+        ${CMAKE_SOURCE_DIR}/../../AppActions
+        ${CMAKE_SOURCE_DIR}/../../helpers
+    )
+
+    if(EXISTS "${PREFIX}/lib")
+        target_link_directories(appactions_l0test PRIVATE "${PREFIX}/lib")
+    endif()
+    if(EXISTS "${PREFIX}/lib/plugins")
+        target_link_directories(appactions_l0test PRIVATE "${PREFIX}/lib/plugins")
+    endif()
+endif()
+
+# ---------------------------------------------------------------------------
 # Thunder / WPEFramework library discovery (shared for both targets)
 # ---------------------------------------------------------------------------
 # Prefer namespace-based package targets (repo convention), fallback to direct
@@ -207,6 +263,14 @@ if(NOT "${APPGW_NAMESPACE}" STREQUAL "")
             target_link_directories(appnotifications_l0test PRIVATE "${PREFIX}/lib/${_appgw_ns_lower}")
         endif()
     endif()
+    if(APPGW_L0_ENABLE_APPACTIONS)
+        if(EXISTS "${PREFIX}/lib/${_appgw_ns_lower}/plugins")
+            target_link_directories(appactions_l0test PRIVATE "${PREFIX}/lib/${_appgw_ns_lower}/plugins")
+        endif()
+        if(EXISTS "${PREFIX}/lib/${_appgw_ns_lower}")
+            target_link_directories(appactions_l0test PRIVATE "${PREFIX}/lib/${_appgw_ns_lower}")
+        endif()
+    endif()
     unset(_appgw_ns_lower)
 
     if(TARGET ${APPGW_NAMESPACE}Core::${APPGW_NAMESPACE}Core)
@@ -215,6 +279,9 @@ if(NOT "${APPGW_NAMESPACE}" STREQUAL "")
         endif()
         if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
             target_link_libraries(appnotifications_l0test PRIVATE ${APPGW_NAMESPACE}Core::${APPGW_NAMESPACE}Core)
+        endif()
+        if(APPGW_L0_ENABLE_APPACTIONS)
+            target_link_libraries(appactions_l0test PRIVATE ${APPGW_NAMESPACE}Core::${APPGW_NAMESPACE}Core)
         endif()
         set(APPGW_HAVE_CORE_TARGET TRUE)
     endif()
@@ -225,6 +292,9 @@ if(NOT "${APPGW_NAMESPACE}" STREQUAL "")
         if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
             target_link_libraries(appnotifications_l0test PRIVATE ${APPGW_NAMESPACE}Messaging::${APPGW_NAMESPACE}Messaging)
         endif()
+        if(APPGW_L0_ENABLE_APPACTIONS)
+            target_link_libraries(appactions_l0test PRIVATE ${APPGW_NAMESPACE}Messaging::${APPGW_NAMESPACE}Messaging)
+        endif()
         set(APPGW_HAVE_MESSAGING_TARGET TRUE)
     endif()
     if(TARGET ${APPGW_NAMESPACE}Plugins::${APPGW_NAMESPACE}Plugins)
@@ -234,6 +304,9 @@ if(NOT "${APPGW_NAMESPACE}" STREQUAL "")
         if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
             target_link_libraries(appnotifications_l0test PRIVATE ${APPGW_NAMESPACE}Plugins::${APPGW_NAMESPACE}Plugins)
         endif()
+        if(APPGW_L0_ENABLE_APPACTIONS)
+            target_link_libraries(appactions_l0test PRIVATE ${APPGW_NAMESPACE}Plugins::${APPGW_NAMESPACE}Plugins)
+        endif()
         set(APPGW_HAVE_PLUGINS_TARGET TRUE)
     endif()
     if(TARGET ${APPGW_NAMESPACE}WebSocket::${APPGW_NAMESPACE}WebSocket)
@@ -242,6 +315,9 @@ if(NOT "${APPGW_NAMESPACE}" STREQUAL "")
         endif()
         if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
             target_link_libraries(appnotifications_l0test PRIVATE ${APPGW_NAMESPACE}WebSocket::${APPGW_NAMESPACE}WebSocket)
+        endif()
+        if(APPGW_L0_ENABLE_APPACTIONS)
+            target_link_libraries(appactions_l0test PRIVATE ${APPGW_NAMESPACE}WebSocket::${APPGW_NAMESPACE}WebSocket)
         endif()
         set(APPGW_HAVE_WEBSOCKET_TARGET TRUE)
     endif()
@@ -261,6 +337,12 @@ if(NOT (APPGW_HAVE_CORE_TARGET AND APPGW_HAVE_MESSAGING_TARGET AND APPGW_HAVE_PL
             ${PREFIX}/include/WPEFramework
         )
     endif()
+    if(APPGW_L0_ENABLE_APPACTIONS)
+        target_include_directories(appactions_l0test PRIVATE
+            ${PREFIX}/include
+            ${PREFIX}/include/WPEFramework
+        )
+    endif()
 
     if(CMAKE_PREFIX_PATH)
         foreach(_prefix IN LISTS CMAKE_PREFIX_PATH)
@@ -271,6 +353,9 @@ if(NOT (APPGW_HAVE_CORE_TARGET AND APPGW_HAVE_MESSAGING_TARGET AND APPGW_HAVE_PL
                 if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
                     target_include_directories(appnotifications_l0test PRIVATE "${_prefix}/include")
                 endif()
+                if(APPGW_L0_ENABLE_APPACTIONS)
+                    target_include_directories(appactions_l0test PRIVATE "${_prefix}/include")
+                endif()
             endif()
             if(EXISTS "${_prefix}/include/WPEFramework")
                 if(APPGW_L0_ENABLE_APPGATEWAY)
@@ -278,6 +363,9 @@ if(NOT (APPGW_HAVE_CORE_TARGET AND APPGW_HAVE_MESSAGING_TARGET AND APPGW_HAVE_PL
                 endif()
                 if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
                     target_include_directories(appnotifications_l0test PRIVATE "${_prefix}/include/WPEFramework")
+                endif()
+                if(APPGW_L0_ENABLE_APPACTIONS)
+                    target_include_directories(appactions_l0test PRIVATE "${_prefix}/include/WPEFramework")
                 endif()
             endif()
         endforeach()
@@ -342,6 +430,28 @@ if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
     )
 endif()
 
+if(APPGW_L0_ENABLE_APPACTIONS)
+    if(DEFINED WPEFRAMEWORK_CORE_LIB AND WPEFRAMEWORK_CORE_LIB)
+        target_link_libraries(appactions_l0test PRIVATE ${WPEFRAMEWORK_CORE_LIB})
+    endif()
+    if(DEFINED WPEFRAMEWORK_MESSAGING_LIB AND WPEFRAMEWORK_MESSAGING_LIB)
+        target_link_libraries(appactions_l0test PRIVATE ${WPEFRAMEWORK_MESSAGING_LIB})
+    endif()
+    if(DEFINED WPEFRAMEWORK_PLUGINS_LIB AND WPEFRAMEWORK_PLUGINS_LIB)
+        target_link_libraries(appactions_l0test PRIVATE ${WPEFRAMEWORK_PLUGINS_LIB})
+    endif()
+    if(DEFINED WPEFRAMEWORK_WEBSOCKET_LIB AND WPEFRAMEWORK_WEBSOCKET_LIB)
+        target_link_libraries(appactions_l0test PRIVATE ${WPEFRAMEWORK_WEBSOCKET_LIB})
+    endif()
+
+    target_link_libraries(appactions_l0test PRIVATE
+        Threads::Threads
+        m
+        dl
+        uuid
+    )
+endif()
+
 # ---------------------------------------------------------------------------
 # Runtime search paths (shared rpath dirs, applied to both targets)
 # ---------------------------------------------------------------------------
@@ -385,6 +495,13 @@ if(APPGW_L0_ENABLE_APPNOTIFICATIONS)
     )
 endif()
 
+if(APPGW_L0_ENABLE_APPACTIONS)
+    set_target_properties(appactions_l0test PROPERTIES
+        BUILD_RPATH "${APPGW_BUILD_RPATH}"
+        INSTALL_RPATH "${APPGW_INSTALL_RPATH}"
+    )
+endif()
+
 # ---------------------------------------------------------------------------
 # Utility targets
 # ---------------------------------------------------------------------------
@@ -393,6 +510,15 @@ if(APPGW_L0_ENABLE_APPGATEWAY)
         DEPENDS appgateway_l0test
         COMMAND $<TARGET_FILE:appgateway_l0test>
         COMMENT "Running appgateway_l0test"
+        VERBATIM
+    )
+endif()
+
+if(APPGW_L0_ENABLE_APPACTIONS)
+    add_custom_target(run_appactions
+        DEPENDS appactions_l0test
+        COMMAND $<TARGET_FILE:appactions_l0test>
+        COMMENT "Running appactions_l0test"
         VERBATIM
     )
 endif()
@@ -409,6 +535,7 @@ set(APPGWC_L0_SOURCES
     AppGatewayCommon/AppGatewayCommon_routing_test.cpp
     AppGatewayCommon/AppGatewayCommon_setters_test.cpp
     AppGatewayCommon/AppGatewayCommon_events_test.cpp
+    AppGatewayCommon/AppGatewayCommon_display_test.cpp
     AppGatewayCommon/AppGatewayCommon_main_test.cpp
     common/L0Bootstrap.cpp
 )
@@ -420,8 +547,6 @@ target_compile_definitions(appgatewaycommon_l0test PRIVATE
     APPGATEWAYCOMMON_MAJOR_VERSION=1
     APPGATEWAYCOMMON_MINOR_VERSION=0
     APPGATEWAYCOMMON_PATCH_VERSION=0
-    LEGACY_FIREBOLT_VERSION="0"
-    RDK8_FIREBOLT_VERSION="8"
     ENABLE_DEBUG_FOR_CONNECTION="enableDebugForConnection"
     DISABLE_DEBUG_FOR_CONNECTION="disableDebugForConnection"
     DISABLE_SECURITY_TOKEN

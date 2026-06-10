@@ -19,17 +19,17 @@
 
 #ifndef __CONTEXTUTILS_H__
 #define __CONTEXTUTILS_H__
+#include <cstddef>
 #include <interfaces/IAppGateway.h>
 #include <interfaces/IAppNotifications.h>
-
 #include "UtilsCallsign.h"
 using namespace WPEFramework;
 using namespace std;
 
-#define LEGACY_FIREBOLT_VERSION "0"
-#define RDK8_FIREBOLT_VERSION "8"
-#define RDK8_SUFFIX ".v8"
-#define RDK8_SUFFIX_LENGTH 3
+constexpr const char* const LEGACY_FIREBOLT_VERSION = "0";
+constexpr const char* const RDK8_FIREBOLT_VERSION = "8";
+constexpr const char* const RDK8_SUFFIX = ".v8";
+constexpr std::size_t RDK8_SUFFIX_LENGTH = 3;
 #define ENABLE_DEBUG_FOR_CONNECTION "enableDebugForConnection"
 #define DISABLE_DEBUG_FOR_CONNECTION "disableDebugForConnection"
 
@@ -69,7 +69,7 @@ class ContextUtils {
         }
 
         static string GetEventNameFromContextBasedonVersion(const string& version, const string& baseEventName) {
-            if (RDK8_FIREBOLT_VERSION == version ) {
+            if (RDK8_FIREBOLT_VERSION == version) {
                 return GetRDK8VersionedEventName(baseEventName);
             }
             return baseEventName;
