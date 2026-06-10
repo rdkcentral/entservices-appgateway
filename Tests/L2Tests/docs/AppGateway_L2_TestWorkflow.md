@@ -74,6 +74,14 @@ This means it **loads directly into the WPEFramework process** — no separate W
 | `Local` (default) | separate `WPEProcess` | `/tmp/communicator` | No |
 | `Off` (in-process) | same as WPEFramework | `/tmp/communicator` | **Yes** |
 
+### AppNotifications in L2 flow
+
+For AppGateway L2 event coverage, AppNotifications is treated in the same runtime dependency model as
+AppGatewayCommon: the fixture proactively activates `org.rdk.AppNotifications`, and AppGateway then uses
+`QueryInterfaceByCallsign` to bind `IAppNotifications` on demand for subscribe/unsubscribe paths.
+
+This keeps AppGateway event tests on the live Thunder plugin path rather than a mock interface path.
+
 With `mode=Off` the Thunder COM-RPC proxy still uses `/tmp/communicator` but the stub is  
 serviced in-process, eliminating the process-lifecycle race that otherwise causes test  
 instability when `WPEProcess` starts/stops independently.
@@ -138,12 +146,13 @@ sequenceDiagram
     Runner->>Ctrl: JSON-RPC activate("org.rdk.AppGatewayCommon")
     Runner->>Ctrl: JSON-RPC activate("org.rdk.AppNotifications") [optional]
     Ctrl->>AGWC: Initialize(IShell)
-    AGWC-->>Ctrl: "" (success, starts WS server)
+    AGWC-->>Ctrl: "" (success)
 
     Runner->>Ctrl: JSON-RPC activate("org.rdk.AppGateway")
     Ctrl->>AGW: Initialize(IShell)
     AGW->>AGWC: QueryInterface(IAppGatewayRequestHandler)
     AGW->>AN: QueryInterface(IAppNotifications) [via callsign lookup]
+    AGW->>AGW: Configure(AppGatewayResponderImplementation) starts WS server
     AGW-->>Ctrl: "" (success, resolver configured)
 
     Note over Runner,AGW: Tests execute via COM-RPC or JSON-RPC
@@ -268,7 +277,7 @@ TC-COMRPC-04: test.comrpc → QueryInterfaceByCallsign → IAppGatewayRequestHan
 | **TestMocklib** (`-DRDK_SERVICE_L2_TEST`) | Other plugins (SystemServices, PersistentStore etc.) | Intercepted by CMake HAL shim |
 | **Temp JSON config files** (`mkstemps`) | TC-INIT / TC-CFG resolution config files | Written inline in test fixture, deleted on teardown |
 | **Real Thunder Controller** | Plugin activate/deactivate, JSON-RPC forward | Live Thunder instance, no mock |
-| **Real AppNotifications plugin (when available)** | TC-EVT-01..05 event subscribe/unsubscribe | Fixture attempts `Controller.1.activate("org.rdk.AppNotifications")`; AppGateway then uses `QueryInterfaceByCallsign` |
+| **Real AppNotifications plugin** | TC-EVT-01..05 event subscribe/unsubscribe | Fixture activates `org.rdk.AppNotifications`; AppGateway then uses `QueryInterfaceByCallsign` |
 | **Real AppGatewayCommon plugin** | AppGateway dependency path (TC-COMRPC-04) + responder fixture (TC-NOTIF/CTX/RESP) | Real plugin, mode=Off |
 
 ---
