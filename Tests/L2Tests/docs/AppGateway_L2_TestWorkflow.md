@@ -32,36 +32,43 @@ Primary focus is **AppGateway plugin L2 behaviour** (`IAppGatewayResolver` path)
 ## 2. Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Ubuntu 22.04 (GitHub Actions runner / local docker)                │
-│                                                                     │
-│  ┌────────────────────────────────────────────────────────────┐     │
-│  │  WPEFramework (Thunder R4.4.1)  — port 9998                │     │
-│  │                                                            │     │
-│  │   Controller plugin  ──────────────────────────────────┐  │     │
-│  │                                                        │  │     │
-│  │   ┌──────────────────┐   COM-RPC /tmp/communicator    │  │     │
-│  │   │  AppGateway       │◄──────────────────────────────┤  │     │
-│  │   │  (IAppGateway     │                               │  │     │
-│  │   │   Resolver)       │──► AppGatewayCommon           │  │     │
-│  │   └──────────────────┘     (IAppGatewayResponder      │  │     │
-│  │                              IAppGatewayRequestHandler │  │     │
-│  │   ┌──────────────────┐       IAppGatewayAuthenticator) │  │     │
-│  │   │  AppNotifications │◄──────────────────────────────┘  │     │
-│  │   │  (IAppNotifications│                                  │     │
-│  │   │   plugin)          │                                  │     │
-│  │   └──────────────────┘                                   │     │
-│  │                                                           │     │
-│  │   ┌──────────────────────────────────────┐               │     │
-│  │   │  L2TestsIN plugin  (in-process .so)  │               │     │
-│  │   │  • Hosts GTest runner                │               │     │
-│  │   │  • AppGateway_L2Test fixture         │               │     │
-│  │   │  • AppGatewayResponder_L2Test fixture│               │     │
-│  │   └──────────────────────────────────────┘               │     │
-│  └────────────────────────────────────────────────────────────┘     │
-│                                                                     │
-│  RdkServicesL2Test binary  ──JSON-RPC──►  WPEFramework:9998         │
-└─────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│  Ubuntu 22.04 (GitHub Actions runner / local docker)                   │
+│                                                                        │
+│  ┌───────────────────────────────────────────────────────────────┐     │
+│  │  WPEFramework (Thunder R4.4.1)  - port 9998                   │     │
+│  │                                                               │     │
+│  │   ┌───────────────────┐                                       │     │
+│  │   │ Controller plugin │                                       │     │
+│  │   └────────┬──────────┘                                       │     │
+│  │            │ QueryInterface                                   │     │
+│  │            v                                                  │     │
+│  │   ┌──────────────────────────────────────────────────────┐    │     │
+│  │   │ AppGateway plugin                                     │    │     │
+│  │   │ - IAppGatewayResolver                                 │    │     │
+│  │   │ - IAppGatewayResponder                                │    │     │
+│  │   │ - IAppGatewayTelemetry                                │    │     │
+│  │   └───────────────┬───────────────────────┬──────────────┘    │     │
+│  │                   │                       │                   │     │
+│  │                   │ uses                  │ uses              │     │
+│  │                   v                       v                   │     │
+│  │   ┌──────────────────────────┐   ┌────────────────────────┐   │     │
+│  │   │ AppGatewayCommon plugin  │   │ AppNotifications plugin│   │     │
+│  │   │ - IAppGatewayRequestHandler│  │ - IAppNotifications    │   │     │
+│  │   │ - IAppGatewayAuthenticator │  └────────────────────────┘   │     │
+│  │   └──────────────────────────┘                                 │     │
+│  │                                                               │     │
+│  │   ┌────────────────────────────────────────────────────────┐  │     │
+│  │   │ L2TestsIN plugin (in-process .so)                     │  │     │
+│  │   │ - Hosts GTest runner                                  │  │     │
+│  │   │ - AppGateway_L2Test fixture                           │  │     │
+│  │   │ - AppGatewayResponder_L2Test fixture                  │  │     │
+│  │   │ - COM-RPC client to Controller on /tmp/communicator   │  │     │
+│  │   └────────────────────────────────────────────────────────┘  │     │
+│  └───────────────────────────────────────────────────────────────┘     │
+│                                                                        │
+│  RdkServicesL2Test binary --JSON-RPC--> WPEFramework:9998              │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Key deployment decision — `PLUGIN_APPGATEWAYCOMMON_MODE=Off`
@@ -178,7 +185,7 @@ AppGateway_L2Test
 Tests covered: TC-CFG-01..06, TC-CFG-JSONRPC-01/02, TC-RES-03..05,  
 TC-COMRPC-04, TC-EVT-01..05, TC-PERM-01, TC-INIT-01/03/06 — **22 tests**
 
-### 5.2 `AppGatewayResponder_L2Test` — secondary fixture for **Responder** interface (AppGatewayCommon)
+### 5.2 `AppGatewayResponder_L2Test` — secondary fixture for **Responder** interface (AppGateway)
 
 ```
 AppGatewayResponder_L2Test
@@ -278,7 +285,7 @@ TC-COMRPC-04: test.comrpc → QueryInterfaceByCallsign → IAppGatewayRequestHan
 | **Temp JSON config files** (`mkstemps`) | TC-INIT / TC-CFG resolution config files | Written inline in test fixture, deleted on teardown |
 | **Real Thunder Controller** | Plugin activate/deactivate, JSON-RPC forward | Live Thunder instance, no mock |
 | **Real AppNotifications plugin** | TC-EVT-01..05 event subscribe/unsubscribe | Fixture activates `org.rdk.AppNotifications`; AppGateway then uses `QueryInterfaceByCallsign` |
-| **Real AppGatewayCommon plugin** | AppGateway dependency path (TC-COMRPC-04) + responder fixture (TC-NOTIF/CTX/RESP) | Real plugin, mode=Off |
+| **Real AppGatewayCommon plugin** | AppGateway dependency path (TC-COMRPC-04) + dependency activation for responder fixture (TC-NOTIF/CTX/RESP) | Real plugin, mode=Off |
 
 ---
 
