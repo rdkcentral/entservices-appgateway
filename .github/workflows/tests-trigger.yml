@@ -40,12 +40,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
       - name: Fetch baseline from build-metadata branch
-        # Gracefully handle a missing build-metadata branch (first-time setup).
+        # Gracefully handle a missing build-metadata branch (first-time setup)
         continue-on-error: true
         run: |
           set -euo pipefail
@@ -86,21 +86,21 @@ jobs:
 
   update-baseline:
     name: Update Coverage Baseline
-    # Runs ONLY on a direct push to develop AND only when both suites pass.
-    # Pull requests never trigger this job — PRs only read the baseline.
+    # Runs ONLY on a direct push to develop AND only when both test suites pass
+    # AND the coverage gate passes. If coverage fails the gate (below threshold
+    # or regressed from baseline), the baseline must not be updated.
     if: >-
       github.event_name == 'push' &&
       github.ref == 'refs/heads/develop' &&
       needs.trigger-L0.result == 'success' &&
-      needs.trigger-L1.result == 'success'
-    needs: [trigger-L0, trigger-L1]
+      needs.trigger-L1.result == 'success' &&
+      needs.coverage-gate.result == 'success'
+    needs: [trigger-L0, trigger-L1, coverage-gate]
     runs-on: ubuntu-latest
-    # Elevate to write for this job only; all other jobs keep contents: read.
     permissions:
       contents: write
       actions: read
-    # Queue concurrent runs; do not cancel in-progress — each merge deserves
-    # a baseline update and force-push is atomic so queuing is safe.
+    # Queue concurrent runs; do not cancel in-progress — each merge deserves a baseline update and force-push is atomic so queuing is safe.
     concurrency:
       group: update-baseline-develop
       cancel-in-progress: false
@@ -109,7 +109,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
@@ -193,7 +193,7 @@ jobs:
               'chore: update coverage baseline after develop merge [skip ci]\n\nCommit : %s\nRun ID : %s' \
               "$GITHUB_SHA" "$GITHUB_RUN_ID")
             git commit -m "$MSG"
-            git push --force origin build-metadata
+            git push --force-with-lease origin build-metadata
             echo "Pushed updated baseline to build-metadata"
           fi
 

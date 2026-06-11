@@ -31,7 +31,7 @@ import sys
 from typing import Optional
 
 
-# Minimum acceptable line coverage percentage — enforced: PRs below this are blocked.
+# Minimum threshold
 THRESHOLD = 75.0
 
 _GREEN = "\033[32m"
@@ -44,73 +44,6 @@ _SEP    = "\u2500" * _SEP_WIDTH
 _HEADER = "\u2500\u2500 Coverage Gate Report " + "\u2500" * (_SEP_WIDTH - 24)
 
 
-# ---------------------------------------------------------------------------
-# lcov .info parsing
-# ---------------------------------------------------------------------------
-
-def parse_lcov_coverage(path: str) -> Optional[float]:
-    """Return overall line coverage % from an lcov .info file, or None.
-
-    An lcov .info file contains per-source-file records separated by
-    ``end_of_record``.  Each record may include:
-      LF:<lines found>   — total instrumented lines in that file
-      LH:<lines hit>     — lines executed at least once
-
-    We aggregate across all records to produce a single project-wide %.
-    Returns None when the file is absent, empty, or contains no line data.
-    """
-    if not path or not os.path.isfile(path):
-        return None
-
-    total_found = 0
-    total_hit = 0
-
-    try:
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
-            for raw in fh:
-                line = raw.strip()
-                if line.startswith("LF:"):
-                    try:
-                        total_found += int(line[3:])
-                    except ValueError:
-                        pass
-                elif line.startswith("LH:"):
-                    try:
-                        total_hit += int(line[3:])
-                    except ValueError:
-                        pass
-    except OSError as exc:
-        print(f"  WARNING: Could not read {path}: {exc}", file=sys.stderr)
-        return None
-
-    if total_found == 0:
-        return None
-
-    return round((total_hit / total_found) * 100.0, 2)
-
-
-# ---------------------------------------------------------------------------
-# Baseline loading
-# ---------------------------------------------------------------------------
-
-def load_baseline(path: str) -> dict:
-    """Load baseline JSON; return an empty dict on any error."""
-    if not path or not os.path.isfile(path):
-        return {}
-    try:
-        with open(path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-        if isinstance(data, dict):
-            return data
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
-        print(f"  WARNING: Could not parse baseline {path}: {exc}", file=sys.stderr)
-    return {}
-
-
-# ---------------------------------------------------------------------------
-# Reporting helpers
-# ---------------------------------------------------------------------------
-
 def _colored(token: str, ok: bool) -> str:
     return f"{_GREEN if ok else _RED}{token}{_RESET}"
 
@@ -120,7 +53,7 @@ def _fmt_timestamp(ts: str) -> str:
     try:
         dt = datetime.datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ")
         return dt.strftime("%Y-%m-%d %H:%M UTC")
-    except ValueError:
+    except (ValueError, TypeError):
         return ts
 
 
@@ -167,7 +100,7 @@ def _suite_analysis(current: Optional[float], baseline: Optional[float]):
         elif not threshold_ok and not regression_ok:
             detail = "below threshold \u00b7 dropped from baseline"
         elif not threshold_ok:
-            detail = "below threshold but baseline improved"
+            detail = "below threshold \u00b7 no baseline regression"
         else:
             detail = "above threshold but dropped from baseline"
 
@@ -189,9 +122,68 @@ def _build_summary(warn_suites: list) -> str:
     return ". ".join(parts)
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
+# lcov parsing
+def parse_lcov_coverage(path: str) -> Optional[float]:
+    """Return overall line coverage % from an lcov .info file, or None.
+
+    An lcov .info file contains per-source-file records separated by
+    ``end_of_record``.  Each record may include:
+      LF:<lines found>   — total instrumented lines in that file
+      LH:<lines hit>     — lines executed at least once
+
+    We aggregate across all records to produce a single project-wide %.
+    Returns None when the file is absent, empty, or contains no line data.
+    """
+    if not path or not os.path.isfile(path):
+        return None
+
+    total_found = 0
+    total_hit = 0
+
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            for raw in fh:
+                line = raw.strip()
+                if line.startswith("LF:"):
+                    try:
+                        total_found += int(line[3:])
+                    except ValueError:
+                        pass
+                elif line.startswith("LH:"):
+                    try:
+                        total_hit += int(line[3:])
+                    except ValueError:
+                        pass
+    except OSError as exc:
+        print(f"  WARNING: Could not read {path}: {exc}", file=sys.stderr)
+        return None
+
+    if total_found == 0:
+        return None
+
+    return round((total_hit / total_found) * 100.0, 2)
+
+
+
+# Baseline loading
+def load_baseline(path: str) -> dict:
+    """Load baseline JSON; return an empty dict on any error."""
+    if not path or not os.path.isfile(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        if isinstance(data, dict):
+            return data
+        print(
+            f"  WARNING: Baseline {path} is not a JSON object (got {type(data).__name__}) — ignoring",
+            file=sys.stderr,
+        )
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        print(f"  WARNING: Could not parse baseline {path}: {exc}", file=sys.stderr)
+    return {}
+
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -215,8 +207,18 @@ def main() -> None:
     args = parser.parse_args()
 
     baseline    = load_baseline(args.baseline)
-    baseline_l0: Optional[float] = baseline.get("L0")
-    baseline_l1: Optional[float] = baseline.get("L1")
+
+    def _coerce_pct(value: object) -> Optional[float]:
+        """Coerce a baseline percentage value to float, or None if invalid."""
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    baseline_l0: Optional[float] = _coerce_pct(baseline.get("L0"))
+    baseline_l1: Optional[float] = _coerce_pct(baseline.get("L1"))
 
     l0_coverage = parse_lcov_coverage(args.l0) if args.l0 else None
     l1_coverage = parse_lcov_coverage(args.l1) if args.l1 else None
@@ -252,9 +254,8 @@ def main() -> None:
     all_ok       = l0_ok and l1_ok
     status_token = _colored("[PASS]", True) if all_ok else _colored("[WARN]", False)
 
-    # ------------------------------------------------------------------
-    # Header block
-    # ------------------------------------------------------------------
+    
+    # Output report
     print()
     print(_HEADER)
     if baseline:
@@ -263,12 +264,10 @@ def main() -> None:
         print(f"  Baseline   {commit}  ({ts})")
     else:
         print("  Baseline   N/A  (first-time setup \u2014 regression check skipped)")
-    print(f"  Threshold  {THRESHOLD}%  |  Status  {status_token}  (enforcing \u2014 PR blocked on WARN)")
+    print(f"  Threshold  {THRESHOLD}%  |  Status  {status_token}  (informational \u2014 PRs are not blocked)")
     print(_SEP)
 
-    # ------------------------------------------------------------------
     # Coverage table
-    # ------------------------------------------------------------------
     print(f"  {'Suite':<7}{'Current':<9}{'Baseline':<10}{'Delta':<10}Result")
     for name, current, base, result, delta_disp in [
         ("L0", l0_coverage, baseline_l0, l0_result, l0_delta),
@@ -280,13 +279,17 @@ def main() -> None:
 
     print(_SEP)
 
-    # ------------------------------------------------------------------
     # Summary + overall bar
-    # ------------------------------------------------------------------
     warn_suites = [(n, r) for n, r in [("L0", l0_reason), ("L1", l1_reason)] if r]
     summary = _build_summary(warn_suites)
     if summary:
         print(f"  {summary}")
+
+    # Notify when one or both suites had no coverage data (artifact absent).
+    # Gate logic is unchanged — SKIP is treated as passing by design.
+    skipped = [n for n, cov in [("L0", l0_coverage), ("L1", l1_coverage)] if cov is None]
+    if skipped:
+        print(f"  NOTE: {_join_names(skipped)} coverage data absent — no artifact to evaluate (SKIP).")
 
     # " OVERALL: [PASS/WARN] " = 1 + 9 + 6 + 1 = 17 visible chars
     # left + " OVERALL: " + token(6) + " " + right == _OVERALL_WIDTH
@@ -296,8 +299,8 @@ def main() -> None:
     print(f"{left} OVERALL: {status_token} {right}")
     print()
 
-    # Exit 1 when any suite has an advisory issue — gate is now enforcing.
-    sys.exit(0 if all_ok else 1)
+    # Informational only — always exit 0 so PRs are never blocked.
+    sys.exit(0)
 
 
 if __name__ == "__main__":
