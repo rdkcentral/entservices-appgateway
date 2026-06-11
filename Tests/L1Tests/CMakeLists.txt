@@ -161,6 +161,12 @@ if(_L1TESTS_STANDALONE_BUILD)
         # which AppNotificationsL1Test must link against to resolve symbols.
         add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppNotifications ${CMAKE_BINARY_DIR}/AppNotifications)
     endif()
+
+    if(PLUGIN_APPACTIONS)
+        # AppActions/CMakeLists.txt defines the implementation library target
+        # which AppActionsL1Test must link against to resolve symbols.
+        add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppActions ${CMAKE_BINARY_DIR}/AppActions)
+    endif()
 endif()
 
 # -----------------------------------------------------------------------------
@@ -302,6 +308,29 @@ else()
     message(STATUS "AppNotifications L1 tests: DISABLED (set -DPLUGIN_APPNOTIFICATIONS=ON to enable)")
 endif()
 
+set(APPACTIONS_L1TEST_SRC "")
+set(APPACTIONS_L1TEST_INC "")
+set(APPACTIONS_L1TEST_LIB "")
+
+if(PLUGIN_APPACTIONS)
+    message(STATUS "AppActions L1 tests: ENABLED (PLUGIN_APPACTIONS=ON)")
+
+    list(APPEND APPACTIONS_L1TEST_SRC AppActions/AppActions_test.cpp)
+
+    list(APPEND APPACTIONS_L1TEST_INC
+        ../../helpers
+        ../../AppActions
+    )
+
+    list(APPEND APPACTIONS_L1TEST_LIB
+        ${NAMESPACE}AppActions
+        ${NAMESPACE}AppActionsImplementation
+        ${NAMESPACE}Plugins::${NAMESPACE}Plugins
+    )
+else()
+    message(STATUS "AppActions L1 tests: DISABLED (set -DPLUGIN_APPACTIONS=ON to enable)")
+endif()
+
 #########################################################################################
 # add_plugin_test_ex: Macro to add plugin tests, it will append to TEST_SRC, TEST_INC,
 #                     and TEST_LIB. Args are positional.
@@ -398,7 +427,7 @@ write_config(${PLUGIN_NAME})
 # -----------------------------------------------------------------------------
 # AppGatewayL1Test executable (required by the workflow/script)
 # -----------------------------------------------------------------------------
-if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS)
+if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS OR PLUGIN_APPACTIONS)
     find_package(Threads REQUIRED)
 
     # Prefer CONFIG mode so imported targets (GTest::gtest, GTest::gmock, etc.) are defined.
@@ -573,5 +602,44 @@ if(PLUGIN_APPGATEWAY OR PLUGIN_APPGATEWAYCOMMON OR PLUGIN_APPNOTIFICATIONS)
         endif()
 
         install(TARGETS AppNotificationsL1Test RUNTIME DESTINATION bin)
+    endif()
+
+    if(PLUGIN_APPACTIONS)
+        add_executable(AppActionsL1Test ${APPACTIONS_L1TEST_SRC})
+
+        target_include_directories(AppActionsL1Test
+            PRIVATE
+            ${APPACTIONS_L1TEST_INC}
+
+            ${CMAKE_INSTALL_PREFIX}/include
+
+            ${CMAKE_SOURCE_DIR}/Tests/mocks
+            ${CMAKE_SOURCE_DIR}/../mocks
+
+            ${CMAKE_SOURCE_DIR}/../Thunder/Source/plugins
+        )
+
+        target_link_libraries(AppActionsL1Test PRIVATE
+            ${APPACTIONS_L1TEST_LIB}
+            GTest::gmock
+            GTest::gtest
+            GTest::gtest_main
+            Threads::Threads
+        )
+
+        target_compile_definitions(AppActionsL1Test PRIVATE
+            UNIT_TEST
+            DISABLE_SECURITY_TOKEN
+            MODULE_NAME=AppActionsL1Test
+            APPACTIONS_MAJOR_VERSION=1
+            APPACTIONS_MINOR_VERSION=0
+            APPACTIONS_PATCH_VERSION=0
+        )
+
+        if(_L1TESTS_USE_THUNDER_R4)
+            target_compile_definitions(AppActionsL1Test PRIVATE USE_THUNDER_R4)
+        endif()
+
+        install(TARGETS AppActionsL1Test RUNTIME DESTINATION bin)
     endif()
 endif()
