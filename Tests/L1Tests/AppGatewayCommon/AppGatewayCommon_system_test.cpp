@@ -1278,8 +1278,10 @@ TEST_F(SystemDelegateTest, AGC_L1_139_GetTimeZone_MissingTimeZoneField)
     string result;
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.timezone", "{}", result);
 
-    // success=true but no timeZone field → falls through to error path
-    EXPECT_NE(Core::ERROR_NONE, rc);
+    // In the COMRPC path, success=true is treated as a successful call and an
+    // absent timezone maps to an empty JSON string value.
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("\"\"", result);
 }
 
 /* ================================================================
