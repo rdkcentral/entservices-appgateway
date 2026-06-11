@@ -77,7 +77,8 @@ def _suite_analysis(current: Optional[float], baseline: Optional[float]):
       warn_reason - Reason phrase for the summary line; None when ok.
     """
     if current is None:
-        return True, "SKIP", "N/A", None
+        reason = "coverage data missing"
+        return False, f"{_colored('[WARN]', False)}  {reason}", "N/A", reason
 
     threshold_ok = current >= THRESHOLD
 
@@ -289,7 +290,7 @@ def main() -> None:
     # Gate logic is unchanged — SKIP is treated as passing by design.
     skipped = [n for n, cov in [("L0", l0_coverage), ("L1", l1_coverage)] if cov is None]
     if skipped:
-        print(f"  NOTE: {_join_names(skipped)} coverage data absent — no artifact to evaluate (SKIP).")
+        print(f"  NOTE: {_join_names(skipped)} coverage data absent \u2014 artifact missing or unreadable.")
 
     # " OVERALL: [PASS/WARN] " = 1 + 9 + 6 + 1 = 17 visible chars
     # left + " OVERALL: " + token(6) + " " + right == _OVERALL_WIDTH

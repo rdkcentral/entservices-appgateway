@@ -375,15 +375,16 @@ class TestSuiteAnalysis(unittest.TestCase):
 
     def test_skip_when_current_is_none(self):
         ok, result, delta, reason = compare_coverage._suite_analysis(None, 80.0)
-        self.assertTrue(ok, "SKIP should be treated as passing")
-        self.assertEqual(result, "SKIP")
+        self.assertFalse(ok, "Missing coverage data should be treated as WARN")
+        self.assertIn("coverage data missing", result)
         self.assertEqual(delta, "N/A")
-        self.assertIsNone(reason)
+        self.assertIsNotNone(reason)
+        self.assertIn("coverage data missing", reason)
 
     def test_skip_when_both_none(self):
         ok, result, delta, reason = compare_coverage._suite_analysis(None, None)
-        self.assertTrue(ok)
-        self.assertEqual(result, "SKIP")
+        self.assertFalse(ok)
+        self.assertIn("coverage data missing", result)
 
     # --- Zero baseline: regression check disabled --------------------------------
 
@@ -644,14 +645,15 @@ class TestMainIntegration(unittest.TestCase):
         """
         Simulates the artifact-level effect: L0 .info absent (download step
         with continue-on-error:true produced no file), L1 coverage present
-        and passing.  Script-level: L0 is SKIP, L1 is analysed.
+        and passing.  Script-level: L0 is WARN (data missing), L1 is PASS.
         """
         bl = self._baseline({"L0": 75.0, "L1": 75.0})
         l1 = self._lcov("l1.info", 100, 80)  # L0 omitted intentionally
         r = self._run("--baseline", bl, "--l1", l1)
-        # L0 SKIP (ok=True) + L1 PASS → overall PASS
+        # L0 WARN (missing) → overall WARN, but exit 0 (informational)
         self.assertEqual(r.returncode, 0, msg=r.stdout + r.stderr)
-        self.assertIn("SKIP", r.stdout)
+        self.assertIn("coverage data missing", r.stdout)
+        self.assertIn("[WARN]", r.stdout)
 
     # ===========================================================================
     # SCENARIO 11 — L1 job fails (symmetric to scenario 10)
@@ -662,7 +664,8 @@ class TestMainIntegration(unittest.TestCase):
         l0 = self._lcov("l0.info", 100, 80)  # L1 omitted intentionally
         r = self._run("--baseline", bl, "--l0", l0)
         self.assertEqual(r.returncode, 0, msg=r.stdout + r.stderr)
-        self.assertIn("SKIP", r.stdout)
+        self.assertIn("coverage data missing", r.stdout)
+        self.assertIn("[WARN]", r.stdout)
 
     # ===========================================================================
     # SCENARIO 12 — Both L0 AND L1 jobs fail
@@ -676,8 +679,9 @@ class TestMainIntegration(unittest.TestCase):
         # Neither --l0 nor --l1 provided
         r = self._run("--baseline", bl)
         self.assertEqual(r.returncode, 0, msg=r.stdout + r.stderr)
-        # Both table rows show SKIP, plus one occurrence in the NOTE line
-        self.assertEqual(r.stdout.count("SKIP"), 3)
+        # Both rows + summary line show coverage data missing, OVERALL WARN
+        self.assertGreaterEqual(r.stdout.count("coverage data missing"), 2)
+        self.assertIn("[WARN]", r.stdout)
         self.assertIn("NOTE:", r.stdout)
 
     # ===========================================================================
