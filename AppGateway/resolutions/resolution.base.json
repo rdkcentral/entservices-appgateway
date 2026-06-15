@@ -440,7 +440,7 @@
         },
         "metrics.appInfo": {
             "alias":"org.rdk.AppGatewayCommon",
-            "event": "Metrics.onEvent"
+            "useComRpc": true
         },
         "network.connected": {
             "alias":"org.rdk.AppGatewayCommon",

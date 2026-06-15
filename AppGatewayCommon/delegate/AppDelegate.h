@@ -62,6 +62,8 @@ class AppDelegate {
                     ttl = 0;
                     sharedStorage->SetValue(Exchange::ISharedStorage::DEVICE, appId, DEVICE_UID_KEY, result, ttl, successResult);
                     if (successResult.success) {
+                        result = "\"" + result + "\""; // Return the new UID as a JSON string value
+                        LOGERR("UUID result before return: %s", result.c_str());
                         return Core::ERROR_NONE;
                     } else {
                         LOGERR("Failed to set new Device UID in SharedStorage");
@@ -69,6 +71,7 @@ class AppDelegate {
                         return Core::ERROR_GENERAL;
                     }
                 }
+                LOGERR("UUID result final: %s", result.c_str());
                 result = "\"" + result + "\""; // Return the UID as a string value
                 return Core::ERROR_NONE;
             } else {
