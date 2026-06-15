@@ -89,6 +89,38 @@ AppGatewayCommon: the fixture proactively activates `org.rdk.AppNotifications`, 
 
 This keeps AppGateway event tests on the live Thunder plugin path rather than a mock interface path.
 
+### AppGatewayCommon dependency architecture (plugin-centric)
+
+```mermaid
+flowchart TD
+    C[Controller plugin] -->|activate| AGWC[AppGatewayCommon plugin]
+
+    AGWC -->|QueryInterfaceByCallsign| RM[org.rdk.RuntimeManager]
+    AGWC -->|QueryInterfaceByCallsign| LM[org.rdk.LifecycleManager]
+    AGWC -->|QueryInterfaceByCallsign| WM[org.rdk.RDKWindowManager]
+
+    AGWC -->|QueryInterfaceByCallsign| DI[org.rdk.DeviceInfo]
+    AGWC -->|JSON-RPC link / subscribe| DS[org.rdk.DisplaySettings]
+    AGWC -->|JSON-RPC link / subscribe| HDCP[org.rdk.HdcpProfile]
+    AGWC -->|QueryInterfaceByCallsign| DINFO[org.rdk.DisplayInfo]
+    AGWC -->|QueryInterfaceByCallsign| PM[org.rdk.PowerManager]
+    AGWC -->|QueryInterfaceByCallsign| NM[org.rdk.NetworkManager]
+
+    AGWC -->|QueryInterfaceByCallsign| US[org.rdk.UserSettings]
+    AGWC -->|QueryInterfaceByCallsign| TT[org.rdk.TextTrack]
+    AGWC -->|QueryInterfaceByCallsign| TTS[org.rdk.TextToSpeech]
+    AGWC -->|QueryInterfaceByCallsign| SS[org.rdk.SharedStorage]
+
+    classDef core fill:#eef7ff,stroke:#4a90e2,stroke-width:1px;
+    classDef optional fill:#f8fff1,stroke:#6aa84f,stroke-width:1px;
+    class AGWC core;
+    class RM,LM,WM,DI,DS,HDCP,DINFO,PM,NM,US,TT,TTS,SS optional;
+```
+
+Notes:
+- Most dependencies are acquired lazily at call-time and are treated as optional at runtime.
+- Missing dependencies should degrade specific method/event paths, not crash plugin initialization.
+
 With `mode=Off` the Thunder COM-RPC proxy still uses `/tmp/communicator` but the stub is  
 serviced in-process, eliminating the process-lifecycle race that otherwise causes test  
 instability when `WPEProcess` starts/stops independently.
@@ -286,6 +318,69 @@ TC-COMRPC-04: test.comrpc → QueryInterfaceByCallsign → IAppGatewayRequestHan
 | **Real Thunder Controller** | Plugin activate/deactivate, JSON-RPC forward | Live Thunder instance, no mock |
 | **Real AppNotifications plugin** | TC-EVT-01..05 event subscribe/unsubscribe | Fixture activates `org.rdk.AppNotifications`; AppGateway then uses `QueryInterfaceByCallsign` |
 | **Real AppGatewayCommon plugin** | AppGateway dependency path (TC-COMRPC-04) + dependency activation for responder fixture (TC-NOTIF/CTX/RESP) | Real plugin, mode=Off |
+
+### 7.5 AppGatewayCommon dependency mocking plan
+
+L2-only plan (keep the default lane integration-real, then add targeted mocks only where CI cannot provide services):
+
+| L2 step | Goal | Approach | Exit criteria |
+|---|---|---|---|
+| Step 1: Baseline real-plugin lane | Preserve integration fidelity | Keep `AppGatewayCommon`, Controller, and available dependency plugins real in Thunder; run with `PLUGIN_APPGATEWAYCOMMON_MODE=Off` | Current 30-test suite stays stable with no lifecycle race regressions |
+| Step 2: Targeted infra shims | Simulate only missing infra in CI | Use `TestMocklib` (`-DRDK_SERVICE_L2_TEST`) for HAL/system wrapper gaps; do not replace AppGatewayCommon itself | Tests for unavailable env dependencies return expected controlled errors (not crashes) |
+| Step 3: Optional dependency emulation lane | Add deterministic negative-path coverage | In a separate opt-in L2 job, enable `L2_TEST_OOP_RPC` and extend `MockPlugin`/`MockAccessor` only for required missing COM dependencies | Fault-injection scenarios are reproducible without changing default L2 behavior |
+
+Recommended L2 rollout:
+1. Keep default L2 lane unchanged as the release gate.
+2. Add one dependency-emulation lane for missing CI services only.
+3. Promote new mocked scenarios to required checks only after parity with real-lane behavior is confirmed.
+
+### 7.6 Separate L2 lane with dedicated mock Thunder plugins
+
+#### What this approach means
+
+1. Build mock Thunder plugins whose callsigns match what AppGatewayCommon looks up.
+2. In a separate L2 lane, activate those mock plugins first.
+3. Then activate AppGatewayCommon so `QueryInterfaceByCallsign` resolves to those mocks.
+
+#### Best in-repo examples to refer
+
+1. Mock plugin skeleton + `SERVICE_REGISTRATION`:
+    - `entservices-testframework/Tests/mocks/MockAuthService/MockAuthServicePlugin.cpp`
+    - `entservices-testframework/Tests/mocks/MockSecManager/MockSecManagerPlugin.cpp`
+2. Callsign in plugin config (`.conf.in`):
+    - `entservices-testframework/Tests/mocks/MockAuthService/MockAuthServicePlugin.conf.in`
+    - `entservices-testframework/Tests/mocks/MockSecManager/MockSecManagerPlugin.conf.in`
+3. Activation/deactivation flow via Controller in L2 harness:
+    - `entservices-testframework/Tests/L2Tests/L2TestsPlugin/L2TestsMock.cpp` (`ActivateService` / `DeactivateService`)
+4. AppGatewayCommon dependency callsigns to match:
+    - `entservices-appgateway/AppGatewayCommon/delegate/LifecycleDelegate.h`
+    - `entservices-appgateway/AppGatewayCommon/delegate/NetworkDelegate.h`
+    - `entservices-appgateway/AppGatewayCommon/delegate/SystemDelegate.h`
+
+#### Practical step-by-step recipe (copy/adapt)
+
+1. Create dedicated mock plugin folders in `entservices-testframework/Tests/mocks`, for example:
+    - `MockRuntimeManager`
+    - `MockLifecycleManager`
+    - `MockNetworkManager`
+    - `MockDisplaySettings`
+2. In each plugin `.conf.in`, set `callsign` exactly to what AppGatewayCommon expects:
+    - `org.rdk.RuntimeManager`
+    - `org.rdk.LifecycleManager`
+    - `org.rdk.NetworkManager`
+    - `org.rdk.DisplaySettings`
+3. Implement required interfaces in each mock plugin with deterministic success/failure behavior.
+4. Add these plugin targets in testframework CMake behind a separate lane flag (example: `APPGWCOMMON_L2_DEP_MOCKS`).
+5. In the separate L2 lane startup sequence:
+    1. Activate dependency mock plugins first.
+    2. Activate `org.rdk.AppGatewayCommon` next.
+    3. Activate `org.rdk.AppGateway` and run tests.
+6. Keep the current real-dependency L2 lane unchanged as baseline; run this as an additional deterministic fault-injection lane.
+
+#### Important note
+
+- There is no existing full mock plugin example in this repo yet for `RuntimeManager` / `LifecycleManager` / `NetworkManager` / `DisplaySettings`.
+- The `MockAuthService` / `MockSecManager` plugins are the template for plugin structure and lifecycle wiring.
 
 ---
 
