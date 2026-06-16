@@ -312,7 +312,8 @@
         },
         "lifecycle2.onstatechanged": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "Lifecycle2.onStateChanged"
+            "event": "Lifecycle2.onStateChanged",
+            "eventHook": "lifecycle.ready"
         },
         "actions.onintent": {
             "alias": "org.rdk.AppGatewayCommon",

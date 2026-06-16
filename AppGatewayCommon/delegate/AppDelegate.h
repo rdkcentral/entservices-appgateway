@@ -50,6 +50,7 @@ class AppDelegate {
         };
 
         Core::hresult GetDeviceUID(const std::string &appId, string &result /* @out */) {
+            LOGERR("Handling app delegate request: %s", "GetDeviceUID");
             Exchange::ISharedStorage* sharedStorage = GetSharedStorage();
             if (nullptr != sharedStorage) {
                 uint32_t ttl;
@@ -119,6 +120,7 @@ class AppDelegate {
                                           const string& method ,
                                           const string& payload /*@opaque */,
                                           string& result /*@out @opaque */) {
+            LOGERR("Handling app delegate request: %s", method.c_str());
             string lowerMethod = StringUtils::toLower(method);
             if ("advertising.advertisingid" == lowerMethod) {
                 return GetAdvertisingId(context.appId, result);
