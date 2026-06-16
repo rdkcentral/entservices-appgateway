@@ -28,6 +28,7 @@
 #include <interfaces/IRDKWindowManager.h>
 #include <interfaces/IRuntimeManager.h>
 #include <interfaces/IAppActions.h>
+#include <interfaces/IAppGateway.h>
 #include "UtilsLogging.h"
 #include "UtilsCallsign.h"
 #include "UtilsFirebolt.h"
@@ -58,7 +59,7 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
 class LifecycleDelegate : public BaseEventDelegate
 {
     public:
-    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell), mLifecycleManagerState(nullptr), mWindowManager(nullptr), mNotificationHandler(*this), mWindowManagerNotificationHandler(*this)
+    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell), mLifecycleManagerState(nullptr), mWindowManager(nullptr), mNotificationHandler(*this), mWindowManagerNotificationHandler(*this), mSessionGuard(nullptr)
     {
         if (ConfigUtils::useAppManagers()) {
            Exchange::ILifecycleManagerState *lifecycleManagerState = GetLifecycleManagerStateInterface();
@@ -98,6 +99,12 @@ class LifecycleDelegate : public BaseEventDelegate
                 mWindowManager = nullptr;
             }
         }
+        // Release session guard reference acquired in SetSessionGuard
+        std::lock_guard<std::mutex> lock(mSessionGuardMutex);
+        if (mSessionGuard != nullptr) {
+            mSessionGuard->Release();
+            mSessionGuard = nullptr;
+        }
     }
 
     bool HandleSubscription(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen)
@@ -112,6 +119,22 @@ class LifecycleDelegate : public BaseEventDelegate
             RemoveNotification(event, cb);
         }
         return true;
+    }
+
+    // Sets the session guard used to pause/resume WebSocket traffic during hibernation.
+    // Called by AppGatewayCommon during Initialize (set) and Deinitialize (clear with nullptr).
+    // Only used in the Lifecycle 2 (AppManagers) code path; must not be called on the
+    // LaunchDelegate path.
+    void SetSessionGuard(Exchange::IAppGatewayAppSessionGuard* sessionGuard)
+    {
+        std::lock_guard<std::mutex> lock(mSessionGuardMutex);
+        if (mSessionGuard != nullptr) {
+            mSessionGuard->Release();
+        }
+        mSessionGuard = sessionGuard;
+        if (mSessionGuard != nullptr) {
+            mSessionGuard->AddRef();
+        }
     }
 
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError)
@@ -880,6 +903,21 @@ class LifecycleDelegate : public BaseEventDelegate
 
         Dispatch("Lifecycle2.onStateChanged", mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId), appId);
 
+        // Lifecycle 2 only: pause WebSocket traffic when entering HIBERNATED,
+        // resume when transitioning out of HIBERNATED.
+        if (ConfigUtils::useAppManagers() && !appId.empty()) {
+            std::lock_guard<std::mutex> lock(mSessionGuardMutex);
+            if (mSessionGuard != nullptr) {
+                if (newLifecycleState == Exchange::ILifecycleManager::HIBERNATED) {
+                    LOGINFO("HandleLifecycleUpdate: suspending traffic for hibernating appId=%s", appId.c_str());
+                    mSessionGuard->SuspendTraffic(appId);
+                } else if (oldLifecycleState == Exchange::ILifecycleManager::HIBERNATED) {
+                    LOGINFO("HandleLifecycleUpdate: resuming traffic for resumed appId=%s", appId.c_str());
+                    mSessionGuard->ResumeTraffic(appId);
+                }
+            }
+        }
+
         // if new lifecycleState is ACTIVE trigger last known intent
         if (newLifecycleState == Exchange::ILifecycleManager::ACTIVE) {
             DispatchLastKnownIntent(appId);
@@ -902,6 +940,9 @@ class LifecycleDelegate : public BaseEventDelegate
         LifecycleStateRegistry mLifecycleStateRegistry;
         NavigationIntentRegistry mNavigationIntentRegistry;
         FocusedAppRegistry mFocusedAppRegistry;
+        // Session guard for pausing/resuming WebSocket traffic during hibernation (Lifecycle 2 only).
+        Exchange::IAppGatewayAppSessionGuard* mSessionGuard;
+        std::mutex mSessionGuardMutex;
 };
 
 
