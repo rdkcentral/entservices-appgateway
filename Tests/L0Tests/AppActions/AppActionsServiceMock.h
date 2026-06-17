@@ -80,6 +80,7 @@ public:
         lastInitiator = initiator;
         lastIntent = intent;
         lastHandlerAppId = handlerAppId;
+        seenInitiators.insert(initiator);
     }
 
     // Observable state (access under _mutex for thread safety)
@@ -87,6 +88,7 @@ public:
     string lastInitiator;
     string lastIntent;
     string lastHandlerAppId;
+    std::set<string> seenInitiators;
 
     mutable std::mutex _mutex;
 
