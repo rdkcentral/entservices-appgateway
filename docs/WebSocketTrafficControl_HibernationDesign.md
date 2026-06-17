@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-This document describes the design for pausing and resuming traffic when an application enters the `HIBERNATED` lifecycle state. It applies **exclusively to the Lifecycle 2 (AppManagers) architecture** and is implemented **only in `AppGatewayCommon`** — the `LaunchDelegate` path is unaffected.
+This document describes the design for pausing and resuming traffic when an application enters the `HIBERNATED` lifecycle state. It applies **exclusively to the Lifecycle 2 (AppManagers) architecture** and is implemented **only in `AppGatewayCommon`** — legacy/non-AppManagers paths are unaffected.
 
 The approach is **drop-based**: all WebSocket messages (inbound and outbound) for a hibernated application are silently discarded. No queuing or replay occurs. Normal traffic resumes as soon as the application transitions out of the `HIBERNATED` state.
 
@@ -180,9 +180,9 @@ if (ConfigUtils::useAppManagers() && !appId.empty()) {
     std::lock_guard<std::mutex> lock(mSessionGuardMutex);
     if (mSessionGuard != nullptr) {
         if (newLifecycleState == Exchange::ILifecycleManager::HIBERNATED) {
-            mSessionGuard->SuspendTraffic(appId);   // AC3
+            mSessionGuard->SuspendTraffic(appId);
         } else if (oldLifecycleState == Exchange::ILifecycleManager::HIBERNATED) {
-            mSessionGuard->ResumeTraffic(appId);  // AC4
+            mSessionGuard->ResumeTraffic(appId);
         }
     }
 }
@@ -222,6 +222,7 @@ lifecycleDelegate->SetSessionGuard(nullptr);
 2. **TOCTOU race condition.** Any code that checks `IsSuspended()` and then acts on the result is inherently racy in a multi-threaded environment (Time-Of-Check to Time-Of-Use). The state could change between the check and the action. The current design avoids this entirely: `SuspendTraffic`/`ResumeTraffic` are fire-and-forget commands, and the drop logic inside `AppGatewayResponderImplementation` evaluates `PausedAppsRegistry::IsPaused()` atomically under a mutex at each message boundary.
 
 If suspended-state visibility is ever needed for diagnostics, the appropriate mechanism is a JSON-RPC diagnostic method exposed on the `AppGateway` plugin itself, not a query on this internal COM interface.
+
 ---
 
 ## 6. Data Flow Diagrams
@@ -337,8 +338,8 @@ sequenceDiagram
 
 | Constraint | Detail |
 |---|---|
-| **Lifecycle 2 only** | All guard logic is gated behind `ConfigUtils::useAppManagers()`. The `LaunchDelegate` path has no changes. |
-| **AppGatewayCommon only** | The `LaunchDelegate`'s `AppGatewayResponder` is a separate implementation and is not affected. |
+| **Lifecycle 2 only** | All guard logic is gated behind `ConfigUtils::useAppManagers()`. Legacy/non-AppManagers paths have no changes. |
+| **AppGatewayCommon only** | Any responder implementation outside the AppManagers path is separate and is not affected. |
 | **Drop, not queue** | Messages are discarded while the app is hibernated. The app is expected to re-request any state it needs after resuming. |
 | **No errors surfaced** | `Respond`, `Emit`, and `Request` return `Core::ERROR_NONE` when dropping; `DispatchWsMsg` returns void. The application does not observe hibernation-related errors. |
 | **Thread safety** | `PausedAppsRegistry` uses a `std::mutex`; `SetSessionGuard` uses a separate `mSessionGuardMutex`. |
