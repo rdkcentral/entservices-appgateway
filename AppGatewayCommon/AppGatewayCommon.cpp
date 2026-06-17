@@ -1245,7 +1245,6 @@ namespace Plugin {
                                           const string& method ,
                                           const string& payload /*@opaque */,
                                           string& result /*@out @opaque */) {
-            LOGERR("Entry Handling app delegate request: %s", method.c_str());
             if (!mDelegate) {
                 ErrorUtils::CustomInternal("Settings delegate not available", result);
                 return Core::ERROR_UNAVAILABLE;
@@ -1255,7 +1254,6 @@ namespace Plugin {
                 ErrorUtils::CustomInternal("App delegate not available", result);
                 return Core::ERROR_UNAVAILABLE;
             }
-            LOGERR("Handling app delegate request: %s", method.c_str());
             return appDelegate->HandleAppGatewayRequest(context, method, payload, result);
         
         }
