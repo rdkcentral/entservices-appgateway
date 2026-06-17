@@ -509,4 +509,4 @@ No dedicated `AppNotifications` unit test directory was found under `Tests/L1Tes
 
 ---
 
-*Back to [README.md](../README.md) | Related: [AppGateway.md](AppGateway.md) | [AppGatewayCommon.md](AppGatewayCommon.md)*
+*Back to [README.md](../README.md) | Related: [AppGateway.md](../AppGateway/AppGateway.md) | [AppGatewayCommon.md](../AppGatewayCommon/AppGatewayCommon.md)*

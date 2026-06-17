@@ -585,4 +585,4 @@ stateDiagram-v2
 
 ---
 
-*Back to [README.md](../README.md) | Related: [AppGateway.md](AppGateway.md) | [AppNotifications.md](AppNotifications.md)*
+*Back to [README.md](../README.md) | Related: [AppGateway.md](../AppGateway/AppGateway.md) | [AppNotifications.md](../AppNotifications/AppNotifications.md)*
