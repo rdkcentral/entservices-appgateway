@@ -154,30 +154,6 @@ private:
     mutable std::atomic<uint32_t> _refCount;
 };
 
-// Sanitize the value of an environment variable intended to be used as a
-// base directory path.  Rejects values that:
-//   - are null or empty
-//   - are not absolute paths (do not start with '/')
-//   - contain path-traversal sequences ("..")
-// Returns "/tmp" for any rejected value so the tainted data never reaches
-// a file-access function.
-static std::string SanitizeTempDir(const char* envVal)
-{
-    if (envVal == nullptr || envVal[0] == '\0') {
-        return "/tmp";
-    }
-    const std::string val(envVal);
-    // Must be absolute to prevent CWD-relative writes
-    if (val[0] != '/') {
-        return "/tmp";
-    }
-    // Reject path-traversal sequences
-    if (val.find("..") != std::string::npos) {
-        return "/tmp";
-    }
-    return val;
-}
-
 // Sanitize an environment variable intended to be used as a file/directory
 // path for read-only access (e.g. resolution config files, repo root).
 // Rejects values that are null/empty, non-absolute, or contain "..".
@@ -199,11 +175,12 @@ static std::string SanitizeEnvPath(const char* envVal)
     return val;
 }
 
-// Build a temp-directory-based path for test-generated override JSON files.
-// Avoids dirtying the working tree and prevents collisions in parallel runs.
+// Build a path under a fixed temp directory for test-generated override JSON
+// files.  Using a hardcoded base ("/tmp") ensures no environment variable
+// ever reaches a file-access function, eliminating any taint-flow risk.
 static std::string TempOverridePath(const std::string& filename)
 {
-    const std::string dir = SanitizeTempDir(std::getenv("TMPDIR")) + "/appgw_l0test_overrides";
+    static const std::string dir = "/tmp/appgw_l0test_overrides";
     EnsureDir(dir);
     return dir + "/" + filename;
 }
