@@ -50,7 +50,6 @@ class AppDelegate {
         };
 
         Core::hresult GetDeviceUID(const std::string &appId, string &result /* @out */) {
-            LOGERR("Handling app delegate request: %s", "GetDeviceUID");
             Exchange::ISharedStorage* sharedStorage = GetSharedStorage();
             if (nullptr != sharedStorage) {
                 uint32_t ttl;
@@ -64,7 +63,6 @@ class AppDelegate {
                     sharedStorage->SetValue(Exchange::ISharedStorage::DEVICE, appId, DEVICE_UID_KEY, result, ttl, successResult);
                     if (successResult.success) {
                         result = "\"" + result + "\""; // Return the new UID as a JSON string value
-                        LOGERR("UUID result before return: %s", result.c_str());
                         return Core::ERROR_NONE;
                     } else {
                         LOGERR("Failed to set new Device UID in SharedStorage");
@@ -72,7 +70,6 @@ class AppDelegate {
                         return Core::ERROR_GENERAL;
                     }
                 }
-                LOGERR("UUID result final: %s", result.c_str());
                 result = "\"" + result + "\""; // Return the UID as a string value
                 return Core::ERROR_NONE;
             } else {
@@ -120,7 +117,6 @@ class AppDelegate {
                                           const string& method ,
                                           const string& payload /*@opaque */,
                                           string& result /*@out @opaque */) {
-            LOGERR("Handling app delegate request: %s", method.c_str());
             string lowerMethod = StringUtils::toLower(method);
             if ("advertising.advertisingid" == lowerMethod) {
                 return GetAdvertisingId(context.appId, result);
