@@ -578,3 +578,54 @@ uint32_t Test_Resolver_LookupMissingKey()
 
     return tr.failures;
 }
+
+// Covers: Resolver::HasEventHook() — both present and absent cases
+uint32_t Test_Resolver_HasEventHook_PresentAndAbsent()
+{
+    using WPEFramework::Plugin::Resolver;
+    TestResult tr;
+
+    const std::string configPath = "/tmp/agw_l0test_eventhook.json";
+    const std::string configJson = R"JSON(
+{
+  "resolutions": {
+    "lifecycle2.onstatechanged": {
+      "alias": "org.rdk.AppGatewayCommon",
+      "event": "Lifecycle2.onStateChanged",
+      "eventHook": "lifecycle.ready"
+    },
+    "localization.onlanguagechanged": {
+      "alias": "org.rdk.AppGatewayCommon",
+      "event": "Localization.onLanguageChanged"
+    }
+  }
+}
+)JSON";
+
+    ExpectTrue(tr, WriteTextFile(configPath, configJson), "Write eventHook config JSON");
+
+    Resolver r(nullptr);
+    const bool loaded = r.LoadConfig(configPath);
+    ExpectTrue(tr, loaded, "LoadConfig with eventHook field succeeds");
+
+    // Positive: key has eventHook configured
+    std::string hookMethod;
+    const bool hasHook = r.HasEventHook("lifecycle2.onstatechanged", hookMethod);
+    ExpectTrue(tr, hasHook, "HasEventHook returns true for key with eventHook");
+    ExpectTrue(tr, hookMethod == "lifecycle.ready",
+               "HasEventHook outputs expected hook method 'lifecycle.ready'");
+
+    // Negative: key exists but has no eventHook field
+    std::string emptyHook;
+    const bool noHook = r.HasEventHook("localization.onlanguagechanged", emptyHook);
+    ExpectTrue(tr, !noHook, "HasEventHook returns false for key without eventHook");
+    ExpectTrue(tr, emptyHook.empty(), "hookMethod is empty when HasEventHook returns false");
+
+    // Negative: key does not exist at all
+    std::string missingHook;
+    ExpectTrue(tr, !r.HasEventHook("no.such.method", missingHook),
+               "HasEventHook returns false for unknown key");
+
+    ::unlink(configPath.c_str());
+    return tr.failures;
+}

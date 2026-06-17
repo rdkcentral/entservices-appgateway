@@ -1254,6 +1254,7 @@ namespace Plugin {
                 ErrorUtils::CustomInternal("App delegate not available", result);
                 return Core::ERROR_UNAVAILABLE;
             }
+
             return appDelegate->HandleAppGatewayRequest(context, method, payload, result);
         
         }
