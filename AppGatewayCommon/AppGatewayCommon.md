@@ -428,7 +428,7 @@ classDiagram
         +HandleAppEventNotifier(cb, event, listen, status) hresult
         +Authenticate(sessionId, appId) hresult
         +CheckPermissionGroup(appId, group, allowed) hresult
-        -handlers : unordered_map~string,HandlerFunction~
+        -handlers : unordered_map~string-HandlerFunction~
         -mDelegate : SettingsDelegate
         -mActiveJobs : atomic~int~
     }

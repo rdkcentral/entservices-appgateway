@@ -381,7 +381,7 @@ classDiagram
     class AppNotifications {
         +Initialize(shell) string
         +Deinitialize(service) void
-        -mAppNotifications : IAppNotifications*
+        -mAppNotifications : IAppNotifications
     }
     class AppNotificationsImplementation {
         +Subscribe(ctx, listen, module, event) hresult
@@ -396,7 +396,7 @@ classDiagram
         +Remove(key, context)
         +EventUpdate(key, payload, appId)
         +CleanupNotifications(connId, origin)
-        -mSubscribers : map~string, vector~
+        -mSubscribers : map~string-vector~
     }
     class ThunderSubscriptionManager {
         +Subscribe(module, event)
@@ -417,7 +417,7 @@ classDiagram
     AppNotifications --> AppNotificationsImplementation : roots
     AppNotificationsImplementation --> SubscriberMap : owns
     AppNotificationsImplementation --> ThunderSubscriptionManager : owns
-    AppNotificationsImplementation --> Emitter : owns (Core::Sink)
+    AppNotificationsImplementation --> Emitter : owns via Core.Sink
     Emitter --> EmitJob : submits
     AppNotificationsImplementation --> SubscriberJob : submits
     SubscriberMap --> ThunderSubscriptionManager : triggers unsubscribe

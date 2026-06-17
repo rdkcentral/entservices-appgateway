@@ -67,8 +67,8 @@ This follows the standard WPEFramework out-of-process plugin pattern: the shell 
 ```mermaid
 graph TD
     AGC[AppGatewayCommon\nActionsStart / ActionsIntent] -->|IAppActions COM-RPC| IMPL[AppActionsImplementation\nlibWPEFrameworkAppActionsImplementation.so]
-    IMPL -->|INotification::OnActionStartRequest| NOTIF[AppActions::Notification\nCore::Sink]
-    NOTIF -->|JAppActions::Event| RPC[JSON-RPC clients\nsubscribed apps]
+    IMPL -->|INotification OnActionStartRequest| NOTIF[AppActions Notification\nCore.Sink]
+    NOTIF -->|JAppActions Event| RPC[JSON-RPC clients\nsubscribed apps]
     SHELL[AppActions\nlibWPEFrameworkAppActions.so] -->|service->Root IAppActions| IMPL
     SHELL -->|INTERFACE_AGGREGATE| IMPL
 ```
@@ -320,9 +320,9 @@ classDiagram
     class AppActions {
         +Initialize(service) string
         +Deinitialize(service) void
-        -mAppActions : IAppActions*
+        -mAppActions : IAppActions
         -mAppActionsNotification : Sink~Notification~
-        -mAppActionsConfigure : IConfiguration*
+        -mAppActionsConfigure : IConfiguration
     }
     class AppActionsNotification {
         +OnActionStartRequest(initiator, intent, handlerAppId) void
@@ -339,7 +339,7 @@ classDiagram
     }
 
     AppActions --> AppActionsImplementation : roots out-of-process
-    AppActions --> AppActionsNotification : owns (Core::Sink)
+    AppActions --> AppActionsNotification : owns via Core.Sink
     AppActionsImplementation --> AppActionsNotification : notifies via INotification
 ```
 
@@ -349,14 +349,14 @@ classDiagram
 sequenceDiagram
     participant AGC as AppGatewayCommon
     participant AI as AppActionsImplementation
-    participant AN as AppActions::Notification
+    participant AN as AppActions Notification
     participant RPC as JSON-RPC Clients
 
-    AGC->>AI: ActionStart("appA", "launch:video", "appB")
+    AGC->>AI: ActionStart(appA, launch-video, appB)
     AI->>AI: DispatchActionStartRequest()
-    AI->>AN: OnActionStartRequest("appA","launch:video","appB")
-    AN->>RPC: JAppActions::Event::OnActionStartRequest(...)
-    RPC-->>AGC: (event delivered to subscribed apps)
+    AI->>AN: OnActionStartRequest(appA, launch-video, appB)
+    AN->>RPC: broadcast OnActionStartRequest event
+    RPC-->>AGC: event delivered to subscribed apps
 ```
 
 ### 7.3 Plugin Lifecycle
@@ -367,7 +367,7 @@ stateDiagram-v2
     Unloaded --> Initializing : Thunder loads AppActions
     Initializing --> RootingImpl : service->Root IAppActions
     RootingImpl --> RegisteringNotif : mAppActions->Register()
-    RegisteringNotif --> Ready : JAppActions::Register()
+    RegisteringNotif --> Ready : JAppActions Register()
     Ready --> Dispatching : ActionStart() received
     Dispatching --> Ready : dispatch complete
     Ready --> Deinitializing : Thunder deactivates

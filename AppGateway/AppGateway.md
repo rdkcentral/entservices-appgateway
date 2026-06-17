@@ -494,9 +494,9 @@ classDiagram
     class AppGateway {
         +Initialize(service) string
         +Deinitialize(service) void
-        -mAppGateway : IAppGatewayResolver*
-        -mResponder  : IAppGatewayResponder*
-        -mTelemetry  : IAppGatewayTelemetry*
+        -mAppGateway : IAppGatewayResolver
+        -mResponder  : IAppGatewayResponder
+        -mTelemetry  : IAppGatewayTelemetry
     }
     class AppGatewayImplementation {
         +Resolve(ctx, origin, method, params, result) hresult
