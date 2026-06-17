@@ -146,17 +146,37 @@ static bool WriteTextFile(const std::string& path, const std::string& content) {
     return true;
 }
 
+// Sanitize an environment variable intended to be used as a file/directory
+// path. Rejects values that are null/empty, non-absolute, or contain "..".
+// Returns an empty string for any rejected value so callers fall back to
+// the compile-time derived path and the tainted data never reaches a
+// file-access function.
+static std::string SanitizeEnvPath(const char* envVal)
+{
+    if (envVal == nullptr || envVal[0] == '\0') {
+        return {};
+    }
+    const std::string val(envVal);
+    if (val[0] != '/') {
+        return {};
+    }
+    if (val.find("..") != std::string::npos) {
+        return {};
+    }
+    return val;
+}
+
 static std::string ComputeBaseResolutionsPathFromThisFile() {
     // Prefer env var if provided. It may point to either file or directory.
-    const char* env = std::getenv("APPGATEWAY_RESOLUTIONS_PATH");
-    if (env != nullptr && *env != '\0') {
+    const std::string env = SanitizeEnvPath(std::getenv("APPGATEWAY_RESOLUTIONS_PATH"));
+    if (!env.empty()) {
         struct stat st;
-        if (stat(env, &st) == 0) {
+        if (stat(env.c_str(), &st) == 0) {
             if (S_ISREG(st.st_mode)) {
-                return std::string(env);
+                return env;
             }
             if (S_ISDIR(st.st_mode)) {
-                return std::string(env) + "/resolution.base.json";
+                return env + "/resolution.base.json";
             }
         }
     }
