@@ -1817,9 +1817,11 @@ private:
 
     inline Exchange::ISystemServices* AcquireSystemServices() const
     {
+        Core::SafeSyncType<Core::CriticalSection> lock(_systemRegistrationLock);
+
         if (_systemServicesPlugin == nullptr && _shell != nullptr)
         {
-            const_cast<SystemDelegate*>(this)->_systemServicesPlugin = 
+            _systemServicesPlugin = 
                 _shell->QueryInterfaceByCallsign<WPEFramework::Exchange::ISystemServices>(SYSTEM_CALLSIGN);
             if (_systemServicesPlugin != nullptr)
             {
@@ -1993,7 +1995,7 @@ private:
                     LOGINFO("SystemDelegate: Registered ISystemServices notifications (FriendlyName + TimeZone + Country)");
                     markSystemRegistered();
                 } else {
-                    LOGERR("SystemDelegate: Failed to register ISystemServices notifications rc=%u", status);
+                    LOGWARN("SystemDelegate: Failed to register ISystemServices notifications rc=%u", status);
                 }
             }
         } catch (...) {
