@@ -419,9 +419,14 @@ uint32_t Test_AA_ActionStart_MultipleCalls()
             std::lock_guard<std::mutex> lock(notification->_mutex);
             L0Test::ExpectEqU32(tr, notification->onActionStartRequestCount, 3,
                 "ActionStart_MultipleCalls: should be called 3 times");
-            // Last call values should be preserved
-            L0Test::ExpectEqStr(tr, notification->lastInitiator, "init3",
-                "ActionStart_MultipleCalls: last initiator should be preserved");
+            // All three initiators must have been received (order is not guaranteed
+            // with a multi-threaded WorkerPool, so check membership rather than ordering)
+            L0Test::ExpectTrue(tr, notification->seenInitiators.count("init1") == 1,
+                "ActionStart_MultipleCalls: init1 should be received");
+            L0Test::ExpectTrue(tr, notification->seenInitiators.count("init2") == 1,
+                "ActionStart_MultipleCalls: init2 should be received");
+            L0Test::ExpectTrue(tr, notification->seenInitiators.count("init3") == 1,
+                "ActionStart_MultipleCalls: init3 should be received");
         }
 
         impl->Unregister(notification);
