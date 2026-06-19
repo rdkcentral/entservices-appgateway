@@ -565,9 +565,7 @@ class LifecycleDelegate : public BaseEventDelegate
                     object["oldState"] = LifecycleStateToString(stateInfo.previousState);
                     object["newState"] = LifecycleStateToString(stateInfo.currentState);
                     string jsonPayload;
-                    JsonArray array;
-                    array.Add(object);
-                    array.ToString(jsonPayload);
+                    object.ToString(jsonPayload);
                     return jsonPayload;
                 }
                 return "{}";

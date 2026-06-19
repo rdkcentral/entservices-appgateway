@@ -1162,4 +1162,74 @@ TEST_F(LifecycleDelegateTest, AGC_L1_207_ActionsOnIntent_EmittedOnActiveTransiti
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
+/* ================================================================
+ * AGC_L1_208 – Lifecycle2.onStateChanged payload is a plain JSON object
+ *
+ * Verifies that GetLifecycle2StateJson emits {"oldState":"...","newState":"..."}
+ * (a plain JSON object, NOT wrapped in a JSON array like [{"oldState":...}]).
+ *
+ * The Firebolt SDK's onPropertyChangedCallback strictly expects an object;
+ * an array causes a parse error in newer SDK versions (e.g. YouTube).
+ * ================================================================ */
+TEST_F(LifecycleDelegateTest, AGC_L1_208_Lifecycle2_onStateChanged_PayloadIsObject_NotArray)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    // INITIALIZING populates both AppIdInstanceIdMap and LifecycleStateRegistry
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-lc2-001",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+    lifecycleDelegate->AddNotification("Lifecycle2.onStateChanged", emitter);
+
+    // Capture the actual payload passed to Emit
+    std::string capturedPayload;
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Lifecycle2.onStateChanged"),
+                               ::testing::_,
+                               ::testing::_))
+        .Times(::testing::AtLeast(1))
+        .WillRepeatedly([&capturedPayload](const string& /*event*/,
+                                           const string& payload,
+                                           const string& /*appId*/) {
+            capturedPayload = payload;
+        });
+
+    // Transition to ACTIVE — triggers HandleLifecycleUpdate → Dispatch("Lifecycle2.onStateChanged", ...)
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-lc2-001",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    ASSERT_FALSE(capturedPayload.empty()) << "No Lifecycle2.onStateChanged event was dispatched";
+
+    // Must NOT be a JSON array: payload must start with '{', not '['
+    EXPECT_EQ(capturedPayload.front(), '{')
+        << "Payload is wrapped in a JSON array instead of being a plain object: " << capturedPayload;
+
+    // Must contain both required fields as a flat object
+    EXPECT_NE(capturedPayload.find("\"oldState\""), std::string::npos)
+        << "Missing 'oldState' in payload: " << capturedPayload;
+    EXPECT_NE(capturedPayload.find("\"newState\""), std::string::npos)
+        << "Missing 'newState' in payload: " << capturedPayload;
+
+    // Concrete state values: INITIALIZING → ACTIVE
+    EXPECT_NE(capturedPayload.find("\"oldState\":\"initializing\""), std::string::npos)
+        << "Unexpected oldState in payload: " << capturedPayload;
+    EXPECT_NE(capturedPayload.find("\"newState\":\"active\""), std::string::npos)
+        << "Unexpected newState in payload: " << capturedPayload;
+}
+
 } // namespace
