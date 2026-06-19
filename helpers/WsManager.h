@@ -26,9 +26,7 @@
 #include "WebSocketLink.h"
 
 
-// TODO: Remove once IsNullValue() in core/JSON.h is fixed
-// and replace StreamJSONOneShotType with StreamJSONType
-#include "StreamJSONOneShot.h"
+#include "StreamJSONType.h"
 
 #define DEFAULT_SOCKET_ADDRESS "127.0.0.1"
 using namespace WPEFramework;
@@ -91,12 +89,12 @@ public:
     // WebSocket Server implementation
     public:
     class WebSocketServer
-        : public Core::StreamJSONOneShotType<Web::WebSocket::HWebSocketServerType<Core::SocketStream>, JSONObjectFactory &, Core::JSON::IElement>
+        : public Core::StreamJSONType<Web::WebSocket::HWebSocketServerType<Core::SocketStream>, JSONObjectFactory &, Core::JSON::IElement>
     {
     public:
         WebSocketServer() = delete;
         WebSocketServer &operator=(const WebSocketServer &) = delete;
-        typedef Core::StreamJSONOneShotType<Web::WebSocket::HWebSocketServerType<Core::SocketStream>, JSONObjectFactory &, Core::JSON::IElement> BaseClass;                
+        typedef Core::StreamJSONType<Web::WebSocket::HWebSocketServerType<Core::SocketStream>, JSONObjectFactory &, Core::JSON::IElement> BaseClass;                
 
     public:
         WebSocketServer(const SOCKET &connector, const Core::NodeId &remoteNode, Core::SocketServerType<WebSocketServer> *parent) :
