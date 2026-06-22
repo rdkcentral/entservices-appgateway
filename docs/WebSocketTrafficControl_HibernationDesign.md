@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-This document describes the design for pausing and resuming traffic when an application enters the `HIBERNATED` lifecycle state. It applies **exclusively to the Lifecycle 2 (AppManagers) architecture** and is implemented **only in `AppGatewayCommon`** — legacy/non-AppManagers paths are unaffected.
+This document describes the design for pausing and resuming traffic when an application enters the `HIBERNATED` lifecycle state. It applies **exclusively to the Lifecycle 2 (AppManagers) architecture** — legacy/non-AppManagers paths are unaffected.
 
 The approach is **drop-based**: all WebSocket messages (inbound and outbound) for a hibernated application are silently discarded. No queuing or replay occurs. Normal traffic resumes as soon as the application transitions out of the `HIBERNATED` state.
 
