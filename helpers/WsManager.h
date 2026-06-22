@@ -26,7 +26,7 @@
 #include "WebSocketLink.h"
 
 
-#include "StreamJSONType.h"
+#include <core/StreamJSON.h>
 
 #define DEFAULT_SOCKET_ADDRESS "127.0.0.1"
 using namespace WPEFramework;
