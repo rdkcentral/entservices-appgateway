@@ -901,21 +901,50 @@ class LifecycleDelegate : public BaseEventDelegate
         // get appId from appInstanceId
         string appId = mAppIdInstanceIdMap.GetAppId(appInstanceId);
 
-        Dispatch("Lifecycle2.onStateChanged", mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId), appId);
+        // Lifecycle 2 only: manage WebSocket traffic gate around hibernation.
+        //
+        // Resume MUST happen before Dispatch() so the state-change event is not
+        // itself dropped by the still-paused responder.  Suspend is best-effort
+        // and happens after Dispatch() when entering HIBERNATED.
+        //
+        // Acquire a raw ref under the mutex, then release the mutex before making
+        // any COM-RPC calls to avoid holding the lock across a cross-process call.
+        const bool needsResume = ConfigUtils::useAppManagers() && !appId.empty() &&
+                                 (newLifecycleState == Exchange::ILifecycleManager::INITIALIZING ||
+                                  oldLifecycleState == Exchange::ILifecycleManager::HIBERNATED);
+        const bool needsSuspend = ConfigUtils::useAppManagers() && !appId.empty() &&
+                                  newLifecycleState == Exchange::ILifecycleManager::HIBERNATED;
 
-        // Lifecycle 2 only: pause WebSocket traffic when entering HIBERNATED,
-        // resume when transitioning out of HIBERNATED.
-        if (ConfigUtils::useAppManagers() && !appId.empty()) {
+        Exchange::IAppGatewayAppSessionGuard* guardRef = nullptr;
+        if (needsResume || needsSuspend) {
             std::lock_guard<std::mutex> lock(mSessionGuardMutex);
             if (mSessionGuard != nullptr) {
-                if (newLifecycleState == Exchange::ILifecycleManager::HIBERNATED) {
-                    LOGINFO("HandleLifecycleUpdate: suspending traffic for hibernating appId=%s", appId.c_str());
-                    mSessionGuard->SuspendTraffic(appId);
-                } else if (oldLifecycleState == Exchange::ILifecycleManager::HIBERNATED) {
-                    LOGINFO("HandleLifecycleUpdate: resuming traffic for resumed appId=%s", appId.c_str());
-                    mSessionGuard->ResumeTraffic(appId);
-                }
+                guardRef = mSessionGuard;
+                guardRef->AddRef();
             }
+        }
+
+        // Resume before dispatch so the Lifecycle2.onStateChanged event is delivered.
+        if (needsResume && guardRef != nullptr) {
+            if (newLifecycleState == Exchange::ILifecycleManager::INITIALIZING) {
+                LOGINFO("HandleLifecycleUpdate: clearing stale traffic suspension for new session appId=%s", appId.c_str());
+            } else {
+                LOGINFO("HandleLifecycleUpdate: resuming traffic for resumed appId=%s", appId.c_str());
+            }
+            guardRef->ResumeTraffic(appId);
+        }
+
+        Dispatch("Lifecycle2.onStateChanged", mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId), appId);
+
+        // Suspend after dispatch (best-effort) when entering HIBERNATED.
+        if (needsSuspend && guardRef != nullptr) {
+            LOGINFO("HandleLifecycleUpdate: suspending traffic for hibernating appId=%s", appId.c_str());
+            guardRef->SuspendTraffic(appId);
+        }
+
+        if (guardRef != nullptr) {
+            guardRef->Release();
+            guardRef = nullptr;
         }
 
         // if new lifecycleState is ACTIVE trigger last known intent

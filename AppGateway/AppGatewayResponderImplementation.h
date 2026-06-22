@@ -27,6 +27,7 @@
 #include <com/com.h>
 #include <core/core.h>
 #include <map>
+#include <mutex>
 #include <unordered_set>
 #include <sstream>
 #include <unordered_map>

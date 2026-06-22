@@ -103,113 +103,48 @@ struct EXTERNAL IAppGatewayAppSessionGuard : virtual public Core::IUnknown
 
 ### 5.2 `PausedAppsRegistry` inner class (in `AppGatewayResponderImplementation`)
 
-A private inner class inside `AppGatewayResponderImplementation` that maintains a thread-safe set of paused appIds:
-
-```cpp
-class PausedAppsRegistry {
-public:
-    void Pause(const string& appId);    // insert appId
-    void Resume(const string& appId);   // erase appId
-    bool IsPaused(const string& appId) const;  // O(1) lookup
-private:
-    mutable std::mutex mMutex;
-    std::unordered_set<string> mPausedApps;
-};
-```
+A private inner class inside `AppGatewayResponderImplementation` that maintains a thread-safe set of paused appIds. It exposes `Pause`, `Resume`, and `IsPaused` operations. All methods are internally synchronised; callers do not need to hold any external lock.
 
 ---
 
 ### 5.3 `AppGatewayResponderImplementation` — Drop Gates
 
-`AppGatewayResponderImplementation` now also inherits `IAppGatewayAppSessionGuard`. Drop checks are inserted at the four traffic entry points:
+`AppGatewayResponderImplementation` now also inherits `IAppGatewayAppSessionGuard`. Drop checks against `PausedAppsRegistry` are inserted at the four traffic entry points:
 
-#### Inbound drop (`DispatchWsMsg`)
+- **`DispatchWsMsg`** (inbound): if the sender's appId is paused, the message is silently discarded before reaching the resolver.
+- **`Respond`, `Emit`, `Request`** (outbound): if the target appId is paused, the operation returns `Core::ERROR_NONE` immediately without submitting a worker-pool job.
 
-```cpp
-void AppGatewayResponderImplementation::DispatchWsMsg(...)
-{
-    // ...
-    if (mPausedAppsRegistry.IsPaused(appId)) {
-        LOGDBG("dropping inbound message for hibernated appId=%s", appId.c_str());
-        return;   // message silently discarded
-    }
-    // existing resolver dispatch ...
-}
-```
-
-#### Outbound drops (`Respond`, `Emit`, `Request`)
-
-```cpp
-Core::hresult AppGatewayResponderImplementation::Respond(const Context& context, const string& payload)
-{
-    if (mPausedAppsRegistry.IsPaused(context.appId)) {
-        LOGDBG("dropping outgoing response for hibernated appId=%s", context.appId.c_str());
-        return Core::ERROR_NONE;  // silently discarded
-    }
-    Core::IWorkerPool::Instance().Submit(RespondJob::Create(...));
-    return Core::ERROR_NONE;
-}
-// Emit() and Request() follow the same pattern
-```
-
-#### `SuspendTraffic` / `ResumeTraffic`
-
-```cpp
-Core::hresult AppGatewayResponderImplementation::SuspendTraffic(const string& appId)
-{
-    mPausedAppsRegistry.Pause(appId);
-    return Core::ERROR_NONE;
-}
-
-Core::hresult AppGatewayResponderImplementation::ResumeTraffic(const string& appId)
-{
-    mPausedAppsRegistry.Resume(appId);
-    return Core::ERROR_NONE;
-}
-```
+`SuspendTraffic` and `ResumeTraffic` simply delegate to `PausedAppsRegistry::Pause` and `Resume` respectively.
 
 ---
 
 ### 5.4 `LifecycleDelegate` — Hibernation Trigger
 
-`LifecycleDelegate` receives `OnAppLifecycleStateChanged` from `ILifecycleManagerState`. It now holds an `IAppGatewayAppSessionGuard*` member (`mSessionGuard`) and calls pause/resume on HIBERNATED transitions:
+`LifecycleDelegate` receives `OnAppLifecycleStateChanged` from `ILifecycleManagerState`. It holds an `IAppGatewayAppSessionGuard*` member (`mSessionGuard`) and drives pause/resume around the `Lifecycle2.onStateChanged` dispatch with the following ordering rules:
 
-```cpp
-// In HandleLifecycleUpdate() — Lifecycle 2 path only
-if (ConfigUtils::useAppManagers() && !appId.empty()) {
-    std::lock_guard<std::mutex> lock(mSessionGuardMutex);
-    if (mSessionGuard != nullptr) {
-        if (newLifecycleState == Exchange::ILifecycleManager::HIBERNATED) {
-            mSessionGuard->SuspendTraffic(appId);
-        } else if (oldLifecycleState == Exchange::ILifecycleManager::HIBERNATED) {
-            mSessionGuard->ResumeTraffic(appId);
-        }
-    }
-}
-```
+- `ResumeTraffic` is called **before** `Dispatch("Lifecycle2.onStateChanged", ...)` when leaving hibernation or starting a new session. This ensures the state-change event itself is not dropped by a still-paused responder.
+- `SuspendTraffic` is called **after** `Dispatch(...)` when entering hibernation. The state-change event is delivered while the channel is still open.
 
-`SetSessionGuard(IAppGatewayAppSessionGuard*)` is the thread-safe setter (with proper `AddRef`/`Release`) called by `AppGatewayCommon`.
+`SetSessionGuard(IAppGatewayAppSessionGuard*)` is the thread-safe setter called by `AppGatewayCommon` during `Initialize` (to set) and `Deinitialize` (to clear with `nullptr`).
+
+#### 5.4.1 Stale Suspension Cleanup on New Session
+
+A corner case must be handled when a container crashes (or is killed) while in the `HIBERNATED` state, or when it fails to issue the lifecycle state transition out of `HIBERNATED`:
+
+- `SuspendTraffic(appId)` was called when the app entered `HIBERNATED`.
+- No matching `ResumeTraffic(appId)` is ever received because the state-change notification that would trigger it never arrives.
+- The `appId` would remain permanently in `PausedAppsRegistry`.
+- When the same app is relaunched as a new session, its `INITIALIZING` notification arrives — but traffic would be silently dropped for the entire lifetime of the new session.
+
+To handle this, `ResumeTraffic(appId)` is called unconditionally on every `INITIALIZING` transition. `INITIALIZING` always marks the start of a new session for that `appId`, so this both clears any stale suspension and is a benign no-op when none exists.
 
 ---
 
 ### 5.5 `AppGatewayCommon` — Wiring
 
-During `Initialize()`, `AppGatewayCommon` queries `IAppGatewayAppSessionGuard` from `AppGatewayResponderImplementation` (via the `APP_GATEWAY_CALLSIGN`) and injects it into `LifecycleDelegate`. This runs on the Lifecycle 2 path only (`ConfigUtils::useAppManagers()`).
+During `Initialize()`, `AppGatewayCommon` queries `IAppGatewayAppSessionGuard` from `AppGatewayResponderImplementation` (via the `APP_GATEWAY_CALLSIGN`) and injects it into `LifecycleDelegate` via `SetSessionGuard`. This runs on the Lifecycle 2 path only (`ConfigUtils::useAppManagers()`).
 
 During `Deinitialize()`, `SetSessionGuard(nullptr)` is called before delegate cleanup to prevent in-flight callbacks from using a stale pointer.
-
-```cpp
-// Initialize
-Exchange::IAppGatewayAppSessionGuard* sessionGuard =
-    mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayAppSessionGuard>(APP_GATEWAY_CALLSIGN);
-if (sessionGuard != nullptr) {
-    lifecycleDelegate->SetSessionGuard(sessionGuard);
-    sessionGuard->Release();
-}
-
-// Deinitialize
-lifecycleDelegate->SetSessionGuard(nullptr);
-```
 ---
 
 ### 5.6 Design Decisions
@@ -237,7 +172,10 @@ ILifecycleManagerState::INotification::OnAppLifecycleStateChanged
 LifecycleDelegate::HandleLifecycleUpdate()
         │
         ▼
-IAppGatewayAppSessionGuard::SuspendTraffic("TestApp")
+Dispatch("Lifecycle2.onStateChanged")        ← event delivered while still unpaused
+        │
+        ▼
+IAppGatewayAppSessionGuard::SuspendTraffic("TestApp")   ← suspend AFTER dispatch
    → PausedAppsRegistry.Pause("TestApp")
 
 
@@ -274,16 +212,52 @@ ILifecycleManagerState::INotification::OnAppLifecycleStateChanged
 LifecycleDelegate::HandleLifecycleUpdate()
         │
         ▼
-IAppGatewayAppSessionGuard::ResumeTraffic("TestApp")
+IAppGatewayAppSessionGuard::ResumeTraffic("TestApp")   ← resume BEFORE dispatch
    → PausedAppsRegistry.Resume("TestApp")
+        │
+        ▼
+Dispatch("Lifecycle2.onStateChanged")        ← event delivered on unpaused channel
         │
         ▼
 All subsequent WebSocket I/O for "TestApp" proceeds normally
 ```
 
+### 6.3 Container crashes while HIBERNATED — stale suspension cleared on relaunch
+
+```
+[Previous session]
+ILifecycleManagerState::INotification::OnAppLifecycleStateChanged
+   (appId="TestApp", newState=HIBERNATED)
+        │
+        ▼
+LifecycleDelegate::HandleLifecycleUpdate()
+        │
+        ▼
+IAppGatewayAppSessionGuard::SuspendTraffic("TestApp")
+   → PausedAppsRegistry.Pause("TestApp")
+
+*** Container process crashes / no HIBERNATED→X transition is ever received ***
+
+[New session launched]
+ILifecycleManagerState::INotification::OnAppLifecycleStateChanged
+   (appId="TestApp", newState=INITIALIZING)
+        │
+        ▼
+LifecycleDelegate::HandleLifecycleUpdate()
+        │
+        ▼
+IAppGatewayAppSessionGuard::ResumeTraffic("TestApp")   ← stale entry cleared
+   → PausedAppsRegistry.Resume("TestApp")
+        │
+        ▼
+New session's WebSocket traffic proceeds normally
+```
+
 ---
 
-## 7. Sequence Diagram
+## 7. Sequence Diagrams
+
+### 7.1 Normal hibernation and resume
 
 ```mermaid
 sequenceDiagram
@@ -295,7 +269,9 @@ sequenceDiagram
 
     Note over App,AGR: App is ACTIVE, WebSocket connected
     LM->>LD: OnAppLifecycleStateChanged(HIBERNATED)
-    LD->>SG: SuspendTraffic("TestApp")
+    LD->>AGR: Dispatch(Lifecycle2.onStateChanged) [app still unpaused]
+    Note over AGR: Event delivered normally
+    LD->>SG: SuspendTraffic("TestApp") [suspend AFTER dispatch]
     SG->>AGR: PausedAppsRegistry.Pause("TestApp")
 
     Note over App,AGR: Inbound message arrives while frozen
@@ -310,10 +286,39 @@ sequenceDiagram
 
     Note over App,LM: Container resumed
     LM->>LD: OnAppLifecycleStateChanged(ACTIVE, oldState=HIBERNATED)
-    LD->>SG: ResumeTraffic("TestApp")
+    LD->>SG: ResumeTraffic("TestApp") [resume BEFORE dispatch]
     SG->>AGR: PausedAppsRegistry.Resume("TestApp")
 
     Note over App,AGR: Normal WebSocket traffic resumes
+    App->>AGR: DispatchWsMsg(method, params)
+    AGR->>AGR: IsPaused("TestApp") → false
+    AGR->>App: Response delivered normally
+```
+
+### 7.2 Container crashes while HIBERNATED — stale suspension cleared on relaunch
+
+```mermaid
+sequenceDiagram
+    participant LM as ILifecycleManagerState
+    participant LD as LifecycleDelegate
+    participant SG as IAppGatewayAppSessionGuard
+    participant AGR as AppGatewayResponderImpl
+    participant App as App Container
+
+    Note over App,LM: Previous session — app enters HIBERNATED
+    LM->>LD: OnAppLifecycleStateChanged(HIBERNATED)
+    LD->>SG: SuspendTraffic("TestApp")
+    SG->>AGR: PausedAppsRegistry.Pause("TestApp")
+
+    Note over App: Container process CRASHES
+    Note over LM: No HIBERNATED→X notification is ever issued
+
+    Note over App,LM: New session — app relaunched
+    LM->>LD: OnAppLifecycleStateChanged(INITIALIZING)
+    LD->>SG: ResumeTraffic("TestApp") [stale entry cleared on new session]
+    SG->>AGR: PausedAppsRegistry.Resume("TestApp")
+
+    Note over App,AGR: New session traffic is not blocked
     App->>AGR: DispatchWsMsg(method, params)
     AGR->>AGR: IsPaused("TestApp") → false
     AGR->>App: Response delivered normally
@@ -341,7 +346,8 @@ sequenceDiagram
 | **Lifecycle 2 only** | All guard logic is gated behind `ConfigUtils::useAppManagers()`. Legacy/non-AppManagers paths have no changes. |
 | **AppGatewayCommon only** | Any responder implementation outside the AppManagers path is separate and is not affected. |
 | **Drop, not queue** | Messages are discarded while the app is hibernated. The app is expected to re-request any state it needs after resuming. |
+| **Stale suspension cleanup** | When a new session starts (`INITIALIZING`), `ResumeTraffic(appId)` is called unconditionally to clear any suspension carried over from a previous session that may have crashed while hibernated or never transitioned out of `HIBERNATED`. |
 | **No errors surfaced** | `Respond`, `Emit`, and `Request` return `Core::ERROR_NONE` when dropping; `DispatchWsMsg` returns void. The application does not observe hibernation-related errors. |
-| **Thread safety** | `PausedAppsRegistry` uses a `std::mutex`; `SetSessionGuard` uses a separate `mSessionGuardMutex`. |
+| **Thread safety** | All shared state is internally synchronised. `PausedAppsRegistry` protects its set with its own mutex. `mSessionGuard` is protected by a separate mutex that is never held across COM-RPC calls. |
 
 
