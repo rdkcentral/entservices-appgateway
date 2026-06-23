@@ -145,6 +145,7 @@ To handle this, `ResumeTraffic(appId)` is called unconditionally on every `INITI
 During `Initialize()`, `AppGatewayCommon` queries `IAppGatewayAppSessionGuard` from `AppGatewayResponderImplementation` (via the `APP_GATEWAY_CALLSIGN`) and injects it into `LifecycleDelegate` via `SetSessionGuard`. This runs on the Lifecycle 2 path only (`ConfigUtils::useAppManagers()`).
 
 During `Deinitialize()`, `SetSessionGuard(nullptr)` is called before delegate cleanup to prevent in-flight callbacks from using a stale pointer.
+
 ---
 
 ### 5.6 Design Decisions
