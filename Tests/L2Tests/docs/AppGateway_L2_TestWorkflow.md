@@ -450,7 +450,7 @@ inside each plugin `.so`, creating isolated gcov runtimes. When L2TestsIN.so was
 `-z,defs`) wrote its `.gcda` files. AppGateway and AppGatewayCommon had no mechanism  
 to flush their isolated gcov data.
 
-**Fix applied (not yet pushed):**
+**Fix applied:**
 ```cmake
 # AppGateway/CMakeLists.txt  and  AppGatewayCommon/CMakeLists.txt
 # To error any missing links (skip for L2 test builds: -Wl,-z,defs embeds

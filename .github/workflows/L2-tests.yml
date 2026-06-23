@@ -17,7 +17,7 @@ env:
   INTERFACES_REF: "develop"
   NETWORKMANAGER_REF: "cea0da05b03de770e4ce967f0446f28885fc6219"
   AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME}}
-  AUTOMATICS_PASSCODE: ${{ secrets. AUTOMATICS_PASSCODE}}
+  AUTOMATICS_PASSCODE: ${{ secrets.AUTOMATICS_PASSCODE}}
 
 jobs:
   L2-tests:
@@ -526,7 +526,7 @@ jobs:
           &&
           sudo mkdir -p /etc/app-gateway
           &&
-          sudo chmod 777 /etc/app-gateway
+          sudo chmod 755 /etc/app-gateway
           &&
           cmake --install build/entservices-appgateway
 
@@ -981,10 +981,17 @@ jobs:
             chmod +x "$WPE_REAL"
             echo "Wrapped WPEFramework with gcov SIGSEGV handler (real: $WPE_REAL)"
           fi
-          RdkServicesL2Test || true
+          set +e
+          RdkServicesL2Test
+          rc=$?
+          set -e
           # Restore original binary
           if [ -f "${WPE_REAL}.real" ]; then
             mv "${WPE_REAL}.real" "$WPE_REAL"
+          fi
+          # Thunder R4.4.1 may SIGSEGV during shutdown (exit=139); tolerate only that case.
+          if [ $rc -ne 0 ] && [ $rc -ne 139 ]; then
+            exit $rc
           fi
           cp -f $(pwd)/rdkL2TestResults.json $GITHUB_WORKSPACE/rdkL2TestResultsWithoutValgrind.json 2>/dev/null || true
           rm -f $(pwd)/rdkL2TestResults.json 2>/dev/null || true

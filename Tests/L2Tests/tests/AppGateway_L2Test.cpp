@@ -22,12 +22,16 @@
  */
 
 // ─── Standard headers ────────────────────────────────────────────────────────
+#include <chrono>
 #include <condition_variable>
+#include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <mutex>
 #include <string>
 #include <thread>
-#include <chrono>
+#include <unistd.h>
+#include <vector>
 
 // ─── GTest / GMock ───────────────────────────────────────────────────────────
 #include <gmock/gmock.h>
@@ -236,7 +240,9 @@ protected:
         results = JsonObject();
         uint32_t status = jsonrpc.Invoke<JsonObject, JsonObject>(
             AGW_INVOKE_TIMEOUT, std::string(method), params, results);
-        if (status == 11) {
+        // Thunder may transiently return this status during service activation.
+        constexpr uint32_t kRetryableStatus = 11u;
+        if (status == kRetryableStatus) {
             std::this_thread::sleep_for(std::chrono::seconds(1));
             status = jsonrpc.Invoke<JsonObject, JsonObject>(
                 AGW_INVOKE_TIMEOUT, std::string(method), params, results);
@@ -739,7 +745,7 @@ TEST_F(AppGateway_L2Test, Resolve_PlainMethod_EmptyResult_COMRPC)
     }
 }
 
-// TC-COMRPC-04: COM-RPC handler not available → notAvailable resolution
+// TC-COMRPC-04: COM-RPC handler present, request unhandled -> error resolution
 TEST_F(AppGateway_L2Test, Resolve_ComRpcHandlerNotAvailable_COMRPC)
 {
     if (CreateResolverInterfaceObject() != Core::ERROR_NONE) {
@@ -749,8 +755,9 @@ TEST_F(AppGateway_L2Test, Resolve_ComRpcHandlerNotAvailable_COMRPC)
         if (m_controller_agw) {
             EXPECT_TRUE(m_resolverPlugin != nullptr);
             if (m_resolverPlugin) {
-                // test.comrpc → "org.rdk.AppGatewayCommon" which won't be running
-                TEST_LOG("TC-COMRPC-04: Resolve COM-RPC method with handler absent");
+                // test.comrpc -> "org.rdk.AppGatewayCommon" (activated by fixture).
+                // Validate COM-RPC forwarding returns an error payload for an unhandled request.
+                TEST_LOG("TC-COMRPC-04: Resolve COM-RPC method (handler present, request expected to fail)");
                 Exchange::GatewayContext ctx{4, 100, "com.app.test", "1.0"};
                 std::string resolution;
                 Core::hresult result = ConfigureThenResolve(
