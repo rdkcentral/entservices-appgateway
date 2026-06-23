@@ -895,6 +895,7 @@ class LifecycleDelegate : public BaseEventDelegate
     // Handle Lifecycle update for a given appInstanceId by accepting the previous and current lifecycle state
     void HandleLifecycleUpdate(const string& appInstanceId,  const Exchange::ILifecycleManager::LifecycleState oldLifecycleState, const Exchange::ILifecycleManager::LifecycleState newLifecycleState)
     {
+        LOG_INFO("HandleLifecycleUpdate: appInstanceId=%s, oldState=%d, newState=%d", appInstanceId.c_str(), oldLifecycleState, newLifecycleState);
         // update lifecycle state registry
         mLifecycleStateRegistry.UpdateLifecycleState(appInstanceId, newLifecycleState);
 
@@ -924,6 +925,7 @@ class LifecycleDelegate : public BaseEventDelegate
             }
         }
 
+        LOG_INFO("HandleLifecycleUpdate: appId=%s, needsResume=%d, needsSuspend=%d, guardRef=%p", appId.c_str(), needsResume, needsSuspend, guardRef);
         // Resume before dispatch so the Lifecycle2.onStateChanged event is delivered.
         if (needsResume && guardRef != nullptr) {
             if (newLifecycleState == Exchange::ILifecycleManager::INITIALIZING) {
