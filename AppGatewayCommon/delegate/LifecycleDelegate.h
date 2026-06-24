@@ -892,6 +892,42 @@ class LifecycleDelegate : public BaseEventDelegate
         }
     }
 
+    // Returns an AddRef'd session guard pointer, lazily re-acquiring it if the
+    // one-time Initialize() injection was missed due to plugin startup ordering.
+    Exchange::IAppGatewayAppSessionGuard* AcquireSessionGuardRef()
+    {
+        {
+            std::lock_guard<std::mutex> lock(mSessionGuardMutex);
+            if (mSessionGuard != nullptr) {
+                mSessionGuard->AddRef();
+                return mSessionGuard;
+            }
+        }
+
+        if (!ConfigUtils::useAppManagers() || mShell == nullptr) {
+            return nullptr;
+        }
+
+        Exchange::IAppGatewayAppSessionGuard* sessionGuard =
+            mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayAppSessionGuard>(APP_GATEWAY_CALLSIGN);
+        if (sessionGuard == nullptr) {
+            LOGWARN("AcquireSessionGuardRef: IAppGatewayAppSessionGuard still not available");
+            return nullptr;
+        }
+
+        SetSessionGuard(sessionGuard);
+        LOGINFO("AcquireSessionGuardRef: lazily acquired IAppGatewayAppSessionGuard");
+        sessionGuard->Release();
+
+        std::lock_guard<std::mutex> lock(mSessionGuardMutex);
+        if (mSessionGuard != nullptr) {
+            mSessionGuard->AddRef();
+            return mSessionGuard;
+        }
+
+        return nullptr;
+    }
+
     // Handle Lifecycle update for a given appInstanceId by accepting the previous and current lifecycle state
     void HandleLifecycleUpdate(const string& appInstanceId,  const Exchange::ILifecycleManager::LifecycleState oldLifecycleState, const Exchange::ILifecycleManager::LifecycleState newLifecycleState)
     {
@@ -918,11 +954,7 @@ class LifecycleDelegate : public BaseEventDelegate
 
         Exchange::IAppGatewayAppSessionGuard* guardRef = nullptr;
         if (needsResume || needsSuspend) {
-            std::lock_guard<std::mutex> lock(mSessionGuardMutex);
-            if (mSessionGuard != nullptr) {
-                guardRef = mSessionGuard;
-                guardRef->AddRef();
-            }
+            guardRef = AcquireSessionGuardRef();
         }
 
         LOGINFO("HandleLifecycleUpdate: appId=%s, needsResume=%d, needsSuspend=%d, guardRef=%p", appId.c_str(), needsResume, needsSuspend, guardRef);
