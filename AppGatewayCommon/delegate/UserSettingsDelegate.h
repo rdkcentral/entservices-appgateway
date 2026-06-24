@@ -1128,6 +1128,21 @@ class UserSettingsDelegate : public BaseEventDelegate{
             mParent.DispatchVoiceGuidanceSettingsChanged();
         }
 
+        void OnPinControlChanged(const bool pinControl) {
+            LOGWARN("OnPinControlChanged() value=%u ", pinControl);
+            mParent.Dispatch("ParentalControl.onPinControlChanged", ObjectUtils::BoolToJsonString(pinControl));
+        }
+
+        void OnBlockNotRatedContentChanged(const bool blockNotRatedContent) {
+            LOGWARN("OnBlockNotRatedContentChanged() value=%u ", blockNotRatedContent);
+            mParent.Dispatch("ParentalControl.onBlockNotRatedContentChanged", ObjectUtils::BoolToJsonString(blockNotRatedContent));
+        }
+
+        void OnViewingRestrictionsChanged(const string& viewingRestrictions) {
+            LOGWARN("OnViewingRestrictionsChanged() value=%s ", viewingRestrictions.c_str());
+            mParent.Dispatch("ParentalControl.onViewingRestrictionsChanged", viewingRestrictions);
+        }
+
         // Method to set registered state
         void SetRegistered(bool state) {
             std::lock_guard<std::mutex> lock(registerMutex);
