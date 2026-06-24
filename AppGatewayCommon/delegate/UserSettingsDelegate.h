@@ -44,7 +44,10 @@ static const std::set<string> VALID_USER_SETTINGS_EVENT = {
     "accessibility.onclosedcaptionssettingschanged",
     "accessibility.onvoiceguidancesettingschanged",
     "accessibility.onaudiodescriptionchanged",
-    "localization.onpresentationlanguagechanged"
+    "localization.onpresentationlanguagechanged",
+    "parentalcontrol.onpincontrolchanged",
+    "parentalcontrol.onblocknotratedcontentchanged",
+    "parentalcontrol.onviewingrestrictionschanged"
 };
 
 // Events that require TextTrack interface registration
@@ -486,6 +489,81 @@ class UserSettingsDelegate : public BaseEventDelegate{
             } else {
                 LOGERR("Failed to call GetCaptions on UserSettings COM interface, error: %u", rc);
                 result = "{\"error\":\"couldn't get captions state\"}";
+                return Core::ERROR_GENERAL;
+            }
+        }
+
+        Core::hresult GetPinControl(string& result) {
+            LOGINFO("GetPinControl from UserSettings COM interface");
+            result.clear();
+
+            Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
+            if (nullptr == userSettings) {
+                LOGERR("UserSettings COM interface not available");
+                result = "{\"error\":\"couldn't get pin control state\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            bool pinControl = false;
+            Core::hresult rc = userSettings->GetPinControl(pinControl);
+
+            if (Core::ERROR_NONE == rc) {
+                result = pinControl ? "true" : "false";
+                return Core::ERROR_NONE;
+            } else {
+                LOGERR("Failed to call GetPinControl on UserSettings COM interface, error: %u", rc);
+                result = "{\"error\":\"couldn't get pin control state\"}";
+                return Core::ERROR_GENERAL;
+            }
+        }
+
+        Core::hresult GetBlockNotRatedContent(string& result) {
+            LOGINFO("GetBlockNotRatedContent from UserSettings COM interface");
+            result.clear();
+
+            Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
+            if (nullptr == userSettings) {
+                LOGERR("UserSettings COM interface not available");
+                result = "{\"error\":\"couldn't get block not rated content state\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            bool blockNotRated = false;
+            Core::hresult rc = userSettings->GetBlockNotRatedContent(blockNotRated);
+
+            if (Core::ERROR_NONE == rc) {
+                result = blockNotRated ? "true" : "false";
+                return Core::ERROR_NONE;
+            } else {
+                LOGERR("Failed to call GetBlockNotRatedContent on UserSettings COM interface, error: %u", rc);
+                result = "{\"error\":\"couldn't get block not rated content state\"}";
+                return Core::ERROR_GENERAL;
+            }
+        }
+
+        Core::hresult GetViewingRestrictions(string& result) {
+            LOGINFO("GetViewingRestrictions from UserSettings COM interface");
+            result.clear();
+
+            Exchange::IUserSettings* userSettings = GetUserSettingsInterface();
+            if (nullptr == userSettings) {
+                LOGERR("UserSettings COM interface not available");
+                result = "{\"error\":\"couldn't get viewing restrictions\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            // Thunder returns viewingRestrictions as a JSON-encoded string.
+            // The Firebolt contract expects an object, so we return the string
+            // value directly as it is already valid JSON.
+            string viewingRestrictions;
+            Core::hresult rc = userSettings->GetViewingRestrictions(viewingRestrictions);
+
+            if (Core::ERROR_NONE == rc) {
+                result = viewingRestrictions;
+                return Core::ERROR_NONE;
+            } else {
+                LOGERR("Failed to call GetViewingRestrictions on UserSettings COM interface, error: %u", rc);
+                result = "{\"error\":\"couldn't get viewing restrictions\"}";
                 return Core::ERROR_GENERAL;
             }
         }

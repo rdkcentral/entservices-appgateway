@@ -576,6 +576,30 @@
         "device.sku": {
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
+        },
+        "parentalcontrol.pincontrol": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "parentalcontrol.blocknotratedcontent": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "parentalcontrol.viewingrestrictions": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "parentalcontrol.onpincontrolchanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "ParentalControl.onPinControlChanged"
+        },
+        "parentalcontrol.onblocknotratedcontentchanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "ParentalControl.onBlockNotRatedContentChanged"
+        },
+        "parentalcontrol.onviewingrestrictionschanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "ParentalControl.onViewingRestrictionsChanged"
         }
     }
 }
