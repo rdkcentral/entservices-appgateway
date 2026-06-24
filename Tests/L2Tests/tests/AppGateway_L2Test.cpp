@@ -100,7 +100,7 @@ static const std::string kBaseResolutionJson = R"({
             "versionedEvent": true
         },
         "test.comrpc": {
-            "alias": "org.rdk.AppGatewayCommon",
+            "alias": "org.rdk.NonExistentComRpcHandler",
             "useComRpc": true
         },
         "test.withContext": {
@@ -236,7 +236,8 @@ protected:
         results = JsonObject();
         uint32_t status = jsonrpc.Invoke<JsonObject, JsonObject>(
             AGW_INVOKE_TIMEOUT, std::string(method), params, results);
-        if (status == 11) {
+        // Thunder may transiently return async-failed during activation startup races.
+        if (status == Core::ERROR_ASYNC_FAILED) {
             std::this_thread::sleep_for(std::chrono::seconds(1));
             status = jsonrpc.Invoke<JsonObject, JsonObject>(
                 AGW_INVOKE_TIMEOUT, std::string(method), params, results);
@@ -302,7 +303,7 @@ public:
 
         // Pre-activate AppGatewayCommon so that AppGateway::Initialize()'s
         // service->Root() calls find an already-running OOP process.
-        ActivateService("org.rdk.AppGatewayCommon");
+        EXPECT_EQ(ActivateService("org.rdk.AppGatewayCommon"), Core::ERROR_NONE);
 
         // Use AppNotifications when available to exercise real event paths.
         TryActivateOptionalService("org.rdk.AppNotifications");
@@ -749,7 +750,7 @@ TEST_F(AppGateway_L2Test, Resolve_ComRpcHandlerNotAvailable_COMRPC)
         if (m_controller_agw) {
             EXPECT_TRUE(m_resolverPlugin != nullptr);
             if (m_resolverPlugin) {
-                // test.comrpc → "org.rdk.AppGatewayCommon" which won't be running
+                // test.comrpc -> "org.rdk.NonExistentComRpcHandler" (guaranteed absent)
                 TEST_LOG("TC-COMRPC-04: Resolve COM-RPC method with handler absent");
                 Exchange::GatewayContext ctx{4, 100, "com.app.test", "1.0"};
                 std::string resolution;

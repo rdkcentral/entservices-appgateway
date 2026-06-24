@@ -981,10 +981,17 @@ jobs:
             chmod +x "$WPE_REAL"
             echo "Wrapped WPEFramework with gcov SIGSEGV handler (real: $WPE_REAL)"
           fi
-          RdkServicesL2Test || true
+          set +e
+          RdkServicesL2Test
+          rc=$?
+          set -e
           # Restore original binary
           if [ -f "${WPE_REAL}.real" ]; then
             mv "${WPE_REAL}.real" "$WPE_REAL"
+          fi
+          # Thunder may exit with SIGSEGV on shutdown; treat only that as non-fatal.
+          if [ $rc -ne 0 ] && [ $rc -ne 139 ]; then
+            exit $rc
           fi
           cp -f $(pwd)/rdkL2TestResults.json $GITHUB_WORKSPACE/rdkL2TestResultsWithoutValgrind.json 2>/dev/null || true
           rm -f $(pwd)/rdkL2TestResults.json 2>/dev/null || true
