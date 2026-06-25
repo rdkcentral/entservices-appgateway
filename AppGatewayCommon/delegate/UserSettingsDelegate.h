@@ -559,7 +559,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetViewingRestrictions(viewingRestrictions);
 
             if (Core::ERROR_NONE == rc) {
-                result = viewingRestrictions;
+                result = std::move(viewingRestrictions);
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetViewingRestrictions on UserSettings COM interface, error: %u", rc);
@@ -1129,17 +1129,14 @@ class UserSettingsDelegate : public BaseEventDelegate{
         }
 
         void OnPinControlChanged(const bool pinControl) {
-            LOGWARN("OnPinControlChanged() value=%u ", pinControl);
             mParent.Dispatch("ParentalControl.onPinControlChanged", ObjectUtils::BoolToJsonString(pinControl));
         }
 
         void OnBlockNotRatedContentChanged(const bool blockNotRatedContent) {
-            LOGWARN("OnBlockNotRatedContentChanged() value=%u ", blockNotRatedContent);
             mParent.Dispatch("ParentalControl.onBlockNotRatedContentChanged", ObjectUtils::BoolToJsonString(blockNotRatedContent));
         }
 
         void OnViewingRestrictionsChanged(const string& viewingRestrictions) {
-            LOGWARN("OnViewingRestrictionsChanged() value=%s ", viewingRestrictions.c_str());
             mParent.Dispatch("ParentalControl.onViewingRestrictionsChanged", viewingRestrictions);
         }
 

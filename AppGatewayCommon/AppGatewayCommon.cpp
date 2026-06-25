@@ -1348,13 +1348,13 @@ namespace Plugin {
         {
             if (!mDelegate)
             {
-                ErrorUtils::CustomInternal("mDelegate not available", result);
+                result = "{\"error\":\"couldn't get pin control state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
             auto userSettingsDelegate = mDelegate->getUserSettings();
             if (!userSettingsDelegate)
             {
-                ErrorUtils::CustomInternal("userSettingsDelegate not available", result);
+                result = "{\"error\":\"couldn't get pin control state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
             return userSettingsDelegate->GetPinControl(result);
@@ -1364,13 +1364,13 @@ namespace Plugin {
         {
             if (!mDelegate)
             {
-                ErrorUtils::CustomInternal("mDelegate not available", result);
+                result = "{\"error\":\"couldn't get block not rated content state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
             auto userSettingsDelegate = mDelegate->getUserSettings();
             if (!userSettingsDelegate)
             {
-                ErrorUtils::CustomInternal("userSettingsDelegate not available", result);
+                result = "{\"error\":\"couldn't get block not rated content state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
             return userSettingsDelegate->GetBlockNotRatedContent(result);
@@ -1380,13 +1380,13 @@ namespace Plugin {
         {
             if (!mDelegate)
             {
-                ErrorUtils::CustomInternal("mDelegate not available", result);
+                result = "{\"error\":\"couldn't get viewing restrictions\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
             auto userSettingsDelegate = mDelegate->getUserSettings();
             if (!userSettingsDelegate)
             {
-                ErrorUtils::CustomInternal("userSettingsDelegate not available", result);
+                result = "{\"error\":\"couldn't get viewing restrictions\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
             return userSettingsDelegate->GetViewingRestrictions(result);
