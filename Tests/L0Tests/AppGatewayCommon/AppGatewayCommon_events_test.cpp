@@ -291,3 +291,70 @@ uint32_t Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly()
     emitter->Release();
     return tr.failures;
 }
+
+// ============================================================================
+// Tests AGC_L0_104 – AGC_L0_106 — ParentalControl event subscriptions
+// ============================================================================
+
+// TEST_ID: AGC_L0_104
+// "parentalcontrol.onpincontrolchanged" is in VALID_USER_SETTINGS_EVENT.
+// listen=true → UserSettingsDelegate::HandleEvent matches → HandleSubscription
+// → GetUserSettingsInterface() returns nullptr in L0 → returns false
+// → job submitted with ERROR_NONE, status=true.
+uint32_t Test_HandleAppEventNotifier_ParentalControl_PinControl_ListenTrue()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool status = false;
+    const uint32_t rc = notif->HandleAppEventNotifier(emitter, "parentalcontrol.onpincontrolchanged", true, status);
+    ExpectEqU32(tr, rc, ERROR_NONE, "ParentalControl.onPinControlChanged listen=true returns ERROR_NONE");
+    ExpectTrue(tr, status, "ParentalControl.onPinControlChanged status is true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_105
+// "parentalcontrol.onblocknotratedcontentchanged" is in VALID_USER_SETTINGS_EVENT.
+uint32_t Test_HandleAppEventNotifier_ParentalControl_BlockNotRatedContent_ListenTrue()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool status = false;
+    const uint32_t rc = notif->HandleAppEventNotifier(emitter, "parentalcontrol.onblocknotratedcontentchanged", true, status);
+    ExpectEqU32(tr, rc, ERROR_NONE, "ParentalControl.onBlockNotRatedContentChanged listen=true returns ERROR_NONE");
+    ExpectTrue(tr, status, "ParentalControl.onBlockNotRatedContentChanged status is true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_106
+// "parentalcontrol.onviewingrestrictionschanged" is in VALID_USER_SETTINGS_EVENT.
+uint32_t Test_HandleAppEventNotifier_ParentalControl_ViewingRestrictions_ListenTrue()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool status = false;
+    const uint32_t rc = notif->HandleAppEventNotifier(emitter, "parentalcontrol.onviewingrestrictionschanged", true, status);
+    ExpectEqU32(tr, rc, ERROR_NONE, "ParentalControl.onViewingRestrictionsChanged listen=true returns ERROR_NONE");
+    ExpectTrue(tr, status, "ParentalControl.onViewingRestrictionsChanged status is true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    return tr.failures;
+}

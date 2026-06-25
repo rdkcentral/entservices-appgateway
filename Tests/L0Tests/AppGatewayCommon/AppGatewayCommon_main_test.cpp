@@ -109,6 +109,16 @@ extern uint32_t Test_HandleRequest_PresentationFocused_Routed();
 extern uint32_t Test_HandleRequest_PresentationFocused_ResultIsBooleanString();
 extern uint32_t Test_HandleRequest_PresentationFocused_CaseInsensitive();
 
+// AppGatewayCommon_routing_test.cpp (ParentalControl getters — AGC_L0_101–AGC_L0_103)
+extern uint32_t Test_HandleRequest_ParentalControl_PinControl();
+extern uint32_t Test_HandleRequest_ParentalControl_BlockNotRatedContent();
+extern uint32_t Test_HandleRequest_ParentalControl_ViewingRestrictions();
+
+// AppGatewayCommon_events_test.cpp (ParentalControl event subscriptions — AGC_L0_104–AGC_L0_106)
+extern uint32_t Test_HandleAppEventNotifier_ParentalControl_PinControl_ListenTrue();
+extern uint32_t Test_HandleAppEventNotifier_ParentalControl_BlockNotRatedContent_ListenTrue();
+extern uint32_t Test_HandleAppEventNotifier_ParentalControl_ViewingRestrictions_ListenTrue();
+
 // AppGatewayCommon_events_test.cpp
 extern uint32_t Test_CheckPermissionGroup_DefaultAllowed();
 extern uint32_t Test_Authenticate_DelegateUnavailable();
@@ -213,6 +223,10 @@ int main()
         { "HandleRequest_PresentationFocused_Routed",             Test_HandleRequest_PresentationFocused_Routed },
         { "HandleRequest_PresentationFocused_ResultIsBooleanStr", Test_HandleRequest_PresentationFocused_ResultIsBooleanString },
         { "HandleRequest_PresentationFocused_CaseInsensitive",    Test_HandleRequest_PresentationFocused_CaseInsensitive },
+        // --- ParentalControl getter tests (AGC_L0_101–AGC_L0_103) ---
+        { "HandleRequest_ParentalControl_PinControl",             Test_HandleRequest_ParentalControl_PinControl },
+        { "HandleRequest_ParentalControl_BlockNotRatedContent",   Test_HandleRequest_ParentalControl_BlockNotRatedContent },
+        { "HandleRequest_ParentalControl_ViewingRestrictions",    Test_HandleRequest_ParentalControl_ViewingRestrictions },
         // --- Setters tests (AGC_L0_057–AGC_L0_085) ---
         { "HandleRequest_SetterInvalidPayload",           Test_HandleRequest_SetterInvalidPayload },
         { "HandleRequest_SetterValidPayload_DelegateUnavailable", Test_HandleRequest_SetterValidPayload_DelegateUnavailable },
@@ -256,6 +270,10 @@ int main()
         { "EventNotifier_TTSEvent_ListenTrue",            Test_HandleAppEventNotifier_TTSEvent_ListenTrue },
         { "EventNotifier_SystemDeviceEvent",              Test_HandleAppEventNotifier_SystemDeviceEvent },
         { "EventNotifier_NetworkEvent_UnsubscribeOnly",   Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly },
+        // --- ParentalControl event subscription tests (AGC_L0_104–AGC_L0_106) ---
+        { "EventNotifier_ParentalControl_PinControl_ListenTrue",            Test_HandleAppEventNotifier_ParentalControl_PinControl_ListenTrue },
+        { "EventNotifier_ParentalControl_BlockNotRatedContent_ListenTrue",  Test_HandleAppEventNotifier_ParentalControl_BlockNotRatedContent_ListenTrue },
+        { "EventNotifier_ParentalControl_ViewingRestrictions_ListenTrue",   Test_HandleAppEventNotifier_ParentalControl_ViewingRestrictions_ListenTrue },
         // --- Display tests (AGC_L0_098–AGC_L0_107) ---
         { "DisplayEdid_NoDisplay",                        Test_HandleRequest_DisplayEdid_NoDisplay },
         { "DisplayEdid_CaseInsensitive",                  Test_HandleRequest_DisplayEdid_CaseInsensitive },
