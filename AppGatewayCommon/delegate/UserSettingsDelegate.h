@@ -44,10 +44,7 @@ static const std::set<string> VALID_USER_SETTINGS_EVENT = {
     "accessibility.onclosedcaptionssettingschanged",
     "accessibility.onvoiceguidancesettingschanged",
     "accessibility.onaudiodescriptionchanged",
-    "localization.onpresentationlanguagechanged",
-    "parentalcontrol.onpincontrolchanged",
-    "parentalcontrol.onblocknotratedcontentchanged",
-    "parentalcontrol.onviewingrestrictionschanged"
+    "localization.onpresentationlanguagechanged"
 };
 
 // Events that require TextTrack interface registration
@@ -1126,18 +1123,6 @@ class UserSettingsDelegate : public BaseEventDelegate{
 
         void OnVoiceGuidanceHintsChanged(const bool hints) {
             mParent.DispatchVoiceGuidanceSettingsChanged();
-        }
-
-        void OnPinControlChanged(const bool pinControl) {
-            mParent.Dispatch("ParentalControl.onPinControlChanged", ObjectUtils::BoolToJsonString(pinControl));
-        }
-
-        void OnBlockNotRatedContentChanged(const bool blockNotRatedContent) {
-            mParent.Dispatch("ParentalControl.onBlockNotRatedContentChanged", ObjectUtils::BoolToJsonString(blockNotRatedContent));
-        }
-
-        void OnViewingRestrictionsChanged(const string& viewingRestrictions) {
-            mParent.Dispatch("ParentalControl.onViewingRestrictionsChanged", viewingRestrictions);
         }
 
         // Method to set registered state
