@@ -1157,16 +1157,20 @@ TEST_F(UserSettingsTest, AGC_L1_095_GetBlockNotRatedContent_COMFailure)
 
 TEST_F(UserSettingsTest, AGC_L1_096_GetViewingRestrictions_Success)
 {
-    // Thunder returns a JSON-encoded string; the delegate passes it through as-is.
+    // Thunder returns a JSON object string; the delegate wraps it in double-quotes
+    // so the Firebolt layer receives it as a JSON string value.
+    const string thunderValue = "{\"maxRating\":\"PG-13\"}";
+    const string expectedResult = "\"" + thunderValue + "\"";
+
     EXPECT_CALL(mockUserSettings, GetViewingRestrictions(_))
-        .WillOnce(DoAll(SetArgReferee<0>(string("{\"maxRating\":\"PG-13\"}")), Return(Core::ERROR_NONE)));
+        .WillOnce(DoAll(SetArgReferee<0>(thunderValue), Return(Core::ERROR_NONE)));
 
     const auto ctx = MakeContext();
     string result;
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "parentalcontrol.viewingrestrictions", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_NE(result.find("maxRating"), std::string::npos);
+    EXPECT_EQ(expectedResult, result);
 }
 
 TEST_F(UserSettingsTest, AGC_L1_097_GetViewingRestrictions_COMFailure)
@@ -1179,7 +1183,7 @@ TEST_F(UserSettingsTest, AGC_L1_097_GetViewingRestrictions_COMFailure)
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "parentalcontrol.viewingrestrictions", "{}", result);
 
     EXPECT_NE(Core::ERROR_NONE, rc);
-    EXPECT_NE(result.find("error"), std::string::npos);
+    EXPECT_EQ(result, "{\"error\":\"couldn't get viewing restrictions\"}");
 }
 
 } // namespace
