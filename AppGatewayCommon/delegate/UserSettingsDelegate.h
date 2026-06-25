@@ -550,13 +550,14 @@ class UserSettingsDelegate : public BaseEventDelegate{
             }
 
             // Thunder returns viewingRestrictions as a JSON-encoded string.
-            // The Firebolt contract expects an object, so we return the string
-            // value directly as it is already valid JSON.
+            // Serialize as a proper JSON string value to ensure escaping.
             string viewingRestrictions;
             Core::hresult rc = userSettings->GetViewingRestrictions(viewingRestrictions);
 
             if (Core::ERROR_NONE == rc) {
-                result = "\"" + viewingRestrictions + "\"";
+                Core::JSON::String jsonValue;
+                jsonValue = viewingRestrictions;
+                jsonValue.ToString(result);
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetViewingRestrictions on UserSettings COM interface, error: %u", rc);
