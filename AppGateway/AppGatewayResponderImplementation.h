@@ -403,6 +403,21 @@ namespace Plugin {
                 return mPausedApps.find(appId) != mPausedApps.end();
             }
 
+            void PrintContents() const {
+                std::lock_guard<std::mutex> lock(mMutex);
+                if (mPausedApps.empty()) {
+                    LOGINFO("PausedAppsRegistry: [EMPTY]");
+                } else {
+                    std::string contents = "PausedAppsRegistry: [";
+                    for (auto it = mPausedApps.begin(); it != mPausedApps.end(); ++it) {
+                        if (it != mPausedApps.begin()) contents += ", ";
+                        contents += *it;
+                    }
+                    contents += "]";
+                    LOGINFO("%s", contents.c_str());
+                }
+            }
+
         private:
             mutable std::mutex mMutex;
             std::unordered_set<string> mPausedApps;

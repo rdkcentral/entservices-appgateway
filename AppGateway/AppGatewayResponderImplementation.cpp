@@ -238,8 +238,10 @@ namespace WPEFramework
             return Core::ERROR_NONE;
         }
 
-        Core::hresult AppGatewayResponderImplementation::Emit(const Context& context /* @in */, 
-                const string& method /* @in */, const string& payload /* @in @opaque */) {
+         Core::hresult AppGatewayResponderImplementation::Emit(const Context& context /* @in */, 
+                 const string& method /* @in */, const string& payload /* @in @opaque */) {
+            LOGINFO("Emit: method=%s, payload=%s, connectionId=%d, appId=%s", method.c_str(), payload.c_str(), context.connectionId, context.appId.c_str());
+            mPausedAppsRegistry.PrintContents();
             if (mPausedAppsRegistry.IsPaused(context.appId)) {
                 LOGDBG("Emit: dropping outgoing notification for hibernated appId=%s", context.appId.c_str());
                 return Core::ERROR_NONE;
@@ -444,6 +446,7 @@ namespace WPEFramework
         {
             LOGINFO("SuspendTraffic: suspending traffic for appId=%s", appId.c_str());
             mPausedAppsRegistry.Pause(appId);
+            mPausedAppsRegistry.PrintContents();
             return Core::ERROR_NONE;
         }
 
@@ -451,6 +454,7 @@ namespace WPEFramework
         {
             LOGINFO("ResumeTraffic: resuming traffic for appId=%s", appId.c_str());
             mPausedAppsRegistry.Resume(appId);
+            mPausedAppsRegistry.PrintContents();
             return Core::ERROR_NONE;
         }
 
