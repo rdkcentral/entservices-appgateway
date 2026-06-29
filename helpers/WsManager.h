@@ -155,7 +155,8 @@ public:
                 if (_parent.Interface()._authHandler != nullptr) {
                     bool authResult = _parent.Interface()._authHandler(_id, query);
                     if (!authResult) {
-                        LOGERR("Authentication failed for query: %s", query.c_str());
+                        const std::string safeQuery = WPEFramework::Utils::RedactSensitiveForLog(query);
+                        LOGERR("Authentication failed for query: %s", safeQuery.c_str());
                         this->Close(0);
                         return;
                     }
@@ -184,7 +185,8 @@ public:
                     response->Result = result;
 
                     LOGDBG("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d", requestId, connectionId);
-                    LOGDBG("[SendJSONRPCResponse] Response: %s", result.c_str());
+                    const std::string safeResult = WPEFramework::Utils::RedactSensitiveForLog(result);
+                    LOGDBG("[SendJSONRPCResponse] Response: %s", safeResult.c_str());
 
                     // Send the response back to the WebSocket client
                     this->Submit(Core::ProxyType<Core::JSON::IElement>(response));
@@ -217,7 +219,8 @@ public:
         void ToMessage(const Core::ProxyType<Core::JSON::IElement> &jsonObject) {
             string jsonMessage;
             jsonObject->ToString(jsonMessage);
-            LOGTRACE("WebSocket Sent: %s", jsonMessage.c_str());
+            const std::string safeJsonMessage = WPEFramework::Utils::RedactSensitiveForLog(jsonMessage);
+            LOGTRACE("WebSocket Sent: %s", safeJsonMessage.c_str());
         }
         void ProcessMessage(Core::ProxyType<Core::JSONRPC::Message> &message, uint32_t connectionId) {
             // Check for message->Id.IsSet()
@@ -225,7 +228,8 @@ public:
                         string jsonMessage;
                         message->ToString(jsonMessage);
                         // Log an Error for this usecase
-                        LOGERR("Message MUST contain an id field %s", jsonMessage.c_str());
+                        const std::string safeJsonMessage = WPEFramework::Utils::RedactSensitiveForLog(jsonMessage);
+                        LOGERR("Message MUST contain an id field %s", safeJsonMessage.c_str());
                         return;
                     }
 
@@ -234,7 +238,8 @@ public:
                     if (_id == 0) {
                         string jsonMessage;
                         message->ToString(jsonMessage);
-                        LOGERR("Connection ID Not set adding request to Pending queue %s", jsonMessage.c_str());
+                        const std::string safeJsonMessage = WPEFramework::Utils::RedactSensitiveForLog(jsonMessage);
+                        LOGERR("Connection ID Not set adding request to Pending queue %s", safeJsonMessage.c_str());
                         AddToPending(message);
                         return;
                     }
@@ -293,7 +298,8 @@ public:
                         string jsonMsg;
                         automationMsg.ToString(jsonMsg);
 
-                        LOGINFO("[Automation] Forwarding request: %s", jsonMsg.c_str());
+                        const std::string safeJsonMsg = WPEFramework::Utils::RedactSensitiveForLog(jsonMsg);
+                        LOGINFO("[Automation] Forwarding request: %s", safeJsonMsg.c_str());
                         Core::ProxyType<Core::JSONRPC::Message> automationNotif = Core::ProxyType<Core::JSONRPC::Message>::Create();
                         automationNotif->JSONRPC = Core::JSONRPC::Message::DefaultVersion;
                         automationNotif->Designator = "automationUpdate";
@@ -420,7 +426,8 @@ private:
             automationNotif->Designator = designator;
             automationNotif->Parameters = payload;
             mChannel->Submit(_automationId, Core::ProxyType<Core::JSON::IElement>(automationNotif));
-            LOGINFO("[Automation] Forwarded to automation server: %s", payload.c_str());
+            const std::string safePayload = WPEFramework::Utils::RedactSensitiveForLog(payload);
+            LOGINFO("[Automation] Forwarded to automation server: %s", safePayload.c_str());
         }
         #endif
     }
@@ -443,7 +450,8 @@ public:
 
 
 
-        LOGTRACE("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d response=%s", requestId, connectionId, result.c_str());
+    const std::string safeResult = WPEFramework::Utils::RedactSensitiveForLog(result);
+    LOGTRACE("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d response=%s", requestId, connectionId, safeResult.c_str());
 
         // Send the response back to the WebSocket client
         if (nullptr == mChannel) {
@@ -477,7 +485,8 @@ public:
         event->JSONRPC = Core::JSONRPC::Message::DefaultVersion;
         event->Designator = designator;
         event->Parameters = payload;
-        LOGTRACE("Emit Event for method=%s, connectionId=%d params=%s", designator.c_str(), connectionId, payload.c_str());
+        const std::string safePayload = WPEFramework::Utils::RedactSensitiveForLog(payload);
+        LOGTRACE("Emit Event for method=%s, connectionId=%d params=%s", designator.c_str(), connectionId, safePayload.c_str());
         if (nullptr == mChannel) {
             LOGWARN("[DispatchNotificationToConnection] mChannel is null, dropping notification for method=%s, connectionId=%d", designator.c_str(), connectionId);
             return false;
@@ -511,7 +520,8 @@ public:
         request->Designator = designator;
         request->Parameters = params;
 
-        LOGTRACE("Send Request for method=%s, connectionId=%d params=%s", designator.c_str(), connectionId, params.c_str());
+        const std::string safeParams = WPEFramework::Utils::RedactSensitiveForLog(params);
+        LOGTRACE("Send Request for method=%s, connectionId=%d params=%s", designator.c_str(), connectionId, safeParams.c_str());
         if (nullptr == mChannel) {
             LOGWARN("[SendRequestToConnection] mChannel is null, dropping request for method=%s, connectionId=%d", designator.c_str(), connectionId);
             return false;

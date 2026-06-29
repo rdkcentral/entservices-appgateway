@@ -81,8 +81,9 @@ namespace WPEFramework
         Core::hresult AppNotificationsImplementation::Emit(const string &event /* @in */,
                                     const string &payload /* @in @opaque */,
                                     const string &appId /* @in */) {
+            const std::string safePayload = WPEFramework::Utils::RedactSensitiveForLog(payload);
             LOGTRACE("Emit [event= %s payload=%s appId=%s]",
-                    event.c_str(), payload.c_str(), appId.c_str());
+                event.c_str(), safePayload.c_str(), appId.c_str());
             Core::IWorkerPool::Instance().Submit(EmitJob::Create(this, event, payload, appId));
             return Core::ERROR_NONE;
         }

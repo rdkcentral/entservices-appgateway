@@ -19,6 +19,9 @@
 
 #pragma once
 
+#include <array>
+#include <cctype>
+#include <string>
 #include <syscall.h>
 
 enum LogLevel {FATAL_LEVEL = 0, ERROR_LEVEL, WARNING_LEVEL, INFO_LEVEL, DEBUG_LEVEL};
@@ -38,3 +41,58 @@ static int gDefaultLogLevel = DEBUG_LEVEL;
 #define LOG_DEVICE_EXCEPTION0() LOGWARN("Exception caught: code=%d message=%s", err.getCode(), err.what());
 #define LOG_DEVICE_EXCEPTION1(param1) LOGWARN("Exception caught" #param1 "=%s code=%d message=%s", param1.c_str(), err.getCode(), err.what());
 #define LOG_DEVICE_EXCEPTION2(param1, param2) LOGWARN("Exception caught " #param1 "=%s " #param2 "=%s code=%d message=%s", param1.c_str(), param2.c_str(), err.getCode(), err.what());
+
+namespace WPEFramework {
+namespace Utils {
+
+inline std::string ToLowerCopy(const std::string& input)
+{
+	std::string out = input;
+	for (auto& c : out) {
+		c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+	}
+	return out;
+}
+
+inline bool ContainsSensitiveField(const std::string& input)
+{
+	const std::string lowered = ToLowerCopy(input);
+	static const std::array<const char*, 20> kSensitiveNeedles = {
+		"\"sat\"",
+		"\\\"sat\\\"",
+		"\"cdnaccesstoken\"",
+		"\\\"cdnaccesstoken\\\"",
+		"\"advertising.vcid2\"",
+		"\\\"advertising.vcid2\\\"",
+		"\"license\"",
+		"\\\"license\\\"",
+		"\"accesstoken\"",
+		"\\\"accesstoken\\\"",
+		"\"authorization\"",
+		"\\\"authorization\\\"",
+		"\"token\"",
+		"\\\"token\\\"",
+		"\"authtoken\"",
+		"\\\"authtoken\\\"",
+		"session=",
+		"\"session\"",
+		"\\\"session\\\"",
+		"bearer "
+	};
+
+	for (const auto* needle : kSensitiveNeedles) {
+		if (lowered.find(needle) != std::string::npos) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+inline std::string RedactSensitiveForLog(const std::string& input)
+{
+	return ContainsSensitiveField(input) ? "[SENSITIVE_PAYLOAD_SUPPRESSED]" : input;
+}
+
+} // namespace Utils
+} // namespace WPEFramework
