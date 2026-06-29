@@ -442,6 +442,10 @@ namespace WPEFramework
 
         Core::hresult AppGatewayResponderImplementation::SuspendTraffic(const string& appId)
         {
+            if (appId.empty()) {
+                LOGWARN("SuspendTraffic: appId is empty");
+                return Core::ERROR_BAD_REQUEST;
+            }
             LOGINFO("SuspendTraffic: suspending traffic for appId=%s", appId.c_str());
             mPausedAppsRegistry.Pause(appId);
             return Core::ERROR_NONE;
@@ -449,6 +453,10 @@ namespace WPEFramework
 
         Core::hresult AppGatewayResponderImplementation::ResumeTraffic(const string& appId)
         {
+            if (appId.empty()) {
+                LOGWARN("ResumeTraffic: appId is empty");
+                return Core::ERROR_BAD_REQUEST;
+            }
             LOGINFO("ResumeTraffic: resuming traffic for appId=%s", appId.c_str());
             mPausedAppsRegistry.Resume(appId);
             return Core::ERROR_NONE;
