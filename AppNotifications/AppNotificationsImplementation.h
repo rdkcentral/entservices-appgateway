@@ -232,7 +232,7 @@ namespace Plugin {
                               const string &payload /* @in @opaque */,
                               const string &appId /* @in */) override
             {
-                const std::string safePayload = WPEFramework::Utils::RedactSensitiveForLog(payload);
+                const std::string safePayload = WPEFramework::LogSanitizer::RedactSensitiveForLog(payload);
                 LOGINFO("Emit [event= %s payload=%s appId=%s]",
                     event.c_str(), safePayload.c_str(), appId.c_str());
                 Core::IWorkerPool::Instance().Submit(EmitJob::Create(&mParent, event, payload, appId));

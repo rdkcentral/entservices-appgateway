@@ -155,7 +155,7 @@ public:
                 if (_parent.Interface()._authHandler != nullptr) {
                     bool authResult = _parent.Interface()._authHandler(_id, query);
                     if (!authResult) {
-                        const std::string safeQuery = WPEFramework::Utils::RedactSensitiveForLog(query);
+                        const std::string safeQuery = WPEFramework::LogSanitizer::RedactSensitiveForLog(query);
                         LOGERR("Authentication failed for query: %s", safeQuery.c_str());
                         this->Close(0);
                         return;
@@ -185,7 +185,7 @@ public:
                     response->Result = result;
 
                     LOGDBG("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d", requestId, connectionId);
-                    const std::string safeResult = WPEFramework::Utils::RedactSensitiveForLog(result);
+                    const std::string safeResult = WPEFramework::LogSanitizer::RedactSensitiveForLog(result);
                     LOGDBG("[SendJSONRPCResponse] Response: %s", safeResult.c_str());
 
                     // Send the response back to the WebSocket client
@@ -219,7 +219,7 @@ public:
         void ToMessage(const Core::ProxyType<Core::JSON::IElement> &jsonObject) {
             string jsonMessage;
             jsonObject->ToString(jsonMessage);
-            const std::string safeJsonMessage = WPEFramework::Utils::RedactSensitiveForLog(jsonMessage);
+            const std::string safeJsonMessage = WPEFramework::LogSanitizer::RedactSensitiveForLog(jsonMessage);
             LOGTRACE("WebSocket Sent: %s", safeJsonMessage.c_str());
         }
         void ProcessMessage(Core::ProxyType<Core::JSONRPC::Message> &message, uint32_t connectionId) {
@@ -228,7 +228,7 @@ public:
                         string jsonMessage;
                         message->ToString(jsonMessage);
                         // Log an Error for this usecase
-                        const std::string safeJsonMessage = WPEFramework::Utils::RedactSensitiveForLog(jsonMessage);
+                        const std::string safeJsonMessage = WPEFramework::LogSanitizer::RedactSensitiveForLog(jsonMessage);
                         LOGERR("Message MUST contain an id field %s", safeJsonMessage.c_str());
                         return;
                     }
@@ -238,7 +238,7 @@ public:
                     if (_id == 0) {
                         string jsonMessage;
                         message->ToString(jsonMessage);
-                        const std::string safeJsonMessage = WPEFramework::Utils::RedactSensitiveForLog(jsonMessage);
+                        const std::string safeJsonMessage = WPEFramework::LogSanitizer::RedactSensitiveForLog(jsonMessage);
                         LOGERR("Connection ID Not set adding request to Pending queue %s", safeJsonMessage.c_str());
                         AddToPending(message);
                         return;
@@ -298,7 +298,7 @@ public:
                         string jsonMsg;
                         automationMsg.ToString(jsonMsg);
 
-                        const std::string safeJsonMsg = WPEFramework::Utils::RedactSensitiveForLog(jsonMsg);
+                        const std::string safeJsonMsg = WPEFramework::LogSanitizer::RedactSensitiveForLog(jsonMsg);
                         LOGINFO("[Automation] Forwarding request: %s", safeJsonMsg.c_str());
                         Core::ProxyType<Core::JSONRPC::Message> automationNotif = Core::ProxyType<Core::JSONRPC::Message>::Create();
                         automationNotif->JSONRPC = Core::JSONRPC::Message::DefaultVersion;
@@ -426,7 +426,7 @@ private:
             automationNotif->Designator = designator;
             automationNotif->Parameters = payload;
             mChannel->Submit(_automationId, Core::ProxyType<Core::JSON::IElement>(automationNotif));
-            const std::string safePayload = WPEFramework::Utils::RedactSensitiveForLog(payload);
+            const std::string safePayload = WPEFramework::LogSanitizer::RedactSensitiveForLog(payload);
             LOGINFO("[Automation] Forwarded to automation server: %s", safePayload.c_str());
         }
         #endif
@@ -450,7 +450,7 @@ public:
 
 
 
-    const std::string safeResult = WPEFramework::Utils::RedactSensitiveForLog(result);
+    const std::string safeResult = WPEFramework::LogSanitizer::RedactSensitiveForLog(result);
     LOGTRACE("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d response=%s", requestId, connectionId, safeResult.c_str());
 
         // Send the response back to the WebSocket client
@@ -485,7 +485,7 @@ public:
         event->JSONRPC = Core::JSONRPC::Message::DefaultVersion;
         event->Designator = designator;
         event->Parameters = payload;
-        const std::string safePayload = WPEFramework::Utils::RedactSensitiveForLog(payload);
+        const std::string safePayload = WPEFramework::LogSanitizer::RedactSensitiveForLog(payload);
         LOGTRACE("Emit Event for method=%s, connectionId=%d params=%s", designator.c_str(), connectionId, safePayload.c_str());
         if (nullptr == mChannel) {
             LOGWARN("[DispatchNotificationToConnection] mChannel is null, dropping notification for method=%s, connectionId=%d", designator.c_str(), connectionId);
@@ -520,7 +520,7 @@ public:
         request->Designator = designator;
         request->Parameters = params;
 
-        const std::string safeParams = WPEFramework::Utils::RedactSensitiveForLog(params);
+        const std::string safeParams = WPEFramework::LogSanitizer::RedactSensitiveForLog(params);
         LOGTRACE("Send Request for method=%s, connectionId=%d params=%s", designator.c_str(), connectionId, safeParams.c_str());
         if (nullptr == mChannel) {
             LOGWARN("[SendRequestToConnection] mChannel is null, dropping request for method=%s, connectionId=%d", designator.c_str(), connectionId);

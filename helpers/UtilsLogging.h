@@ -43,7 +43,7 @@ static int gDefaultLogLevel = DEBUG_LEVEL;
 #define LOG_DEVICE_EXCEPTION2(param1, param2) LOGWARN("Exception caught " #param1 "=%s " #param2 "=%s code=%d message=%s", param1.c_str(), param2.c_str(), err.getCode(), err.what());
 
 namespace WPEFramework {
-namespace Utils {
+namespace LogSanitizer {
 
 inline std::string ToLowerCopy(const std::string& input)
 {
@@ -94,5 +94,5 @@ inline std::string RedactSensitiveForLog(const std::string& input)
 	return ContainsSensitiveField(input) ? "[SENSITIVE_PAYLOAD_SUPPRESSED]" : input;
 }
 
-} // namespace Utils
+} // namespace LogSanitizer
 } // namespace WPEFramework

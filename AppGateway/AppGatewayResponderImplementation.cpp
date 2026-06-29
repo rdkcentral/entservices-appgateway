@@ -265,7 +265,7 @@ namespace WPEFramework
             if (mEnhancedLoggingEnabled) {
                 LOGINFO("Recording context for connectionId: %d, contextKey: %s, contextValue: %s", connectionId, contextKey.c_str(), contextValue.c_str());
             } else {
-                const std::string safeContextValue = WPEFramework::Utils::RedactSensitiveForLog(contextValue);
+                const std::string safeContextValue = WPEFramework::LogSanitizer::RedactSensitiveForLog(contextValue);
                 LOGINFO("Recording context for connectionId: %d, contextKey: %s, contextValue: %s", connectionId, contextKey.c_str(), safeContextValue.c_str());
             }
             // if contextKey is DISABLE_DEBUG_FOR_CONNECTION, add connectionId to debug disabled registry
@@ -315,7 +315,7 @@ namespace WPEFramework
                         LOGDBG("%s-->[[a-%d-%d]] method=%s, params=%s",
                                appId.c_str(), connectionId, requestId, method.c_str(), params.c_str());
                     } else {
-                        const std::string safeParams = WPEFramework::Utils::RedactSensitiveForLog(params);
+                        const std::string safeParams = WPEFramework::LogSanitizer::RedactSensitiveForLog(params);
                         LOGDBG("%s-->[[a-%d-%d]] method=%s, params=%s",
                                appId.c_str(), connectionId, requestId, method.c_str(), safeParams.c_str());
                     }
@@ -358,7 +358,7 @@ namespace WPEFramework
                 if (mEnhancedLoggingEnabled) {
                     LOGDBG("<--[[a-%d-%d]] payload=%s", connectionId, requestId, payload.c_str());
                 } else {
-                    const std::string safePayload = WPEFramework::Utils::RedactSensitiveForLog(payload);
+                    const std::string safePayload = WPEFramework::LogSanitizer::RedactSensitiveForLog(payload);
                     LOGDBG("<--[[a-%d-%d]] payload=%s", connectionId, requestId, safePayload.c_str());
                 }
             }
