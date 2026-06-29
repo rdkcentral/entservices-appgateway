@@ -77,6 +77,15 @@ extern uint32_t Test_AppGatewayResponderImplementation_GetGatewayConnectionConte
 extern uint32_t Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps();
 extern uint32_t Test_AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash();
 
+// Hibernation / traffic-gate coverage tests (RDKEMW-19304)
+extern uint32_t Test_Responder_QueryInterface_SessionGuard();
+extern uint32_t Test_Responder_SuspendTraffic_And_ResumeTraffic_ReturnNone();
+extern uint32_t Test_Responder_Respond_DropsWhilePaused_ResumesAfterResume();
+extern uint32_t Test_Responder_Emit_DropsWhilePaused_ResumesAfterResume();
+extern uint32_t Test_Responder_Request_ReturnsNone_WhilePaused();
+extern uint32_t Test_Responder_SuspendResume_MultipleApps_Independent();
+extern uint32_t Test_Responder_SessionGuard_Via_Interface_Pointer();
+
 // AppGatewayTelemetry coverage tests
 extern uint32_t Test_Telemetry_SettersAndConfig();
 extern uint32_t Test_Telemetry_HealthStatCounters_And_RecordResponse();
@@ -493,6 +502,15 @@ int main()
         { "AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey", Test_AppGatewayResponderImplementation_GetGatewayConnectionContext_EnvInjection_And_EmptyKey },
         { "AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps", Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps },
         { "AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash", Test_AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash },
+
+        // Hibernation / traffic-gate coverage tests (RDKEMW-19304)
+        { "Responder_QueryInterface_SessionGuard", Test_Responder_QueryInterface_SessionGuard },
+        { "Responder_SuspendTraffic_And_ResumeTraffic_ReturnNone", Test_Responder_SuspendTraffic_And_ResumeTraffic_ReturnNone },
+        { "Responder_Respond_DropsWhilePaused_ResumesAfterResume", Test_Responder_Respond_DropsWhilePaused_ResumesAfterResume },
+        { "Responder_Emit_DropsWhilePaused_ResumesAfterResume", Test_Responder_Emit_DropsWhilePaused_ResumesAfterResume },
+        { "Responder_Request_ReturnsNone_WhilePaused", Test_Responder_Request_ReturnsNone_WhilePaused },
+        { "Responder_SuspendResume_MultipleApps_Independent", Test_Responder_SuspendResume_MultipleApps_Independent },
+        { "Responder_SessionGuard_Via_Interface_Pointer", Test_Responder_SessionGuard_Via_Interface_Pointer },
 
         // AppGatewayTelemetry coverage tests
         { "Telemetry_SettersAndConfig", Test_Telemetry_SettersAndConfig },
