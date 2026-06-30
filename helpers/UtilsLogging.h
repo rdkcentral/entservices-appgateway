@@ -57,7 +57,7 @@ inline std::string ToLowerCopy(const std::string& input)
 inline bool ContainsSensitiveField(const std::string& input)
 {
 	const std::string lowered = ToLowerCopy(input);
-	static const std::array<const char*, 20> kSensitiveNeedles = {
+	static const std::array<const char*, 21> kSensitiveNeedles = {
 		"\"sat\"",
 		"\\\"sat\\\"",
 		"\"cdnaccesstoken\"",
@@ -72,6 +72,7 @@ inline bool ContainsSensitiveField(const std::string& input)
 		"\\\"authorization\\\"",
 		"\"token\"",
 		"\\\"token\\\"",
+		"token=",
 		"\"authtoken\"",
 		"\\\"authtoken\\\"",
 		"session=",
