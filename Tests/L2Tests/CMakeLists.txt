@@ -22,6 +22,12 @@ set(THUNDER_PORT 9998)
 
 find_package(${NAMESPACE}Plugins REQUIRED)
 
+set(SRC_FILES)
+
+if(PLUGIN_APPGATEWAY)
+    set(SRC_FILES ${SRC_FILES} tests/AppGateway_L2Test.cpp)
+endif()
+
 add_library(${MODULE_NAME} SHARED ${SRC_FILES})
 
 set_target_properties(${MODULE_NAME} PROPERTIES
@@ -55,12 +61,12 @@ else (MOCKACCESSOR_LIBRARIES)
 endif (MOCKACCESSOR_LIBRARIES)
 
 target_include_directories(
-    ${MODULE_NAME} PRIVATE ./
+    ${MODULE_NAME} PRIVATE
+    ./
+    ./tests
     ../../helpers
-    ../../../entservices-testframework/Tests/mocks
-    ../../../entservices-testframework/Tests/mocks/thunder
-    ../../../entservices-testframework/Tests/mocks/MockPlugin
-    ../../../entservices-testframework/Tests/L2Tests/L2TestsPlugin
+    ../../AppGateway
+    ../../../entservices-apis/apis/AppGateway
     ${CMAKE_INSTALL_PREFIX}/include
     )
 
