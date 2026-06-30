@@ -425,4 +425,4 @@ stateDiagram-v2
 
 ---
 
-*Back to [README.md](../README.md) | Related: [AppGateway.md](AppGateway.md) | [AppGatewayCommon.md](AppGatewayCommon.md)*
+*Back to [README.md](../README.md) | Related: [AppGateway.md](../AppGateway/AppGateway.md) | [AppGatewayCommon.md](../AppGatewayCommon/AppGatewayCommon.md)*
