@@ -62,8 +62,11 @@ target_link_libraries(${MODULE_NAME}
         ${NAMESPACE}Definitions::${NAMESPACE}Definitions
         uuid)
 
-# To error any missing links
-target_link_options(${MODULE_NAME} PRIVATE -Wl,-z,defs)
+# To error any missing links (skip for L2 test builds: -Wl,-z,defs embeds libgcov.a
+# statically, preventing __gcov_* symbol sharing and breaking coverage data collection)
+if(NOT RDK_SERVICE_L2_TEST)
+    target_link_options(${MODULE_NAME} PRIVATE -Wl,-z,defs)
+endif()
 # To error any warnings
 add_compile_options(-Wall -Werror)
 
