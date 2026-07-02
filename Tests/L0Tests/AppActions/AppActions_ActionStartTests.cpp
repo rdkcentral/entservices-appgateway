@@ -413,20 +413,30 @@ uint32_t Test_AA_ActionStart_MultipleCalls()
         impl->ActionStart("init2", "intent2", "app2");
         impl->ActionStart("init3", "intent3", "app3");
 
-        DrainNotifyJobs();
+        // Wait for all 3 callbacks with a bounded timeout; WorkerPool jobs are
+        // dispatched asynchronously and have no guaranteed FIFO ordering, so we
+        // wait on a condition variable rather than using a blind sleep.
+        const bool receivedAll = notification->WaitForCount(3, std::chrono::milliseconds(500));
 
         {
             std::lock_guard<std::mutex> lock(notification->_mutex);
+            L0Test::ExpectTrue(tr, receivedAll,
+                "ActionStart_MultipleCalls: timed out waiting for 3 callbacks");
             L0Test::ExpectEqU32(tr, notification->onActionStartRequestCount, 3,
                 "ActionStart_MultipleCalls: should be called 3 times");
-            // All three initiators must have been received (order is not guaranteed
-            // with a multi-threaded WorkerPool, so check membership rather than ordering)
-            L0Test::ExpectTrue(tr, notification->seenInitiators.count("init1") == 1,
-                "ActionStart_MultipleCalls: init1 should be received");
-            L0Test::ExpectTrue(tr, notification->seenInitiators.count("init2") == 1,
-                "ActionStart_MultipleCalls: init2 should be received");
-            L0Test::ExpectTrue(tr, notification->seenInitiators.count("init3") == 1,
-                "ActionStart_MultipleCalls: init3 should be received");
+            // All 3 initiators must have been delivered.
+            // Ordering across independent WorkerPool submissions is not guaranteed,
+            // so assert set-membership rather than a specific last value.
+            const auto& recv = notification->receivedInitiators;
+            L0Test::ExpectTrue(tr,
+                std::find(recv.begin(), recv.end(), "init1") != recv.end(),
+                "ActionStart_MultipleCalls: init1 should have been received");
+            L0Test::ExpectTrue(tr,
+                std::find(recv.begin(), recv.end(), "init2") != recv.end(),
+                "ActionStart_MultipleCalls: init2 should have been received");
+            L0Test::ExpectTrue(tr,
+                std::find(recv.begin(), recv.end(), "init3") != recv.end(),
+                "ActionStart_MultipleCalls: init3 should have been received");
         }
 
         impl->Unregister(notification);
