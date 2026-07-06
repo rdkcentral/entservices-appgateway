@@ -28,6 +28,7 @@
 #include <interfaces/IAppActions.h>
 #include <interfaces/IConfiguration.h>
 #include <AppActions.h>
+#include <set>
 
 #include "L0TestTypes.hpp"
 

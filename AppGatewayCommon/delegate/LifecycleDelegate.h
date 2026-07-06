@@ -839,7 +839,10 @@ class LifecycleDelegate : public BaseEventDelegate
     static string BuildIntentResult(uint32_t intentId, const string& intent)
     {
         string intentJson;
-        if (!intent.empty() && (intent[0] == '{' || intent[0] == '[')) {
+        if (intent.empty()) {
+            // No intent available – represent as an empty JSON object
+            intentJson = "{}";
+        } else if (intent[0] == '{' || intent[0] == '[') {
             // Intent is already a JSON object/array – embed verbatim
             intentJson = intent;
         } else {
@@ -865,7 +868,7 @@ class LifecycleDelegate : public BaseEventDelegate
         if (!appInstanceId.empty()) {
             mNavigationIntentRegistry.GetNavigationIntent(appInstanceId, intent, intentId);
         } else {
-            LOGERR("Failed to get AppInstanceId for Appid: %s", appId.c_str());
+            LOGWARN("AppInstanceId not found for Appid: %s", appId.c_str());
         }
     }
 
