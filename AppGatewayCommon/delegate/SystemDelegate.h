@@ -244,7 +244,7 @@ public:
         const uint32_t rc = sysServices->GetFriendlyName(friendlyName, success);
         if (rc == Core::ERROR_NONE && success && !friendlyName.empty())
         {
-            name = friendlyName;
+            name = std::move(friendlyName);
         }
         else
         {
@@ -449,7 +449,7 @@ public:
         const uint32_t rc = sysServices->GetTimeZoneDST(timeZone, accuracy, success);
         if (rc == Core::ERROR_NONE && success)
         {
-            tz = timeZone;
+            tz = std::move(timeZone);
             // Wrap in quotes to make it a valid JSON string
             tz = "\"" + tz + "\"";
             return Core::ERROR_NONE;
