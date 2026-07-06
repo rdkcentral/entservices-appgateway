@@ -1157,13 +1157,10 @@ TEST_F(UserSettingsTest, AGC_L1_095_GetBlockNotRatedContent_COMFailure)
 
 TEST_F(UserSettingsTest, AGC_L1_096_GetViewingRestrictions_Success)
 {
-    // Thunder returns a JSON object string; the delegate serializes it as a
-    // proper JSON string value using Core::JSON::String::ToString() which
-    // escapes inner quotes. Input: {"maxRating":"PG-13"}
-    // Expected output: "{\"maxRating\":\"PG-13\"}" (with escaped inner quotes)
+    // Thunder returns a JSON object string; the delegate returns it directly
+    // without additional serialization.
     const string thunderValue = R"({"maxRating":"PG-13"})";
-    // Core::JSON::String::ToString() produces: "{\"maxRating\":\"PG-13\"}"
-    const string expectedResult = R"("{\"maxRating\":\"PG-13\"}")";
+    const string expectedResult = R"({"maxRating":"PG-13"})";
 
     EXPECT_CALL(mockUserSettings, GetViewingRestrictions(_))
         .WillOnce(DoAll(SetArgReferee<0>(thunderValue), Return(Core::ERROR_NONE)));
