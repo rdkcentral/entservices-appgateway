@@ -26,6 +26,7 @@
 #include <string>
 #include <unordered_set>
 #include <vector>
+#include <utility>
 
 #include <plugins/plugins.h>
 #include <core/JSON.h>
