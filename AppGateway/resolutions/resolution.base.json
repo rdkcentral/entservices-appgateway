@@ -577,6 +577,18 @@
         "device.sku": {
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
+        },
+        "parentalcontrol.pincontrol": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "parentalcontrol.blocknotratedcontent": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "parentalcontrol.viewingrestrictions": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
         }
     }
 }

@@ -575,3 +575,30 @@ uint32_t Test_HandleRequest_PresentationFocused_CaseInsensitive()
     return tr.failures;
 }
 
+// ============================================================================
+// Tests AGC_L0_101 – AGC_L0_103 — ParentalControl handler-map getters
+// ============================================================================
+
+// TEST_ID: AGC_L0_101
+// Handler-map getter: parentalcontrol.pincontrol is routed to AppGatewayCommon.
+// In L0 the UserSettings COM interface is unavailable, so GetPinControl returns
+// ERROR_UNAVAILABLE.  DelegateGetterTest accepts ERROR_NONE/UNAVAILABLE/GENERAL.
+uint32_t Test_HandleRequest_ParentalControl_PinControl()
+{
+    return DelegateGetterTest("parentalcontrol.pincontrol");
+}
+
+// TEST_ID: AGC_L0_102
+// Handler-map getter: parentalcontrol.blocknotratedcontent is routed.
+uint32_t Test_HandleRequest_ParentalControl_BlockNotRatedContent()
+{
+    return DelegateGetterTest("parentalcontrol.blocknotratedcontent");
+}
+
+// TEST_ID: AGC_L0_103
+// Handler-map getter: parentalcontrol.viewingrestrictions is routed.
+uint32_t Test_HandleRequest_ParentalControl_ViewingRestrictions()
+{
+    return DelegateGetterTest("parentalcontrol.viewingrestrictions");
+}
+
