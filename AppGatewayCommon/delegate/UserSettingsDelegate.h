@@ -555,7 +555,7 @@ class UserSettingsDelegate : public BaseEventDelegate{
             Core::hresult rc = userSettings->GetViewingRestrictions(viewingRestrictions);
 
             if (Core::ERROR_NONE == rc) {
-                result = viewingRestrictions;
+                result = std::move(viewingRestrictions);
                 return Core::ERROR_NONE;
             } else {
                 LOGERR("Failed to call GetViewingRestrictions on UserSettings COM interface, error: %u", rc);
