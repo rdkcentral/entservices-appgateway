@@ -431,7 +431,7 @@ uint32_t Test_HandleRequest_DispatchIntent()
 
 // TEST_ID: AGC_L0_053
 // commoninternal.getlastintent returns ERROR_NONE with JSON containing intentId and intent fields
-// When no intent is stored, intentId=0 and intent is empty string.
+// When no intent is stored, intentId=0 and intent is an empty JSON object ({}).
 uint32_t Test_HandleRequest_GetLastIntent()
 {
     TestResult tr;
@@ -444,8 +444,11 @@ uint32_t Test_HandleRequest_GetLastIntent()
     // Result must be a JSON object with intentId and intent fields
     const bool hasIntentId = result.find("\"intentId\":") != std::string::npos;
     const bool hasIntent   = result.find("\"intent\":")   != std::string::npos;
+    // When no intent is stored, intent must be serialized as an empty JSON object
+    const bool hasEmptyObject = result.find("\"intent\":{}") != std::string::npos;
     if (!hasIntentId) tr.failures++;
     if (!hasIntent) tr.failures++;
+    if (!hasEmptyObject) tr.failures++;
     return tr.failures;
 }
 
@@ -478,7 +481,7 @@ uint32_t Test_HandleRequest_ActionsStart_EmptyPayload()
 }
 
 // TEST_ID: AGC_L0_059
-// actions.intent in L0 → no stored intent → returns JSON with intentId=0
+// actions.intent in L0 → no stored intent → returns JSON with intentId=0 and intent={}
 uint32_t Test_HandleRequest_ActionsIntent_EmptyRegistry()
 {
     TestResult tr;
@@ -488,10 +491,13 @@ uint32_t Test_HandleRequest_ActionsIntent_EmptyRegistry()
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "actions.intent", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "actions.intent returns ERROR_NONE");
-    const bool hasIntentId = result.find("\"intentId\":") != std::string::npos;
-    const bool hasIntent   = result.find("\"intent\":")   != std::string::npos;
+    const bool hasIntentId    = result.find("\"intentId\":") != std::string::npos;
+    const bool hasIntent      = result.find("\"intent\":")   != std::string::npos;
+    // When no intent is stored, intent must be serialized as an empty JSON object
+    const bool hasEmptyObject = result.find("\"intent\":{}") != std::string::npos;
     if (!hasIntentId) tr.failures++;
     if (!hasIntent) tr.failures++;
+    if (!hasEmptyObject) tr.failures++;
     return tr.failures;
 }
 
