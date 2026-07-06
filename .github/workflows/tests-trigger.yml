@@ -24,7 +24,6 @@ jobs:
       RDKCM_RDKE: ${{ secrets.RDKCM_RDKE }}
 
   trigger-L2:
-    if: false  # Disabled
     uses: ./.github/workflows/L2-tests.yml
     with:
       caller_source: local

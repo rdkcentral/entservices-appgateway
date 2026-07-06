@@ -12,11 +12,14 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <string>
 #include <mutex>
 #include <algorithm>
 #include <list>
+#include <vector>
 
 #include <Module.h>
 #include <core/core.h>
@@ -25,6 +28,7 @@
 #include <interfaces/IAppActions.h>
 #include <interfaces/IConfiguration.h>
 #include <AppActions.h>
+#include <set>
 
 #include "L0TestTypes.hpp"
 
@@ -80,6 +84,19 @@ public:
         lastInitiator = initiator;
         lastIntent = intent;
         lastHandlerAppId = handlerAppId;
+        receivedInitiators.push_back(initiator);
+        _cv.notify_all();
+    }
+
+    // Block until at least 'count' callbacks have arrived or timeout expires.
+    // Returns true if the count was reached, false on timeout.
+    bool WaitForCount(uint32_t count,
+                      std::chrono::milliseconds timeout = std::chrono::milliseconds(500))
+    {
+        std::unique_lock<std::mutex> lock(_mutex);
+        return _cv.wait_for(lock, timeout, [this, count]() {
+            return onActionStartRequestCount >= count;
+        });
     }
 
     // Observable state (access under _mutex for thread safety)
@@ -87,8 +104,10 @@ public:
     string lastInitiator;
     string lastIntent;
     string lastHandlerAppId;
+    std::vector<string> receivedInitiators;  // all arrivals in delivery order
 
     mutable std::mutex _mutex;
+    std::condition_variable _cv;
 
 private:
     mutable std::atomic<uint32_t> _refCount;

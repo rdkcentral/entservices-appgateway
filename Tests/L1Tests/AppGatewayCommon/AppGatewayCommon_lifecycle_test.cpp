@@ -1105,6 +1105,8 @@ TEST_F(LifecycleDelegateTest, AGC_L1_205_ActionsIntent_NoStoredIntent_ReturnsZer
     // intentId is serialized as a JSON number; check for "intentId":0 (numeric, not quoted string)
     EXPECT_NE(result.find("intentId"), std::string::npos);
     EXPECT_NE(result.find("\"intentId\":0"), std::string::npos);
+    // When no intent is stored, intent must be an empty JSON object, not an empty string
+    EXPECT_NE(result.find("\"intent\":{}"), std::string::npos);
 }
 
 TEST_F(LifecycleDelegateTest, AGC_L1_206_ActionsOnIntent_SubscribeUnsubscribe)
