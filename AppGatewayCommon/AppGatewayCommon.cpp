@@ -305,6 +305,15 @@ namespace Plugin {
         }},
         {"presentation.focused", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->GetPresentationFocused(ctx, payload, result);
+        }},
+        { "parentalcontrol.pincontrol", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetPinControl(result);
+        }},
+        { "parentalcontrol.blocknotratedcontent", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetBlockNotRatedContent(result);
+        }},
+        { "parentalcontrol.viewingrestrictions", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetViewingRestrictions(result);
         }}
     };
 
@@ -1333,6 +1342,54 @@ namespace Plugin {
             auto systemDelegate = mDelegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDisplayColorimetry(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetPinControl(string &result)
+        {
+            if (!mDelegate)
+            {
+                result = "{\"error\":\"couldn't get pin control state\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate)
+            {
+                result = "{\"error\":\"couldn't get pin control state\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->GetPinControl(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetBlockNotRatedContent(string &result)
+        {
+            if (!mDelegate)
+            {
+                result = "{\"error\":\"couldn't get block not rated content state\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate)
+            {
+                result = "{\"error\":\"couldn't get block not rated content state\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->GetBlockNotRatedContent(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetViewingRestrictions(string &result)
+        {
+            if (!mDelegate)
+            {
+                result = "{\"error\":\"couldn't get viewing restrictions\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            auto userSettingsDelegate = mDelegate->getUserSettings();
+            if (!userSettingsDelegate)
+            {
+                result = "{\"error\":\"couldn't get viewing restrictions\"}";
+                return Core::ERROR_UNAVAILABLE;
+            }
+            return userSettingsDelegate->GetViewingRestrictions(result);
         }
 
         Core::hresult AppGatewayCommon::GetDisplayVideoResolutions(string &result)

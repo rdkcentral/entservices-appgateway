@@ -1067,4 +1067,123 @@ TEST_F(UserSettingsTest, AGC_L1_089_VoiceGuidanceSettings_HintsFetchFailure)
     EXPECT_NE(result.find("couldn't get voiceguidance hints"), std::string::npos);
 }
 
+/* ========================================================================
+ * ParentalControl APIs (RDKEMW-19326)
+ * ======================================================================== */
+
+/* ---------- GetPinControl ---------- */
+
+TEST_F(UserSettingsTest, AGC_L1_090_GetPinControl_Success_True)
+{
+    EXPECT_CALL(mockUserSettings, GetPinControl(_))
+        .WillOnce(DoAll(SetArgReferee<0>(true), Return(Core::ERROR_NONE)));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "parentalcontrol.pincontrol", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("true", result);
+}
+
+TEST_F(UserSettingsTest, AGC_L1_091_GetPinControl_Success_False)
+{
+    EXPECT_CALL(mockUserSettings, GetPinControl(_))
+        .WillOnce(DoAll(SetArgReferee<0>(false), Return(Core::ERROR_NONE)));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "parentalcontrol.pincontrol", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("false", result);
+}
+
+TEST_F(UserSettingsTest, AGC_L1_092_GetPinControl_COMFailure)
+{
+    EXPECT_CALL(mockUserSettings, GetPinControl(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "parentalcontrol.pincontrol", "{}", result);
+
+    EXPECT_NE(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("error"), std::string::npos);
+}
+
+/* ---------- GetBlockNotRatedContent ---------- */
+
+TEST_F(UserSettingsTest, AGC_L1_093_GetBlockNotRatedContent_Success_True)
+{
+    EXPECT_CALL(mockUserSettings, GetBlockNotRatedContent(_))
+        .WillOnce(DoAll(SetArgReferee<0>(true), Return(Core::ERROR_NONE)));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "parentalcontrol.blocknotratedcontent", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("true", result);
+}
+
+TEST_F(UserSettingsTest, AGC_L1_094_GetBlockNotRatedContent_Success_False)
+{
+    EXPECT_CALL(mockUserSettings, GetBlockNotRatedContent(_))
+        .WillOnce(DoAll(SetArgReferee<0>(false), Return(Core::ERROR_NONE)));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "parentalcontrol.blocknotratedcontent", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("false", result);
+}
+
+TEST_F(UserSettingsTest, AGC_L1_095_GetBlockNotRatedContent_COMFailure)
+{
+    EXPECT_CALL(mockUserSettings, GetBlockNotRatedContent(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "parentalcontrol.blocknotratedcontent", "{}", result);
+
+    EXPECT_NE(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("error"), std::string::npos);
+}
+
+/* ---------- GetViewingRestrictions ---------- */
+
+TEST_F(UserSettingsTest, AGC_L1_096_GetViewingRestrictions_Success)
+{
+    // Thunder returns a JSON object string; the delegate returns it directly
+    // without additional serialization.
+    const string thunderValue = R"({"maxRating":"PG-13"})";
+    const string expectedResult = R"({"maxRating":"PG-13"})";
+
+    EXPECT_CALL(mockUserSettings, GetViewingRestrictions(_))
+        .WillOnce(DoAll(SetArgReferee<0>(thunderValue), Return(Core::ERROR_NONE)));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "parentalcontrol.viewingrestrictions", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(expectedResult, result);
+}
+
+TEST_F(UserSettingsTest, AGC_L1_097_GetViewingRestrictions_COMFailure)
+{
+    EXPECT_CALL(mockUserSettings, GetViewingRestrictions(_))
+        .WillOnce(Return(Core::ERROR_GENERAL));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "parentalcontrol.viewingrestrictions", "{}", result);
+
+    EXPECT_NE(Core::ERROR_NONE, rc);
+    EXPECT_EQ(result, "{\"error\":\"couldn't get viewing restrictions\"}");
+}
+
 } // namespace
