@@ -312,7 +312,8 @@
         },
         "lifecycle2.onstatechanged": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "Lifecycle2.onStateChanged"
+            "event": "Lifecycle2.onStateChanged",
+            "eventHook": "lifecycle.ready"
         },
         "actions.onintent": {
             "alias": "org.rdk.AppGatewayCommon",
@@ -440,7 +441,7 @@
         },
         "metrics.appInfo": {
             "alias":"org.rdk.AppGatewayCommon",
-            "event": "Metrics.onEvent"
+            "useComRpc": true
         },
         "network.connected": {
             "alias":"org.rdk.AppGatewayCommon",
@@ -574,6 +575,18 @@
             "useComRpc": true
         },
         "device.sku": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "parentalcontrol.pincontrol": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "parentalcontrol.blocknotratedcontent": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "parentalcontrol.viewingrestrictions": {
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
         }

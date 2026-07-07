@@ -150,6 +150,9 @@ namespace WPEFramework {
             Core::hresult GetAudioDescriptionsEnabled(string &result /* @out */);
             Core::hresult GetHighContrast(string &result /* @out */);
             Core::hresult GetCaptions(string &result /* @out */);
+            Core::hresult GetPinControl(string &result /* @out */);
+            Core::hresult GetBlockNotRatedContent(string &result /* @out */);
+            Core::hresult GetViewingRestrictions(string &result /* @out */);
             Core::hresult SetVoiceGuidance(const bool enabled /* @in */);
             Core::hresult SetAudioDescriptionsEnabled(const bool enabled /* @in */);
             Core::hresult SetCaptions(const bool enabled /* @in */);

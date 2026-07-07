@@ -291,3 +291,4 @@ uint32_t Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly()
     emitter->Release();
     return tr.failures;
 }
+
