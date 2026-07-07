@@ -215,10 +215,13 @@ public:
         }
 
         void ToMessage(const Core::ProxyType<Core::JSON::IElement> &jsonObject) {
+#ifdef __DEBUG__
             string jsonMessage;
             jsonObject->ToString(jsonMessage);
-            const std::string safeJsonMessage = WPEFramework::LogSanitizer::RedactSensitiveForLog(jsonMessage);
-            LOGTRACE("WebSocket Sent: %s", safeJsonMessage.c_str());
+            LOGTRACE("WebSocket Sent: %s", WPEFramework::LogSanitizer::RedactSensitiveForLog(jsonMessage).c_str());
+#else
+            (void)jsonObject;
+#endif
         }
         void ProcessMessage(Core::ProxyType<Core::JSONRPC::Message> &message, uint32_t connectionId) {
             // Check for message->Id.IsSet()
@@ -448,8 +451,7 @@ public:
 
 
 
-    const std::string safeResult = WPEFramework::LogSanitizer::RedactSensitiveForLog(result);
-    LOGTRACE("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d response=%s", requestId, connectionId, safeResult.c_str());
+    LOGTRACE("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d response=%s", requestId, connectionId, WPEFramework::LogSanitizer::RedactSensitiveForLog(result).c_str());
 
         // Send the response back to the WebSocket client
         if (nullptr == mChannel) {
@@ -483,8 +485,7 @@ public:
         event->JSONRPC = Core::JSONRPC::Message::DefaultVersion;
         event->Designator = designator;
         event->Parameters = payload;
-        const std::string safePayload = WPEFramework::LogSanitizer::RedactSensitiveForLog(payload);
-        LOGTRACE("Emit Event for method=%s, connectionId=%d params=%s", designator.c_str(), connectionId, safePayload.c_str());
+        LOGTRACE("Emit Event for method=%s, connectionId=%d params=%s", designator.c_str(), connectionId, WPEFramework::LogSanitizer::RedactSensitiveForLog(payload).c_str());
         if (nullptr == mChannel) {
             LOGWARN("[DispatchNotificationToConnection] mChannel is null, dropping notification for method=%s, connectionId=%d", designator.c_str(), connectionId);
             return false;
@@ -518,8 +519,7 @@ public:
         request->Designator = designator;
         request->Parameters = params;
 
-        const std::string safeParams = WPEFramework::LogSanitizer::RedactSensitiveForLog(params);
-        LOGTRACE("Send Request for method=%s, connectionId=%d params=%s", designator.c_str(), connectionId, safeParams.c_str());
+        LOGTRACE("Send Request for method=%s, connectionId=%d params=%s", designator.c_str(), connectionId, WPEFramework::LogSanitizer::RedactSensitiveForLog(params).c_str());
         if (nullptr == mChannel) {
             LOGWARN("[SendRequestToConnection] mChannel is null, dropping request for method=%s, connectionId=%d", designator.c_str(), connectionId);
             return false;
