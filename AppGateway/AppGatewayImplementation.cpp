@@ -414,9 +414,10 @@ namespace WPEFramework
             std::string permissionGroup;
             if (mResolverPtr->HasPermissionGroup(method, permissionGroup)) {
                 LOGTRACE("Method '%s' requires permission group '%s'", method.c_str(), permissionGroup.c_str());
-                if (nullptr != GetAppGatewayAuthenticatorInterface()) {
+                Exchange::IAppGatewayAuthenticator* authenticator = GetAppGatewayAuthenticatorInterface();
+                if (nullptr != authenticator) {
                     bool allowed = false;
-                    if (Core::ERROR_NONE != mAuthenticator->CheckPermissionGroup(context.appId, permissionGroup, allowed)) {
+                    if (Core::ERROR_NONE != authenticator->CheckPermissionGroup(context.appId, permissionGroup, allowed)) {
                         LOGERR("Failed to check permission group '%s' for appId '%s'", permissionGroup.c_str(), context.appId.c_str());
                         // Track external service error - Permission service failure
                         AppGatewayTelemetry::getInstance().RecordExternalServiceErrorInternal(context, AGW_SERVICE_PERMISSION);
@@ -658,4 +659,3 @@ namespace WPEFramework
 
     } // namespace Plugin
 } // namespace WPEFramework
-
