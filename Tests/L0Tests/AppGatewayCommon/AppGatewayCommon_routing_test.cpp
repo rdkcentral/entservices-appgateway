@@ -395,6 +395,7 @@ uint32_t Test_HandleRequest_Lifecycle2State()
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "lifecycle2.state", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "lifecycle2.state returns ERROR_NONE in L0");
+    ExpectEqStr(tr, result, "\"unloaded\"", "lifecycle2.state result is quoted unloaded");
     return tr.failures;
 }
 
@@ -429,8 +430,8 @@ uint32_t Test_HandleRequest_DispatchIntent()
 }
 
 // TEST_ID: AGC_L0_053
-// commoninternal.getlastintent returns ERROR_NONE
-// LifecycleDelegate::GetLastIntent calls GetLastKnownIntent → empty map → empty result, returns ERROR_NONE.
+// commoninternal.getlastintent returns ERROR_NONE with JSON containing intentId and intent fields
+// When no intent is stored, intentId=0 and intent is an empty JSON object ({}).
 uint32_t Test_HandleRequest_GetLastIntent()
 {
     TestResult tr;
@@ -440,6 +441,63 @@ uint32_t Test_HandleRequest_GetLastIntent()
     Exchange::GatewayContext ctx = DefaultContext();
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
     ExpectEqU32(tr, rc, ERROR_NONE, "commoninternal.getlastintent returns ERROR_NONE");
+    // Result must be a JSON object with intentId and intent fields
+    const bool hasIntentId = result.find("\"intentId\":") != std::string::npos;
+    const bool hasIntent   = result.find("\"intent\":")   != std::string::npos;
+    // When no intent is stored, intent must be serialized as an empty JSON object
+    const bool hasEmptyObject = result.find("\"intent\":{}") != std::string::npos;
+    if (!hasIntentId) tr.failures++;
+    if (!hasIntent) tr.failures++;
+    if (!hasEmptyObject) tr.failures++;
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_057
+// actions.start in L0 → IAppActions plugin unavailable → ERROR_UNAVAILABLE
+uint32_t Test_HandleRequest_ActionsStart_NoPlugin()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "actions.start", "{\"intent\":{\"action\":\"play\"}}", result);
+    ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "actions.start returns ERROR_UNAVAILABLE when plugin absent");
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_058
+// actions.start with empty payload → ERROR_BAD_REQUEST (validated before reaching plugin)
+uint32_t Test_HandleRequest_ActionsStart_EmptyPayload()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "actions.start", "", result);
+    ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "actions.start with empty payload returns ERROR_BAD_REQUEST");
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_059
+// actions.intent in L0 → no stored intent → returns JSON with intentId=0 and intent={}
+uint32_t Test_HandleRequest_ActionsIntent_EmptyRegistry()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "actions.intent", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "actions.intent returns ERROR_NONE");
+    const bool hasIntentId    = result.find("\"intentId\":") != std::string::npos;
+    const bool hasIntent      = result.find("\"intent\":")   != std::string::npos;
+    // When no intent is stored, intent must be serialized as an empty JSON object
+    const bool hasEmptyObject = result.find("\"intent\":{}") != std::string::npos;
+    if (!hasIntentId) tr.failures++;
+    if (!hasIntent) tr.failures++;
+    if (!hasEmptyObject) tr.failures++;
     return tr.failures;
 }
 
@@ -463,3 +521,84 @@ uint32_t Test_HandleRequest_NetworkConnected()
 {
     return DelegateGetterTest("network.connected");
 }
+
+// ============================================================================
+// Tests AGC_L0_098 – AGC_L0_100 — presentation.focused
+// ============================================================================
+
+// TEST_ID: AGC_L0_098
+// Handler-map getter: presentation.focused is routed and returns ERROR_NONE.
+// In L0, mAppIdInstanceIdMap is empty so GetAppInstanceId returns "" and
+// IsAppInstanceIdFocused("") is true (focusedAppInstanceId initialises to "").
+// result = "true", rc = ERROR_NONE.
+uint32_t Test_HandleRequest_PresentationFocused_Routed()
+{
+    return DelegateGetterTest("presentation.focused");
+}
+
+// TEST_ID: AGC_L0_099
+// presentation.focused result is always the literal string "true" or "false".
+// LifecycleDelegate::GetPresentationFocused never returns an error JSON — it
+// unconditionally sets result to one of the two boolean strings and returns ERROR_NONE.
+uint32_t Test_HandleRequest_PresentationFocused_ResultIsBooleanString()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "presentation.focused", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "presentation.focused returns ERROR_NONE");
+    const bool isBoolStr = (result == "true" || result == "false");
+    ExpectTrue(tr, isBoolStr, "presentation.focused result is 'true' or 'false'");
+
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_100
+// presentation.focused is case-insensitive: PRESENTATION.FOCUSED is lowered
+// internally and routes to the same handler as presentation.focused.
+uint32_t Test_HandleRequest_PresentationFocused_CaseInsensitive()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "PRESENTATION.FOCUSED", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "PRESENTATION.FOCUSED (uppercase) routes same as presentation.focused");
+
+    return tr.failures;
+}
+
+// ============================================================================
+// Tests AGC_L0_101 – AGC_L0_103 — ParentalControl handler-map getters
+// ============================================================================
+
+// TEST_ID: AGC_L0_101
+// Handler-map getter: parentalcontrol.pincontrol is routed to AppGatewayCommon.
+// In L0 the UserSettings COM interface is unavailable, so GetPinControl returns
+// ERROR_UNAVAILABLE.  DelegateGetterTest accepts ERROR_NONE/UNAVAILABLE/GENERAL.
+uint32_t Test_HandleRequest_ParentalControl_PinControl()
+{
+    return DelegateGetterTest("parentalcontrol.pincontrol");
+}
+
+// TEST_ID: AGC_L0_102
+// Handler-map getter: parentalcontrol.blocknotratedcontent is routed.
+uint32_t Test_HandleRequest_ParentalControl_BlockNotRatedContent()
+{
+    return DelegateGetterTest("parentalcontrol.blocknotratedcontent");
+}
+
+// TEST_ID: AGC_L0_103
+// Handler-map getter: parentalcontrol.viewingrestrictions is routed.
+uint32_t Test_HandleRequest_ParentalControl_ViewingRestrictions()
+{
+    return DelegateGetterTest("parentalcontrol.viewingrestrictions");
+}
+

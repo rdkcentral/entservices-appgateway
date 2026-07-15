@@ -528,6 +528,15 @@ namespace WPEFramework
                         }
                         
                         auto ret_value = HandleEvent(context, alias, eventName, origin, resultValue);
+                        if (ret_value == Core::ERROR_NONE && resultValue) {
+                            std::string hookMethod;
+                            if (mResolverPtr->HasEventHook(method, hookMethod)) {
+                                LOGINFO("PreProcessEvent: eventHook detected for method=%s hook=%s appId=%s",
+                                         method.c_str(), hookMethod.c_str(), context.appId.c_str());
+                                Core::IWorkerPool::Instance().Submit(
+                                    EventHookJob::Create(this, context, hookMethod));
+                            }
+                        }
                         JsonObject returnResult;
                         returnResult["listening"] = resultValue;
                         returnResult["event"] = method;
@@ -542,6 +551,17 @@ namespace WPEFramework
                     LOGERR("Event method '%s' called without parameters", method.c_str());
                     ErrorUtils::CustomBadRequest("Event methods require parameters", resolution);
                     return Core::ERROR_BAD_REQUEST;
+            }
+        }
+
+        void AppGatewayImplementation::EventHookJob::Dispatch()
+        {
+            LOGINFO("EventHookJob: triggering hook method=%s for appId=%s",
+                     mHookMethod.c_str(), mContext.appId.c_str());
+            std::string resolution;
+            const auto rc = mParent.FetchResolvedData(mContext, mHookMethod, "{}", "", resolution);
+            if (rc != Core::ERROR_NONE) {
+                LOGERR("EventHookJob: hook method=%s failed rc=%u", mHookMethod.c_str(), rc);
             }
         }
 

@@ -62,6 +62,7 @@ class AppDelegate {
                     ttl = 0;
                     sharedStorage->SetValue(Exchange::ISharedStorage::DEVICE, appId, DEVICE_UID_KEY, result, ttl, successResult);
                     if (successResult.success) {
+                        result = "\"" + result + "\""; // Return the new UID as a JSON string value
                         return Core::ERROR_NONE;
                     } else {
                         LOGERR("Failed to set new Device UID in SharedStorage");
@@ -102,7 +103,7 @@ class AppDelegate {
                 JsonObject response;
                 response["ifa"] = ifa;
                 response["ifa_type"] = ADVERTISING_TYPE;
-                response["limit"] = ADVERTISING_ID_LIMIT;
+                response["lmt"] = ADVERTISING_ID_LIMIT;
                 response.ToString(result);
                 return Core::ERROR_NONE;
             } else {
@@ -125,7 +126,7 @@ class AppDelegate {
             
             ErrorUtils::CustomInternal("Not Supported", result);
             return Core::ERROR_UNAVAILABLE;
-        } 
+        }
 
         Exchange::ISharedStorage* GetSharedStorage() {
             std::lock_guard<std::mutex> lock(mSharedStorageMutex);

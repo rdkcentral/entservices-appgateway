@@ -102,12 +102,24 @@ namespace WPEFramework
             // Initialize WebSocket server
             WebSocketConnectionManager::Config config(APPGATEWAY_SOCKET_ADDRESS);
             std::string configLine = mService->ConfigLine();
-            Core::OptionalType<Core::JSON::Error> error;
-            if (config.FromString(configLine, error) == false)
-            {
-                LOGERR("Failed to parse config line, error: '%s', config line: '%s'.",
-                       (error.IsSet() ? error.Value().Message().c_str() : "Unknown"),
-                       configLine.c_str());
+            
+            // Only attempt to parse if configLine is a valid JSON object with content.
+            // Skip if empty, just "{}", or doesn't start with '{' (not a JSON object).
+            // Find first non-whitespace character to check if it's a JSON object.
+            size_t firstNonSpace = configLine.find_first_not_of(" \t\n\r");
+            bool isJsonObject = (firstNonSpace != std::string::npos && configLine[firstNonSpace] == '{');
+            bool hasContent = (configLine.length() > 2 && configLine != "{}");
+
+            if (isJsonObject && hasContent) {
+                Core::OptionalType<Core::JSON::Error> error;
+                if (config.FromString(configLine, error) == false)
+                {
+                    LOGERR("Failed to parse config line, error: '%s', config line: '%s'.",
+                           (error.IsSet() ? error.Value().Message().c_str() : "Unknown"),
+                           configLine.c_str());
+                }
+            } else if (!configLine.empty() && configLine != "{}") {
+                LOGWARN("Skipping config line parsing (expected JSON object). config line: '%s'.", configLine.c_str());
             }
 
             LOGINFO("Connector: %s", config.Connector.Value().c_str());
@@ -321,10 +333,11 @@ namespace WPEFramework
                     // Response will be sent asynchronously, so we will track success/failure when sending the response back to client
                 }
             } else {
-                LOGERR("No App ID found for connection %d. Terminate connection", connectionId);
+                // No App ID means the disconnect handler already ran and removed it from
+                // the registry. The connection is already gone; no explicit close needed.
+                LOGWARN("No App ID found for connection %d, connection already disconnected", connectionId);
                 // Track failed call due to missing appId
                 AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
-                mWsManager.Close(connectionId);
             }
         }
 

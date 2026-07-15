@@ -312,15 +312,24 @@
         },
         "lifecycle2.onstatechanged": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "Lifecycle2.onStateChanged"
+            "event": "Lifecycle2.onStateChanged",
+            "eventHook": "lifecycle.ready"
         },
-        "discovery.onnavigateto": {
+        "actions.onintent": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "Discovery.onNavigateTo"
+            "event": "Actions.onIntent"
+        },
+        "presentation.focused": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
         },
         "presentation.onfocusedchanged": {
             "alias": "org.rdk.AppGatewayCommon",
             "event": "Presentation.onFocusedChanged"
+        },
+        "secondscreen.onlaunchrequest": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "secondscreen.onLaunchRequest"
         },
         "accessibility.audioDescription": {
             "alias": "org.rdk.AppGatewayCommon",
@@ -332,6 +341,14 @@
         },
         "advertising.advertisingid": {
             "alias":"org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "actions.start": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "actions.intent": {
+            "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
         },
         "device.uid": {
@@ -424,7 +441,7 @@
         },
         "metrics.appInfo": {
             "alias":"org.rdk.AppGatewayCommon",
-            "event": "Metrics.onEvent"
+            "useComRpc": true
         },
         "network.connected": {
             "alias":"org.rdk.AppGatewayCommon",
@@ -516,8 +533,63 @@
         "localization.onCountryChanged": {
             "alias": "org.rdk.AppGatewayCommon",
             "event": "Localization.onCountryChanged"
-         }
+        },
+        "device.deviceClass": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.chipsetId": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.uptime": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.timeInActiveState": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "stats.memoryUsage": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "display.edid": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "display.size": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "display.maxResolution": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "display.colorimetry": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "display.videoResolutions": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.sku": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "parentalcontrol.pincontrol": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "parentalcontrol.blocknotratedcontent": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "parentalcontrol.viewingrestrictions": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        }
     }
 }
-
 
