@@ -44,7 +44,7 @@ namespace {
 // Removes /etc/rdkappmanagers whether it is a file or a directory.
 // Uses unlink/rmdir directly instead of stat() + branch to avoid
 // a TOCTOU (time-of-check time-of-use) filesystem race condition.
-inline void RemoveAi2managers()
+inline void RemoveRdkAppManagers()
 {
     const char* path = "/etc/rdkappmanagers";
     // unlink() removes files; fails harmlessly with EISDIR/EPERM on directories.
@@ -120,7 +120,7 @@ protected:
         // LifecycleDelegate only registers notifications when /etc/rdkappmanagers exists
         // (ConfigUtils::useAppManagers() gate). Ensure it exists as a regular file.
         // Remove first in case a prior run or CI step left it as a directory.
-        RemoveAi2managers();
+        RemoveRdkAppManagers();
         std::FILE* f = std::fopen("/etc/rdkappmanagers", "w");
         if (nullptr == f) {
             GTEST_SKIP() << "Skipping LifecycleDelegate tests: unable to create /etc/rdkappmanagers (insufficient permissions or read-only filesystem)";
@@ -181,7 +181,7 @@ protected:
             delete e;
         }
         heapEmitters.clear();
-        RemoveAi2managers();
+        RemoveRdkAppManagers();
     }
 };
 
@@ -556,7 +556,7 @@ protected:
     static void SetUpTestSuite()
     {
         // Ensure /etc/rdkappmanagers does NOT exist (handles both file and directory)
-        RemoveAi2managers();
+        RemoveRdkAppManagers();
 
         sService = new NiceMock<ServiceMock>();
         sPlugin = new Core::Sink<AppGatewayCommon>();

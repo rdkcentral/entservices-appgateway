@@ -548,11 +548,13 @@ jobs:
           # returns true, which checks for /etc/rdkappmanagers. The test SetUp creates it too,
           # but pre-creating it here avoids permission issues on some CI environments.
           # Must be a file (not a directory) because the test's SetUp uses fopen().
+          sudo rm -f /etc/rdkappmanagers
           sudo touch /etc/rdkappmanagers
           # Ensure the file is writable by the non-root test runner so that
           # fopen("/etc/rdkappmanagers", "w") in the lifecycle L1 test SetUp()
           # does not fail and cause GTEST_SKIP.
           sudo chmod 0666 /etc/rdkappmanagers
+          test -f /etc/rdkappmanagers || (echo "Failed to create /etc/rdkappmanagers as regular file" && exit 1)
           ls -l /etc/rdkappmanagers || true
 
       - name: Run unit tests without valgrind (optionally under gdb)
