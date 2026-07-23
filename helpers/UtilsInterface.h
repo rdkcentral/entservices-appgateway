@@ -40,24 +40,24 @@ public:
 
         if (nullptr == shell)
         {
-            LOGERR("ScopedInterface: shell is nullptr (callsign=%s)", safeCallsign);
+            LOGERR("shell is nullptr (callsign=%s)", safeCallsign);
             return;
         }
 
         if (nullptr == callsign)
         {
-            LOGERR("ScopedInterface: callsign is nullptr");
+            LOGERR("callsign is nullptr");
             return;
         }
 
         mPtr = shell->QueryInterfaceByCallsign<T>(callsign);
         if (nullptr == mPtr)
         {
-            LOGERR("ScopedInterface: QueryInterfaceByCallsign failed (callsign=%s)", safeCallsign);
+            LOGERR("QueryInterfaceByCallsign failed (callsign=%s)", safeCallsign);
             return;
         }
 
-        LOGTRACE("ScopedInterface: interface acquired (callsign=%s)", safeCallsign);
+        LOGTRACE("interface acquired (callsign=%s)", safeCallsign);
     }
 
     ~ScopedInterface()
