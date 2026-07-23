@@ -26,7 +26,7 @@ permissions:
 
 env:
   BUILD_TYPE: Debug
-  THUNDER_REF: "R4.4.1"
+  THUNDER_REF: "R4.4.6"
   INTERFACES_REF: "develop"
   NETWORKMANAGER_REF: "cea0da05b03de770e4ce967f0446f28885fc6219"
   AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME }}
@@ -158,7 +158,7 @@ jobs:
         with:
           repository: rdkcentral/ThunderTools
           path: ThunderTools
-          ref: R4.4.3
+          ref: R4.4.6
 
       - name: Checkout googletest
         if: steps.cache.outputs.cache-hit != 'true'

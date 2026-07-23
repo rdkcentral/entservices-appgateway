@@ -21,7 +21,7 @@ permissions:
 
 env:
   BUILD_TYPE: Debug
-  THUNDER_REF: "R4.4.1"
+  THUNDER_REF: "R4.4.6"
   INTERFACES_REF: "develop"
   ENABLE_GDB: ${{ (inputs.enable_gdb && '1') || '0' }}
   # L0 test targets to build and run -- To add a new plugin, append its test binary name here and add its target in Tests/L0Tests/CMakeLists.txt.
@@ -143,7 +143,7 @@ jobs:
         with:
           repository: rdkcentral/ThunderTools
           path: ThunderTools
-          ref: R4.4.3
+          ref: R4.4.6
 
       - name: Checkout entservices-apis
         if: steps.cache.outputs.cache-hit != 'true' || steps.toolchain.outputs.need_rebuild == '1'
