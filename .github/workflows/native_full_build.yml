@@ -1,6 +1,7 @@
 name: Build Component in Native Environment
 
-permissions: {}
+permissions:
+  contents: read
 
 on:
   push:
