@@ -2077,7 +2077,7 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_ProcessComRpcRequest_Handler
 
     EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber())
-        .WillRepeatedly(Return(static_cast<void*>(&handler)));
+        .WillRepeatedly(Return(static_cast<void*>(static_cast<Exchange::IAppGatewayRequestHandler*>(&handler))));
 
     const std::string cfg = R"({
         "resolutions": {
@@ -2115,7 +2115,7 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_ProcessComRpcRequest_Handler
 
     EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(::testing::AnyNumber())
-        .WillRepeatedly(Return(static_cast<void*>(&handler)));
+        .WillRepeatedly(Return(static_cast<void*>(static_cast<Exchange::IAppGatewayRequestHandler*>(&handler))));
 
     const std::string cfg = R"({
         "resolutions": {
@@ -2154,7 +2154,7 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_Permission
     ON_CALL(service, QueryInterfaceByCallsign(_, _)).WillByDefault(Return(nullptr));
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(::testing::AnyNumber())
-        .WillRepeatedly(Return(static_cast<void*>(&auth)));
+        .WillRepeatedly(Return(static_cast<void*>(static_cast<Exchange::IAppGatewayAuthenticator*>(&auth))));
 
     const std::string cfg = R"({
         "resolutions": {
@@ -2192,7 +2192,7 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_Permission
     ON_CALL(service, QueryInterfaceByCallsign(_, _)).WillByDefault(Return(nullptr));
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, StrEq(GATEWAY_AUTHENTICATOR_CALLSIGN)))
         .Times(::testing::AnyNumber())
-        .WillRepeatedly(Return(static_cast<void*>(&auth)));
+        .WillRepeatedly(Return(static_cast<void*>(static_cast<Exchange::IAppGatewayAuthenticator*>(&auth))));
 
     const std::string cfg = R"({
         "resolutions": {
