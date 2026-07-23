@@ -189,10 +189,7 @@ namespace WPEFramework
                 mAppGatewayResponder = nullptr;
             }
 
-            if (nullptr != mAuthenticator)
-            {
-                ReleaseCachedInterface(mAuthenticatorLock, mAuthenticator);
-            }
+            ReleaseCachedInterface(mAuthenticatorLock, mAuthenticator);
             
 
             // Shared pointer will automatically clean up
