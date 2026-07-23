@@ -429,6 +429,12 @@ namespace WPEFramework
                         ErrorUtils::NotPermitted(resolution);
                         return Core::ERROR_GENERAL;
                     }
+                } else {
+                    LOGERR("Authenticator unavailable for permission group '%s'; denying request for appId '%s'", permissionGroup.c_str(), context.appId.c_str());
+                    // Track external service error - Permission service unavailable
+                    AppGatewayTelemetry::getInstance().RecordExternalServiceErrorInternal(context, AGW_SERVICE_PERMISSION);
+                    ErrorUtils::NotPermitted(resolution);
+                    return Core::ERROR_GENERAL;
                 }
             }
             LOGTRACE("Resolved method '%s' to alias '%s'", method.c_str(), alias.c_str());            
