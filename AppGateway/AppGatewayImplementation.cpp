@@ -156,8 +156,7 @@ namespace WPEFramework
             mResolverPtr(nullptr), 
             mAppNotifications(nullptr),
             mAppGatewayResponder(nullptr),
-            mInternalGatewayResponder(nullptr),
-            mAuthenticator(nullptr)
+            mInternalGatewayResponder(nullptr)
         {
             LOGINFO("AppGatewayImplementation constructor");
         }
@@ -188,9 +187,6 @@ namespace WPEFramework
                 mAppGatewayResponder->Release();
                 mAppGatewayResponder = nullptr;
             }
-
-            ReleaseCachedInterface(mAuthenticatorLock, mAuthenticator);
-            
 
             // Shared pointer will automatically clean up
             mResolverPtr.reset();
@@ -406,10 +402,8 @@ namespace WPEFramework
             std::string permissionGroup;
             if (mResolverPtr->HasPermissionGroup(method, permissionGroup)) {
                 LOGTRACE("Method '%s' requires permission group '%s'", method.c_str(), permissionGroup.c_str());
-                ScopedCachedInterface<Exchange::IAppGatewayAuthenticator> authenticator(
+                ScopedInterface<Exchange::IAppGatewayAuthenticator> authenticator(
                     mService,
-                    mAuthenticatorLock,
-                    mAuthenticator,
                     GATEWAY_AUTHENTICATOR_CALLSIGN);
 
                 if (authenticator) {

@@ -28,39 +28,31 @@ namespace WPEFramework {
 namespace Plugin {
 
 template<typename T>
-class ScopedCachedInterface
+class ScopedInterface
 {
 public:
-    ScopedCachedInterface() = delete;
+    ScopedInterface() = delete;
 
-    ScopedCachedInterface(PluginHost::IShell* shell, Core::CriticalSection& lock, T*& cached, const char* callsign)
-        : mCached(cached)
-        , mPtr(nullptr)
+    ScopedInterface(PluginHost::IShell* shell, const char* callsign)
+        : mPtr(nullptr)
     {
         if (nullptr == shell)
         {
-            LOGERR("ScopedCachedInterface: shell is nullptr (callsign=%s)", callsign);
+            LOGERR("ScopedInterface: shell is nullptr (callsign=%s)", callsign);
             return;
         }
 
-        Core::SafeSyncType<Core::CriticalSection> sync(lock);
-        if (nullptr == mCached)
+        mPtr = shell->QueryInterfaceByCallsign<T>(callsign);
+        if (nullptr == mPtr)
         {
-            mCached = shell->QueryInterfaceByCallsign<T>(callsign);
-            if (nullptr == mCached)
-            {
-                LOGERR("ScopedCachedInterface: QueryInterfaceByCallsign failed (callsign=%s)", callsign);
-                return;
-            }
-
-            LOGINFO("ScopedCachedInterface: interface acquired (callsign=%s)", callsign);
+            LOGERR("ScopedInterface: QueryInterfaceByCallsign failed (callsign=%s)", callsign);
+            return;
         }
 
-        mCached->AddRef();
-        mPtr = mCached;
+        LOGINFO("ScopedInterface: interface acquired (callsign=%s)", callsign);
     }
 
-    ~ScopedCachedInterface()
+    ~ScopedInterface()
     {
         if (nullptr != mPtr)
         {
@@ -93,24 +85,12 @@ public:
         return nullptr != mPtr;
     }
 
-    ScopedCachedInterface(const ScopedCachedInterface&) = delete;
-    ScopedCachedInterface& operator=(const ScopedCachedInterface&) = delete;
+    ScopedInterface(const ScopedInterface&) = delete;
+    ScopedInterface& operator=(const ScopedInterface&) = delete;
 
 private:
-    T*& mCached;
     T* mPtr;
 };
-
-template<typename T>
-static void ReleaseCachedInterface(Core::CriticalSection& lock, T*& cached)
-{
-    Core::SafeSyncType<Core::CriticalSection> sync(lock);
-    if (nullptr != cached)
-    {
-        cached->Release();
-        cached = nullptr;
-    }
-}
 
 } // namespace Plugin
 } // namespace WPEFramework

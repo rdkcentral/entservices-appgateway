@@ -160,11 +160,9 @@ namespace Plugin {
         mutable Core::CriticalSection mAppNotificationsLock;
         mutable Core::CriticalSection mAppGatewayResponderLock;
         mutable Core::CriticalSection mInternalGatewayResponderLock;
-        mutable Core::CriticalSection mAuthenticatorLock;
         Exchange::IAppNotifications *mAppNotifications; // Shared pointer to AppNotifications
         Exchange::IAppGatewayResponder *mAppGatewayResponder;
         Exchange::IAppGatewayResponder *mInternalGatewayResponder; // Shared pointer to InternalGatewayResponder
-        Exchange::IAppGatewayAuthenticator *mAuthenticator; // Shared pointer to Authenticator
         uint32_t InitializeResolver();
         uint32_t InitializeWebsocket();
         uint32_t ProcessComRpcRequest(const Context &context, const string& alias, const string& method, const string& params, const string& origin, string &resolution);
