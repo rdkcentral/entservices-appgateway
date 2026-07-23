@@ -43,6 +43,8 @@ jobs:
           npm install -g auto-changelog
 
       - name: Clone the project and start release
+        env:
+          PR_DESC: ${{ github.event.pull_request.body }}
         run: |
           set -e
           git clone https://x-access-token:${{ secrets.RDKCM_RDKE }}@github.com/${{ github.repository }} project
@@ -62,7 +64,6 @@ jobs:
 
           echo "git config completed"
           # Extract version from PR description
-          PR_DESC="${{ github.event.pull_request.body }}"
           # Get top tag from CHANGELOG.md
           TOP_TAG=$(grep -m 1 -oP '^#### \[\K[^\]]+' CHANGELOG.md)
           if [[ -z "$TOP_TAG" ]]; then

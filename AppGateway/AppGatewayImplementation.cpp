@@ -25,6 +25,7 @@
 #include "UtilsLogging.h"
 #include "ContextUtils.h"
 #include "ObjectUtils.h"
+#include "UtilsInterface.h"
 #include <fstream>
 #include <streambuf>
 #include "UtilsCallsign.h"
@@ -190,8 +191,7 @@ namespace WPEFramework
 
             if (nullptr != mAuthenticator)
             {
-                mAuthenticator->Release();
-                mAuthenticator = nullptr;
+                ReleaseCachedInterface(mAuthenticatorLock, mAuthenticator);
             }
             
 
@@ -202,16 +202,11 @@ namespace WPEFramework
         uint32_t AppGatewayImplementation::Configure(PluginHost::IShell *shell)
         {
             LOGINFO("Configuring AppGateway");
-            uint32_t result = Core::ERROR_NONE;
             ASSERT(shell != nullptr);
             mService = shell;
             mService->AddRef();
 
-            result = InitializeResolver();
-            if (Core::ERROR_NONE != result) {
-                return result;
-            }
-            return result;
+            return InitializeResolver();
         }
         
         uint32_t AppGatewayImplementation::InitializeResolver() {
@@ -414,9 +409,15 @@ namespace WPEFramework
             std::string permissionGroup;
             if (mResolverPtr->HasPermissionGroup(method, permissionGroup)) {
                 LOGTRACE("Method '%s' requires permission group '%s'", method.c_str(), permissionGroup.c_str());
-                if (nullptr != GetAppGatewayAuthenticatorInterface()) {
+                ScopedCachedInterface<Exchange::IAppGatewayAuthenticator> authenticator(
+                    mService,
+                    mAuthenticatorLock,
+                    mAuthenticator,
+                    GATEWAY_AUTHENTICATOR_CALLSIGN);
+
+                if (authenticator) {
                     bool allowed = false;
-                    if (Core::ERROR_NONE != mAuthenticator->CheckPermissionGroup(context.appId, permissionGroup, allowed)) {
+                    if (Core::ERROR_NONE != authenticator->CheckPermissionGroup(context.appId, permissionGroup, allowed)) {
                         LOGERR("Failed to check permission group '%s' for appId '%s'", permissionGroup.c_str(), context.appId.c_str());
                         // Track external service error - Permission service failure
                         AppGatewayTelemetry::getInstance().RecordExternalServiceErrorInternal(context, AGW_SERVICE_PERMISSION);
@@ -595,20 +596,6 @@ namespace WPEFramework
                 }
             }
             mInternalGatewayResponder->Respond(context, payload);
-        }
-
-        Exchange::IAppGatewayAuthenticator* AppGatewayImplementation::GetAppGatewayAuthenticatorInterface() {
-            Core::SafeSyncType<Core::CriticalSection> lock(mAuthenticatorLock);
-            if (nullptr == mAuthenticator) {
-                mAuthenticator = mService->QueryInterfaceByCallsign<Exchange::IAppGatewayAuthenticator>(GATEWAY_AUTHENTICATOR_CALLSIGN);
-                if (nullptr == mAuthenticator) {
-                    LOGERR("AppGateway Authenticator not available");
-                    return nullptr;
-                } else {
-                    LOGINFO("AppGateway Authenticator interface acquired");
-                }
-            }
-            return mAuthenticator;
         }
 
         // Helper: read a string key from a JSON file; returns empty if any step fails.
