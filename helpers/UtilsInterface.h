@@ -36,20 +36,28 @@ public:
     ScopedInterface(PluginHost::IShell* shell, const char* callsign)
         : mPtr(nullptr)
     {
+        const char* safeCallsign = (nullptr != callsign) ? callsign : "<null>";
+
         if (nullptr == shell)
         {
-            LOGERR("ScopedInterface: shell is nullptr (callsign=%s)", callsign);
+            LOGERR("ScopedInterface: shell is nullptr (callsign=%s)", safeCallsign);
+            return;
+        }
+
+        if (nullptr == callsign)
+        {
+            LOGERR("ScopedInterface: callsign is nullptr");
             return;
         }
 
         mPtr = shell->QueryInterfaceByCallsign<T>(callsign);
         if (nullptr == mPtr)
         {
-            LOGERR("ScopedInterface: QueryInterfaceByCallsign failed (callsign=%s)", callsign);
+            LOGERR("ScopedInterface: QueryInterfaceByCallsign failed (callsign=%s)", safeCallsign);
             return;
         }
 
-        LOGINFO("ScopedInterface: interface acquired (callsign=%s)", callsign);
+        LOGTRACE("ScopedInterface: interface acquired (callsign=%s)", safeCallsign);
     }
 
     ~ScopedInterface()
