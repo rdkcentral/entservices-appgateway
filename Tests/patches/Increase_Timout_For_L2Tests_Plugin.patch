@@ -1,0 +1,17 @@
+From: smanes0213 <Sankalp_Maneshwar@comcast.com>
+Date: Feb 19, 2026
+Source: Comcast
+
+diff --git a/Source/com/Administrator.h b/Source/com/Administrator.h
+index c04df125..03bc8680 100644
+--- a/Source/com/Administrator.h
++++ b/Source/com/Administrator.h
+@@ -36,7 +36,7 @@ namespace RPC {
+ #ifdef __DEBUG__
+     enum { CommunicationTimeOut = Core::infinite }; // Time in ms. Forever
+ #else
+-    enum { CommunicationTimeOut = 3000 }; // Time in ms. 3 Seconds
++    enum { CommunicationTimeOut = 900000 }; // Time in ms. 15 Minutes
+ #endif
+     enum { CommunicationBufferSize = 8120 }; // 8K :-)
+ 
