@@ -57,10 +57,10 @@ public:
     MOCK_METHOD(WPEFramework::Core::hresult, SetFocus, (const string& client), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, SetVisible, (const std::string& client, bool visible), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, AddKeyIntercept, (const string& intercept), (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, AddKeyIntercepts, (const string& intercepts));
-    MOCK_METHOD(WPEFramework::Core::hresult, AddKeyIntercepts, (const string& clientId, const string& intercepts));
-    MOCK_METHOD(WPEFramework::Core::hresult, RemoveKeyIntercept, (const string& intercept));
-    MOCK_METHOD(WPEFramework::Core::hresult, RemoveKeyIntercept, (const string& clientId, const uint32_t keyCode, const string& modifiers));
+    MOCK_METHOD(WPEFramework::Core::hresult, AddKeyIntercepts, (const string& intercepts), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, AddKeyIntercepts, (const string& clientId, const string& intercepts), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, RemoveKeyIntercept, (const string& intercept), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, RemoveKeyIntercept, (const string& clientId, const uint32_t keyCode, const string& modifiers), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, AddKeyListener, (const string& keyListeners), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, RemoveKeyListener, (const string& keyListeners), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, InjectKey, (uint32_t keyCode, const string& modifiers), (override));
