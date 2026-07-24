@@ -55,7 +55,7 @@ public:
         const uint32_t ownerId,
         const uint32_t groupId,
         const bool topmost,
-        const bool focus),
+        const bool focus,
         const string& capabilities));
     MOCK_METHOD(WPEFramework::Core::hresult, GetApps, (string& appsIds), (const, override));
     MOCK_METHOD(WPEFramework::Core::hresult, SetFocus, (const string& client), (override));
