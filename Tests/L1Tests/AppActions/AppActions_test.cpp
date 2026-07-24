@@ -95,7 +95,7 @@ public:
                 (const string& initiator, const string& intent, const string& handlerAppId),
                 (override));
 
-    MOCK_METHOD(void, AddRef, (), (const, override));
+    MOCK_METHOD(uint32_t, AddRef, (), (const, override));
     MOCK_METHOD(uint32_t, Release, (), (const, override));
     MOCK_METHOD(void*, QueryInterface, (const uint32_t interfaceNumber), (override));
 };
@@ -117,7 +117,7 @@ public:
     explicit AATestRemoteConnection(uint32_t id)
         : mId(id), mRefCount(1), mTerminateCalled(false) {}
 
-    void AddRef() const override { ++mRefCount; }
+    uint32_t AddRef() const override { return ++mRefCount; }
     uint32_t Release() const override {
         uint32_t r = --mRefCount;
         if (r == 0) delete this;

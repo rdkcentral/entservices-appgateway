@@ -62,9 +62,9 @@ namespace L0Test {
         ~ServiceMock() override = default;
 
         // Core::IUnknown
-        void AddRef() const override
+        uint32_t AddRef() const override
         {
-            _refCount.fetch_add(1, std::memory_order_relaxed);
+            return _refCount.fetch_add(1, std::memory_order_relaxed);
         }
 
         uint32_t Release() const override

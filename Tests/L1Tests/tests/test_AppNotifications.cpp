@@ -95,7 +95,7 @@ public:
     ~NotificationHandler() override = default;
 
     // IUnknown ref-counting (real, non-mock)
-    void AddRef() const override { ++m_refCount; }
+    uint32_t AddRef() const override { return ++m_refCount; }
     uint32_t Release() const override
     {
         const uint32_t result = --m_refCount;
@@ -3273,7 +3273,7 @@ public:
         , mTerminateCalled(false)
     {}
 
-    void AddRef() const override { ++mRefCount; }
+    uint32_t AddRef() const override { return ++mRefCount; }
     uint32_t Release() const override {
         uint32_t result = --mRefCount;
         if (0 == result) delete this;
