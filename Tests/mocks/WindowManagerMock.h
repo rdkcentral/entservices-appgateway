@@ -27,8 +27,12 @@ using ::WPEFramework::Exchange::IRDKWindowManager;
 /**
  * WindowManagerMock — aligned with entservices-testframework naming.
  *
- * Local mock aligned to the IRDKWindowManager interface currently provided
- * by entservices-apis in this workspace.
+ * The test framework's WindowManagerMock cannot be used directly because
+ * our interface version (RDKEMW-13978) has different signatures for
+ * AddKeyIntercepts (2 params vs 1) and RemoveKeyIntercept (3 params vs 1),
+ * and adds GetVisibility and GetScreenshot which are absent from the
+ * framework mock. This version keeps the framework class name and style
+ * while providing the correct signatures for our interfaces.
  */
 class WindowManagerMock : public IRDKWindowManager {
 public:
@@ -42,23 +46,24 @@ public:
     MOCK_METHOD(WPEFramework::Core::hresult, CreateDisplay, (const string& displayParams));
     MOCK_METHOD(WPEFramework::Core::hresult, CreateDisplay,
         (const string& clientId,
-         const string& displayName,
-         const uint32_t displayWidth,
-         const uint32_t displayHeight,
-         const bool virtualDisplay,
-         const uint32_t virtualWidth,
-         const uint32_t virtualHeight,
-         const uint32_t ownerId,
-         const uint32_t groupId,
-         const bool topmost,
-         const bool focus,
-         const string& capabilities));
+        const string& displayName,
+        const uint32_t displayWidth,
+        const uint32_t displayHeight,
+        const bool virtualDisplay,
+        const uint32_t virtualWidth,
+        const uint32_t virtualHeight,
+        const uint32_t ownerId,
+        const uint32_t groupId,
+        const bool topmost,
+        const bool focus),
+        const string& capabilities));
     MOCK_METHOD(WPEFramework::Core::hresult, GetApps, (string& appsIds), (const, override));
     MOCK_METHOD(WPEFramework::Core::hresult, SetFocus, (const string& client), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, SetVisible, (const std::string& client, bool visible), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetVisibility, (const std::string& client, bool& visible), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, AddKeyIntercept, (const string& intercept), (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, AddKeyIntercepts, (const string& intercepts), (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, RemoveKeyIntercept, (const string& intercept), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, AddKeyIntercepts, (const string& clientId, const string& intercepts), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, RemoveKeyIntercept, (const string& clientId, const uint32_t keyCode, const string& modifiers), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, AddKeyListener, (const string& keyListeners), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, RemoveKeyListener, (const string& keyListeners), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, InjectKey, (uint32_t keyCode, const string& modifiers), (override));
@@ -73,6 +78,12 @@ public:
     MOCK_METHOD(WPEFramework::Core::hresult, KeyRepeatConfig, (const string& input, const string& keyConfig), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, RenderReady, (const string& client, bool& status), (const, override));
     MOCK_METHOD(WPEFramework::Core::hresult, EnableDisplayRender, (const string& client, bool enable), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetLastKeyInfo, (uint32_t& keyCode, uint32_t& modifiers, uint64_t& timestampInSeconds), (const, override));
+    MOCK_METHOD(WPEFramework::Core::hresult, SetZOrder, (const string& appInstanceId, const int32_t zOrder), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetZOrder, (const string& appInstanceId, int32_t& zOrder), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, StartVncServer, (), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, StopVncServer, (), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetScreenshot, (), (override));
 
     MOCK_METHOD(void, AddRef, (), (const, override));
     MOCK_METHOD(uint32_t, Release, (), (const, override));
