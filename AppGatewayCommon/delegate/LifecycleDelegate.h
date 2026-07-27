@@ -917,6 +917,10 @@ class LifecycleDelegate : public BaseEventDelegate
 
         // get appId from appInstanceId
         string appId = mAppIdInstanceIdMap.GetAppId(appInstanceId);
+        if (appId.empty()) {
+            LOGWARN("HandleLifecycleUpdate: No appId found for appInstanceId=%s, skipping dispatch", appInstanceId.c_str());
+            return;
+        }
 
         Dispatch("Lifecycle2.onStateChanged", mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId), appId);
 
