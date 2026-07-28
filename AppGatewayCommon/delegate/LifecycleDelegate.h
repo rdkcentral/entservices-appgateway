@@ -246,17 +246,15 @@ class LifecycleDelegate : public BaseEventDelegate
 
     Core::hresult SetIntent(const Exchange::GatewayContext& context, const string& payload /*@opaque */, string& result /*@out @opaque */) {
         const string& navigationIntent = payload;
-        if (navigationIntent.empty()) {
+        if (navigationIntent.empty() || navigationIntent == "null") {
             result = "null";
             return Core::ERROR_NONE;
         }
         string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(context.appId);
         if (appInstanceId.empty()) {
-            // No appId→appInstanceId mapping established yet.
-            // On the AppManagers path, OnAppLifecycleStateChanged(INITIALIZING) will
-            // later overwrite this with the real appInstanceId and migrate the intent.
-            // On the LifecycleManagement path there is no separate appInstanceId, so
-            // appId serves as its own appInstanceId (identity mapping).
+             // On the LifecycleManagement path there is no separate appInstanceId, so appId is used as appInstanceId (identity mapping).
+             // On the AppManagers path, OnAppLifecycleStateChanged(INITIALIZING) may later overwrite this with the real appInstanceId,
+             // and any identity-mapped intent is discarded in favor of the INITIALIZING event's navigationIntent.
             LOGINFO("SetIntent: bootstrapping identity mapping for appId=%s", context.appId.c_str());
             mAppIdInstanceIdMap.AddAppInstanceId(context.appId, context.appId);
             appInstanceId = context.appId;
@@ -435,7 +433,7 @@ class LifecycleDelegate : public BaseEventDelegate
             }
 
             // if new Lifecycle state is INITIALIZING then add to app instance map
-            if (newLifecycleState == Exchange::ILifecycleManager::INITIALIZING) {
+            if (Exchange::ILifecycleManager::INITIALIZING == newLifecycleState) {
                 mParent.mAppIdInstanceIdMap.AddAppInstanceId(appId, appInstanceId);
                 // also add to lifecycle state registry
                 mParent.mLifecycleStateRegistry.AddLifecycleState(appInstanceId, oldLifecycleState, newLifecycleState);
