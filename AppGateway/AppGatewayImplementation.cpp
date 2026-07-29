@@ -208,9 +208,6 @@ namespace WPEFramework
             mService->AddRef();
 
             result = InitializeResolver();
-            if (Core::ERROR_NONE != result) {
-                return result;
-            }
             return result;
         }
         
@@ -658,4 +655,3 @@ namespace WPEFramework
 
     } // namespace Plugin
 } // namespace WPEFramework
-
