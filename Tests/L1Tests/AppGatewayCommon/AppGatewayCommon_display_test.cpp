@@ -102,7 +102,7 @@ public:
     explicit MockConnectionProperties() : _refCount(1) {}
     virtual ~MockConnectionProperties() = default;
 
-    void AddRef() const override { _refCount.fetch_add(1, std::memory_order_relaxed); }
+    uint32_t AddRef() const override { return _refCount.fetch_add(1, std::memory_order_relaxed); }
     uint32_t Release() const override
     {
         const uint32_t r = _refCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
@@ -145,7 +145,7 @@ public:
         : _values(std::move(values)), _pos(0), _refCount(1) {}
     virtual ~MockColorimetryIterator() = default;
 
-    void AddRef() const override { _refCount.fetch_add(1, std::memory_order_relaxed); }
+    uint32_t AddRef() const override { return _refCount.fetch_add(1, std::memory_order_relaxed); }
     uint32_t Release() const override
     {
         const uint32_t r = _refCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
@@ -195,7 +195,7 @@ public:
     explicit MockDisplayProperties() : _refCount(1) {}
     virtual ~MockDisplayProperties() = default;
 
-    void AddRef() const override { _refCount.fetch_add(1, std::memory_order_relaxed); }
+    uint32_t AddRef() const override { return _refCount.fetch_add(1, std::memory_order_relaxed); }
     uint32_t Release() const override
     {
         const uint32_t r = _refCount.fetch_sub(1, std::memory_order_acq_rel) - 1;

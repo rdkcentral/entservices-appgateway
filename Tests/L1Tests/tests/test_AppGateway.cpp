@@ -88,25 +88,25 @@ static WorkerPoolGuard gWorkerPool;
 
 class TestAppGateway final : public AppGateway {
 public:
-    void AddRef() const override {}
+    uint32_t AddRef() const override { return 0; }
     uint32_t Release() const override { return Core::ERROR_NONE; }
 };
 
 class TestAppGatewayTelemetry final : public AppGatewayTelemetry {
 public:
-    void AddRef() const override {}
+    uint32_t AddRef() const override { return 0; }
     uint32_t Release() const override { return Core::ERROR_NONE; }
 };
 
 class TestAppGatewayImplementation final : public AppGatewayImplementation {
 public:
-    void AddRef() const override {}
+    uint32_t AddRef() const override { return 0; }
     uint32_t Release() const override { return Core::ERROR_NONE; }
 };
 
 class TestAppGatewayResponderImplementation final : public AppGatewayResponderImplementation {
 public:
-    void AddRef() const override {}
+    uint32_t AddRef() const override { return 0; }
     uint32_t Release() const override { return Core::ERROR_NONE; }
 };
 
@@ -125,7 +125,7 @@ public:
     {
     }
 
-    void AddRef() const override {}
+    uint32_t AddRef() const override { return 0; }
     uint32_t Release() const override { return Core::ERROR_NONE; }
 
     void OnAppConnectionChanged(const string& appId, const uint32_t connectionId, const bool connected) override
@@ -2009,7 +2009,7 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_DispatchWsMsg_Compl
 // Mock IAppGatewayRequestHandler for ProcessComRpcRequest tests
 class MockRequestHandler : public Exchange::IAppGatewayRequestHandler {
 public:
-    void AddRef() const override {}
+    uint32_t AddRef() const override { return 0; }
     uint32_t Release() const override { return Core::ERROR_NONE; }
 
     BEGIN_INTERFACE_MAP(MockRequestHandler)
@@ -2032,7 +2032,7 @@ public:
 // Mock IAppGatewayAuthenticator for permission group tests
 class MockAuthenticator : public Exchange::IAppGatewayAuthenticator {
 public:
-    void AddRef() const override {}
+    uint32_t AddRef() const override { return 0; }
     uint32_t Release() const override { return Core::ERROR_NONE; }
 
     BEGIN_INTERFACE_MAP(MockAuthenticator)

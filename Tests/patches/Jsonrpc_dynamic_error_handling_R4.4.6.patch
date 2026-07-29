@@ -1,0 +1,57 @@
+diff --git a/Source/WPEFramework/PluginServer.h b/Source/WPEFramework/PluginServer.h
+index bdeb95b2..d77349ba 100644
+--- a/Source/WPEFramework/PluginServer.h
++++ b/Source/WPEFramework/PluginServer.h
+@@ -1521,7 +1521,16 @@ namespace PluginHost {
+                             } else {
+                                 switch (result) {
+                                 case Core::ERROR_INVALID_RANGE:
+-                                    response->Error.SetError(Core::ERROR_INVALID_SIGNATURE);
++                                    response->Error.SetError(Core::ERROR_INVALID_RANGE);
++                                    response->Error.Text = _T("Requested version is not supported.");
++                                    break;
++                                case Core::ERROR_INCORRECT_URL:
++                                    response->Error.SetError(Core::ERROR_INVALID_DESIGNATOR);
++                                    response->Error.Text = _T("Designator is invalid.");
++                                    break;
++                                case Core::ERROR_BAD_REQUEST:
++                                    response->Error.SetError(Core::ERROR_UNKNOWN_KEY);
++                                    response->Error.Text = _T("Unknown method.");
+                                     break;
+                                 case Core::ERROR_FAILED_REGISTERED:
+                                     response->Error.SetError(Core::ERROR_UNKNOWN_KEY);
+@@ -1531,6 +1540,34 @@ namespace PluginHost {
+                                     response->Error.SetError(Core::ERROR_UNKNOWN_KEY);
+                                     response->Error.Text = _T("Unregister was already done!!!.");
+                                     break;
++                                case Core::ERROR_HIBERNATED:
++                                    response->Error.SetError(Core::ERROR_HIBERNATED);
++                                    response->Error.Text = _T("The service is in an Hibernated state!!!.");
++                                    break;
++                                case Core::ERROR_ILLEGAL_STATE:
++                                    response->Error.SetError(Core::ERROR_ILLEGAL_STATE);
++                                    response->Error.Text = _T("The service is in an illegal state!!!.");
++                                    break;
++                                case Core::ERROR_INVALID_PARAMETER:
++                                    response->Error.SetError(Core::ERROR_INVALID_SIGNATURE);
++                                    response->Error.Text = _T("Invalid Parameter");
++                                    break;
++                                case Core::ERROR_ABORTED:
++                                    response->Error.SetError(Core::ERROR_ABORTED);
++                                    response->Error.Text = _T("Operation aborted");
++                                    break;
++                                case Core::ERROR_INVALID_DEVICENAME:
++                                    response->Error.SetError(Core::ERROR_INVALID_DEVICENAME);
++                                    response->Error.Text = _T("Invalid device name");
++                                    break;
++                                case Core::ERROR_INVALID_MOUNTPOINT:
++                                    response->Error.SetError(Core::ERROR_INVALID_MOUNTPOINT);
++                                    response->Error.Text = _T("Invalid mount path");
++                                    break;
++                                case Core::ERROR_FIRMWAREUPDATE_INPROGRESS:
++                                    response->Error.SetError(Core::ERROR_FIRMWAREUPDATE_INPROGRESS);
++                                    response->Error.Text = _T("Firmware update already in progress");
++                                    break;
+                                 default:
+                                     response->Error.SetError(result);
+                                     break;
