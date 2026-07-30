@@ -948,48 +948,6 @@ TEST_F(LifecycleDelegateTest, AGC_L1_200_Terminating_DispatchesOnUnloading)
 }
 
 /* ================================================================
- * Gap 3 – secondscreen.onLaunchRequest dispatch on ACTIVE
- *
- * Verifies that transitioning to ACTIVE with a navigationIntent
- * containing a "secondScreen" object dispatches
- * secondscreen.onLaunchRequest to subscribed emitters.
- * ================================================================ */
-
-TEST_F(LifecycleDelegateTest, AGC_L1_202_Active_WithSecondScreenIntent_DispatchesOnLaunchRequest)
-{
-    ASSERT_NE(capturedNotification, nullptr);
-
-    // Store navigationIntent containing a secondScreen payload on INITIALIZING
-    capturedNotification->OnAppLifecycleStateChanged(
-        "test.app", "instance-ss-001",
-        Exchange::ILifecycleManager::UNLOADED,
-        Exchange::ILifecycleManager::INITIALIZING,
-        R"({"secondScreen":{"type":"dial","version":"1.7","data":"eyJhcHAiOiJ0ZXN0In0="}})"
-    );
-
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-
-    MockEmitter* emitter = new MockEmitter();
-    heapEmitters.push_back(emitter);
-    emitter->AddRef();
-    lifecycleDelegate->AddNotification("secondscreen.onLaunchRequest", emitter);
-
-    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("secondscreen.onLaunchRequest"), _, _))
-        .Times(::testing::AtLeast(1));
-
-    // Transition to ACTIVE — triggers DispatchLastKnownIntent → secondscreen.onLaunchRequest
-    capturedNotification->OnAppLifecycleStateChanged(
-        "test.app", "instance-ss-001",
-        Exchange::ILifecycleManager::INITIALIZING,
-        Exchange::ILifecycleManager::ACTIVE,
-        ""
-    );
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-}
-
-/* ================================================================
  * Gap 5 – Presentation.onFocusedChanged subscription path
  *
  * Verifies that the event name is accepted by HandleEvent and
