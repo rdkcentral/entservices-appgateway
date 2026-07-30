@@ -144,6 +144,12 @@ inline bool HasSensitiveDataInJson(const std::string& input)
 		if (keySignatureFound) {
 			return true;
 		}
+
+		// Scalar/raw payloads (for example quoted tokens) may fail object parsing.
+		// Suppress oversized payloads to avoid leaking opaque token values.
+		if (input.size() > kMaxLogPayloadLength) {
+			return true;
+		}
 		return false;
 	}
 
