@@ -128,11 +128,9 @@ inline bool ContainsSensitiveField(const std::string& input)
 
 inline bool HasSensitiveDataInJson(const std::string& input)
 {
-	bool keySignatureFound = false;
+	const bool keySignatureFound = ContainsSensitiveField(input);
 
 	if (input.size() <= kMaxLogPayloadLength) {
-		keySignatureFound = ContainsSensitiveField(input);
-
 		if (!keySignatureFound) {
 			return false;
 		}
@@ -209,7 +207,7 @@ inline bool HasSensitiveDataInJson(const std::string& input)
 		}
 	}
 
-	return state.foundSensitive || state.foundOversizedString;
+	return keySignatureFound || state.foundSensitive || state.foundOversizedString;
 }
 
 inline std::string RedactSensitiveForLog(const std::string& input)
