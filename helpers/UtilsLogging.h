@@ -213,7 +213,7 @@ inline bool HasSensitiveDataInJson(const std::string& input)
 inline std::string RedactSensitiveForLog(const std::string& input)
 {
 	if (HasSensitiveDataInJson(input)) {
-		return "[SENSITIVE_PAYLOAD_SUPPRESSED]";
+		return std::string("[SENSITIVE_PAYLOAD_SUPPRESSED], payload.length=") + std::to_string(input.size());
 	}
 
 	return input;
