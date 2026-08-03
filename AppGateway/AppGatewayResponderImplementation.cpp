@@ -359,7 +359,7 @@ namespace WPEFramework
                     LOGDBG("<--[[a-%d-%d]] payload=%s", connectionId, requestId, payload.c_str());
                 } else {
                     const std::string safePayload = WPEFramework::LogSanitizer::RedactSensitiveForLog(payload);
-                    LOGDBG("<--[[a-%d-%d]] payload=%s", connectionId, requestId, safePayload.c_str());
+                    LOGDBG("<--[[a-%d-%d]] %s", connectionId, requestId, safePayload.c_str());
                 }
             }
 
