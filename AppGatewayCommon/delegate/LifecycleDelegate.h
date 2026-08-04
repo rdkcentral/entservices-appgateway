@@ -886,10 +886,11 @@ class LifecycleDelegate : public BaseEventDelegate
 
         Dispatch("Lifecycle2.onStateChanged", mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId), appId);
 
-        // if new lifecycleState is ACTIVE trigger last known intent
-        if (newLifecycleState == Exchange::ILifecycleManager::ACTIVE) {
-            DispatchLastKnownIntent(appId);
-        }
+        // Background / Context: DispatchLastKnownIntent reads app specific intent from from mNavigationIntentRegistry
+        // and emits Actions.onIntent.
+        // The ACTIVE-only gate was the original conservative trigger point, but the new requirement is to ensure
+        // intent dispatch is not missed regardless of which lifecycle state the app settles into after launch.
+        DispatchLastKnownIntent(appId);
 
         HandleLifecycle1Update(appInstanceId, oldLifecycleState, newLifecycleState);
     }
