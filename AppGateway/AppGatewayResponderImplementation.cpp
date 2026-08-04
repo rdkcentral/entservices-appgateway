@@ -344,8 +344,17 @@ namespace WPEFramework
         void AppGatewayResponderImplementation::ReturnMessageInSocket(const uint32_t connectionId, 
                                                     const int requestId, const string payload ) {
             if (mEnhancedLoggingEnabled || !mDebugDisabledConnectionsRegistry.IsDebugDisabled(connectionId)) {
-                LOGDBG("<--[[a-%d-%d]] payload=%s",
-                        connectionId, requestId, payload.c_str());
+                if (mEnhancedLoggingEnabled) {
+                    LOGDBG("<--[[a-%d-%d]] payload=%s", connectionId, requestId, payload.c_str());
+                } else {
+                    bool hasSensitiveData = false;
+                    const std::string safePayload = WPEFramework::LogSanitizer::RedactSensitiveForLog(payload, hasSensitiveData);
+                    if (hasSensitiveData) {
+                        LOGDBG("<--[[a-%d-%d]] %s", connectionId, requestId, safePayload.c_str());
+                    } else {
+                        LOGDBG("<--[[a-%d-%d]] payload=%s", connectionId, requestId, safePayload.c_str());
+                    }
+                }
             }
 
             // Get appId for context
