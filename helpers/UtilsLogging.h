@@ -210,9 +210,10 @@ inline bool HasSensitiveDataInJson(const std::string& input)
 	return keySignatureFound || state.foundSensitive || state.foundOversizedString;
 }
 
-inline std::string RedactSensitiveForLog(const std::string& input)
+inline std::string RedactSensitiveForLog(const std::string& input, bool& isSensitive)
 {
-	if (HasSensitiveDataInJson(input)) {
+	isSensitive = HasSensitiveDataInJson(input);
+	if (isSensitive) {
 		return std::string("payload.length=") + std::to_string(input.size());
 	}
 
