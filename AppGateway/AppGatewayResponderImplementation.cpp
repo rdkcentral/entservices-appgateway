@@ -347,8 +347,13 @@ namespace WPEFramework
                 if (mEnhancedLoggingEnabled) {
                     LOGDBG("<--[[a-%d-%d]] payload=%s", connectionId, requestId, payload.c_str());
                 } else {
-                    const std::string safePayload = WPEFramework::LogSanitizer::RedactSensitiveForLog(payload);
-                    LOGDBG("<--[[a-%d-%d]] %s", connectionId, requestId, safePayload.c_str());
+                    bool hasSensitiveData = false;
+                    const std::string safePayload = WPEFramework::LogSanitizer::RedactSensitiveForLog(payload, hasSensitiveData);
+                    if (hasSensitiveData) {
+                        LOGDBG("<--[[a-%d-%d]] %s", connectionId, requestId, safePayload.c_str());
+                    } else {
+                        LOGDBG("<--[[a-%d-%d]] payload=%s", connectionId, requestId, safePayload.c_str());
+                    }
                 }
             }
 
