@@ -232,9 +232,15 @@ namespace Plugin {
                               const string &payload /* @in @opaque */,
                               const string &appId /* @in */) override
             {
-                const std::string safePayload = WPEFramework::LogSanitizer::RedactSensitiveForLog(payload);
-                LOGINFO("Emit [event= %s payload=%s appId=%s]",
-                    event.c_str(), safePayload.c_str(), appId.c_str());
+                bool hasSensitivePayload = false;
+                const std::string safePayload = WPEFramework::LogSanitizer::RedactSensitiveForLog(payload, hasSensitivePayload);
+                if (hasSensitivePayload) {
+                    LOGINFO("Emit [event= %s %s appId=%s]",
+                        event.c_str(), safePayload.c_str(), appId.c_str());
+                } else {
+                    LOGINFO("Emit [event= %s payload=%s appId=%s]",
+                        event.c_str(), safePayload.c_str(), appId.c_str());
+                }
                 Core::IWorkerPool::Instance().Submit(EmitJob::Create(&mParent, event, payload, appId));
             }
 
