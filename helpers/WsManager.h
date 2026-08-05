@@ -457,9 +457,11 @@ public:
             response->Result = result;
         }
 
+#ifdef __DEBUG__
         bool hasSensitiveResult = false;
         const std::string safeResult = WPEFramework::LogSanitizer::RedactSensitiveForLog(result, hasSensitiveResult);
         LOGTRACE("[SendJSONRPCResponse] Sending response for requestId=%d, connectionId=%d response=%s", requestId, connectionId, safeResult.c_str());
+#endif
 
         // Send the response back to the WebSocket client
         if (nullptr == mChannel) {
