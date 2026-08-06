@@ -312,8 +312,13 @@ namespace WPEFramework
                     } else {
                         bool hasSensitiveParams = false;
                         const std::string safeParams = WPEFramework::LogSanitizer::RedactSensitiveForLog(params, hasSensitiveParams);
-                        LOGDBG("%s-->[[a-%d-%d]] method=%s, params=%s",
-                               appId.c_str(), connectionId, requestId, method.c_str(), safeParams.c_str());
+                        if (hasSensitiveParams) {
+                            LOGDBG("%s-->[[a-%d-%d]] method=%s, %s",
+                                   appId.c_str(), connectionId, requestId, method.c_str(), safeParams.c_str());
+                        } else {
+                            LOGDBG("%s-->[[a-%d-%d]] method=%s, params=%s",
+                                   appId.c_str(), connectionId, requestId, method.c_str(), safeParams.c_str());
+                        }
                     }
                 }
 
