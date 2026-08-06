@@ -136,7 +136,7 @@ inline bool HasSensitiveDataInJson(const std::string& input)
 		}
 	}
 
-	Core::JSON::VariantContainer root;
+	Core::JSON::Variant root;
 	if (!root.FromString(input)) {
 		// Signature match in non-JSON payload should still be treated as sensitive.
 		if (keySignatureFound) {
@@ -159,10 +159,7 @@ inline bool HasSensitiveDataInJson(const std::string& input)
 	};
 	std::vector<WorkItem> stack;
 	stack.reserve(32);
-	Core::JSON::VariantContainer::Iterator it = root.Variants();
-	while (it.Next()) {
-		stack.push_back(WorkItem{&(it.Current()), it.Label(), 0});
-	}
+	stack.push_back(WorkItem{&root, nullptr, 0});
 
 	while (!stack.empty()) {
 		const WorkItem current = stack.back();
