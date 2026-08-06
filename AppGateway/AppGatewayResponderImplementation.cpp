@@ -262,13 +262,7 @@ namespace WPEFramework
         Core::hresult AppGatewayResponderImplementation::RecordGatewayConnectionContext(const uint32_t connectionId ,
                 const string& contextKey ,
                 const string& contextValue) {
-            if (mEnhancedLoggingEnabled) {
-                LOGINFO("Recording context for connectionId: %d, contextKey: %s, contextValue: %s", connectionId, contextKey.c_str(), contextValue.c_str());
-            } else {
-                bool hasSensitiveContext = false;
-                const std::string safeContextValue = WPEFramework::LogSanitizer::RedactSensitiveForLog(contextValue, hasSensitiveContext);
-                LOGINFO("Recording context for connectionId: %d, contextKey: %s, contextValue: %s", connectionId, contextKey.c_str(), safeContextValue.c_str());
-            }
+            LOGINFO("Recording context for connectionId: %d, contextKey: %s, contextValue: %s", connectionId, contextKey.c_str(), contextValue.c_str());
             // if contextKey is DISABLE_DEBUG_FOR_CONNECTION, add connectionId to debug disabled registry
             if (DISABLE_DEBUG_FOR_CONNECTION == contextKey ) {
                 mDebugDisabledConnectionsRegistry.Add(connectionId);
