@@ -62,7 +62,7 @@ static const std::array<const char*, 9> kSensitiveJsonKeys = {
 	"authtoken"
 };
 
-static const std::array<const char*, 23> kSensitiveNeedles = {
+static const std::array<const char*, 20> kSensitiveNeedles = {
 	"\"sat\"",
 	"\\\"sat\\\"",
 	"\"cdnaccesstoken\"",
@@ -82,9 +82,6 @@ static const std::array<const char*, 23> kSensitiveNeedles = {
 	"token=",
 	"\"authtoken\"",
 	"\\\"authtoken\\\"",
-	"session=",
-	"\"session\"",
-	"\\\"session\\\"",
 	"bearer "
 };
 
