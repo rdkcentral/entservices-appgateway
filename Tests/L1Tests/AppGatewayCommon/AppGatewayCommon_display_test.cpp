@@ -211,13 +211,13 @@ public:
         return nullptr;
     }
 
-    MOCK_METHOD(Core::hresult, ColorSpace,           (Exchange::IDisplayProperties::ColourSpaceType&), (const, override));
-    MOCK_METHOD(Core::hresult, GetCurrentColorimetry,(Exchange::IDisplayProperties::ColorimetryTypeInfo&),(const, override));
-    MOCK_METHOD(Core::hresult, FrameRate,            (Exchange::IDisplayProperties::FrameRateType&), (const, override));
-    MOCK_METHOD(Core::hresult, ColourDepth,          (Exchange::IDisplayProperties::ColourDepthType&), (const, override));
-    MOCK_METHOD(Core::hresult, Colorimetry,          (Exchange::IDisplayProperties::IColorimetryIterator*&), (const, override));
-    MOCK_METHOD(Core::hresult, QuantizationRange,    (Exchange::IDisplayProperties::QuantizationRangeType&), (const, override));
-    MOCK_METHOD(Core::hresult, EOTF,                 (Exchange::IDisplayProperties::EotfType&), (const, override));
+    MOCK_METHOD(Core::hresult, ColorSpace,        (Exchange::IDisplayProperties::ColourSpaceType&), (const, override));
+    MOCK_METHOD(Core::hresult, FrameRate,          (Exchange::IDisplayProperties::FrameRateType&), (const, override));
+    MOCK_METHOD(Core::hresult, ColourDepth,        (Exchange::IDisplayProperties::ColourDepthType&), (const, override));
+    MOCK_METHOD(Core::hresult, Colorimetry,        (Exchange::IDisplayProperties::IColorimetryIterator*&), (const, override));
+    MOCK_METHOD(Core::hresult, GetCurrentColorimetry, (Exchange::IDisplayProperties::ColorimetryTypeInfo&), (const, override));
+    MOCK_METHOD(Core::hresult, QuantizationRange,  (Exchange::IDisplayProperties::QuantizationRangeType&), (const, override));
+    MOCK_METHOD(Core::hresult, EOTF,               (Exchange::IDisplayProperties::EotfType&), (const, override));
 
 private:
     mutable std::atomic<uint32_t> _refCount;

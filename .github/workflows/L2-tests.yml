@@ -7,9 +7,6 @@ on:
         description: "Specifies the source type (e.g., local or test framework) for the workflow."
         required: true
         type: string
-    secrets:
-      RDKCM_RDKE:
-        required: true
 
 env:
   BUILD_TYPE: Debug
@@ -48,7 +45,7 @@ jobs:
            echo "Trigger Source: ${{ inputs.caller_source }}"
 
       - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v1.13
+        uses: jwlawson/actions-setup-cmake@65b272e1213f99771fbba0c237e0b3312270e0c9
         with:
           cmake-version: '3.16.x'
 

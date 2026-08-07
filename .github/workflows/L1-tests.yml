@@ -17,9 +17,6 @@ on:
         required: false
         type: boolean
         default: false
-    secrets:
-      RDKCM_RDKE:
-        required: true
 
 permissions:
   contents: read
@@ -110,7 +107,7 @@ jobs:
            echo "Trigger Source: ${{ inputs.caller_source }}"
 
       - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v1.13
+        uses: jwlawson/actions-setup-cmake@65b272e1213f99771fbba0c237e0b3312270e0c9
         with:
           cmake-version: '3.16.x'
 
@@ -225,7 +222,6 @@ jobs:
           repository: rdkcentral/entservices-apis
           path: entservices-apis
           ref: ${{env.INTERFACES_REF}}
-          #token : ${{ secrets.RDKCM_RDKE }}
 
       - name: Remove DTV.json from entservices-apis checkout
         if: steps.cache.outputs.cache-hit != 'true'
