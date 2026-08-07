@@ -21,6 +21,7 @@
 
 #include <mutex>
 #include <memory>
+#include <utility>
 #include <plugins/plugins.h>
 #include "UtilsLogging.h"
 #include "WebSocketLink.h"
@@ -400,7 +401,7 @@ public:
 
     void SetAuthHandler(const AuthHandler& handler) { _authHandler = handler; }
 
-    void SetDisconnectHandler(DisconnectHandler handler) { _disconnectHandler = handler; }
+    void SetDisconnectHandler(DisconnectHandler handler) { _disconnectHandler = std::move(handler); }
 
     // NEW: Setter for automation ID
     void SetAutomationId(uint32_t automationId) { 
@@ -559,11 +560,6 @@ public:
         try
         {
             mChannel = new WebSocketChannel(remoteNode, *this);
-            if (nullptr == mChannel)
-            {
-                LOGERR("Failed to create WebSocket channel");
-                return false;
-            }
 
             LOGINFO("WebSocket channel started successfully on %s %d", remoteNode.HostAddress().c_str(), remoteNode.PortNumber());
             return true;
