@@ -327,10 +327,6 @@
             "alias": "org.rdk.AppGatewayCommon",
             "event": "Presentation.onFocusedChanged"
         },
-        "secondscreen.onlaunchrequest": {
-            "alias": "org.rdk.AppGatewayCommon",
-            "event": "secondscreen.onLaunchRequest"
-        },
         "accessibility.audioDescription": {
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
