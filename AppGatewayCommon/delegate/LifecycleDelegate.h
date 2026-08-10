@@ -244,6 +244,26 @@ class LifecycleDelegate : public BaseEventDelegate
         return Core::ERROR_NONE;
     }
 
+    Core::hresult SetIntent(const Exchange::GatewayContext& context, const string& payload /*@opaque */, string& result /*@out @opaque */) {
+        const string& navigationIntent = payload;
+        if (navigationIntent.empty() || navigationIntent == "null") {
+            result = "null";
+            return Core::ERROR_NONE;
+        }
+        string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(context.appId);
+        if (appInstanceId.empty()) {
+             // On the LifecycleManagement path there is no separate appInstanceId, so appId is used as appInstanceId (identity mapping).
+             // On the AppManagers path, OnAppLifecycleStateChanged(INITIALIZING) may later overwrite this with the real appInstanceId,
+             // and any identity-mapped intent is discarded in favor of the INITIALIZING event's navigationIntent.
+            LOGINFO("SetIntent: bootstrapping identity mapping for appId=%s", context.appId.c_str());
+            mAppIdInstanceIdMap.AddAppInstanceId(context.appId, context.appId);
+            appInstanceId = context.appId;
+        }
+        mNavigationIntentRegistry.AddNavigationIntent(appInstanceId, navigationIntent);
+        result = "null";
+        return Core::ERROR_NONE;
+    }
+
     Core::hresult GetLastIntent(const Exchange::GatewayContext& context , const string& payload /*@opaque */, string& result /*@out @opaque */){
         string intent;
         uint32_t intentId = 0;
@@ -413,10 +433,25 @@ class LifecycleDelegate : public BaseEventDelegate
             }
 
             // if new Lifecycle state is INITIALIZING then add to app instance map
-            if (newLifecycleState == Exchange::ILifecycleManager::INITIALIZING) {
+            if (Exchange::ILifecycleManager::INITIALIZING == newLifecycleState) {
                 mParent.mAppIdInstanceIdMap.AddAppInstanceId(appId, appInstanceId);
                 // also add to lifecycle state registry
-                mParent.mLifecycleStateRegistry.AddLifecycleState(appInstanceId, oldLifecycleState, newLifecycleState);   
+                mParent.mLifecycleStateRegistry.AddLifecycleState(appInstanceId, oldLifecycleState, newLifecycleState);
+
+                // On the AppManagers path, the navigationIntent from the INITIALIZING event
+                // is the authoritative source of truth. Always discard any identity-mapped
+                // intent stored by SetIntent/HandleNewSession — never migrate it.
+                // The intent stored above (if navigationIntent was non-empty) under
+                // appInstanceId is what actions.intent will return.
+                if (appId != appInstanceId) {
+                    string identityIntent;
+                    uint32_t identityIntentId = 0;
+                    if (mParent.mNavigationIntentRegistry.GetNavigationIntent(appId, identityIntent, identityIntentId)) {
+                        LOGINFO("OnAppLifecycleStateChanged: discarding identity-mapped intent for appId=%s, INITIALIZING intent is authoritative",
+                                appId.c_str());
+                        mParent.mNavigationIntentRegistry.RemoveNavigationIntent(appId);
+                    }
+                }
             } 
 
             // handle lifecycle update
@@ -844,6 +879,10 @@ class LifecycleDelegate : public BaseEventDelegate
 
         // get appId from appInstanceId
         string appId = mAppIdInstanceIdMap.GetAppId(appInstanceId);
+        if (appId.empty()) {
+            LOGWARN("HandleLifecycleUpdate: No appId found for appInstanceId=%s, skipping dispatch", appInstanceId.c_str());
+            return;
+        }
 
         Dispatch("Lifecycle2.onStateChanged", mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId), appId);
 

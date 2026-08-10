@@ -537,6 +537,97 @@ TEST_F(LifecycleDelegateTest, AGC_L1_186_GetLastIntent_WithIntent)
     EXPECT_NE(result.find("search://query=testing"), std::string::npos);
 }
 
+/* ---------- SetIntent tests ---------- */
+
+TEST_F(LifecycleDelegateTest, AGC_L1_201_SetIntent_StoresAndGetLastIntent)
+{
+    const auto ctx = MakeContext("test.app");
+    string result;
+
+    // Set a non-empty intent via commoninternal.setintent
+    const auto rc1 = plugin.HandleAppGatewayRequest(ctx, "commoninternal.setintent", R"({"action":"play","content":"video456"})", result);
+    EXPECT_EQ(Core::ERROR_NONE, rc1);
+    EXPECT_EQ("null", result);
+
+    // Verify getlastintent returns the stored intent
+    const auto rc2 = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
+    EXPECT_EQ(Core::ERROR_NONE, rc2);
+    EXPECT_NE(result.find("\"intentId\":"), std::string::npos);
+    EXPECT_NE(result.find("\"intent\":"), std::string::npos);
+    EXPECT_NE(result.find("video456"), std::string::npos);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_202_SetIntent_StoresAndGetActionsIntent)
+{
+    const auto ctx = MakeContext("test.app");
+    string result;
+
+    // Set a non-empty intent via commoninternal.setintent
+    const auto rc1 = plugin.HandleAppGatewayRequest(ctx, "commoninternal.setintent", R"({"type":"search","query":"test"})", result);
+    EXPECT_EQ(Core::ERROR_NONE, rc1);
+
+    // Verify actions.intent returns the stored intent
+    const auto rc2 = plugin.HandleAppGatewayRequest(ctx, "actions.intent", "{}", result);
+    EXPECT_EQ(Core::ERROR_NONE, rc2);
+    EXPECT_NE(result.find("\"intentId\":"), std::string::npos);
+    EXPECT_NE(result.find("\"intent\":"), std::string::npos);
+    EXPECT_NE(result.find("test"), std::string::npos);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_203_SetIntent_EmptyPayload_NoOverwrite)
+{
+    const auto ctx = MakeContext("test.app");
+    string result;
+
+    // First set a non-empty intent via lifecycle callback
+    ASSERT_NE(capturedNotification, nullptr);
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app",
+        "instance-setintent",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        "playback://original/intent"
+    );
+
+    // Call setintent with empty payload - should no-op and not overwrite
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.setintent", "", result);
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+
+    // Verify the original intent is still there
+    const auto rc2 = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
+    EXPECT_EQ(Core::ERROR_NONE, rc2);
+    EXPECT_NE(result.find("playback://original/intent"), std::string::npos);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_204_SetIntent_NullStringPayload_NoOverwrite)
+{
+    const auto ctx = MakeContext("test.app");
+    string result;
+
+    // First set a non-empty intent via lifecycle callback
+    ASSERT_NE(capturedNotification, nullptr);
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app",
+        "instance-nulltest",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        "search://original/query"
+    );
+
+    // Call setintent with literal "null" string - should no-op and not overwrite
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.setintent", "null", result);
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+
+    // Verify the original intent is still there
+    const auto rc2 = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
+    EXPECT_EQ(Core::ERROR_NONE, rc2);
+    EXPECT_NE(result.find("search://original/query"), std::string::npos);
+    // Should NOT contain the literal string "null" as the intent value
+    EXPECT_EQ(result.find("\"intent\":\"null\""), std::string::npos);
+}
+
 /* ================================================================
  * Category B – Null LifecycleManagerState interface
  *
