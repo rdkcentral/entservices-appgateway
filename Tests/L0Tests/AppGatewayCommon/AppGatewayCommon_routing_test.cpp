@@ -103,7 +103,7 @@ uint32_t Test_HandleRequest_CaseInsensitiveMethod()
 // HandleAppGatewayRequest for lifecycle.ready via the handler map.
 // In L0, InvokeLifecycleDelegate reaches LifecycleDelegate::LifecycleReady because
 // both mDelegate and lifecycleDelegate are non-null.  LifecycleReady sets result="null"
-// and returns ERROR_NONE when mLifecycleManagerState is nullptr (no /opt/ai2managers).
+// and returns ERROR_NONE when mLifecycleManagerState is nullptr (no /etc/rdkappmanagers).
 uint32_t Test_HandleRequest_LifecycleReady()
 {
     TestResult tr;
