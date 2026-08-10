@@ -186,6 +186,13 @@ uint32_t Test_HandleRequest_DeviceAudio()
     return DelegateGetterTest("device.audio");
 }
 
+// TEST_ID: AGC_L0_026A
+// Handler-map getter: device.dolbyatmosexperience
+uint32_t Test_HandleRequest_DeviceDolbyAtmosExperience()
+{
+    return DelegateGetterTest("device.dolbyatmosexperience");
+}
+
 // TEST_ID: AGC_L0_027
 // Handler-map getter: voiceguidance.enabled
 uint32_t Test_HandleRequest_VoiceGuidanceEnabled()
