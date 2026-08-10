@@ -41,18 +41,19 @@ public:
     MOCK_METHOD(WPEFramework::Core::hresult, Deinitialize, (WPEFramework::PluginHost::IShell* service), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, CreateDisplay, (const string& displayParams));
     MOCK_METHOD(WPEFramework::Core::hresult, CreateDisplay,
-        (const string& clientId,
-        const string& displayName,
-        const uint32_t displayWidth,
-        const uint32_t displayHeight,
-        const bool virtualDisplay,
-        const uint32_t virtualWidth,
-        const uint32_t virtualHeight,
-        const uint32_t ownerId,
-        const uint32_t groupId,
-        const bool topmost,
-        const bool focus,
-        const string& capabilities));
+    (const string& clientId,
+     const string& displayName,
+     const uint32_t displayWidth,
+     const uint32_t displayHeight,
+     const bool virtualDisplay,
+     const uint32_t virtualWidth,
+     const uint32_t virtualHeight,
+     const uint32_t ownerId,
+     const uint32_t groupId,
+     const bool topmost,
+    const bool focus,
+    const string& capabilities),
+    (override));
     MOCK_METHOD(WPEFramework::Core::hresult, GetApps, (string& appsIds), (const, override));
     MOCK_METHOD(WPEFramework::Core::hresult, SetFocus, (const string& client), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, SetVisible, (const std::string& client, bool visible), (override));

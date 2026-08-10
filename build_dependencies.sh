@@ -86,6 +86,8 @@ cmake --build build/Thunder --target install
 echo "======================================================================================"
 echo "buliding entservices-apis"
 cd entservices-apis
+# this is added to avoid the latest build error.
+git checkout 2c01d26996f2d5fcf2c45fad20cd9ccf5cb980ef
 rm -rf jsonrpc/DTV.json
 cd ..
 
