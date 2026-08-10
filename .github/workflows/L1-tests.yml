@@ -17,9 +17,6 @@ on:
         required: false
         type: boolean
         default: false
-    secrets:
-      RDKCM_RDKE:
-        required: true
 
 permissions:
   contents: read
@@ -27,7 +24,7 @@ permissions:
 env:
   BUILD_TYPE: Debug
   THUNDER_REF: "R4.4.1"
-  INTERFACES_REF: "develop"
+  INTERFACES_REF: "2c01d26996f2d5fcf2c45fad20cd9ccf5cb980ef"
   NETWORKMANAGER_REF: "cea0da05b03de770e4ce967f0446f28885fc6219"
   AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME }}
   AUTOMATICS_PASSCODE: ${{ secrets.AUTOMATICS_PASSCODE }}
@@ -110,7 +107,7 @@ jobs:
            echo "Trigger Source: ${{ inputs.caller_source }}"
 
       - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v1.13
+        uses: jwlawson/actions-setup-cmake@65b272e1213f99771fbba0c237e0b3312270e0c9
         with:
           cmake-version: '3.16.x'
 
@@ -225,7 +222,6 @@ jobs:
           repository: rdkcentral/entservices-apis
           path: entservices-apis
           ref: ${{env.INTERFACES_REF}}
-          #token : ${{ secrets.RDKCM_RDKE }}
 
       - name: Remove DTV.json from entservices-apis checkout
         if: steps.cache.outputs.cache-hit != 'true'
@@ -542,18 +538,20 @@ jobs:
           echo "APPGATEWAY_CONFIG_PATH=/tmp/app-gateway" >> "$GITHUB_ENV"
           ls -la /tmp/app-gateway || true
 
-      - name: Ensure /opt/ai2managers exists for lifecycle tests
+      - name: Ensure /etc/rdkappmanagers exists for lifecycle tests
         run: |
           # LifecycleDelegate only registers notifications when ConfigUtils::useAppManagers()
-          # returns true, which checks for /opt/ai2managers. The test SetUp creates it too,
+          # returns true, which checks for /etc/rdkappmanagers. The test SetUp creates it too,
           # but pre-creating it here avoids permission issues on some CI environments.
           # Must be a file (not a directory) because the test's SetUp uses fopen().
-          sudo touch /opt/ai2managers
+          sudo rm -f /etc/rdkappmanagers
+          sudo touch /etc/rdkappmanagers
           # Ensure the file is writable by the non-root test runner so that
-          # fopen("/opt/ai2managers", "w") in the lifecycle L1 test SetUp()
+          # fopen("/etc/rdkappmanagers", "w") in the lifecycle L1 test SetUp()
           # does not fail and cause GTEST_SKIP.
-          sudo chmod 0666 /opt/ai2managers
-          ls -l /opt/ai2managers || true
+          sudo chmod 0666 /etc/rdkappmanagers
+          test -f /etc/rdkappmanagers || (echo "Failed to create /etc/rdkappmanagers as regular file" && exit 1)
+          ls -l /etc/rdkappmanagers || true
 
       - name: Run unit tests without valgrind (optionally under gdb)
         run: |

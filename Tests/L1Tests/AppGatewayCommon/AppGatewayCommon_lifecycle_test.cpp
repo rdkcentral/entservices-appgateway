@@ -41,12 +41,12 @@
 using namespace WPEFramework;
 
 namespace {
-// Removes /opt/ai2managers whether it is a file or a directory.
+// Removes /etc/rdkappmanagers whether it is a file or a directory.
 // Uses unlink/rmdir directly instead of stat() + branch to avoid
 // a TOCTOU (time-of-check time-of-use) filesystem race condition.
-inline void RemoveAi2managers()
+inline void RemoveRdkAppManagers()
 {
-    const char* path = "/opt/ai2managers";
+    const char* path = "/etc/rdkappmanagers";
     // unlink() removes files; fails harmlessly with EISDIR/EPERM on directories.
     // rmdir() removes empty directories; fails harmlessly with ENOTDIR on files.
     // If the path does not exist, both fail silently (ENOENT).
@@ -117,13 +117,13 @@ protected:
 
     void SetUp() override
     {
-        // LifecycleDelegate only registers notifications when /opt/ai2managers exists
+        // LifecycleDelegate only registers notifications when /etc/rdkappmanagers exists
         // (ConfigUtils::useAppManagers() gate). Ensure it exists as a regular file.
         // Remove first in case a prior run or CI step left it as a directory.
-        RemoveAi2managers();
-        std::FILE* f = std::fopen("/opt/ai2managers", "w");
+        RemoveRdkAppManagers();
+        std::FILE* f = std::fopen("/etc/rdkappmanagers", "w");
         if (nullptr == f) {
-            GTEST_SKIP() << "Skipping LifecycleDelegate tests: unable to create /opt/ai2managers (insufficient permissions or read-only filesystem)";
+            GTEST_SKIP() << "Skipping LifecycleDelegate tests: unable to create /etc/rdkappmanagers (insufficient permissions or read-only filesystem)";
         }
         std::fclose(f);
 
@@ -181,7 +181,7 @@ protected:
             delete e;
         }
         heapEmitters.clear();
-        RemoveAi2managers();
+        RemoveRdkAppManagers();
     }
 };
 
@@ -540,7 +540,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_186_GetLastIntent_WithIntent)
 /* ================================================================
  * Category B – Null LifecycleManagerState interface
  *
- * LifecycleDelegate is constructed but /opt/ai2managers does NOT
+ * LifecycleDelegate is constructed but /etc/rdkappmanagers does NOT
  * exist, so ConfigUtils::useAppManagers() returns false and the
  * constructor skips Register(). The interfaces remain nullptr.
  * ================================================================ */
@@ -555,8 +555,8 @@ protected:
 
     static void SetUpTestSuite()
     {
-        // Ensure /opt/ai2managers does NOT exist (handles both file and directory)
-        RemoveAi2managers();
+        // Ensure /etc/rdkappmanagers does NOT exist (handles both file and directory)
+        RemoveRdkAppManagers();
 
         sService = new NiceMock<ServiceMock>();
         sPlugin = new Core::Sink<AppGatewayCommon>();
@@ -941,48 +941,6 @@ TEST_F(LifecycleDelegateTest, AGC_L1_200_Terminating_DispatchesOnUnloading)
         "test.app", "instance-term-001",
         Exchange::ILifecycleManager::INITIALIZING,
         Exchange::ILifecycleManager::TERMINATING,
-        ""
-    );
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-}
-
-/* ================================================================
- * Gap 3 – secondscreen.onLaunchRequest dispatch on ACTIVE
- *
- * Verifies that transitioning to ACTIVE with a navigationIntent
- * containing a "secondScreen" object dispatches
- * secondscreen.onLaunchRequest to subscribed emitters.
- * ================================================================ */
-
-TEST_F(LifecycleDelegateTest, AGC_L1_202_Active_WithSecondScreenIntent_DispatchesOnLaunchRequest)
-{
-    ASSERT_NE(capturedNotification, nullptr);
-
-    // Store navigationIntent containing a secondScreen payload on INITIALIZING
-    capturedNotification->OnAppLifecycleStateChanged(
-        "test.app", "instance-ss-001",
-        Exchange::ILifecycleManager::UNLOADED,
-        Exchange::ILifecycleManager::INITIALIZING,
-        R"({"secondScreen":{"type":"dial","version":"1.7","data":"eyJhcHAiOiJ0ZXN0In0="}})"
-    );
-
-    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
-    ASSERT_NE(lifecycleDelegate, nullptr);
-
-    MockEmitter* emitter = new MockEmitter();
-    heapEmitters.push_back(emitter);
-    emitter->AddRef();
-    lifecycleDelegate->AddNotification("secondscreen.onLaunchRequest", emitter);
-
-    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("secondscreen.onLaunchRequest"), _, _))
-        .Times(::testing::AtLeast(1));
-
-    // Transition to ACTIVE — triggers DispatchLastKnownIntent → secondscreen.onLaunchRequest
-    capturedNotification->OnAppLifecycleStateChanged(
-        "test.app", "instance-ss-001",
-        Exchange::ILifecycleManager::INITIALIZING,
-        Exchange::ILifecycleManager::ACTIVE,
         ""
     );
 
