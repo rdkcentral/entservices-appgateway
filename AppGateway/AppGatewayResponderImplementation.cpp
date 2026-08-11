@@ -306,8 +306,20 @@ namespace WPEFramework
             if (hasAppId) {
 
                 if (mEnhancedLoggingEnabled || !mDebugDisabledConnectionsRegistry.IsDebugDisabled(connectionId)) {
-                    LOGDBG("%s-->[[a-%d-%d]] method=%s, params=%s",
-                           appId.c_str(),connectionId, requestId, method.c_str(), params.c_str());
+                    if (mEnhancedLoggingEnabled) {
+                        LOGDBG("%s-->[[a-%d-%d]] method=%s, params=%s",
+                               appId.c_str(), connectionId, requestId, method.c_str(), params.c_str());
+                    } else {
+                        bool hasSensitiveParams = false;
+                        const std::string safeParams = WPEFramework::LogSanitizer::RedactSensitiveForLog(params, hasSensitiveParams);
+                        if (hasSensitiveParams) {
+                            LOGDBG("%s-->[[a-%d-%d]] method=%s, %s",
+                                   appId.c_str(), connectionId, requestId, method.c_str(), safeParams.c_str());
+                        } else {
+                            LOGDBG("%s-->[[a-%d-%d]] method=%s, params=%s",
+                                   appId.c_str(), connectionId, requestId, method.c_str(), safeParams.c_str());
+                        }
+                    }
                 }
 
                 if (nullptr == mResolver) {
