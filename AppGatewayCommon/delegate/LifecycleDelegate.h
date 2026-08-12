@@ -579,8 +579,9 @@ class LifecycleDelegate : public BaseEventDelegate
             // Optional stateOverride allows callers to force payload state (e.g. background on blur).
             string GetLifecycle1StateJson(const string& appInstanceId, const string& stateOverride = "") {
                 std::lock_guard<std::mutex> lock(registryMutex);
-                if (lifecycleStateMap.find(appInstanceId) != lifecycleStateMap.end()) {
-                    LifecycleStateInfo& stateInfo = lifecycleStateMap[appInstanceId];
+                auto it = lifecycleStateMap.find(appInstanceId);
+                if (it != lifecycleStateMap.end()) {
+                    LifecycleStateInfo& stateInfo = it->second;
                     JsonObject object;
                     object["previous"] = Lifecycle2StateToLifecycle1String(stateInfo.previousState);
                     object["state"] = stateOverride.empty() ? Lifecycle2StateToLifecycle1String(stateInfo.currentState) : stateOverride;
