@@ -508,6 +508,88 @@ uint32_t Test_HandleRequest_ActionsIntent_EmptyRegistry()
     return tr.failures;
 }
 
+// TEST_ID: AGC_L0_060
+// commoninternal.setintent with non-empty intent stores it and subsequent getlastintent returns it
+uint32_t Test_HandleRequest_SetIntent_StoresAndGet()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    // Set a non-empty intent
+    const uint32_t rc1 = handler->HandleAppGatewayRequest(ctx, "commoninternal.setintent", R"({"action":"play","content":"video123"})", result);
+    ExpectEqU32(tr, rc1, ERROR_NONE, "commoninternal.setintent returns ERROR_NONE");
+    ExpectEqStr(tr, result, "null", "commoninternal.setintent result is null");
+
+    // Verify getlastintent returns the stored intent
+    const uint32_t rc2 = handler->HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
+    ExpectEqU32(tr, rc2, ERROR_NONE, "commoninternal.getlastintent returns ERROR_NONE");
+    const bool hasIntent = result.find("\"action\"") != std::string::npos;
+    const bool hasContent = result.find("video123") != std::string::npos;
+    ExpectTrue(tr, hasIntent, "getlastintent returns stored intent with action field");
+    ExpectTrue(tr, hasContent, "getlastintent returns stored intent with content value");
+
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_061
+// commoninternal.setintent with empty payload no-ops
+uint32_t Test_HandleRequest_SetIntent_EmptyPayload()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    // First set a non-empty intent
+    handler->HandleAppGatewayRequest(ctx, "commoninternal.setintent", R"({"initial":"intent"})", result);
+
+    // Call setintent with empty payload - should no-op and not overwrite
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "commoninternal.setintent", "", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "commoninternal.setintent with empty payload returns ERROR_NONE");
+    ExpectEqStr(tr, result, "null", "commoninternal.setintent result is null");
+
+    // Verify the original intent is still there
+    const uint32_t rc2 = handler->HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
+    ExpectEqU32(tr, rc2, ERROR_NONE, "commoninternal.getlastintent returns ERROR_NONE");
+    const bool hasOriginal = result.find("initial") != std::string::npos;
+    ExpectTrue(tr, hasOriginal, "Empty payload did not overwrite existing intent");
+
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_062
+// commoninternal.setintent with "null" string payload no-ops
+uint32_t Test_HandleRequest_SetIntent_NullStringPayload()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    // First set a non-empty intent
+    handler->HandleAppGatewayRequest(ctx, "commoninternal.setintent", R"({"original":"intent"})", result);
+
+    // Call setintent with literal "null" string - should no-op and not overwrite
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "commoninternal.setintent", "null", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "commoninternal.setintent with 'null' payload returns ERROR_NONE");
+    ExpectEqStr(tr, result, "null", "commoninternal.setintent result is null");
+
+    // Verify the original intent is still there
+    const uint32_t rc2 = handler->HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
+    ExpectEqU32(tr, rc2, ERROR_NONE, "commoninternal.getlastintent returns ERROR_NONE");
+    const bool hasOriginal = result.find("original") != std::string::npos;
+    const bool hasNullString = result.find("\"null\"") != std::string::npos; // Should NOT have literal "null" as intent
+    ExpectTrue(tr, hasOriginal, "'null' payload did not overwrite existing intent");
+    ExpectTrue(tr, !hasNullString, "Intent is not the literal string 'null'");
+
+    return tr.failures;
+}
+
 // TEST_ID: AGC_L0_054
 // advertising.advertisingid in L0 → SharedStorage unavailable
 uint32_t Test_HandleRequest_AdvertisingId()

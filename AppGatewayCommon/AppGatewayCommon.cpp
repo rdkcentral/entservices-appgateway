@@ -262,6 +262,9 @@ namespace Plugin {
         { "commoninternal.getlastintent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->GetLastIntent(ctx,payload,result);
         }},
+        { "commoninternal.setintent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->SetIntent(ctx, payload, result);
+        }},
         {"advertising.advertisingid", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->HandleAppDelegateRequest(ctx, "advertising.advertisingid", payload, result);
         }},
@@ -1258,6 +1261,11 @@ namespace Plugin {
         Core::hresult AppGatewayCommon::GetPresentationFocused(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
             return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetPresentationFocused, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::SetIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::SetIntent, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::CheckPermissionGroup(const string &appId /* @in */, const string &permissionGroup /* @in */, bool &allowed /* @out */)
