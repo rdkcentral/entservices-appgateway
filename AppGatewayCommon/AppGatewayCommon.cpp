@@ -184,6 +184,36 @@ namespace Plugin {
         { "device.audio", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetAudio(result);
         }},
+        { "videooutput.resolution", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetVideoOutputResolution(result);
+        }},
+        { "videooutput.hdcp", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetVideoOutputHdcp(result);
+        }},
+        { "videooutput.cecactivestate", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetVideoOutputCecActiveState(result);
+        }},
+        { "videooutput.port", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetVideoOutputPort(result);
+        }},
+        { "videooutput.refreshrate", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetVideoOutputRefreshRate(result);
+        }},
+        { "videooutput.colordepth", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetVideoOutputColorDepth(result);
+        }},
+        { "videooutput.colorformat", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetVideoOutputColorFormat(result);
+        }},
+        { "videooutput.colorimetry", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetVideoOutputColorimetry(result);
+        }},
+        { "videooutput.dynamicrange", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetVideoOutputDynamicRange(result);
+        }},
+        { "videooutput.quantizationrange", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetVideoOutputQuantizationRange(result);
+        }},
         { "voiceguidance.navigationhints", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetVoiceGuidanceHints(result);
         }},
@@ -1161,6 +1191,108 @@ namespace Plugin {
                 return Core::ERROR_UNAVAILABLE;
             }
             return systemDelegate->GetAudio(result);
+        }
+
+        // ─── VideoOutput API wrappers ─────────────────────────────────────
+
+        Core::hresult AppGatewayCommon::GetVideoOutputResolution(string &result)
+        {
+            LOGINFO("GetVideoOutputResolution AppGatewayCommon");
+            result = "{\"width\":0,\"height\":0}";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            return videoOutputDelegate->GetVideoOutputResolution(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetVideoOutputHdcp(string &result)
+        {
+            LOGINFO("GetVideoOutputHdcp AppGatewayCommon");
+            result = "\"none\"";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            return videoOutputDelegate->GetVideoOutputHdcp(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetVideoOutputCecActiveState(string &result)
+        {
+            LOGINFO("GetVideoOutputCecActiveState AppGatewayCommon");
+            result = "\"unsupported\"";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            return videoOutputDelegate->GetVideoOutputCecActiveState(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetVideoOutputPort(string &result)
+        {
+            LOGINFO("GetVideoOutputPort AppGatewayCommon");
+            result = "\"none\"";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            return videoOutputDelegate->GetVideoOutputPort(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetVideoOutputRefreshRate(string &result)
+        {
+            LOGINFO("GetVideoOutputRefreshRate AppGatewayCommon");
+            result = "0";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            return videoOutputDelegate->GetVideoOutputRefreshRate(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetVideoOutputColorDepth(string &result)
+        {
+            LOGINFO("GetVideoOutputColorDepth AppGatewayCommon");
+            result = "0";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            return videoOutputDelegate->GetVideoOutputColorDepth(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetVideoOutputColorFormat(string &result)
+        {
+            LOGINFO("GetVideoOutputColorFormat AppGatewayCommon");
+            result = "\"none\"";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            return videoOutputDelegate->GetVideoOutputColorFormat(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetVideoOutputColorimetry(string &result)
+        {
+            LOGINFO("GetVideoOutputColorimetry AppGatewayCommon");
+            result = "\"none\"";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            return videoOutputDelegate->GetVideoOutputColorimetry(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetVideoOutputDynamicRange(string &result)
+        {
+            LOGINFO("GetVideoOutputDynamicRange AppGatewayCommon");
+            result = "\"none\"";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            return videoOutputDelegate->GetVideoOutputDynamicRange(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetVideoOutputQuantizationRange(string &result)
+        {
+            LOGINFO("GetVideoOutputQuantizationRange AppGatewayCommon");
+            result = "\"none\"";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            return videoOutputDelegate->GetVideoOutputQuantizationRange(result);
         }
 
         template <typename DelegateType, typename LifecycleType, typename Func, typename... Args>

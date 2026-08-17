@@ -684,3 +684,75 @@ uint32_t Test_HandleRequest_ParentalControl_ViewingRestrictions()
     return DelegateGetterTest("parentalcontrol.viewingrestrictions");
 }
 
+// ─── VideoOutput routing tests ────────────────────────────────────────
+
+// TEST_ID: AGC_L0_110
+// Handler-map getter: videooutput.resolution
+uint32_t Test_HandleRequest_VideoOutputResolution()
+{
+    return DelegateGetterTest("videooutput.resolution");
+}
+
+// TEST_ID: AGC_L0_111
+// Handler-map getter: videooutput.hdcp
+uint32_t Test_HandleRequest_VideoOutputHdcp()
+{
+    return DelegateGetterTest("videooutput.hdcp");
+}
+
+// TEST_ID: AGC_L0_112
+// Handler-map getter: videooutput.cecactivestate
+uint32_t Test_HandleRequest_VideoOutputCecActiveState()
+{
+    return DelegateGetterTest("videooutput.cecactivestate");
+}
+
+// TEST_ID: AGC_L0_113
+// Handler-map getter: videooutput.port
+uint32_t Test_HandleRequest_VideoOutputPort()
+{
+    return DelegateGetterTest("videooutput.port");
+}
+
+// TEST_ID: AGC_L0_114
+// Handler-map getter: videooutput.refreshrate
+uint32_t Test_HandleRequest_VideoOutputRefreshRate()
+{
+    return DelegateGetterTest("videooutput.refreshrate");
+}
+
+// TEST_ID: AGC_L0_115
+// Handler-map getter: videooutput.colordepth
+uint32_t Test_HandleRequest_VideoOutputColorDepth()
+{
+    return DelegateGetterTest("videooutput.colordepth");
+}
+
+// TEST_ID: AGC_L0_116
+// Handler-map getter: videooutput.colorformat
+uint32_t Test_HandleRequest_VideoOutputColorFormat()
+{
+    return DelegateGetterTest("videooutput.colorformat");
+}
+
+// TEST_ID: AGC_L0_117
+// Handler-map getter: videooutput.colorimetry
+uint32_t Test_HandleRequest_VideoOutputColorimetry()
+{
+    return DelegateGetterTest("videooutput.colorimetry");
+}
+
+// TEST_ID: AGC_L0_118
+// Handler-map getter: videooutput.dynamicrange
+uint32_t Test_HandleRequest_VideoOutputDynamicRange()
+{
+    return DelegateGetterTest("videooutput.dynamicrange");
+}
+
+// TEST_ID: AGC_L0_119
+// Handler-map getter: videooutput.quantizationrange
+uint32_t Test_HandleRequest_VideoOutputQuantizationRange()
+{
+    return DelegateGetterTest("videooutput.quantizationrange");
+}
+

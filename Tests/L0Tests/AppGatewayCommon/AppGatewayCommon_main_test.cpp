@@ -39,6 +39,16 @@ extern uint32_t Test_HandleRequest_DeviceVideoResolution();
 extern uint32_t Test_HandleRequest_DeviceHdcp();
 extern uint32_t Test_HandleRequest_DeviceHdr();
 extern uint32_t Test_HandleRequest_DeviceAudio();
+extern uint32_t Test_HandleRequest_VideoOutputResolution();
+extern uint32_t Test_HandleRequest_VideoOutputHdcp();
+extern uint32_t Test_HandleRequest_VideoOutputCecActiveState();
+extern uint32_t Test_HandleRequest_VideoOutputPort();
+extern uint32_t Test_HandleRequest_VideoOutputRefreshRate();
+extern uint32_t Test_HandleRequest_VideoOutputColorDepth();
+extern uint32_t Test_HandleRequest_VideoOutputColorFormat();
+extern uint32_t Test_HandleRequest_VideoOutputColorimetry();
+extern uint32_t Test_HandleRequest_VideoOutputDynamicRange();
+extern uint32_t Test_HandleRequest_VideoOutputQuantizationRange();
 extern uint32_t Test_HandleRequest_VoiceGuidanceEnabled();
 extern uint32_t Test_HandleRequest_VoiceGuidanceNavigationHints();
 extern uint32_t Test_HandleRequest_VoiceGuidanceSettings_NonRDK8();
@@ -128,6 +138,11 @@ extern uint32_t Test_HandleAppEventNotifier_UserSettingsEvent_ListenTrue();
 extern uint32_t Test_HandleAppEventNotifier_TTSEvent_ListenTrue();
 extern uint32_t Test_HandleAppEventNotifier_SystemDeviceEvent();
 extern uint32_t Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly();
+extern uint32_t Test_HandleAppEventNotifier_VideoOutputResolutionEvent_ListenTrue();
+extern uint32_t Test_HandleAppEventNotifier_VideoOutputHdcpEvent_ListenTrue();
+extern uint32_t Test_HandleAppEventNotifier_VideoOutputCecActiveStateEvent_ListenTrue();
+extern uint32_t Test_HandleAppEventNotifier_VideoOutputPortEvent_ListenTrue();
+extern uint32_t Test_HandleAppEventNotifier_VideoOutputRefreshRateEvent_ListenTrue();
 
 // AppGatewayCommon_display_test.cpp
 extern uint32_t Test_HandleRequest_DisplayEdid_NoDisplay();
@@ -181,6 +196,16 @@ int main()
         { "HandleRequest_DeviceHdcp",                     Test_HandleRequest_DeviceHdcp },
         { "HandleRequest_DeviceHdr",                      Test_HandleRequest_DeviceHdr },
         { "HandleRequest_DeviceAudio",                    Test_HandleRequest_DeviceAudio },
+        { "HandleRequest_VideoOutputResolution",            Test_HandleRequest_VideoOutputResolution },
+        { "HandleRequest_VideoOutputHdcp",                  Test_HandleRequest_VideoOutputHdcp },
+        { "HandleRequest_VideoOutputCecActiveState",        Test_HandleRequest_VideoOutputCecActiveState },
+        { "HandleRequest_VideoOutputPort",                  Test_HandleRequest_VideoOutputPort },
+        { "HandleRequest_VideoOutputRefreshRate",           Test_HandleRequest_VideoOutputRefreshRate },
+        { "HandleRequest_VideoOutputColorDepth",            Test_HandleRequest_VideoOutputColorDepth },
+        { "HandleRequest_VideoOutputColorFormat",           Test_HandleRequest_VideoOutputColorFormat },
+        { "HandleRequest_VideoOutputColorimetry",           Test_HandleRequest_VideoOutputColorimetry },
+        { "HandleRequest_VideoOutputDynamicRange",          Test_HandleRequest_VideoOutputDynamicRange },
+        { "HandleRequest_VideoOutputQuantizationRange",     Test_HandleRequest_VideoOutputQuantizationRange },
         { "HandleRequest_VoiceGuidanceEnabled",           Test_HandleRequest_VoiceGuidanceEnabled },
         { "HandleRequest_VoiceGuidanceNavigationHints",   Test_HandleRequest_VoiceGuidanceNavigationHints },
         { "HandleRequest_VoiceGuidanceSettings_NonRDK8",  Test_HandleRequest_VoiceGuidanceSettings_NonRDK8 },
@@ -265,6 +290,11 @@ int main()
         { "EventNotifier_TTSEvent_ListenTrue",            Test_HandleAppEventNotifier_TTSEvent_ListenTrue },
         { "EventNotifier_SystemDeviceEvent",              Test_HandleAppEventNotifier_SystemDeviceEvent },
         { "EventNotifier_NetworkEvent_UnsubscribeOnly",   Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly },
+        { "EventNotifier_VOResolution_ListenTrue",          Test_HandleAppEventNotifier_VideoOutputResolutionEvent_ListenTrue },
+        { "EventNotifier_VOHdcp_ListenTrue",                Test_HandleAppEventNotifier_VideoOutputHdcpEvent_ListenTrue },
+        { "EventNotifier_VOCecActiveState_ListenTrue",      Test_HandleAppEventNotifier_VideoOutputCecActiveStateEvent_ListenTrue },
+        { "EventNotifier_VOPort_ListenTrue",                Test_HandleAppEventNotifier_VideoOutputPortEvent_ListenTrue },
+        { "EventNotifier_VORefreshRate_ListenTrue",         Test_HandleAppEventNotifier_VideoOutputRefreshRateEvent_ListenTrue },
         // --- Display tests (AGC_L0_098–AGC_L0_107) ---
         { "DisplayEdid_NoDisplay",                        Test_HandleRequest_DisplayEdid_NoDisplay },
         { "DisplayEdid_CaseInsensitive",                  Test_HandleRequest_DisplayEdid_CaseInsensitive },

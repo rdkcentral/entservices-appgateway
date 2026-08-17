@@ -292,3 +292,104 @@ uint32_t Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly()
     return tr.failures;
 }
 
+// ─── VideoOutput event tests ──────────────────────────────────────────
+
+// TEST_ID: AGC_L0_120
+// VideoOutputDelegate registration path: videooutput.onresolutionchanged listen=true.
+uint32_t Test_HandleAppEventNotifier_VideoOutputResolutionEvent_ListenTrue()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool status = false;
+    const uint32_t rc = notif->HandleAppEventNotifier(emitter, "videooutput.onresolutionchanged", true, status);
+    ExpectEqU32(tr, rc, ERROR_NONE, "VideoOutput resolution event listen=true returns ERROR_NONE");
+    ExpectTrue(tr, status, "VideoOutput resolution event listen=true sets status true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_121
+// VideoOutputDelegate registration path: videooutput.onhdcpchanged listen=true.
+uint32_t Test_HandleAppEventNotifier_VideoOutputHdcpEvent_ListenTrue()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool status = false;
+    const uint32_t rc = notif->HandleAppEventNotifier(emitter, "videooutput.onhdcpchanged", true, status);
+    ExpectEqU32(tr, rc, ERROR_NONE, "VideoOutput HDCP event listen=true returns ERROR_NONE");
+    ExpectTrue(tr, status, "VideoOutput HDCP event listen=true sets status true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_122
+// VideoOutputDelegate registration path: videooutput.oncecactivestatechanged listen=true.
+uint32_t Test_HandleAppEventNotifier_VideoOutputCecActiveStateEvent_ListenTrue()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool status = false;
+    const uint32_t rc = notif->HandleAppEventNotifier(emitter, "videooutput.oncecactivestatechanged", true, status);
+    ExpectEqU32(tr, rc, ERROR_NONE, "VideoOutput CecActiveState event listen=true returns ERROR_NONE");
+    ExpectTrue(tr, status, "VideoOutput CecActiveState event listen=true sets status true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_123
+// VideoOutputDelegate registration path: videooutput.onportchanged listen=true.
+uint32_t Test_HandleAppEventNotifier_VideoOutputPortEvent_ListenTrue()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool status = false;
+    const uint32_t rc = notif->HandleAppEventNotifier(emitter, "videooutput.onportchanged", true, status);
+    ExpectEqU32(tr, rc, ERROR_NONE, "VideoOutput port event listen=true returns ERROR_NONE");
+    ExpectTrue(tr, status, "VideoOutput port event listen=true sets status true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_124
+// VideoOutputDelegate registration path: videooutput.onrefreshratechanged listen=true.
+uint32_t Test_HandleAppEventNotifier_VideoOutputRefreshRateEvent_ListenTrue()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool status = false;
+    const uint32_t rc = notif->HandleAppEventNotifier(emitter, "videooutput.onrefreshratechanged", true, status);
+    ExpectEqU32(tr, rc, ERROR_NONE, "VideoOutput refreshRate event listen=true returns ERROR_NONE");
+    ExpectTrue(tr, status, "VideoOutput refreshRate event listen=true sets status true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    return tr.failures;
+}

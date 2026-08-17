@@ -27,6 +27,7 @@
 #include "UtilsLogging.h"
 #include "AppDelegate.h"
 #include "TTSDelegate.h"
+#include "VideoOutputDelegate.h"
 #include <interfaces/IAppNotifications.h>
 
 #define APP_NOTIFICATIONS_CALLSIGN "org.rdk.AppNotifications"
@@ -34,7 +35,7 @@ using namespace WPEFramework;
 
 class SettingsDelegate {
     public:
-        SettingsDelegate(): userSettings(nullptr), systemDelegate(nullptr), networkDelegate(nullptr), lifecycleDelegate(nullptr), appDelegate(nullptr), ttsDelegate(nullptr) {}
+        SettingsDelegate(): userSettings(nullptr), systemDelegate(nullptr), networkDelegate(nullptr), lifecycleDelegate(nullptr), appDelegate(nullptr), ttsDelegate(nullptr), videoOutputDelegate(nullptr) {}
 
         ~SettingsDelegate() {
             userSettings = nullptr;
@@ -43,17 +44,18 @@ class SettingsDelegate {
             lifecycleDelegate = nullptr;
             appDelegate = nullptr;
             ttsDelegate = nullptr;
+            videoOutputDelegate = nullptr;
         }
 
         void HandleAppEventNotifier(Exchange::IAppNotificationHandler::IEmitter *cb, const string event,
                                     const bool listen) {
             bool registrationError = false;
-            if (userSettings==nullptr || systemDelegate==nullptr || networkDelegate==nullptr || lifecycleDelegate==nullptr || ttsDelegate==nullptr) {
+            if (userSettings==nullptr || systemDelegate==nullptr || networkDelegate==nullptr || lifecycleDelegate==nullptr || ttsDelegate==nullptr || videoOutputDelegate==nullptr) {
                 LOGERR("Services not available");
                 return;
             }
 
-            std::vector<std::shared_ptr<BaseEventDelegate>> delegates = {userSettings, systemDelegate, networkDelegate, lifecycleDelegate, ttsDelegate};
+            std::vector<std::shared_ptr<BaseEventDelegate>> delegates = {userSettings, systemDelegate, networkDelegate, lifecycleDelegate, ttsDelegate, videoOutputDelegate};
             bool handled = false;
 
             for (const auto& delegate : delegates) {
@@ -103,6 +105,10 @@ class SettingsDelegate {
             if (ttsDelegate == nullptr) {
                 ttsDelegate = std::make_shared<TTSDelegate>(shell);
             }
+
+            if (videoOutputDelegate == nullptr) {
+                videoOutputDelegate = std::make_shared<VideoOutputDelegate>(shell);
+            }
         }
 
         void Cleanup() {
@@ -112,6 +118,7 @@ class SettingsDelegate {
             lifecycleDelegate.reset();
             appDelegate.reset();
             ttsDelegate.reset();
+            videoOutputDelegate.reset();
         }
 
         std::shared_ptr<SystemDelegate> getSystemDelegate() const {
@@ -134,6 +141,10 @@ class SettingsDelegate {
             return appDelegate;
         }
 
+        std::shared_ptr<VideoOutputDelegate> getVideoOutputDelegate() const {
+            return videoOutputDelegate;
+        }
+
     private:
         std::shared_ptr<UserSettingsDelegate> userSettings;
         std::shared_ptr<SystemDelegate> systemDelegate;
@@ -141,6 +152,7 @@ class SettingsDelegate {
         std::shared_ptr<LifecycleDelegate> lifecycleDelegate;
         std::shared_ptr<AppDelegate> appDelegate;
         std::shared_ptr<TTSDelegate> ttsDelegate;
+        std::shared_ptr<VideoOutputDelegate> videoOutputDelegate;
 };
 
 #endif
