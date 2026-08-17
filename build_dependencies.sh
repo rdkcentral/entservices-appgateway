@@ -87,7 +87,7 @@ echo "==========================================================================
 echo "buliding entservices-apis"
 cd entservices-apis
 # this is added to avoid the latest build error.
-git checkout 2c01d26996f2d5fcf2c45fad20cd9ccf5cb980ef
+git checkout 7f69f2165c8acd07a5194485252d99e0819f0aef
 rm -rf jsonrpc/DTV.json
 cd ..
 
