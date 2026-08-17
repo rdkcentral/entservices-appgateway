@@ -19,26 +19,19 @@
 
 #pragma once
 
-#include <algorithm>
-#include <memory>
 #include <string>
 
-#include <core/JSON.h>
+#include <interfaces/IAudioOutput.h>
 #include <plugins/plugins.h>
 
 #include "BaseEventDelegate.h"
 #include "UtilsController.h"
-#include "UtilsJsonrpcDirectLink.h"
 #include "UtilsLogging.h"
 
 using namespace WPEFramework;
 
 #ifndef AVOUTPUT_CALLSIGN
 #define AVOUTPUT_CALLSIGN "org.rdk.AudioOutput"
-#endif
-
-#ifndef CALLSIGN_CALLER_APPGATEWAY_AVOUTPUT
-#define CALLSIGN_CALLER_APPGATEWAY_AVOUTPUT "org.rdk.AppGatewayCommon.AvOutputDelegate"
 #endif
 
 class AvOutputDelegate : public BaseEventDelegate
@@ -49,43 +42,46 @@ public:
     explicit AvOutputDelegate(PluginHost::IShell* shell)
         : BaseEventDelegate()
         , _shell(shell)
-        , _audioOutputRpc(nullptr)
+        , _audioOutput(nullptr)
         , _audioOutputSubscribed(false)
+        , _audioOutputNotificationHandler(*this)
     {
     }
 
     ~AvOutputDelegate()
     {
         try {
-            if (_audioOutputRpc && isAudioOutputSubscribed()) {
-                _audioOutputRpc->Unsubscribe(2000, _T("onDolbyAtmosExperienceChanged"));
+            if (_audioOutput && isAudioOutputSubscribed()) {
+                _audioOutput->Unregister(&_audioOutputNotificationHandler);
             }
         } catch (...) {
         }
-        _audioOutputRpc.reset();
+
+        if (_audioOutput) {
+            _audioOutput->Release();
+            _audioOutput = nullptr;
+        }
         _shell = nullptr;
     }
 
     Core::hresult GetDolbyAtmosExperience(std::string& result)
     {
         bool available = false;
-        auto link = AcquireLink(AVOUTPUT_CALLSIGN);
-        if (!link) {
-            LOGERR("AvOutputDelegate: AudioOutput link unavailable, returning false");
+        auto* audioOutput = AcquireAudioOutputInterface();
+        if (audioOutput == nullptr) {
+            LOGERR("AvOutputDelegate: AudioOutput COM-RPC interface unavailable, returning false");
             result = "false";
             return Core::ERROR_UNAVAILABLE;
         }
 
-        Core::JSON::VariantContainer params;
-        Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("dolbyAtmosExperience", params, response);
+        const uint32_t rc = audioOutput->DolbyAtmosExperience(available);
+        audioOutput->Release();
         if (rc != Core::ERROR_NONE) {
-            LOGERR("AvOutputDelegate: AudioOutput.dolbyAtmosExperience failed rc=%u", rc);
+            LOGERR("AvOutputDelegate: AudioOutput::DolbyAtmosExperience failed rc=%u", rc);
             result = "false";
             return Core::ERROR_GENERAL;
         }
 
-        (void)ExtractAtmosAvailable(response, available);
         result = available ? "true" : "false";
         return Core::ERROR_NONE;
     }
@@ -131,64 +127,6 @@ public:
     }
 
 private:
-    static std::string ToUpper(const std::string& in)
-    {
-        std::string out = in;
-        std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) {
-            return static_cast<char>(::toupper(c));
-        });
-        return out;
-    }
-
-    static bool ParseAtmosString(const std::string& value, bool& available)
-    {
-        if (value.empty()) {
-            return false;
-        }
-
-        const std::string upper = ToUpper(value);
-        if (upper == "ATMOS_AVAILABLE" || upper == "TRUE") {
-            available = true;
-            return true;
-        }
-        if (upper == "ATMOS_NOT_AVAILABLE" || upper == "FALSE") {
-            available = false;
-            return true;
-        }
-        return false;
-    }
-
-    static bool ExtractAtmosAvailable(const Core::JSON::Variant& value, bool& available)
-    {
-        using Variant = Core::JSON::Variant;
-        if (value.Content() == Variant::type::BOOLEAN) {
-            available = value.Boolean();
-            return true;
-        }
-
-        if (value.Content() == Variant::type::STRING) {
-            return ParseAtmosString(value.String(), available);
-        }
-
-        if (value.Content() == Variant::type::OBJECT) {
-            const auto& obj = value.Object();
-            if (obj.HasLabel(_T("value")) && ExtractAtmosAvailable(obj.Get(_T("value")), available)) {
-                return true;
-            }
-            if (obj.HasLabel(_T("dolbyAtmosExperience")) && ExtractAtmosAvailable(obj.Get(_T("dolbyAtmosExperience")), available)) {
-                return true;
-            }
-            if (obj.HasLabel(_T("status")) && ExtractAtmosAvailable(obj.Get(_T("status")), available)) {
-                return true;
-            }
-            if (obj.HasLabel(_T("result")) && ExtractAtmosAvailable(obj.Get(_T("result")), available)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     void SetupAudioOutputSubscription()
     {
         if (isAudioOutputSubscribed()) {
@@ -196,40 +134,53 @@ private:
         }
 
         try {
-            if (!_audioOutputRpc) {
-                _audioOutputRpc = ::Utils::getThunderControllerClient(AVOUTPUT_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY_AVOUTPUT);
+            if (!_audioOutput) {
+                _audioOutput = AcquireAudioOutputInterface();
             }
 
-            if (_audioOutputRpc) {
-                const uint32_t status = _audioOutputRpc->Subscribe<Core::JSON::VariantContainer>(
-                    2000,
-                    _T("onDolbyAtmosExperienceChanged"),
-                    &AvOutputDelegate::OnDolbyAtmosExperienceChanged,
-                    this);
-
+            if (_audioOutput) {
+                const uint32_t status = _audioOutput->Register(&_audioOutputNotificationHandler);
                 if (status == Core::ERROR_NONE) {
                     markAudioOutputSubscribed();
-                    LOGINFO("AvOutputDelegate: Subscribed to %s.onDolbyAtmosExperienceChanged", AVOUTPUT_CALLSIGN);
+                    LOGINFO("AvOutputDelegate: Registered for %s COM-RPC notifications", AVOUTPUT_CALLSIGN);
                 } else {
-                    LOGERR("AvOutputDelegate: Failed to subscribe to %s.onDolbyAtmosExperienceChanged rc=%u", AVOUTPUT_CALLSIGN, status);
+                    LOGERR("AvOutputDelegate: Failed to register %s COM-RPC notifications rc=%u", AVOUTPUT_CALLSIGN, status);
                 }
+            } else {
+                LOGERR("AvOutputDelegate: Failed to acquire %s COM-RPC interface", AVOUTPUT_CALLSIGN);
             }
         } catch (...) {
-            LOGERR("AvOutputDelegate: exception during AudioOutput subscription");
+            LOGERR("AvOutputDelegate: exception during AudioOutput COM-RPC registration");
         }
     }
 
-    void OnDolbyAtmosExperienceChanged(const Core::JSON::VariantContainer& params)
+    void OnDolbyAtmosExperienceChanged(const bool available)
     {
-        (void)params;
-        LOGINFO("[AppGatewayCommon|AudioOutput.onDolbyAtmosExperienceChanged] Incoming alias=%s.%s, invoking handlers...",
-                AVOUTPUT_CALLSIGN,
-                "onDolbyAtmosExperienceChanged");
-
-        const bool emitted = EmitOnDolbyAtmosExperienceAvailableChanged();
-        LOGINFO("[AppGatewayCommon|AudioOutput.onDolbyAtmosExperienceChanged] Handler responses: onDolbyAtmosExperienceAvailableChanged=%s",
-                emitted ? "emitted" : "skipped");
+        const std::string payload = available ? "true" : "false";
+        Dispatch(EVENT_ON_DOLBY_ATMOS_EXPERIENCE_AVAILABLE_CHANGED, payload);
+        LOGINFO("[AppGatewayCommon|AudioOutput.onDolbyAtmosExperienceChanged] Dispatched payload=%s",
+            payload.c_str());
     }
+
+    class AudioOutputNotificationHandler : public Exchange::IAudioOutput::INotification {
+    public:
+        explicit AudioOutputNotificationHandler(AvOutputDelegate& parent)
+            : _parent(parent)
+        {
+        }
+
+        void OnDolbyAtmosExperienceChanged(const bool dolbyAtmosExperience) override
+        {
+            _parent.OnDolbyAtmosExperienceChanged(dolbyAtmosExperience);
+        }
+
+        BEGIN_INTERFACE_MAP(AudioOutputNotificationHandler)
+        INTERFACE_ENTRY(Exchange::IAudioOutput::INotification)
+        END_INTERFACE_MAP
+
+    private:
+        AvOutputDelegate& _parent;
+    };
 
     bool isAudioOutputSubscribed() const
     {
@@ -243,18 +194,20 @@ private:
         _audioOutputSubscribed = true;
     }
 
-    std::shared_ptr<WPEFramework::Utils::JSONRPCDirectLink> AcquireLink(const std::string& callsign) const
+    Exchange::IAudioOutput* AcquireAudioOutputInterface() const
     {
         if (nullptr == _shell) {
             LOGERR("AvOutputDelegate: shell is null");
             return nullptr;
         }
-        return WPEFramework::Utils::GetThunderControllerClient(_shell, callsign);
+
+        return _shell->QueryInterfaceByCallsign<Exchange::IAudioOutput>(AVOUTPUT_CALLSIGN);
     }
 
 private:
     PluginHost::IShell* _shell;
-    std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _audioOutputRpc;
+    Exchange::IAudioOutput* _audioOutput;
     bool _audioOutputSubscribed;
+    Core::Sink<AudioOutputNotificationHandler> _audioOutputNotificationHandler;
     mutable Core::CriticalSection _audioOutputSubscriptionLock;
 };
