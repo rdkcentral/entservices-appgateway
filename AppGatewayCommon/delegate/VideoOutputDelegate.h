@@ -334,15 +334,15 @@ public:
         }
 
         Core::JSON::VariantContainer params;
-        Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("colorspace", params, response);
+        std::string response;
+        const uint32_t rc = link->Invoke<decltype(params), std::string>("colorspace", params, response);
         if (Core::ERROR_NONE != rc) {
             LOGERR("VideoOutputDelegate: colorspace failed rc=%u", rc);
             return Core::ERROR_NONE;
         }
 
-        if (response.HasLabel(_T("cs"))) {
-            std::string cs = response.Get(_T("cs")).String();
+        const std::string cs = response;
+        if (false == cs.empty()) {
             if (cs == "FormatYcbcr420")      result = "\"ycbcr420\"";
             else if (cs == "FormatYcbcr422") result = "\"ycbcr422\"";
             else if (cs == "FormatYcbcr444") result = "\"ycbcr444\"";
@@ -428,15 +428,15 @@ public:
         }
 
         Core::JSON::VariantContainer params;
-        Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("quantizationrange", params, response);
+        std::string response;
+        const uint32_t rc = link->Invoke<decltype(params), std::string>("quantizationrange", params, response);
         if (Core::ERROR_NONE != rc) {
             LOGERR("VideoOutputDelegate: quantizationrange failed rc=%u", rc);
             return Core::ERROR_NONE;
         }
 
-        if (response.HasLabel(_T("qr"))) {
-            std::string qr = response.Get(_T("qr")).String();
+        const std::string qr = response;
+        if (false == qr.empty()) {
             if (qr == "QuantizationrangeLimited")    result = "\"limited\"";
             else if (qr == "QuantizationrangeFull")  result = "\"full\"";
         }
@@ -542,7 +542,7 @@ private:
         // Strip trailing frequency (e.g. "1080p60" → "1080p")
         std::string base;
         for (char c : lower) {
-            if (std::isdigit(c) || c == 'p' || c == 'i' || c == 'x') {
+            if (std::isdigit(c) /* || c == 'p' || c == 'i' || c == 'x'*/) {
                 base += c;
             } else {
                 break;

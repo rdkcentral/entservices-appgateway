@@ -500,11 +500,12 @@ Core::hresult GetVideoOutputColorFormat(std::string &result)
         LOGERR("GetVideoOutputColorFormat: DisplayInfo link unavailable");
         return Core::ERROR_NONE;
     }
-    JsonObject params, response;
-    uint32_t rc = link->Invoke<JsonObject, JsonObject>(SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS,
+    Core::JSON::VariantContainer params;
+    std::string response;
+    uint32_t rc = link->Invoke<decltype(params), std::string>(SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS,
         "colorspace", params, response);
-    if (Core::ERROR_NONE == rc && response.HasLabel("cs")) {
-        std::string cs = response["cs"].String();
+    if (Core::ERROR_NONE == rc && false == response.empty()) {
+        std::string cs = response;
         if (cs == "FormatYcbcr420")      result = "\"ycbcr420\"";
         else if (cs == "FormatYcbcr422") result = "\"ycbcr422\"";
         else if (cs == "FormatYcbcr444") result = "\"ycbcr444\"";
@@ -579,11 +580,12 @@ Core::hresult GetVideoOutputQuantizationRange(std::string &result)
         LOGERR("GetVideoOutputQuantizationRange: DisplayInfo link unavailable");
         return Core::ERROR_NONE;
     }
-    JsonObject params, response;
-    uint32_t rc = link->Invoke<JsonObject, JsonObject>(SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS,
+    Core::JSON::VariantContainer params;
+    std::string response;
+    uint32_t rc = link->Invoke<decltype(params), std::string>(SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS,
         "quantizationrange", params, response);
-    if (Core::ERROR_NONE == rc && response.HasLabel("qr")) {
-        std::string qr = response["qr"].String();
+    if (Core::ERROR_NONE == rc && false == response.empty()) {
+        std::string qr = response;
         if (qr == "QuantizationrangeLimited")    result = "\"limited\"";
         else if (qr == "QuantizationrangeFull")  result = "\"full\"";
     }
