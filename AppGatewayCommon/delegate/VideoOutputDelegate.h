@@ -29,6 +29,7 @@
 
 #include "BaseEventDelegate.h"
 #include "UtilsController.h"
+#include "UtilsJsonrpcDirectLink.h"
 #include "UtilsLogging.h"
 
 using namespace WPEFramework;
@@ -878,7 +879,7 @@ private:
 
     // ─── JSON-RPC link acquisition ────────────────────────────────────────
 
-    std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> AcquireLink(const std::string& callsign) const
+    std::shared_ptr<WPEFramework::Utils::JSONRPCDirectLink> AcquireLink(const std::string& callsign) const
     {
         if (nullptr == _shell) {
             LOGERR("VideoOutputDelegate: shell is null");
