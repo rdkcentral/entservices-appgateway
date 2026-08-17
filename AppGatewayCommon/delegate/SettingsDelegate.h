@@ -50,7 +50,7 @@ class SettingsDelegate {
         void HandleAppEventNotifier(Exchange::IAppNotificationHandler::IEmitter *cb, const string event,
                                     const bool listen) {
             bool registrationError = false;
-            if (userSettings==nullptr || systemDelegate==nullptr || networkDelegate==nullptr || lifecycleDelegate==nullptr || ttsDelegate==nullptr || videoOutputDelegate==nullptr) {
+            if (nullptr == userSettings || nullptr == systemDelegate || nullptr == networkDelegate || nullptr == lifecycleDelegate || nullptr == ttsDelegate || nullptr == videoOutputDelegate) {
                 LOGERR("Services not available");
                 return;
             }
@@ -59,7 +59,7 @@ class SettingsDelegate {
             bool handled = false;
 
             for (const auto& delegate : delegates) {
-                if (delegate==nullptr) {
+                if (nullptr == delegate) {
                     continue;
                 }
                 if (delegate->HandleEvent(cb, event, listen, registrationError)) {

@@ -29,7 +29,6 @@
 
 #include "BaseEventDelegate.h"
 #include "UtilsController.h"
-#include "UtilsJsonrpcDirectLink.h"
 #include "UtilsLogging.h"
 
 using namespace WPEFramework;
@@ -74,9 +73,11 @@ public:
         , _displaySettingsRpc(nullptr)
         , _hdcpProfileRpc(nullptr)
         , _hdmiCecSourceRpc(nullptr)
+        , _displayInfoRpc(nullptr)
         , _displaySettingsSubscribed(false)
         , _hdcpProfileSubscribed(false)
         , _hdmiCecSourceSubscribed(false)
+        , _displayInfoSubscribed(false)
     {
     }
 
@@ -94,11 +95,15 @@ public:
             if (_hdmiCecSourceRpc && isHdmiCecSourceSubscribed()) {
                 _hdmiCecSourceRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("onActiveSourceStatusUpdated"));
             }
+            if (_displayInfoRpc && isDisplayInfoSubscribed()) {
+                _displayInfoRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("updated"));
+            }
         } catch (...) {
         }
         _displaySettingsRpc.reset();
         _hdcpProfileRpc.reset();
         _hdmiCecSourceRpc.reset();
+        _displayInfoRpc.reset();
         _shell = nullptr;
     }
 
@@ -109,7 +114,7 @@ public:
     {
         result = "{\"width\":0,\"height\":0}";
         auto link = AcquireLink(DISPLAYSETTINGS_CALLSIGN);
-        if (!link) {
+        if (nullptr == link) {
             LOGERR("VideoOutputDelegate: DisplaySettings link unavailable for GetVideoOutputResolution");
             return Core::ERROR_NONE;
         }
@@ -142,7 +147,7 @@ public:
         result = "\"none\"";
         // TODO: TV device detection → return "\"direct\""
         auto link = AcquireLink(HDCPPROFILE_CALLSIGN);
-        if (!link) {
+        if (nullptr == link) {
             LOGERR("VideoOutputDelegate: HdcpProfile link unavailable for GetVideoOutputHdcp");
             return Core::ERROR_NONE;
         }
@@ -166,7 +171,7 @@ public:
         result = "\"unsupported\"";
         // TODO: TV device detection → return error "Wrong device class"
         auto link = AcquireLink(HDMICECSOURCE_CALLSIGN);
-        if (!link) {
+        if (nullptr == link) {
             LOGERR("VideoOutputDelegate: HdmiCecSource link unavailable for GetVideoOutputCecActiveState");
             return Core::ERROR_NONE;
         }
@@ -184,7 +189,7 @@ public:
         if (enabledResp.HasLabel(_T("enabled"))) {
             enabled = enabledResp.Get(_T("enabled")).Boolean();
         }
-        if (!enabled) {
+        if (false == enabled) {
             return Core::ERROR_NONE; // return "unsupported"
         }
 
@@ -209,7 +214,7 @@ public:
     {
         result = "\"none\"";
         auto link = AcquireLink(DISPLAYSETTINGS_CALLSIGN);
-        if (!link) {
+        if (nullptr == link) {
             LOGERR("VideoOutputDelegate: DisplaySettings link unavailable for GetVideoOutputPort");
             return Core::ERROR_NONE;
         }
@@ -322,7 +327,7 @@ public:
     {
         result = "\"none\"";
         auto link = AcquireLink(DISPLAYINFO_CALLSIGN);
-        if (!link) {
+        if (nullptr == link) {
             LOGERR("VideoOutputDelegate: DisplayInfo link unavailable for GetVideoOutputColorFormat");
             return Core::ERROR_NONE;
         }
@@ -352,7 +357,7 @@ public:
     {
         result = "\"none\"";
         auto link = AcquireLink(DISPLAYINFO_CALLSIGN);
-        if (!link) {
+        if (nullptr == link) {
             LOGERR("VideoOutputDelegate: DisplayInfo link unavailable for GetVideoOutputColorimetry");
             return Core::ERROR_NONE;
         }
@@ -385,7 +390,7 @@ public:
     {
         result = "\"none\"";
         auto link = AcquireLink(DISPLAYSETTINGS_CALLSIGN);
-        if (!link) {
+        if (nullptr == link) {
             LOGERR("VideoOutputDelegate: DisplaySettings link unavailable for GetVideoOutputDynamicRange");
             return Core::ERROR_NONE;
         }
@@ -416,7 +421,7 @@ public:
     {
         result = "\"none\"";
         auto link = AcquireLink(DISPLAYINFO_CALLSIGN);
-        if (!link) {
+        if (nullptr == link) {
             LOGERR("VideoOutputDelegate: DisplayInfo link unavailable for GetVideoOutputQuantizationRange");
             return Core::ERROR_NONE;
         }
@@ -448,8 +453,7 @@ public:
             LOGERR("[AppGatewayCommon|VideoOutput.onResolutionChanged] GetVideoOutputResolution failed");
             return false;
         }
-        Dispatch(EVENT_ON_VO_RESOLUTION_CHANGED, payload);
-        return true;
+        return Dispatch(EVENT_ON_VO_RESOLUTION_CHANGED, payload);
     }
 
     bool EmitOnHdcpChanged()
@@ -459,8 +463,7 @@ public:
             LOGERR("[AppGatewayCommon|VideoOutput.onHdcpChanged] GetVideoOutputHdcp failed");
             return false;
         }
-        Dispatch(EVENT_ON_VO_HDCP_CHANGED, payload);
-        return true;
+        return Dispatch(EVENT_ON_VO_HDCP_CHANGED, payload);
     }
 
     bool EmitOnCecActiveStateChanged()
@@ -470,8 +473,7 @@ public:
             LOGERR("[AppGatewayCommon|VideoOutput.onCecActiveStateChanged] GetVideoOutputCecActiveState failed");
             return false;
         }
-        Dispatch(EVENT_ON_VO_CEC_ACTIVE_STATE_CHANGED, payload);
-        return true;
+        return Dispatch(EVENT_ON_VO_CEC_ACTIVE_STATE_CHANGED, payload);
     }
 
     bool EmitOnPortChanged()
@@ -481,8 +483,7 @@ public:
             LOGERR("[AppGatewayCommon|VideoOutput.onPortChanged] GetVideoOutputPort failed");
             return false;
         }
-        Dispatch(EVENT_ON_VO_PORT_CHANGED, payload);
-        return true;
+        return Dispatch(EVENT_ON_VO_PORT_CHANGED, payload);
     }
 
     bool EmitOnRefreshRateChanged()
@@ -492,8 +493,7 @@ public:
             LOGERR("[AppGatewayCommon|VideoOutput.onRefreshRateChanged] GetVideoOutputRefreshRate failed");
             return false;
         }
-        Dispatch(EVENT_ON_VO_REFRESH_RATE_CHANGED, payload);
-        return true;
+        return Dispatch(EVENT_ON_VO_REFRESH_RATE_CHANGED, payload);
     }
 
     // ─── HandleEvent (BaseEventDelegate) ──────────────────────────────────
@@ -512,8 +512,7 @@ public:
         } else if (evLower == "videooutput.onportchanged") {
             SetupDisplaySettingsSubscription();
         } else if (evLower == "videooutput.onrefreshratechanged") {
-            // DisplayInfo updated event — requires separate setup if needed
-            SetupDisplaySettingsSubscription();
+            SetupDisplayInfoSubscription();
         } else {
             registrationError = true;
             return false;
@@ -521,7 +520,7 @@ public:
 
         if (!registrationError) {
             LOGINFO("[AppGatewayCommon|VideoOutput|EventRegistration] event=%s listen=%s", event.c_str(), listen ? "true" : "false");
-            if (listen) {
+            if (true == listen) {
                 AddNotification(event, cb);
             } else {
                 RemoveNotification(event, cb);
@@ -598,7 +597,7 @@ private:
             }
         }
 
-        if (!hasStatus) {
+        if (false == hasStatus) {
             return false;
         }
 
@@ -642,16 +641,16 @@ private:
 
     void SetupDisplaySettingsSubscription()
     {
-        if (isDisplaySettingsSubscribed()) {
+        if (true == isDisplaySettingsSubscribed()) {
             return;
         }
 
         try {
-            if (!_displaySettingsRpc) {
+            if (nullptr == _displaySettingsRpc) {
                 _displaySettingsRpc = ::Utils::getThunderControllerClient(DISPLAYSETTINGS_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY_VIDEOOUTPUT);
             }
 
-            if (_displaySettingsRpc) {
+            if (nullptr != _displaySettingsRpc) {
                 uint32_t status = _displaySettingsRpc->Subscribe<Core::JSON::VariantContainer>(
                     VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS,
                     _T("resolutionChanged"),
@@ -690,18 +689,48 @@ private:
         }
     }
 
-    void SetupHdcpProfileSubscription()
+    void SetupDisplayInfoSubscription()
     {
-        if (isHdcpProfileSubscribed()) {
+        if (true == isDisplayInfoSubscribed()) {
             return;
         }
 
         try {
-            if (!_hdcpProfileRpc) {
+            if (nullptr == _displayInfoRpc) {
+                _displayInfoRpc = ::Utils::getThunderControllerClient(DISPLAYINFO_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY_VIDEOOUTPUT);
+            }
+
+            if (nullptr != _displayInfoRpc) {
+                const uint32_t status = _displayInfoRpc->Subscribe<Core::JSON::VariantContainer>(
+                    VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS,
+                    _T("updated"),
+                    &VideoOutputDelegate::OnDisplayInfoUpdated,
+                    this);
+
+                if (Core::ERROR_NONE == status) {
+                    markDisplayInfoSubscribed();
+                    LOGINFO("VideoOutputDelegate: Subscribed to %s.updated", DISPLAYINFO_CALLSIGN);
+                } else {
+                    LOGERR("VideoOutputDelegate: Failed to subscribe to DisplayInfo.updated rc=%u", status);
+                }
+            }
+        } catch (...) {
+            LOGERR("VideoOutputDelegate: exception during DisplayInfo subscription");
+        }
+    }
+
+    void SetupHdcpProfileSubscription()
+    {
+        if (true == isHdcpProfileSubscribed()) {
+            return;
+        }
+
+        try {
+            if (nullptr == _hdcpProfileRpc) {
                 _hdcpProfileRpc = ::Utils::getThunderControllerClient(HDCPPROFILE_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY_VIDEOOUTPUT);
             }
 
-            if (_hdcpProfileRpc) {
+            if (nullptr != _hdcpProfileRpc) {
                 const uint32_t status = _hdcpProfileRpc->Subscribe<Core::JSON::VariantContainer>(
                     VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS,
                     _T("onDisplayConnectionChanged"),
@@ -722,16 +751,16 @@ private:
 
     void SetupHdmiCecSourceSubscription()
     {
-        if (isHdmiCecSourceSubscribed()) {
+        if (true == isHdmiCecSourceSubscribed()) {
             return;
         }
 
         try {
-            if (!_hdmiCecSourceRpc) {
+            if (nullptr == _hdmiCecSourceRpc) {
                 _hdmiCecSourceRpc = ::Utils::getThunderControllerClient(HDMICECSOURCE_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY_VIDEOOUTPUT);
             }
 
-            if (_hdmiCecSourceRpc) {
+            if (nullptr != _hdmiCecSourceRpc) {
                 const uint32_t status = _hdmiCecSourceRpc->Subscribe<Core::JSON::VariantContainer>(
                     VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS,
                     _T("onActiveSourceStatusUpdated"),
@@ -780,6 +809,15 @@ private:
         (void)EmitOnPortChanged();
     }
 
+    void OnDisplayInfoUpdated(const Core::JSON::VariantContainer& params)
+    {
+        (void)params;
+        LOGINFO("[AppGatewayCommon|DisplayInfo.updated] Incoming, re-querying refreshRate and colorimetry...");
+        (void)EmitOnRefreshRateChanged();
+        std::string colorimetry;
+        (void)GetVideoOutputColorimetry(colorimetry);
+    }
+
     void OnVideoFormatChanged(const Core::JSON::VariantContainer& params)
     {
         (void)params;
@@ -826,9 +864,21 @@ private:
         _hdmiCecSourceSubscribed = true;
     }
 
+    bool isDisplayInfoSubscribed() const
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_subscriptionLock);
+        return _displayInfoSubscribed;
+    }
+
+    void markDisplayInfoSubscribed()
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_subscriptionLock);
+        _displayInfoSubscribed = true;
+    }
+
     // ─── JSON-RPC link acquisition ────────────────────────────────────────
 
-    std::shared_ptr<WPEFramework::Utils::JSONRPCDirectLink> AcquireLink(const std::string& callsign) const
+    std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> AcquireLink(const std::string& callsign) const
     {
         if (nullptr == _shell) {
             LOGERR("VideoOutputDelegate: shell is null");
@@ -842,8 +892,10 @@ private:
     std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _displaySettingsRpc;
     std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _hdcpProfileRpc;
     std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _hdmiCecSourceRpc;
+    std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _displayInfoRpc;
     bool _displaySettingsSubscribed;
     bool _hdcpProfileSubscribed;
     bool _hdmiCecSourceSubscribed;
+    bool _displayInfoSubscribed;
     mutable Core::CriticalSection _subscriptionLock;
 };

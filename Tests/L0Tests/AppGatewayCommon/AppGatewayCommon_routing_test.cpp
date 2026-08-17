@@ -684,6 +684,70 @@ uint32_t Test_HandleRequest_ParentalControl_ViewingRestrictions()
     return DelegateGetterTest("parentalcontrol.viewingrestrictions");
 }
 
+// TEST_ID: AGC_L0_104A
+// VideoOutput.resolution returns the safe default when Thunder is unavailable.
+uint32_t Test_HandleRequest_VideoOutputResolution_NoDisplay()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "videooutput.resolution", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "videooutput.resolution returns ERROR_NONE when Thunder is unavailable");
+    ExpectEqStr(tr, result, "{\"width\":0,\"height\":0}", "videooutput.resolution returns zeroed dimensions");
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_104B
+// VideoOutput.hdcp returns the safe default when Thunder is unavailable.
+uint32_t Test_HandleRequest_VideoOutputHdcp_NoDisplay()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "videooutput.hdcp", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "videooutput.hdcp returns ERROR_NONE when Thunder is unavailable");
+    ExpectEqStr(tr, result, "\"none\"", "videooutput.hdcp returns none when Thunder is unavailable");
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_104C
+// VideoOutput.cecActiveState returns the safe default when Thunder is unavailable.
+uint32_t Test_HandleRequest_VideoOutputCecActiveState_NoDisplay()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "videooutput.cecactivestate", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "videooutput.cecactivestate returns ERROR_NONE when Thunder is unavailable");
+    ExpectEqStr(tr, result, "\"unsupported\"", "videooutput.cecactivestate returns unsupported when Thunder is unavailable");
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_104D
+// VideoOutput.port returns the safe default when Thunder is unavailable.
+uint32_t Test_HandleRequest_VideoOutputPort_NoDisplay()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "videooutput.port", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "videooutput.port returns ERROR_NONE when Thunder is unavailable");
+    ExpectEqStr(tr, result, "\"none\"", "videooutput.port returns none when Thunder is unavailable");
+    return tr.failures;
+}
+
 // ─── VideoOutput routing tests ────────────────────────────────────────
 
 // TEST_ID: AGC_L0_110

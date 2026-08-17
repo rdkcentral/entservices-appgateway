@@ -39,6 +39,10 @@ extern uint32_t Test_HandleRequest_DeviceVideoResolution();
 extern uint32_t Test_HandleRequest_DeviceHdcp();
 extern uint32_t Test_HandleRequest_DeviceHdr();
 extern uint32_t Test_HandleRequest_DeviceAudio();
+extern uint32_t Test_HandleRequest_VideoOutputResolution_NoDisplay();
+extern uint32_t Test_HandleRequest_VideoOutputHdcp_NoDisplay();
+extern uint32_t Test_HandleRequest_VideoOutputCecActiveState_NoDisplay();
+extern uint32_t Test_HandleRequest_VideoOutputPort_NoDisplay();
 extern uint32_t Test_HandleRequest_VideoOutputResolution();
 extern uint32_t Test_HandleRequest_VideoOutputHdcp();
 extern uint32_t Test_HandleRequest_VideoOutputCecActiveState();
@@ -196,6 +200,10 @@ int main()
         { "HandleRequest_DeviceHdcp",                     Test_HandleRequest_DeviceHdcp },
         { "HandleRequest_DeviceHdr",                      Test_HandleRequest_DeviceHdr },
         { "HandleRequest_DeviceAudio",                    Test_HandleRequest_DeviceAudio },
+        { "HandleRequest_VideoOutputResolution_NoDisplay", Test_HandleRequest_VideoOutputResolution_NoDisplay },
+        { "HandleRequest_VideoOutputHdcp_NoDisplay",       Test_HandleRequest_VideoOutputHdcp_NoDisplay },
+        { "HandleRequest_VideoOutputCecActiveState_NoDisplay", Test_HandleRequest_VideoOutputCecActiveState_NoDisplay },
+        { "HandleRequest_VideoOutputPort_NoDisplay",       Test_HandleRequest_VideoOutputPort_NoDisplay },
         { "HandleRequest_VideoOutputResolution",            Test_HandleRequest_VideoOutputResolution },
         { "HandleRequest_VideoOutputHdcp",                  Test_HandleRequest_VideoOutputHdcp },
         { "HandleRequest_VideoOutputCecActiveState",        Test_HandleRequest_VideoOutputCecActiveState },

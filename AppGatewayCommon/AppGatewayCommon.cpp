@@ -1199,9 +1199,9 @@ namespace Plugin {
         {
             LOGINFO("GetVideoOutputResolution AppGatewayCommon");
             result = "{\"width\":0,\"height\":0}";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
             auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
-            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputResolution(result);
         }
 
@@ -1209,9 +1209,9 @@ namespace Plugin {
         {
             LOGINFO("GetVideoOutputHdcp AppGatewayCommon");
             result = "\"none\"";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
             auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
-            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputHdcp(result);
         }
 
@@ -1219,9 +1219,9 @@ namespace Plugin {
         {
             LOGINFO("GetVideoOutputCecActiveState AppGatewayCommon");
             result = "\"unsupported\"";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
             auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
-            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputCecActiveState(result);
         }
 
@@ -1229,9 +1229,9 @@ namespace Plugin {
         {
             LOGINFO("GetVideoOutputPort AppGatewayCommon");
             result = "\"none\"";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
             auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
-            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputPort(result);
         }
 
@@ -1239,9 +1239,9 @@ namespace Plugin {
         {
             LOGINFO("GetVideoOutputRefreshRate AppGatewayCommon");
             result = "0";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
             auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
-            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputRefreshRate(result);
         }
 
@@ -1249,9 +1249,9 @@ namespace Plugin {
         {
             LOGINFO("GetVideoOutputColorDepth AppGatewayCommon");
             result = "0";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
             auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
-            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputColorDepth(result);
         }
 
@@ -1259,9 +1259,9 @@ namespace Plugin {
         {
             LOGINFO("GetVideoOutputColorFormat AppGatewayCommon");
             result = "\"none\"";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
             auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
-            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputColorFormat(result);
         }
 
@@ -1269,9 +1269,9 @@ namespace Plugin {
         {
             LOGINFO("GetVideoOutputColorimetry AppGatewayCommon");
             result = "\"none\"";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
             auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
-            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputColorimetry(result);
         }
 
@@ -1279,9 +1279,9 @@ namespace Plugin {
         {
             LOGINFO("GetVideoOutputDynamicRange AppGatewayCommon");
             result = "\"none\"";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
             auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
-            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputDynamicRange(result);
         }
 
@@ -1289,9 +1289,9 @@ namespace Plugin {
         {
             LOGINFO("GetVideoOutputQuantizationRange AppGatewayCommon");
             result = "\"none\"";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
             auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
-            if (!videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
+            if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputQuantizationRange(result);
         }
 
