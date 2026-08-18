@@ -575,14 +575,16 @@ class LifecycleDelegate : public BaseEventDelegate
                 lifecycleStateMap.erase(appInstanceId);
             }
 
-            // Get json payload of current and previous state for a given appInstanceId
-            string GetLifecycle1StateJson(const string& appInstanceId) {
+            // Get json payload of current and previous state for a given appInstanceId.
+            // Optional stateOverride allows callers to force payload state (e.g. background on blur).
+            string GetLifecycle1StateJson(const string& appInstanceId, const string& stateOverride = "") {
                 std::lock_guard<std::mutex> lock(registryMutex);
-                if (lifecycleStateMap.find(appInstanceId) != lifecycleStateMap.end()) {
-                    LifecycleStateInfo& stateInfo = lifecycleStateMap[appInstanceId];
+                auto it = lifecycleStateMap.find(appInstanceId);
+                if (it != lifecycleStateMap.end()) {
+                    LifecycleStateInfo& stateInfo = it->second;
                     JsonObject object;
                     object["previous"] = Lifecycle2StateToLifecycle1String(stateInfo.previousState);
-                    object["state"] = Lifecycle2StateToLifecycle1String(stateInfo.currentState);
+                    object["state"] = stateOverride.empty() ? Lifecycle2StateToLifecycle1String(stateInfo.currentState) : stateOverride;
                     string jsonPayload;
                     object.ToString(jsonPayload);
                     return jsonPayload;
@@ -761,7 +763,7 @@ class LifecycleDelegate : public BaseEventDelegate
                  if (mFocusedAppRegistry.IsAppInstanceIdFocused(appInstanceId)) {
                     Dispatch("Lifecycle.onForeground", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
                  } else {
-                    Dispatch("Lifecycle.onBackground", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
+                          Dispatch("Lifecycle.onBackground", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId, "background"), mAppIdInstanceIdMap.GetAppId(appInstanceId));
                  }
                 break;
             default:
@@ -784,7 +786,7 @@ class LifecycleDelegate : public BaseEventDelegate
         // get if current app lifecycle is active
         if (mLifecycleStateRegistry.IsAppLifecycleActive(appInstanceId)) {
             mFocusedAppRegistry.ClearFocusedAppInstanceId();
-            Dispatch("Lifecycle.onBackground", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId), mAppIdInstanceIdMap.GetAppId(appInstanceId));
+            Dispatch("Lifecycle.onBackground", mLifecycleStateRegistry.GetLifecycle1StateJson(appInstanceId, "background"), mAppIdInstanceIdMap.GetAppId(appInstanceId));
         }
     }
 
