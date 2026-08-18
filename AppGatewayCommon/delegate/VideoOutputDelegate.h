@@ -486,12 +486,11 @@ public:
             return Core::ERROR_NONE;
         }
 
-        if (quantizationRange == Exchange::IDisplayProperties::QUANTIZATION_RANGE_LIMITED) {
+        if (quantizationRange == Exchange::IDisplayProperties::QUANTIZATIONRANGE_LIMITED) {
             result = "\"limited\"";
-        } else if (quantizationRange == Exchange::IDisplayProperties::QUANTIZATION_RANGE_FULL) {
+        } else if (quantizationRange == Exchange::IDisplayProperties::QUANTIZATIONRANGE_FULL) {
             result = "\"full\"";
-        } else if (quantizationRange == Exchange::IDisplayProperties::QUANTIZATION_RANGE_UNKNOWN || 
-                   quantizationRange == Exchange::IDisplayProperties::QUANTIZATION_RANGE_NONE) {
+        } else if (quantizationRange == Exchange::IDisplayProperties::QUANTIZATIONRANGE_UNKNOWN) {
             result = "\"none\"";
         }
         LOGDBG("VideoOutputDelegate: GetVideoOutputQuantizationRange -> %s", result.c_str());
