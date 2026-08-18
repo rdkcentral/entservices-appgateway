@@ -335,7 +335,7 @@ uint32_t Test_HandleAppEventNotifier_VideoOutputHdcpEvent_ListenTrue()
 }
 
 // TEST_ID: AGC_L0_122
-// VideoOutputDelegate registration path: videooutput.oncecactivestatechanged listen=true.
+// VideoOutputDelegate registration path: videooutput.oncecstatechanged listen=true.
 uint32_t Test_HandleAppEventNotifier_VideoOutputCecActiveStateEvent_ListenTrue()
 {
     TestResult tr;
@@ -344,7 +344,7 @@ uint32_t Test_HandleAppEventNotifier_VideoOutputCecActiveStateEvent_ListenTrue()
     auto* emitter = new StubEmitter();
 
     bool status = false;
-    const uint32_t rc = notif->HandleAppEventNotifier(emitter, "videooutput.oncecactivestatechanged", true, status);
+    const uint32_t rc = notif->HandleAppEventNotifier(emitter, "videooutput.oncecstatechanged", true, status);
     ExpectEqU32(tr, rc, ERROR_NONE, "VideoOutput CecActiveState event listen=true returns ERROR_NONE");
     ExpectTrue(tr, status, "VideoOutput CecActiveState event listen=true sets status true");
 

@@ -602,13 +602,13 @@
             "alias": "org.rdk.AppGatewayCommon",
             "event": "VideoOutput.onHdcpChanged"
         },
-        "videooutput.cecactivestate": {
+        "videooutput.cecstate": {
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
         },
-        "videooutput.oncecactivestatechanged": {
+        "videooutput.oncecstatechanged": {
             "alias": "org.rdk.AppGatewayCommon",
-            "event": "VideoOutput.onCecActiveStateChanged"
+            "event": "VideoOutput.onCecstateChanged"
         },
         "videooutput.port": {
             "alias": "org.rdk.AppGatewayCommon",

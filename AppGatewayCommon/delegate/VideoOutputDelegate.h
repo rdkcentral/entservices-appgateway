@@ -64,7 +64,7 @@ public:
     // Firebolt VideoOutput event constants
     static constexpr const char* EVENT_ON_VO_RESOLUTION_CHANGED       = "VideoOutput.onResolutionChanged";
     static constexpr const char* EVENT_ON_VO_HDCP_CHANGED             = "VideoOutput.onHdcpChanged";
-    static constexpr const char* EVENT_ON_VO_CEC_ACTIVE_STATE_CHANGED = "VideoOutput.onCecActiveStateChanged";
+    static constexpr const char* EVENT_ON_VO_CEC_ACTIVE_STATE_CHANGED = "VideoOutput.onCecStateChanged";
     static constexpr const char* EVENT_ON_VO_PORT_CHANGED             = "VideoOutput.onPortChanged";
     static constexpr const char* EVENT_ON_VO_REFRESH_RATE_CHANGED     = "VideoOutput.onRefreshRateChanged";
 
@@ -327,26 +327,44 @@ public:
     Core::hresult GetVideoOutputColorFormat(std::string& result)
     {
         result = "\"none\"";
-        auto link = AcquireLink(DISPLAYINFO_CALLSIGN);
-        if (nullptr == link) {
-            LOGERR("VideoOutputDelegate: DisplayInfo link unavailable for GetVideoOutputColorFormat");
+        if (nullptr == _shell) {
+            LOGERR("VideoOutputDelegate: shell is null for GetVideoOutputColorDepth");
             return Core::ERROR_NONE;
         }
 
-        Core::JSON::VariantContainer params;
-        std::string response;
-        const uint32_t rc = link->Invoke<decltype(params), std::string>("colorspace", params, response);
+        auto* displayProps = _shell->QueryInterfaceByCallsign<Exchange::IDisplayProperties>(DISPLAYINFO_CALLSIGN);
+        if (nullptr == displayProps) {
+            LOGWARN("VideoOutputDelegate: IDisplayProperties unavailable for colorDepth");
+            return Core::ERROR_NONE;
+        }
+
+        Exchange::IDisplayProperties::ColourSpaceType cs{};
+        const Core::hresult rc = displayProps->ColorSpace(cs);
+        displayProps->Release();
+
         if (Core::ERROR_NONE != rc) {
-            LOGERR("VideoOutputDelegate: colorspace failed rc=%u", rc);
+            LOGWARN("VideoOutputDelegate: ColorSpace() failed rc=%u", rc);
             return Core::ERROR_NONE;
         }
 
-        const std::string cs = response;
-        if (false == cs.empty()) {
-            if (cs == "FormatYcbcr420")      result = "\"ycbcr420\"";
-            else if (cs == "FormatYcbcr422") result = "\"ycbcr422\"";
-            else if (cs == "FormatYcbcr444") result = "\"ycbcr444\"";
-            else if (cs == "FormatRgb444")   result = "\"rgb444\"";
+        switch(cs)
+        {
+            case Exchange::IDisplayProperties::FORMAT_RGB_444:
+                result = "\"rgb444\"";
+                break;
+            case Exchange::IDisplayProperties::FORMAT_YCBCR_444:
+                result = "\"ycbcr444\"";
+                break;
+            case Exchange::IDisplayProperties::FORMAT_YCBCR_422:
+                result = "\"ycbcr422\"";
+                break;
+            case Exchange::IDisplayProperties::FORMAT_YCBCR_420:
+                result = "\"ycbcr420\"";
+                break;
+            case Exchange::IDisplayProperties::FORMAT_OTHER:
+            case Exchange::IDisplayProperties::FORMAT_UNKNOWN:
+            default:
+                result = "\"none\"";
         }
 
         LOGDBG("VideoOutputDelegate: GetVideoOutputColorFormat -> %s", result.c_str());
@@ -357,29 +375,56 @@ public:
     Core::hresult GetVideoOutputColorimetry(std::string& result)
     {
         result = "\"none\"";
-        auto link = AcquireLink(DISPLAYINFO_CALLSIGN);
-        if (nullptr == link) {
-            LOGERR("VideoOutputDelegate: DisplayInfo link unavailable for GetVideoOutputColorimetry");
+
+        if (nullptr == _shell) {
+            LOGERR("VideoOutputDelegate: shell is null for GetVideoOutputColorDepth");
             return Core::ERROR_NONE;
         }
 
-        Core::JSON::VariantContainer params;
-        Core::JSON::VariantContainer response;
-        const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getCurrentColorimetry", params, response);
+        auto* displayProps = _shell->QueryInterfaceByCallsign<Exchange::IDisplayProperties>(DISPLAYINFO_CALLSIGN);
+        if (nullptr == displayProps) {
+            LOGWARN("VideoOutputDelegate: IDisplayProperties unavailable for colorDepth");
+            return Core::ERROR_NONE;
+        }
+
+        Exchange::IDisplayProperties::ColorimetryTypeInfo Colourimetry;
+        const Core::hresult rc = displayProps->GetCurrentColorimetry(Colourimetry);
+        displayProps->Release();
+
         if (Core::ERROR_NONE != rc) {
-            LOGERR("VideoOutputDelegate: getCurrentColorimetry failed rc=%u", rc);
+            LOGWARN("VideoOutputDelegate: GetCurrentColorimetry() failed rc=%u", rc);
             return Core::ERROR_NONE;
         }
 
-        if (response.HasLabel(_T("colorimetry"))) {
-            std::string c = response.Get(_T("colorimetry")).String();
-            if (c == "ColorimetryBt709")                result = "\"bt709\"";
-            else if (c == "ColorimetrySmpte170M")       result = "\"smpte170m\"";
-            else if (c == "ColorimetryXvycc709")        result = "\"xvycc709\"";
-            else if (c == "ColorimetryXvycc601")        result = "\"xvycc601\"";
-            else if (c == "ColorimetryBt2020rgbYcbcr")  result = "\"bt2020rgb\"";
-            else if (c == "ColorimetryBt2020yccbcbrc")  result = "\"bt2020ycc\"";
-            else if (c == "ColorimetryOprgb")           result = "\"oprgb\"";
+        switch(Colourimetry.colorimetry)
+        {
+            case Exchange::IDisplayProperties::COLORIMETRY_BT709:
+                result = "\"bt709\"";
+                break;
+            case Exchange::IDisplayProperties::COLORIMETRY_SMPTE170M:
+                result = "\"smpte170m\"";
+                break;
+            case Exchange::IDisplayProperties::COLORIMETRY_XVYCC709:
+                result = "\"xvycc709\"";
+                break;
+            case Exchange::IDisplayProperties::COLORIMETRY_XVYCC601:
+                result = "\"xvycc601\"";
+                break;
+            case Exchange::IDisplayProperties::COLORIMETRY_BT2020RGB_YCBCR:
+                result = "\"bt2020rgb\"";
+                break;
+            case Exchange::IDisplayProperties::COLORIMETRY_BT2020YCCBCBRC:
+                result = "\"bt2020ycc\"";
+                break;
+            case Exchange::IDisplayProperties::COLORIMETRY_OPRGB:
+                result = "\"oprgb\"";
+                break;
+            case Exchange::IDisplayProperties::COLORIMETRY_SYCC601:
+            case Exchange::IDisplayProperties::COLORIMETRY_OPYCC601:
+            case Exchange::IDisplayProperties::COLORIMETRY_OTHER:
+            case Exchange::IDisplayProperties::COLORIMETRY_UNKNOWN:
+            default:
+                result = "\"none\"";
         }
 
         LOGDBG("VideoOutputDelegate: GetVideoOutputColorimetry -> %s", result.c_str());
@@ -421,26 +466,34 @@ public:
     Core::hresult GetVideoOutputQuantizationRange(std::string& result)
     {
         result = "\"none\"";
-        auto link = AcquireLink(DISPLAYINFO_CALLSIGN);
-        if (nullptr == link) {
-            LOGERR("VideoOutputDelegate: DisplayInfo link unavailable for GetVideoOutputQuantizationRange");
+        if (nullptr == _shell) {
+            LOGERR("VideoOutputDelegate: shell is null for GetVideoOutputColorDepth");
             return Core::ERROR_NONE;
         }
 
-        Core::JSON::VariantContainer params;
-        std::string response;
-        const uint32_t rc = link->Invoke<decltype(params), std::string>("quantizationrange", params, response);
+        auto* displayProps = _shell->QueryInterfaceByCallsign<Exchange::IDisplayProperties>(DISPLAYINFO_CALLSIGN);
+        if (nullptr == displayProps) {
+            LOGWARN("VideoOutputDelegate: IDisplayProperties unavailable for colorDepth");
+            return Core::ERROR_NONE;
+        }
+
+        Exchange::IDisplayProperties::QuantizationRangeType quantizationRange;
+        const Core::hresult rc = displayProps->QuantizationRange(quantizationRange);
+        displayProps->Release();
+
         if (Core::ERROR_NONE != rc) {
-            LOGERR("VideoOutputDelegate: quantizationrange failed rc=%u", rc);
+            LOGWARN("VideoOutputDelegate: QuantizationRange() failed rc=%u", rc);
             return Core::ERROR_NONE;
         }
 
-        const std::string qr = response;
-        if (false == qr.empty()) {
-            if (qr == "QuantizationrangeLimited")    result = "\"limited\"";
-            else if (qr == "QuantizationrangeFull")  result = "\"full\"";
+        if (quantizationRange == Exchange::IDisplayProperties::QUANTIZATION_RANGE_LIMITED) {
+            result = "\"limited\"";
+        } else if (quantizationRange == Exchange::IDisplayProperties::QUANTIZATION_RANGE_FULL) {
+            result = "\"full\"";
+        } else if (quantizationRange == Exchange::IDisplayProperties::QUANTIZATION_RANGE_UNKNOWN || 
+                   quantizationRange == Exchange::IDisplayProperties::QUANTIZATION_RANGE_NONE) {
+            result = "\"none\"";
         }
-
         LOGDBG("VideoOutputDelegate: GetVideoOutputQuantizationRange -> %s", result.c_str());
         return Core::ERROR_NONE;
     }
@@ -471,7 +524,7 @@ public:
     {
         std::string payload;
         if (Core::ERROR_NONE != GetVideoOutputCecActiveState(payload)) {
-            LOGERR("[AppGatewayCommon|VideoOutput.onCecActiveStateChanged] GetVideoOutputCecActiveState failed");
+            LOGERR("[AppGatewayCommon|VideoOutput.onCecStateChanged] GetVideoOutputCecActiveState failed");
             return false;
         }
         return Dispatch(EVENT_ON_VO_CEC_ACTIVE_STATE_CHANGED, payload);
@@ -508,7 +561,7 @@ public:
             SetupDisplaySettingsSubscription();
         } else if (evLower == "videooutput.onhdcpchanged") {
             SetupHdcpProfileSubscription();
-        } else if (evLower == "videooutput.oncecactivestatechanged") {
+        } else if (evLower == "videooutput.oncecstatechanged") {
             SetupHdmiCecSourceSubscription();
         } else if (evLower == "videooutput.onportchanged") {
             SetupDisplaySettingsSubscription();
@@ -538,35 +591,52 @@ private:
     {
         // Map common named resolutions to {width, height}
         std::string lower = ToLower(res);
-
-        // Strip trailing frequency (e.g. "1080p60" → "1080p")
-        std::string base;
-        for (char c : lower) {
-            if (std::isdigit(c) /* || c == 'p' || c == 'i' || c == 'x'*/) {
-                base += c;
-            } else {
-                break;
+        // First try WxH (e.g. "3840x2160")
+        auto xpos = lower.find('x');
+        if (xpos != std::string::npos) {
+            try {
+                w = std::stoi(lower.substr(0, xpos));
+                h = std::stoi(lower.substr(xpos + 1));
+                return;
+            } catch (...) {
+                w = 0; h = 0;
+                return;
             }
         }
 
-        if (base == "480p" || base == "480i" || base == "720x480") { w = 720; h = 480; }
-        else if (base == "576p" || base == "576i" || base == "720x576") { w = 720; h = 576; }
-        else if (base == "720p" || base == "1280x720") { w = 1280; h = 720; }
-        else if (base == "1080p" || base == "1080i" || base == "1920x1080") { w = 1920; h = 1080; }
-        else if (base == "2160p" || base == "2160p60" || base == "3840x2160") { w = 3840; h = 2160; }
-        else {
-            // Try WxH format
-            auto xpos = base.find('x');
-            if (xpos != std::string::npos) {
-                try {
-                    w = std::stoi(base.substr(0, xpos));
-                    h = std::stoi(base.substr(xpos + 1));
-                } catch (...) {
-                    w = 0; h = 0;
-                }
-            } else {
-                w = 0; h = 0;
+        // Otherwise extract the leading numeric height (e.g. "1080p60" -> 1080)
+        size_t pos = 0;
+        while (pos < lower.size() && !std::isdigit(static_cast<unsigned char>(lower[pos]))) {
+            ++pos;
+        }
+        if (pos == lower.size()) {
+            w = 0; h = 0;
+            return;
+        }
+
+        size_t end = pos;
+        while (end < lower.size() && std::isdigit(static_cast<unsigned char>(lower[end]))) {
+            ++end;
+        }
+
+        std::string heightStr = lower.substr(pos, end - pos);
+        if (heightStr.empty()) {
+            w = 0; h = 0;
+            return;
+        }
+
+        try {
+            int height = std::stoi(heightStr);
+            switch (height) {
+                case 480:  w = 720;  h = 480;  break;
+                case 576:  w = 720;  h = 576;  break;
+                case 720:  w = 1280; h = 720;  break;
+                case 1080: w = 1920; h = 1080; break;
+                case 2160: w = 3840; h = 2160; break;
+                default:   w = 0;    h = 0;    break;
             }
+        } catch (...) {
+            w = 0; h = 0;
         }
     }
 
