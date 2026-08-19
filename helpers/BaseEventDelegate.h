@@ -75,8 +75,7 @@ public:
 
         {
             std::lock_guard<std::mutex> lock(mRegisterMutex);
-            local = std::move(mRegisteredNotifications);
-            mRegisteredNotifications.clear();
+            local.swap(mRegisteredNotifications);
         }
 
         for (auto &entry : local)
@@ -86,7 +85,6 @@ public:
                 emitter->Release();
             }
         }
-        
     }
 
     virtual bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError) = 0;
