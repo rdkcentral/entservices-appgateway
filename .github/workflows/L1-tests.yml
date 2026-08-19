@@ -23,7 +23,10 @@ permissions:
 
 env:
   BUILD_TYPE: Debug
-  THUNDER_REF: "R4.4.1"
+  THUNDER_REF: "R4_4-RDK"
+  THUNDER_TOOLS_REF: "R4_4-RDK"
+  THUNDER_TOOLS_COMMIT_SHA: "d5dd83c7c19c49c7f25c558c126500bd2d64f7a4"
+  THUNDER_COMMIT_SHA: "2c0fcc5529e7da734be558ca6efa05d934dcce31"
   INTERFACES_REF: "7f69f2165c8acd07a5194485252d99e0819f0aef"
   NETWORKMANAGER_REF: "cea0da05b03de770e4ce967f0446f28885fc6219"
   AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME }}
@@ -148,6 +151,13 @@ jobs:
           repository: rdkcentral/Thunder
           path: Thunder
           ref: ${{env.THUNDER_REF}}
+         fetch-depth: 0
+
+      - name: Pin Thunder commit
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cd "$GITHUB_WORKSPACE/Thunder"
+          git checkout "${{ env.THUNDER_COMMIT_SHA }}"
 
       - name: Checkout ThunderTools
         if: steps.cache.outputs.cache-hit != 'true'
@@ -155,7 +165,13 @@ jobs:
         with:
           repository: rdkcentral/ThunderTools
           path: ThunderTools
-          ref: R4.4.3
+          ref: ${{env.THUNDER_TOOLS_REF}}
+
+      - name: Pin ThunderTools commit
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cd "$GITHUB_WORKSPACE/ThunderTools"
+          git checkout "${{ env.THUNDER_TOOLS_COMMIT_SHA }}"
 
       - name: Checkout googletest
         if: steps.cache.outputs.cache-hit != 'true'
@@ -168,7 +184,7 @@ jobs:
       - name: Apply patches ThunderTools
         run: |  
           cd $GITHUB_WORKSPACE/ThunderTools
-          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/00010-R4.4-Add-support-for-project-dir.patch
+          #patch -p1 < $GITHUB_WORKSPACE/Tests/patches/00010-R4.4-Add-support-for-project-dir.patch
           cd -
 
       - name: Build ThunderTools
@@ -189,11 +205,11 @@ jobs:
       - name: Apply patches Thunder
         run: |
           cd $GITHUB_WORKSPACE/Thunder
-          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/Use_Legact_Alt_Based_On_ThunderTools_R4.4.3.patch
-          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/error_code_R4_4.patch
-          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/1004-Add-support-for-project-dir.patch
-          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/RDKEMW-733-Add-ENTOS-IDS.patch
-          patch -p1 < $GITHUB_WORKSPACE/Tests/patches/Jsonrpc_dynamic_error_handling.patch
+          #patch -p1 < $GITHUB_WORKSPACE/Tests/patches/Use_Legact_Alt_Based_On_ThunderTools_R4.4.3.patch
+          #patch -p1 < $GITHUB_WORKSPACE/Tests/patches/error_code_R4_4.patch
+          #patch -p1 < $GITHUB_WORKSPACE/Tests/patches/1004-Add-support-for-project-dir.patch
+          #patch -p1 < $GITHUB_WORKSPACE/Tests/patches/RDKEMW-733-Add-ENTOS-IDS.patch
+          #patch -p1 < $GITHUB_WORKSPACE/Tests/patches/Jsonrpc_dynamic_error_handling.patch
           cd -
 
       - name: Build Thunder
