@@ -27,6 +27,7 @@
 
 #define TTS_CALLSIGN "org.rdk.TextToSpeech"
 #define APP_API_METHOD_PREFIX "TextToSpeech."
+#define APP_SPEECH_SYNTHESIS_METHOD_PREFIX "SpeechSynthesis."
 
 using namespace WPEFramework;
 
@@ -74,10 +75,10 @@ public:
 
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError)
     {
-        // Check if event starts with "TextToSpeech" make check case insensitive
-        if (StringUtils::checkStartsWithCaseInsensitive(event, APP_API_METHOD_PREFIX))
+        // Check if event starts with TextToSpeech or SpeechSynthesis, case insensitive.
+        if (StringUtils::checkStartsWithCaseInsensitive(event, APP_API_METHOD_PREFIX) ||
+            StringUtils::checkStartsWithCaseInsensitive(event, APP_SPEECH_SYNTHESIS_METHOD_PREFIX))
         {
-            // Handle TextToSpeech event
             registrationError = !HandleSubscription(cb, event, listen);
             return true;
         }
@@ -103,6 +104,17 @@ private:
     public:
         TTSNotificationHandler(TTSDelegate &parent) : mParent(parent) {}
         ~TTSNotificationHandler() {}
+
+        void DispatchUtteranceEvent(const uint32_t speechid, const string& eventName)
+        {
+            JsonObject payload;
+            payload["utteranceId"] = speechid;
+            payload["event"] = eventName;
+
+            string payloadString;
+            payload.ToString(payloadString);
+            mParent.Dispatch("SpeechSynthesis.onUtteranceEvent", payloadString);
+        }
             
         void OnVoiceChanged(const string voice)
         {
@@ -111,39 +123,54 @@ private:
         void OnSpeechReady(const uint32_t speechid)
         {
             mParent.Dispatch("TextToSpeech.onWillSpeak", ObjectUtils::CreateUInt32Object(speechid));
+            DispatchUtteranceEvent(speechid, "synthesisStarting");
         }
         void OnSpeechStarted(const uint32_t speechid)
         {
             mParent.Dispatch("TextToSpeech.onSpeechStart", ObjectUtils::CreateUInt32Object(speechid));
+            DispatchUtteranceEvent(speechid, "playbackStarting");
         }
         void OnSpeechPaused(const uint32_t speechid)
         {
             mParent.Dispatch("TextToSpeech.onSpeechPause", ObjectUtils::CreateUInt32Object(speechid));
+            DispatchUtteranceEvent(speechid, "paused");
         }
         void OnSpeechResumed(const uint32_t speechid)
         {
             mParent.Dispatch("TextToSpeech.onSpeechResume", ObjectUtils::CreateUInt32Object(speechid));
+            DispatchUtteranceEvent(speechid, "resumed");
         }
         void OnSpeechInterrupted(const uint32_t speechid)
         {
             mParent.Dispatch("TextToSpeech.onSpeechInterrupted", ObjectUtils::CreateUInt32Object(speechid));
+            DispatchUtteranceEvent(speechid, "interrupted");
         }
         void OnNetworkError(const uint32_t speechid)
         {
             mParent.Dispatch("TextToSpeech.onNetworkError", ObjectUtils::CreateUInt32Object(speechid));
+            DispatchUtteranceEvent(speechid, "networkFailed");
         }
         void OnPlaybackError(const uint32_t speechid)
         {
             mParent.Dispatch("TextToSpeech.onPlaybackError", ObjectUtils::CreateUInt32Object(speechid));
+            DispatchUtteranceEvent(speechid, "playbackFailed");
         }
         void OnSpeechComplete(const uint32_t speechid)
         {
             mParent.Dispatch("TextToSpeech.onSpeechComplete", ObjectUtils::CreateUInt32Object(speechid));
+            DispatchUtteranceEvent(speechid, "completed");
         }
 
         void OnTTSStateChanged(const bool state) {
             mParent.Dispatch("TextToSpeech.onTtsstatechanged", ObjectUtils::CreateBooleanJsonString("value", state));
         }
+
+#if defined(ITEXTTOSPEECH_VERSION) && (ITEXTTOSPEECH_VERSION >= 2)
+        void OnVoicesChanged() override
+        {
+            mParent.Dispatch("SpeechSynthesis.onVoicesChanged", "null");
+        }
+#endif
 
         BEGIN_INTERFACE_MAP(TTSNotificationHandler)
         INTERFACE_ENTRY(Exchange::ITextToSpeech::INotification)
