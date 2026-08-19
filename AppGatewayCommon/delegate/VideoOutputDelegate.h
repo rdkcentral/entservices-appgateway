@@ -281,6 +281,7 @@ public:
             case Exchange::IDisplayProperties::FRAMERATE_50:     result = "50"; break;
             case Exchange::IDisplayProperties::FRAMERATE_59_94:  result = "59.94"; break;
             case Exchange::IDisplayProperties::FRAMERATE_60:     result = "60"; break;
+            case Exchange::IDisplayProperties::FRAMERATE_UNKNOWN:
             default: result = "0"; break;
         }
 
@@ -316,6 +317,7 @@ public:
             case Exchange::IDisplayProperties::COLORDEPTH_8_BIT:  result = "8"; break;
             case Exchange::IDisplayProperties::COLORDEPTH_10_BIT: result = "10"; break;
             case Exchange::IDisplayProperties::COLORDEPTH_12_BIT: result = "12"; break;
+            case Exchange::IDisplayProperties::COLORDEPTH_UNKNOWN:
             default: result = "0"; break;
         }
 
@@ -417,8 +419,11 @@ public:
                 result = "\"bt2020ycc\"";
                 break;
             case Exchange::IDisplayProperties::COLORIMETRY_OPRGB:
+/*
+As per the epic, this should be NA
                 result = "\"oprgb\"";
                 break;
+*/
             case Exchange::IDisplayProperties::COLORIMETRY_SYCC601:
             case Exchange::IDisplayProperties::COLORIMETRY_OPYCC601:
             case Exchange::IDisplayProperties::COLORIMETRY_OTHER:
@@ -890,8 +895,7 @@ private:
 
     void OnVideoFormatChanged(const Core::JSON::VariantContainer& params)
     {
-        (void)params;
-        LOGINFO("[AppGatewayCommon|DisplaySettings.videoFormatChanged] Incoming, re-querying dynamicRange...");
+        LOGINFO("[AppGatewayCommon|DisplaySettings.videoFormatChanged] Incoming, re-querying dynamicRange...: %s", params[_T("currentVideoFormat")]);
         // dynamicRange has no dedicated event entry in resolution.base.json,
         // but the subscription trigger re-query is done here for future use.
     }

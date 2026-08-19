@@ -190,7 +190,7 @@ namespace Plugin {
         { "videooutput.hdcp", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetVideoOutputHdcp(result);
         }},
-        { "videooutput.cecactivestate", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+        { "videooutput.cecstate", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetVideoOutputCecActiveState(result);
         }},
         { "videooutput.port", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
