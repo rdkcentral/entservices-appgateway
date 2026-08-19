@@ -151,7 +151,7 @@ jobs:
           repository: rdkcentral/Thunder
           path: Thunder
           ref: ${{env.THUNDER_REF}}
-         fetch-depth: 0
+          fetch-depth: 0
 
       - name: Pin Thunder commit
         if: steps.cache.outputs.cache-hit != 'true'
