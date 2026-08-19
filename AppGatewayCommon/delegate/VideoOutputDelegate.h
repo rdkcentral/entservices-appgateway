@@ -419,11 +419,8 @@ public:
                 result = "\"bt2020ycc\"";
                 break;
             case Exchange::IDisplayProperties::COLORIMETRY_OPRGB:
-/*
-As per the epic, this should be NA
                 result = "\"oprgb\"";
                 break;
-*/
             case Exchange::IDisplayProperties::COLORIMETRY_SYCC601:
             case Exchange::IDisplayProperties::COLORIMETRY_OPYCC601:
             case Exchange::IDisplayProperties::COLORIMETRY_OTHER:
@@ -746,16 +743,6 @@ private:
                     LOGERR("VideoOutputDelegate: Failed to subscribe to connectedVideoDisplaysUpdated rc=%u", status);
                 }
 
-                status = _displaySettingsRpc->Subscribe<Core::JSON::VariantContainer>(
-                    VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS,
-                    _T("videoFormatChanged"),
-                    &VideoOutputDelegate::OnVideoFormatChanged,
-                    this);
-
-                if (Core::ERROR_NONE != status) {
-                    LOGERR("VideoOutputDelegate: Failed to subscribe to videoFormatChanged rc=%u", status);
-                }
-
                 markDisplaySettingsSubscribed();
                 LOGINFO("VideoOutputDelegate: Subscribed to %s events", DISPLAYSETTINGS_CALLSIGN);
             }
@@ -891,13 +878,6 @@ private:
         (void)EmitOnRefreshRateChanged();
         std::string colorimetry;
         (void)GetVideoOutputColorimetry(colorimetry);
-    }
-
-    void OnVideoFormatChanged(const Core::JSON::VariantContainer& params)
-    {
-        LOGINFO("[AppGatewayCommon|DisplaySettings.videoFormatChanged] Incoming, re-querying dynamicRange...: %s", params[_T("currentVideoFormat")]);
-        // dynamicRange has no dedicated event entry in resolution.base.json,
-        // but the subscription trigger re-query is done here for future use.
     }
 
     // ─── Subscription state tracking ──────────────────────────────────────
