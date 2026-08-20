@@ -68,7 +68,7 @@ public:
     {
     }
 
-    ~BaseEventDelegate()
+    virtual ~BaseEventDelegate()
     {
         // Cleanup registered notifications
         std::map<string, std::unordered_set<Exchange::IAppNotificationHandler::IEmitter*>> local;
