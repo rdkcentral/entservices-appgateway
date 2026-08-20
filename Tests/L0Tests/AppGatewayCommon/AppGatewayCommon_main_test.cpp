@@ -114,6 +114,10 @@ extern uint32_t Test_HandleRequest_ParentalControl_PinControl();
 extern uint32_t Test_HandleRequest_ParentalControl_BlockNotRatedContent();
 extern uint32_t Test_HandleRequest_ParentalControl_ViewingRestrictions();
 
+// AppGatewayCommon_routing_test.cpp (actions.start null/empty intent — AGC_L0_108–AGC_L0_109)
+extern uint32_t Test_HandleRequest_ActionsStart_NullIntentField();
+extern uint32_t Test_HandleRequest_ActionsStart_EmptyObjectIntentField();
+
 // AppGatewayCommon_events_test.cpp
 extern uint32_t Test_CheckPermissionGroup_DefaultAllowed();
 extern uint32_t Test_Authenticate_DelegateUnavailable();
@@ -222,6 +226,9 @@ int main()
         { "HandleRequest_ParentalControl_PinControl",             Test_HandleRequest_ParentalControl_PinControl },
         { "HandleRequest_ParentalControl_BlockNotRatedContent",   Test_HandleRequest_ParentalControl_BlockNotRatedContent },
         { "HandleRequest_ParentalControl_ViewingRestrictions",    Test_HandleRequest_ParentalControl_ViewingRestrictions },
+        // --- actions.start null/empty intent tests (AGC_L0_108–AGC_L0_109) ---
+        { "HandleRequest_ActionsStart_NullIntentField",           Test_HandleRequest_ActionsStart_NullIntentField },
+        { "HandleRequest_ActionsStart_EmptyObjectIntentField",    Test_HandleRequest_ActionsStart_EmptyObjectIntentField },
         // --- Setters tests (AGC_L0_057–AGC_L0_085) ---
         { "HandleRequest_SetterInvalidPayload",           Test_HandleRequest_SetterInvalidPayload },
         { "HandleRequest_SetterValidPayload_DelegateUnavailable", Test_HandleRequest_SetterValidPayload_DelegateUnavailable },

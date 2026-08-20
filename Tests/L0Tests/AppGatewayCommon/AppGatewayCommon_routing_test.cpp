@@ -684,3 +684,37 @@ uint32_t Test_HandleRequest_ParentalControl_ViewingRestrictions()
     return DelegateGetterTest("parentalcontrol.viewingrestrictions");
 }
 
+// ============================================================================
+// Tests AGC_L0_108 – AGC_L0_109 — actions.start null/empty intent validation
+// ============================================================================
+
+// TEST_ID: AGC_L0_108
+// actions.start with {"intent":null} → ERROR_BAD_REQUEST
+// The intent field is JSON null; ActionsStart must reject it before forwarding.
+uint32_t Test_HandleRequest_ActionsStart_NullIntentField()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "actions.start", "{\"intent\":null}", result);
+    ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "actions.start with null intent field returns ERROR_BAD_REQUEST");
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_109
+// actions.start with {"intent":{}} → ERROR_BAD_REQUEST
+// An empty object is semantically meaningless; ActionsStart must reject it.
+uint32_t Test_HandleRequest_ActionsStart_EmptyObjectIntentField()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "actions.start", "{\"intent\":{}}", result);
+    ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "actions.start with empty object intent field returns ERROR_BAD_REQUEST");
+    return tr.failures;
+}
+

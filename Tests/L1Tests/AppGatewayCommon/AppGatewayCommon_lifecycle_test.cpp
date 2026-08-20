@@ -1211,4 +1211,62 @@ TEST_F(LifecycleDelegateTest, AGC_L1_207_ActionsOnIntent_EmittedOnActiveTransiti
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
+/* ================================================================
+ * AGC_L1_233–235: null/empty intent validation in ActionsStart and
+ * lifecycle notification path.
+ * ================================================================ */
+
+TEST_F(LifecycleDelegateTest, AGC_L1_233_ActionsStart_NullIntentField_ReturnsBadRequest)
+{
+    // {"intent":null} — the intent field is JSON null
+    const auto ctx = MakeContext("test.app");
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "actions.start", "{\"intent\":null}", result);
+
+    EXPECT_EQ(Core::ERROR_BAD_REQUEST, rc);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_234_ActionsStart_EmptyObjectIntentField_ReturnsBadRequest)
+{
+    // {"intent":{}} — the intent field is an empty JSON object
+    const auto ctx = MakeContext("test.app");
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "actions.start", "{\"intent\":{}}", result);
+
+    EXPECT_EQ(Core::ERROR_BAD_REQUEST, rc);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_235_LifecycleNotification_NullNavigationIntent_NotStored)
+{
+    // OnAppLifecycleStateChanged with navigationIntent="null" must not overwrite a stored intent.
+    ASSERT_NE(capturedNotification, nullptr);
+
+    // First store a valid intent via INITIALIZING
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-nullnav-001",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        "{\"action\":\"play\"}"
+    );
+
+    // Now fire ACTIVE with navigationIntent="null" — should be ignored
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-nullnav-001",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        "null"
+    );
+
+    // The original intent must still be retrievable
+    const auto ctx = MakeContext("test.app");
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // Original intent is still there
+    EXPECT_NE(result.find("\"action\":\"play\""), std::string::npos);
+    // The literal string "null" must not appear as the intent value
+    EXPECT_EQ(result.find("\"intent\":\"null\""), std::string::npos);
+}
+
 } // namespace
