@@ -108,6 +108,21 @@ public:
         _shell = nullptr;
     }
 
+    bool isTVPanel()
+    {
+        std::string port;
+        // Prefer the explicit w/h or port returned by the DisplaySettings API.
+        if (Core::ERROR_NONE == GetVideoOutputPort(port)) {
+            // Port strings are returned with quotes, e.g. "internal". Normalize.
+            if (!port.empty() && port.front() == '"' && port.back() == '"') {
+                port = port.substr(1, port.size() - 2);
+            }
+            port = ToLower(port);
+            return (port == "internal");
+        }
+        return false;
+    }
+
     // ─── PUBLIC API: 10 Firebolt VideoOutput getters ───────────────────────
 
     // AC1: VideoOutput.resolution
@@ -129,12 +144,12 @@ public:
         }
 
         int w = 0, h = 0;
-        if (response.HasLabel(_T("resolution"))) {
-            std::string res = response.Get(_T("resolution")).String();
-            ParseResolutionString(res, w, h);
-        } else if (response.HasLabel(_T("w")) && response.HasLabel(_T("h"))) {
+        if (response.HasLabel(_T("w")) && response.HasLabel(_T("h"))) {
             w = static_cast<int>(response.Get(_T("w")).Number());
             h = static_cast<int>(response.Get(_T("h")).Number());
+        } else if (response.HasLabel(_T("resolution"))) {
+            std::string res = response.Get(_T("resolution")).String();
+            ParseResolutionString(res, w, h);
         }
 
         result = "{\"width\":" + std::to_string(w) + ",\"height\":" + std::to_string(h) + "}";
@@ -146,7 +161,12 @@ public:
     Core::hresult GetVideoOutputHdcp(std::string& result)
     {
         result = "\"none\"";
-        // TODO: TV device detection → return "\"direct\""
+        // TV device detection → return "\"direct\""
+        if (true == isTVPanel())
+        {
+            result = "\"direct\"";
+            return Core::ERROR_NONE;
+        }
         auto link = AcquireLink(HDCPPROFILE_CALLSIGN);
         if (nullptr == link) {
             LOGERR("VideoOutputDelegate: HdcpProfile link unavailable for GetVideoOutputHdcp");
@@ -170,7 +190,12 @@ public:
     Core::hresult GetVideoOutputCecActiveState(std::string& result)
     {
         result = "\"unsupported\"";
-        // TODO: TV device detection → return error "Wrong device class"
+        //To handle the TV Panel usecases
+        if (true == isTVPanel())
+        {
+            result = "\"Wrong device class\"";
+            return Core::ERROR_UNAVAILABLE;
+        }
         auto link = AcquireLink(HDMICECSOURCE_CALLSIGN);
         if (nullptr == link) {
             LOGERR("VideoOutputDelegate: HdmiCecSource link unavailable for GetVideoOutputCecActiveState");
@@ -400,27 +425,21 @@ public:
 
         switch(Colourimetry.colorimetry)
         {
-            case Exchange::IDisplayProperties::COLORIMETRY_BT709:
-                result = "\"bt709\"";
-                break;
-            case Exchange::IDisplayProperties::COLORIMETRY_SMPTE170M:
-                result = "\"smpte170m\"";
-                break;
-            case Exchange::IDisplayProperties::COLORIMETRY_XVYCC709:
-                result = "\"xvycc709\"";
-                break;
-            case Exchange::IDisplayProperties::COLORIMETRY_XVYCC601:
-                result = "\"xvycc601\"";
-                break;
             case Exchange::IDisplayProperties::COLORIMETRY_BT2020RGB_YCBCR:
                 result = "\"bt2020rgb\"";
                 break;
             case Exchange::IDisplayProperties::COLORIMETRY_BT2020YCCBCBRC:
                 result = "\"bt2020ycc\"";
                 break;
+            case Exchange::IDisplayProperties::COLORIMETRY_BT709:
+                result = "\"bt709\"";
+                break;
             case Exchange::IDisplayProperties::COLORIMETRY_OPRGB:
                 result = "\"oprgb\"";
                 break;
+            case Exchange::IDisplayProperties::COLORIMETRY_XVYCC601:
+            case Exchange::IDisplayProperties::COLORIMETRY_XVYCC709:
+            case Exchange::IDisplayProperties::COLORIMETRY_SMPTE170M:
             case Exchange::IDisplayProperties::COLORIMETRY_SYCC601:
             case Exchange::IDisplayProperties::COLORIMETRY_OPYCC601:
             case Exchange::IDisplayProperties::COLORIMETRY_OTHER:
