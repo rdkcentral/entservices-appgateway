@@ -481,6 +481,7 @@ jobs:
           # installed into the repo-local prefix. This is critical for `act`, where the
           # environment can differ from GitHub-hosted runners.
           export CMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install/usr${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+          export CMAKE_MODULE_PATH="$GITHUB_WORKSPACE/install/tools/cmake;$GITHUB_WORKSPACE/install/usr/tools/cmake${CMAKE_MODULE_PATH:+;$CMAKE_MODULE_PATH}"
           export PATH="$GITHUB_WORKSPACE/install/usr/bin:$PATH"
 
           # Explicit fallback for packages that are looked up via <Pkg>_DIR by some projects.
@@ -493,6 +494,7 @@ jobs:
             -B build/entservices-appgateway-l1tests-only \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
+            -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH" \
             -DConfigGenerator_DIR="$ConfigGenerator_DIR" \
             -DWPEFrameworkPlugins_DIR="$GITHUB_WORKSPACE/install/usr/lib/cmake/WPEFrameworkPlugins" \
             -DDISABLE_SECURITY_TOKEN=ON \
