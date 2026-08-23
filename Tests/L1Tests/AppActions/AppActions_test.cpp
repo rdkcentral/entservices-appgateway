@@ -202,7 +202,7 @@ protected:
 
     void SetUp() override
     {
-        ON_CALL(service, AddRef()).WillByDefault(Return());
+        ON_CALL(service, AddRef()).WillByDefault(Return(1));
         ON_CALL(service, Release()).WillByDefault(Return(Core::ERROR_NONE));
         ON_CALL(service, QueryInterfaceByCallsign(_, _)).WillByDefault(Return(nullptr));
         ON_CALL(service, COMLink()).WillByDefault(Return(&comLink));
