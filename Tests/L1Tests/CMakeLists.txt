@@ -151,7 +151,7 @@ if(_L1TESTS_STANDALONE_BUILD)
         # 100ms during L1 tests. No Thunder daemon runs in the test environment
         # so every Subscribe call exhausts its full timeout; 4 calls × 2000ms
         # adds ~8s of dead wait per Initialize() cycle.
-        target_compile_definitions(AppGatewayCommon PRIVATE
+        target_compile_definitions(${NAMESPACE}AppGatewayCommon PRIVATE
             SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS=100
         )
     endif()
@@ -256,7 +256,7 @@ if(PLUGIN_APPGATEWAY)
     )
 
     list(APPEND APPGATEWAY_L1TEST_LIB
-        AppGateway
+        ${NAMESPACE}AppGateway
         ${NAMESPACE}Plugins::${NAMESPACE}Plugins
     )
 else()
@@ -283,7 +283,7 @@ if(PLUGIN_APPGATEWAYCOMMON)
     )
 
     list(APPEND APPGATEWAYCOMMON_L1TEST_LIB
-        AppGatewayCommon
+        ${NAMESPACE}AppGatewayCommon
         ${NAMESPACE}Plugins::${NAMESPACE}Plugins
     )
 else()
