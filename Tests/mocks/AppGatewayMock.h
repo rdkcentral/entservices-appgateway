@@ -68,7 +68,7 @@ public:
 
     MOCK_METHOD(void, OnAppConnectionChanged, (const string& appId, const uint32_t connectionId, const bool connected), (override));
 
-    MOCK_METHOD(void, AddRef, (), (const, override));
+    MOCK_METHOD(uint32_t, AddRef, (), (const, override));
     MOCK_METHOD(uint32_t, Release, (), (const, override));
     MOCK_METHOD(void*, QueryInterface, (const uint32_t interfaceNummer), (override));
 };
