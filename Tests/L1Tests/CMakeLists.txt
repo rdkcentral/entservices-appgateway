@@ -256,7 +256,7 @@ if(PLUGIN_APPGATEWAY)
     )
 
     list(APPEND APPGATEWAY_L1TEST_LIB
-        ${NAMESPACE}AppGateway
+        AppGateway
         ${NAMESPACE}Plugins::${NAMESPACE}Plugins
     )
 else()
