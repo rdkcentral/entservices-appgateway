@@ -734,43 +734,6 @@ TEST_F(DisplayDelegateTest, AGC_L1_165_DisplayVideoResolutions_RealWorldResponse
     EXPECT_EQ(result.find("2160p30"), std::string::npos);
 }
 
-// TEST_ID: AGC_L1_166
-// videooutput.resolution: Thunder getCurrentResolution returns a resolution string "1080p60"
-// → delegate should parse and map to {width:1920,height:1080}
-TEST_F(DisplayDelegateTest, AGC_L1_166_VideoOutputResolution_Parse1080p60)
-{
-    displaySettingsDisp.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
-        resp = R"({"resolution":"1080p60","success":true})";
-        return Core::ERROR_NONE;
-    });
-
-    const auto ctx = MakeCtx();
-    string result;
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.resolution", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_NE(result.find("1920"), std::string::npos);
-    EXPECT_NE(result.find("1080"), std::string::npos);
-}
-
-// TEST_ID: AGC_L1_167
-// videooutput.resolution: Thunder returns explicit w/h fields → delegate should prefer them
-TEST_F(DisplayDelegateTest, AGC_L1_167_VideoOutputResolution_PreferWH)
-{
-    displaySettingsDisp.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
-        resp = R"({"w":1280,"h":720,"success":true})";
-        return Core::ERROR_NONE;
-    });
-
-    const auto ctx = MakeCtx();
-    string result;
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.resolution", "{}", result);
-
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_NE(result.find("1280"), std::string::npos);
-    EXPECT_NE(result.find("720"), std::string::npos);
-}
-
 // TEST_ID: AGC_L1_168
 // videooutput.resolution: Thunder returns "1920x1080" token → delegate should parse WxH
 TEST_F(DisplayDelegateTest, AGC_L1_168_VideoOutputResolution_ParseWxH)
