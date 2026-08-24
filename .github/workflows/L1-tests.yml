@@ -530,9 +530,13 @@ jobs:
           find build/entservices-appgateway-l1tests-only -maxdepth 1 -type f -name "*.so*" -exec cp -f {} "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/" \; 2>/dev/null || true
 
           ls -la "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins" || true
-          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppGateway.so" || (echo "Missing libAppGateway.so in staged plugin dir" && exit 1)
-          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppGatewayCommon.so" || (echo "Missing libAppGatewayCommon.so in staged plugin dir" && exit 1)
-          test -e "$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins/libAppNotifications.so" || (echo "Missing libAppNotifications.so in staged plugin dir" && exit 1)
+          plugin_dir="$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins"
+          for plugin in AppGateway AppGatewayCommon AppNotifications; do
+            if ! find "$plugin_dir" -maxdepth 1 -type f \( -name "lib${plugin}.so" -o -name "libWPEFramework${plugin}.so" \) -print -quit | grep -q .; then
+              echo "Missing ${plugin} plugin library in staged plugin dir"
+              exit 1
+            fi
+          done
 
       - name: Copy required mock headers into install prefix include/Tests/mocks
         run: |
