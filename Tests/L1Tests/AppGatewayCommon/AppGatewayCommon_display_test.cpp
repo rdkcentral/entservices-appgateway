@@ -313,6 +313,43 @@ TEST_F(DisplayDelegateTest, AGC_L1_147_DisplayEdid_Connected_ReturnBase64)
     EXPECT_EQ(result.back(),  '"');
 }
 
+// TEST_ID: AGC_L1_166
+// videooutput.resolution: Thunder getCurrentResolution returns a resolution string "1080p60"
+// → delegate should parse and map to {width:1920,height:1080}
+TEST_F(DisplayDelegateTest, AGC_L1_166_VideoOutputResolution_Parse1080p60)
+{
+    displaySettingsDisp.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"resolution":"1080p60","success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.resolution", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("1920"), std::string::npos);
+    EXPECT_NE(result.find("1080"), std::string::npos);
+}
+
+// TEST_ID: AGC_L1_167
+// videooutput.resolution: Thunder returns explicit w/h fields → delegate should prefer them
+TEST_F(DisplayDelegateTest, AGC_L1_167_VideoOutputResolution_PreferWH)
+{
+    displaySettingsDisp.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"w":1280,"h":720,"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.resolution", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("1280"), std::string::npos);
+    EXPECT_NE(result.find("720"), std::string::npos);
+}
+
 // TEST_ID: AGC_L1_148
 // Display.edid: display not connected → empty string "".
 TEST_F(DisplayDelegateTest, AGC_L1_148_DisplayEdid_NotConnected_ReturnsEmpty)
@@ -695,6 +732,183 @@ TEST_F(DisplayDelegateTest, AGC_L1_165_DisplayVideoResolutions_RealWorldResponse
     EXPECT_EQ(result.find("1080p24"), std::string::npos);
     EXPECT_EQ(result.find("1080i"),   std::string::npos);
     EXPECT_EQ(result.find("2160p30"), std::string::npos);
+}
+
+// TEST_ID: AGC_L1_166
+// videooutput.resolution: Thunder getCurrentResolution returns a resolution string "1080p60"
+// → delegate should parse and map to {width:1920,height:1080}
+TEST_F(DisplayDelegateTest, AGC_L1_166_VideoOutputResolution_Parse1080p60)
+{
+    displaySettingsDisp.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"resolution":"1080p60","success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.resolution", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("1920"), std::string::npos);
+    EXPECT_NE(result.find("1080"), std::string::npos);
+}
+
+// TEST_ID: AGC_L1_167
+// videooutput.resolution: Thunder returns explicit w/h fields → delegate should prefer them
+TEST_F(DisplayDelegateTest, AGC_L1_167_VideoOutputResolution_PreferWH)
+{
+    displaySettingsDisp.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"w":1280,"h":720,"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.resolution", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("1280"), std::string::npos);
+    EXPECT_NE(result.find("720"), std::string::npos);
+}
+
+// TEST_ID: AGC_L1_168
+// videooutput.resolution: Thunder returns "1920x1080" token → delegate should parse WxH
+TEST_F(DisplayDelegateTest, AGC_L1_168_VideoOutputResolution_ParseWxH)
+{
+    displaySettingsDisp.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"resolution":"1920x1080","success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.resolution", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("1920"), std::string::npos);
+    EXPECT_NE(result.find("1080"), std::string::npos);
+}
+
+// TEST_ID: AGC_L1_169
+// videooutput.resolution: Thunder returns malformed/garbage -> delegate should fall back to {0,0}
+TEST_F(DisplayDelegateTest, AGC_L1_169_VideoOutputResolution_Garbage)
+{
+    displaySettingsDisp.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"resolution":"unknown-format","success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.resolution", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // expect width:0 and height:0
+    EXPECT_NE(result.find("\"width\":0"), std::string::npos);
+    EXPECT_NE(result.find("\"height\":0"), std::string::npos);
+}
+
+// TEST_ID: AGC_L1_170
+// VideoOutput.hdcp: if getConnectedVideoDisplays contains "Internal", isTVPanel() -> true
+// and GetVideoOutputHdcp() should return "direct" without querying HDCP profile.
+TEST_F(DisplayDelegateTest, AGC_L1_170_VideoOutputHdcp_InternalPortReturnsDirect)
+{
+    // getConnectedVideoDisplays returns ["Internal"]
+    displaySettingsDisp.SetHandler("getConnectedVideoDisplays", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"connectedVideoDisplays":["Internal"],"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.hdcp", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(result, "\"direct\"");
+}
+
+// TEST_ID: AGC_L1_171
+// videooutput.resolution: JSON-RPC call fails (ERROR_GENERAL) -> fallback {0,0}
+TEST_F(DisplayDelegateTest, AGC_L1_171_VideoOutputResolution_RpcErrorFallsBack)
+{
+    displaySettingsDisp.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) -> Core::hresult {
+        resp = R"({})";
+        return Core::ERROR_GENERAL;
+    });
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.resolution", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("\"width\":0"), std::string::npos);
+    EXPECT_NE(result.find("\"height\":0"), std::string::npos);
+}
+
+// TEST_ID: AGC_L1_172
+// videooutput.resolution: response missing both w/h and resolution -> fallback {0,0}
+TEST_F(DisplayDelegateTest, AGC_L1_172_VideoOutputResolution_MissingFieldsFallsBack)
+{
+    displaySettingsDisp.SetHandler("getCurrentResolution", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.resolution", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_NE(result.find("\"width\":0"), std::string::npos);
+    EXPECT_NE(result.find("\"height\":0"), std::string::npos);
+}
+
+// TEST_ID: AGC_L1_173
+// videooutput.colorimetry: IDisplayProperties::GetCurrentColorimetry returns error -> "none"
+TEST_F(DisplayDelegateTest, AGC_L1_173_VideoOutputColorimetry_GetCurrentFails)
+{
+    ON_CALL(*dispProps, GetCurrentColorimetry(_))
+        .WillByDefault(Return(Core::ERROR_GENERAL));
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.colorimetry", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(result, "\"none\"");
+}
+
+// TEST_ID: AGC_L1_174
+// videooutput.quantizationRange: IDisplayProperties::QuantizationRange returns error -> "none"
+TEST_F(DisplayDelegateTest, AGC_L1_174_VideoOutputQuantizationRange_CallFails)
+{
+    ON_CALL(*dispProps, QuantizationRange(_))
+        .WillByDefault(Return(Core::ERROR_GENERAL));
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.quantizationrange", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(result, "\"none\"");
+}
+
+// TEST_ID: AGC_L1_175
+// videooutput.hdcp: non-internal port should not return "direct"; with no HDCP link should fall back to "none"
+TEST_F(DisplayDelegateTest, AGC_L1_175_VideoOutputHdcp_NonInternalReturnsNone)
+{
+    // getConnectedVideoDisplays returns ["HDMI1"]
+    displaySettingsDisp.SetHandler("getConnectedVideoDisplays", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"connectedVideoDisplays":["HDMI1"],"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.hdcp", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(result, "\"none\"");
 }
 
 } // anonymous namespace

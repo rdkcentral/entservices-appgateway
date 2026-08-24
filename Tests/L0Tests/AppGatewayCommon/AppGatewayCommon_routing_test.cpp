@@ -716,6 +716,38 @@ uint32_t Test_HandleRequest_VideoOutputHdcp_NoDisplay()
     return tr.failures;
 }
 
+// TEST_ID: AGC_L0_104E
+// VideoOutput.colorFormat returns the safe default when Thunder is unavailable.
+uint32_t Test_HandleRequest_VideoOutputColorFormat_NoDisplay()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "videooutput.colorformat", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "videooutput.colorformat returns ERROR_NONE when Thunder is unavailable");
+    ExpectEqStr(tr, result, "\"none\"", "videooutput.colorformat returns \"none\" when Thunder is unavailable");
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_104F
+// VideoOutput.quantizationRange returns the safe default when Thunder is unavailable.
+uint32_t Test_HandleRequest_VideoOutputQuantizationRange_NoDisplay()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "videooutput.quantizationrange", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "videooutput.quantizationrange returns ERROR_NONE when Thunder is unavailable");
+    ExpectEqStr(tr, result, "\"none\"", "videooutput.quantizationrange returns \"none\" when Thunder is unavailable");
+    return tr.failures;
+}
+
 // TEST_ID: AGC_L0_104C
 // VideoOutput.cecActiveState returns the safe default when Thunder is unavailable.
 uint32_t Test_HandleRequest_VideoOutputCecActiveState_NoDisplay()
