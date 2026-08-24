@@ -493,6 +493,7 @@ jobs:
             -S "$GITHUB_WORKSPACE/Tests/L1Tests" \
             -B build/entservices-appgateway-l1tests-only \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DHIDE_NON_EXTERNAL_SYMBOLS=OFF \
             -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
             -DCMAKE_MODULE_PATH="$CMAKE_MODULE_PATH" \
             -DConfigGenerator_DIR="$ConfigGenerator_DIR" \
