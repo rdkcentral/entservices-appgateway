@@ -233,6 +233,7 @@ protected:
     NiceMock<MockConnectionProperties>* connProps { nullptr };
     NiceMock<MockDisplayProperties>*    dispProps { nullptr };
     Core::Sink<MockJSONRPC::MockLocalDispatcher> displaySettingsDisp;
+    Core::Sink<MockJSONRPC::MockLocalDispatcher> hdmiCecSourceDisp;
 
     void SetUp() override
     {
@@ -261,6 +262,12 @@ protected:
             .WillByDefault(Invoke([this](uint32_t, const string&) -> void* {
                 displaySettingsDisp.AddRef();
                 return static_cast<PluginHost::ILocalDispatcher*>(&displaySettingsDisp);
+            }));
+
+        ON_CALL(service, QueryInterfaceByCallsign(PluginHost::ILocalDispatcher::ID, StrEq("org.rdk.HdmiCecSource")))
+            .WillByDefault(Invoke([this](uint32_t, const string&) -> void* {
+                hdmiCecSourceDisp.AddRef();
+                return static_cast<PluginHost::ILocalDispatcher*>(&hdmiCecSourceDisp);
             }));
 
         EXPECT_CALL(service, AddRef()).Times(AnyNumber());
@@ -872,6 +879,48 @@ TEST_F(DisplayDelegateTest, AGC_L1_175_VideoOutputHdcp_NonInternalReturnsNone)
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_EQ(result, "\"none\"");
+}
+
+// TEST_ID: AGC_L1_176
+// videooutput.cecactivestate: TV panel (internal display) should follow the TV-specific path.
+TEST_F(DisplayDelegateTest, AGC_L1_176_VideoOutputCecActiveState_TvPanelReturnsNotSupported)
+{
+    displaySettingsDisp.SetHandler("getConnectedVideoDisplays", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"connectedVideoDisplays":["Internal"],"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.cecactivestate", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_NE(result.find("NotSupported"), std::string::npos);
+}
+
+// TEST_ID: AGC_L1_177
+// videooutput.cecactivestate: streambox/HDMI device should query HdmiCecSource and return "active".
+TEST_F(DisplayDelegateTest, AGC_L1_177_VideoOutputCecActiveState_StreamboxReturnsActive)
+{
+    displaySettingsDisp.SetHandler("getConnectedVideoDisplays", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"connectedVideoDisplays":["HDMI1"],"success":true})";
+        return Core::ERROR_NONE;
+    });
+    hdmiCecSourceDisp.SetHandler("getEnabled", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"enabled":true,"success":true})";
+        return Core::ERROR_NONE;
+    });
+    hdmiCecSourceDisp.SetHandler("getActiveSourceStatus", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"status":true,"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.cecactivestate", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(result, "\"active\"");
 }
 
 } // anonymous namespace

@@ -759,8 +759,9 @@ uint32_t Test_HandleRequest_VideoOutputCecActiveState_NoDisplay()
     Exchange::GatewayContext ctx = DefaultContext();
 
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "videooutput.cecactivestate", "{}", result);
-    ExpectEqU32(tr, rc, ERROR_NONE, "videooutput.cecactivestate returns ERROR_NONE when Thunder is unavailable");
-    ExpectEqStr(tr, result, "\"unsupported\"", "videooutput.cecactivestate returns unsupported when Thunder is unavailable");
+    const bool streamboxFallback = ((ERROR_NONE == rc) && ("\"unsupported\"" == result));
+    const bool tvPanelFallback = ((ERROR_UNAVAILABLE == rc) && (result.find("NotSupported") != std::string::npos));
+    ExpectTrue(tr, (streamboxFallback || tvPanelFallback), "videooutput.cecactivestate returns streambox or TV-panel fallback in L0");
     return tr.failures;
 }
 
