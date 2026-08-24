@@ -1106,9 +1106,9 @@ TEST_F(DisplayDelegateTest, AGC_L1_187_VideoOutputEmitOnPortChanged_Dispatches)
     });
 
     Core::Sink<MockEmitter> emitter;
-    delegate->AddNotification(VideoOutputDelegate::EVENT_ON_VO_PORT_CHANGED, &emitter);
+    delegate->AddNotification("VideoOutput.onPortChanged", &emitter);
 
-    EXPECT_CALL(emitter, Emit(StrEq(VideoOutputDelegate::EVENT_ON_VO_PORT_CHANGED), StrEq("\"hdmi\""), StrEq("")))
+    EXPECT_CALL(emitter, Emit(StrEq("VideoOutput.onPortChanged"), StrEq("\"hdmi\""), StrEq("")))
         .Times(1);
 
     EXPECT_TRUE(delegate->EmitOnPortChanged());
@@ -1129,9 +1129,9 @@ TEST_F(DisplayDelegateTest, AGC_L1_188_VideoOutputEmitOnRefreshRateChanged_Dispa
         }));
 
     Core::Sink<MockEmitter> emitter;
-    delegate->AddNotification(VideoOutputDelegate::EVENT_ON_VO_REFRESH_RATE_CHANGED, &emitter);
+    delegate->AddNotification("VideoOutput.onRefreshRateChanged", &emitter);
 
-    EXPECT_CALL(emitter, Emit(StrEq(VideoOutputDelegate::EVENT_ON_VO_REFRESH_RATE_CHANGED), StrEq("59.94"), StrEq("")))
+    EXPECT_CALL(emitter, Emit(StrEq("VideoOutput.onRefreshRateChanged"), StrEq("59.94"), StrEq("")))
         .Times(1);
 
     EXPECT_TRUE(delegate->EmitOnRefreshRateChanged());
