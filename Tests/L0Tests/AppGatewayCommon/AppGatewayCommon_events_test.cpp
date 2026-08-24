@@ -393,3 +393,168 @@ uint32_t Test_HandleAppEventNotifier_VideoOutputRefreshRateEvent_ListenTrue()
     emitter->Release();
     return tr.failures;
 }
+
+// TEST_ID: AGC_L0_125
+// Regression: VideoOutputDelegate teardown must only unsubscribe methods that were
+// actually registered. This isolated plugin instance listens to the two event paths
+// that exercise DisplaySettings and DisplayInfo subscription bookkeeping, then
+// deinitializes immediately to validate teardown does not assert.
+uint32_t Test_HandleAppEventNotifier_VideoOutputTeardownAfterSubscriptions_NoCrash()
+{
+    TestResult tr;
+    PluginAndService ps;
+
+    const std::string initResult = ps.plugin->Initialize(ps.service);
+    ExpectTrue(tr, initResult.empty(), "Isolated plugin Initialize returns empty string");
+
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool portStatus = false;
+    const uint32_t portRc = notif->HandleAppEventNotifier(emitter, "videooutput.onportchanged", true, portStatus);
+    ExpectEqU32(tr, portRc, ERROR_NONE, "VideoOutput port event listen=true returns ERROR_NONE");
+    ExpectTrue(tr, portStatus, "VideoOutput port event listen=true sets status true");
+
+    bool refreshRateStatus = false;
+    const uint32_t refreshRateRc = notif->HandleAppEventNotifier(emitter, "videooutput.onrefreshratechanged", true, refreshRateStatus);
+    ExpectEqU32(tr, refreshRateRc, ERROR_NONE, "VideoOutput refreshRate event listen=true returns ERROR_NONE");
+    ExpectTrue(tr, refreshRateStatus, "VideoOutput refreshRate event listen=true sets status true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    ps.plugin->Deinitialize(ps.service);
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_126
+// Narrow regression: a single consumer-facing DisplaySettings-backed VideoOutput
+// subscription must tear down cleanly. This isolates the case that originally
+// failed when teardown attempted to unregister an event that had never been
+// registered on the underlying JSON-RPC link.
+uint32_t Test_HandleAppEventNotifier_VideoOutputResolutionOnlyTeardown_NoCrash()
+{
+    TestResult tr;
+    PluginAndService ps;
+
+    const std::string initResult = ps.plugin->Initialize(ps.service);
+    ExpectTrue(tr, initResult.empty(), "Isolated plugin Initialize returns empty string");
+
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool resolutionStatus = false;
+    const uint32_t resolutionRc = notif->HandleAppEventNotifier(emitter, "videooutput.onresolutionchanged", true, resolutionStatus);
+    ExpectEqU32(tr, resolutionRc, ERROR_NONE, "VideoOutput resolution event listen=true returns ERROR_NONE");
+    ExpectTrue(tr, resolutionStatus, "VideoOutput resolution event listen=true sets status true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    ps.plugin->Deinitialize(ps.service);
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_127
+// Narrow regression: a single DisplaySettings-backed port subscription must tear
+// down cleanly after registration.
+uint32_t Test_HandleAppEventNotifier_VideoOutputPortOnlyTeardown_NoCrash()
+{
+    TestResult tr;
+    PluginAndService ps;
+
+    const std::string initResult = ps.plugin->Initialize(ps.service);
+    ExpectTrue(tr, initResult.empty(), "Isolated plugin Initialize returns empty string");
+
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool portStatus = false;
+    const uint32_t portRc = notif->HandleAppEventNotifier(emitter, "videooutput.onportchanged", true, portStatus);
+    ExpectEqU32(tr, portRc, ERROR_NONE, "VideoOutput port event listen=true returns ERROR_NONE");
+    ExpectTrue(tr, portStatus, "VideoOutput port event listen=true sets status true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    ps.plugin->Deinitialize(ps.service);
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_128
+// Narrow regression: a single HdcpProfile-backed subscription must tear down
+// cleanly after registration.
+uint32_t Test_HandleAppEventNotifier_VideoOutputHdcpOnlyTeardown_NoCrash()
+{
+    TestResult tr;
+    PluginAndService ps;
+
+    const std::string initResult = ps.plugin->Initialize(ps.service);
+    ExpectTrue(tr, initResult.empty(), "Isolated plugin Initialize returns empty string");
+
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool hdcpStatus = false;
+    const uint32_t hdcpRc = notif->HandleAppEventNotifier(emitter, "videooutput.onhdcpchanged", true, hdcpStatus);
+    ExpectEqU32(tr, hdcpRc, ERROR_NONE, "VideoOutput HDCP event listen=true returns ERROR_NONE");
+    ExpectTrue(tr, hdcpStatus, "VideoOutput HDCP event listen=true sets status true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    ps.plugin->Deinitialize(ps.service);
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_129
+// Narrow regression: a single HdmiCecSource-backed subscription must tear down
+// cleanly after registration.
+uint32_t Test_HandleAppEventNotifier_VideoOutputCecOnlyTeardown_NoCrash()
+{
+    TestResult tr;
+    PluginAndService ps;
+
+    const std::string initResult = ps.plugin->Initialize(ps.service);
+    ExpectTrue(tr, initResult.empty(), "Isolated plugin Initialize returns empty string");
+
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool cecStatus = false;
+    const uint32_t cecRc = notif->HandleAppEventNotifier(emitter, "videooutput.oncecstatechanged", true, cecStatus);
+    ExpectEqU32(tr, cecRc, ERROR_NONE, "VideoOutput CEC event listen=true returns ERROR_NONE");
+    ExpectTrue(tr, cecStatus, "VideoOutput CEC event listen=true sets status true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    ps.plugin->Deinitialize(ps.service);
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_130
+// Narrow regression: a single DisplayInfo-backed subscription must tear down
+// cleanly after registration.
+uint32_t Test_HandleAppEventNotifier_VideoOutputRefreshRateOnlyTeardown_NoCrash()
+{
+    TestResult tr;
+    PluginAndService ps;
+
+    const std::string initResult = ps.plugin->Initialize(ps.service);
+    ExpectTrue(tr, initResult.empty(), "Isolated plugin Initialize returns empty string");
+
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool refreshRateStatus = false;
+    const uint32_t refreshRateRc = notif->HandleAppEventNotifier(emitter, "videooutput.onrefreshratechanged", true, refreshRateStatus);
+    ExpectEqU32(tr, refreshRateRc, ERROR_NONE, "VideoOutput refreshRate event listen=true returns ERROR_NONE");
+    ExpectTrue(tr, refreshRateStatus, "VideoOutput refreshRate event listen=true sets status true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    ps.plugin->Deinitialize(ps.service);
+    return tr.failures;
+}

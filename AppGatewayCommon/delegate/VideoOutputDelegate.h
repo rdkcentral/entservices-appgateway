@@ -75,7 +75,8 @@ public:
         , _hdcpProfileRpc(nullptr)
         , _hdmiCecSourceRpc(nullptr)
         , _displayInfoRpc(nullptr)
-        , _displaySettingsSubscribed(false)
+        , _resolutionChangedSubscribed(false)
+        , _connectedVideoDisplaysUpdatedSubscribed(false)
         , _hdcpProfileSubscribed(false)
         , _hdmiCecSourceSubscribed(false)
         , _displayInfoSubscribed(false)
@@ -85,19 +86,20 @@ public:
     ~VideoOutputDelegate()
     {
         try {
-            if (_displaySettingsRpc && isDisplaySettingsSubscribed()) {
+            if ((_displaySettingsRpc != nullptr) && isResolutionChangedSubscribed()) {
                 _displaySettingsRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("resolutionChanged"));
-                _displaySettingsRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("connectedVideoDisplaysUpdated"));
-                _displaySettingsRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("videoFormatChanged"));
             }
-            if (_hdcpProfileRpc && isHdcpProfileSubscribed()) {
+            if ((_displaySettingsRpc != nullptr) && isConnectedVideoDisplaysUpdatedSubscribed()) {
+                _displaySettingsRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("connectedVideoDisplaysUpdated"));
+            }
+            if ((_displayInfoRpc != nullptr) && isDisplayInfoSubscribed()) {
+                _displayInfoRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("updated"));
+            }
+            if ((_hdcpProfileRpc != nullptr) && isHdcpProfileSubscribed()) {
                 _hdcpProfileRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("onDisplayConnectionChanged"));
             }
-            if (_hdmiCecSourceRpc && isHdmiCecSourceSubscribed()) {
+            if ((_hdmiCecSourceRpc != nullptr) && isHdmiCecSourceSubscribed()) {
                 _hdmiCecSourceRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("onActiveSourceStatusUpdated"));
-            }
-            if (_displayInfoRpc && isDisplayInfoSubscribed()) {
-                _displayInfoRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("updated"));
             }
         } catch (...) {
         }
@@ -732,7 +734,7 @@ private:
 
     void SetupDisplaySettingsSubscription()
     {
-        if (true == isDisplaySettingsSubscribed()) {
+        if ((true == isResolutionChangedSubscribed()) && (true == isConnectedVideoDisplaysUpdatedSubscribed())) {
             return;
         }
 
@@ -742,27 +744,34 @@ private:
             }
 
             if (nullptr != _displaySettingsRpc) {
-                uint32_t status = _displaySettingsRpc->Subscribe<Core::JSON::VariantContainer>(
-                    VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS,
-                    _T("resolutionChanged"),
-                    &VideoOutputDelegate::OnResolutionChanged,
-                    this);
+                if (false == isResolutionChangedSubscribed()) {
+                    const uint32_t status = _displaySettingsRpc->Subscribe<Core::JSON::VariantContainer>(
+                        VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS,
+                        _T("resolutionChanged"),
+                        &VideoOutputDelegate::OnResolutionChanged,
+                        this);
 
-                if (Core::ERROR_NONE != status) {
-                    LOGERR("VideoOutputDelegate: Failed to subscribe to resolutionChanged rc=%u", status);
+                    if (Core::ERROR_NONE == status) {
+                        markResolutionChangedSubscribed();
+                    } else {
+                        LOGERR("VideoOutputDelegate: Failed to subscribe to resolutionChanged rc=%u", status);
+                    }
                 }
 
-                status = _displaySettingsRpc->Subscribe<Core::JSON::VariantContainer>(
-                    VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS,
-                    _T("connectedVideoDisplaysUpdated"),
-                    &VideoOutputDelegate::OnConnectedVideoDisplaysUpdated,
-                    this);
+                if (false == isConnectedVideoDisplaysUpdatedSubscribed()) {
+                    const uint32_t status = _displaySettingsRpc->Subscribe<Core::JSON::VariantContainer>(
+                        VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS,
+                        _T("connectedVideoDisplaysUpdated"),
+                        &VideoOutputDelegate::OnConnectedVideoDisplaysUpdated,
+                        this);
 
-                if (Core::ERROR_NONE != status) {
-                    LOGERR("VideoOutputDelegate: Failed to subscribe to connectedVideoDisplaysUpdated rc=%u", status);
+                    if (Core::ERROR_NONE == status) {
+                        markConnectedVideoDisplaysUpdatedSubscribed();
+                    } else {
+                        LOGERR("VideoOutputDelegate: Failed to subscribe to connectedVideoDisplaysUpdated rc=%u", status);
+                    }
                 }
 
-                markDisplaySettingsSubscribed();
                 LOGINFO("VideoOutputDelegate: Subscribed to %s events", DISPLAYSETTINGS_CALLSIGN);
             }
         } catch (...) {
@@ -901,16 +910,28 @@ private:
 
     // ─── Subscription state tracking ──────────────────────────────────────
 
-    bool isDisplaySettingsSubscribed() const
+    bool isResolutionChangedSubscribed() const
     {
         Core::SafeSyncType<Core::CriticalSection> lock(_subscriptionLock);
-        return _displaySettingsSubscribed;
+        return _resolutionChangedSubscribed;
     }
 
-    void markDisplaySettingsSubscribed()
+    void markResolutionChangedSubscribed()
     {
         Core::SafeSyncType<Core::CriticalSection> lock(_subscriptionLock);
-        _displaySettingsSubscribed = true;
+        _resolutionChangedSubscribed = true;
+    }
+
+    bool isConnectedVideoDisplaysUpdatedSubscribed() const
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_subscriptionLock);
+        return _connectedVideoDisplaysUpdatedSubscribed;
+    }
+
+    void markConnectedVideoDisplaysUpdatedSubscribed()
+    {
+        Core::SafeSyncType<Core::CriticalSection> lock(_subscriptionLock);
+        _connectedVideoDisplaysUpdatedSubscribed = true;
     }
 
     bool isHdcpProfileSubscribed() const
@@ -966,7 +987,8 @@ private:
     std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _hdcpProfileRpc;
     std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _hdmiCecSourceRpc;
     std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _displayInfoRpc;
-    bool _displaySettingsSubscribed;
+    bool _resolutionChangedSubscribed;
+    bool _connectedVideoDisplaysUpdatedSubscribed;
     bool _hdcpProfileSubscribed;
     bool _hdmiCecSourceSubscribed;
     bool _displayInfoSubscribed;

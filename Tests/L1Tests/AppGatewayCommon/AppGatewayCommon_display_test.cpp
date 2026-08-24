@@ -37,6 +37,7 @@
 #undef private
 
 #include "ServiceMock.h"
+#include "MockEmitter.h"
 #include "MockJSONRPCDirectLink.h"
 #include "ThunderPortability.h"
 #include "WorkerPoolImplementation.h"
@@ -919,6 +920,222 @@ TEST_F(DisplayDelegateTest, AGC_L1_177_VideoOutputCecActiveState_StreamboxReturn
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_EQ(result, "\"active\"");
+}
+
+// TEST_ID: AGC_L1_178
+// GetVideoOutputPort: HDMI port names should normalize to "hdmi".
+TEST_F(DisplayDelegateTest, AGC_L1_178_VideoOutputPort_Hdmi)
+{
+    auto delegate = plugin.mDelegate->getVideoOutputDelegate();
+    ASSERT_NE(nullptr, delegate);
+
+    displaySettingsDisp.SetHandler("getConnectedVideoDisplays", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"connectedVideoDisplays":["HDMI0"],"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    string result;
+    const auto rc = delegate->GetVideoOutputPort(result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(result, "\"hdmi\"");
+}
+
+// TEST_ID: AGC_L1_179
+// GetVideoOutputPort: internal port names should normalize to "internal".
+TEST_F(DisplayDelegateTest, AGC_L1_179_VideoOutputPort_Internal)
+{
+    auto delegate = plugin.mDelegate->getVideoOutputDelegate();
+    ASSERT_NE(nullptr, delegate);
+
+    displaySettingsDisp.SetHandler("getConnectedVideoDisplays", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"connectedVideoDisplays":["Internal"],"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    string result;
+    const auto rc = delegate->GetVideoOutputPort(result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(result, "\"internal\"");
+}
+
+// TEST_ID: AGC_L1_180
+// GetVideoOutputRefreshRate: COM-RPC enum should map to the Firebolt string value.
+TEST_F(DisplayDelegateTest, AGC_L1_180_VideoOutputRefreshRate_60)
+{
+    auto delegate = plugin.mDelegate->getVideoOutputDelegate();
+    ASSERT_NE(nullptr, delegate);
+
+    ON_CALL(*dispProps, FrameRate(_))
+        .WillByDefault(Invoke([](Exchange::IDisplayProperties::FrameRateType& out) {
+            out = Exchange::IDisplayProperties::FRAMERATE_60;
+            return Core::ERROR_NONE;
+        }));
+
+    string result;
+    const auto rc = delegate->GetVideoOutputRefreshRate(result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(result, "60");
+}
+
+// TEST_ID: AGC_L1_181
+// GetVideoOutputColorDepth: COM-RPC enum should map to the Firebolt numeric string.
+TEST_F(DisplayDelegateTest, AGC_L1_181_VideoOutputColorDepth_10Bit)
+{
+    auto delegate = plugin.mDelegate->getVideoOutputDelegate();
+    ASSERT_NE(nullptr, delegate);
+
+    ON_CALL(*dispProps, ColourDepth(_))
+        .WillByDefault(Invoke([](Exchange::IDisplayProperties::ColourDepthType& out) {
+            out = Exchange::IDisplayProperties::COLORDEPTH_10_BIT;
+            return Core::ERROR_NONE;
+        }));
+
+    string result;
+    const auto rc = delegate->GetVideoOutputColorDepth(result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(result, "10");
+}
+
+// TEST_ID: AGC_L1_182
+// GetVideoOutputColorFormat: COM-RPC enum should map to the Firebolt format string.
+TEST_F(DisplayDelegateTest, AGC_L1_182_VideoOutputColorFormat_YCbCr420)
+{
+    auto delegate = plugin.mDelegate->getVideoOutputDelegate();
+    ASSERT_NE(nullptr, delegate);
+
+    ON_CALL(*dispProps, ColorSpace(_))
+        .WillByDefault(Invoke([](Exchange::IDisplayProperties::ColourSpaceType& out) {
+            out = Exchange::IDisplayProperties::FORMAT_YCBCR_420;
+            return Core::ERROR_NONE;
+        }));
+
+    string result;
+    const auto rc = delegate->GetVideoOutputColorFormat(result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(result, "\"ycbcr420\"");
+}
+
+// TEST_ID: AGC_L1_183
+// GetVideoOutputColorimetry: supported enum should map to the Firebolt colorimetry string.
+TEST_F(DisplayDelegateTest, AGC_L1_183_VideoOutputColorimetry_Bt2020Rgb)
+{
+    auto delegate = plugin.mDelegate->getVideoOutputDelegate();
+    ASSERT_NE(nullptr, delegate);
+
+    ON_CALL(*dispProps, GetCurrentColorimetry(_))
+        .WillByDefault(Invoke([](Exchange::IDisplayProperties::ColorimetryTypeInfo& out) {
+            out.colorimetry = Exchange::IDisplayProperties::COLORIMETRY_BT2020RGB_YCBCR;
+            return Core::ERROR_NONE;
+        }));
+
+    string result;
+    const auto rc = delegate->GetVideoOutputColorimetry(result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(result, "\"bt2020rgb\"");
+}
+
+// TEST_ID: AGC_L1_184
+// GetVideoOutputDynamicRange: DisplaySettings video format should map to the Firebolt dynamic range string.
+TEST_F(DisplayDelegateTest, AGC_L1_184_VideoOutputDynamicRange_Hdr10Plus)
+{
+    auto delegate = plugin.mDelegate->getVideoOutputDelegate();
+    ASSERT_NE(nullptr, delegate);
+
+    displaySettingsDisp.SetHandler("getVideoFormat", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"currentVideoFormat":"HDR10PLUS","success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    string result;
+    const auto rc = delegate->GetVideoOutputDynamicRange(result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(result, "\"hdr10plus\"");
+}
+
+// TEST_ID: AGC_L1_185
+// GetVideoOutputQuantizationRange: COM-RPC enum should map to the Firebolt range string.
+TEST_F(DisplayDelegateTest, AGC_L1_185_VideoOutputQuantizationRange_Full)
+{
+    auto delegate = plugin.mDelegate->getVideoOutputDelegate();
+    ASSERT_NE(nullptr, delegate);
+
+    ON_CALL(*dispProps, QuantizationRange(_))
+        .WillByDefault(Invoke([](Exchange::IDisplayProperties::QuantizationRangeType& out) {
+            out = Exchange::IDisplayProperties::QUANTIZATIONRANGE_FULL;
+            return Core::ERROR_NONE;
+        }));
+
+    string result;
+    const auto rc = delegate->GetVideoOutputQuantizationRange(result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(result, "\"full\"");
+}
+
+// TEST_ID: AGC_L1_186
+// HandleEvent: unknown events should fail registration and report an error.
+TEST_F(DisplayDelegateTest, AGC_L1_186_VideoOutputHandleEvent_UnknownEvent)
+{
+    auto delegate = plugin.mDelegate->getVideoOutputDelegate();
+    ASSERT_NE(nullptr, delegate);
+
+    Core::Sink<MockEmitter> emitter;
+    bool registrationError = false;
+
+    EXPECT_FALSE(delegate->HandleEvent(&emitter, "videooutput.onunknown", true, registrationError));
+    EXPECT_TRUE(registrationError);
+}
+
+// TEST_ID: AGC_L1_187
+// EmitOnPortChanged: registered emitters should receive the normalized port payload.
+TEST_F(DisplayDelegateTest, AGC_L1_187_VideoOutputEmitOnPortChanged_Dispatches)
+{
+    auto delegate = plugin.mDelegate->getVideoOutputDelegate();
+    ASSERT_NE(nullptr, delegate);
+
+    displaySettingsDisp.SetHandler("getConnectedVideoDisplays", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"connectedVideoDisplays":["HDMI0"],"success":true})";
+        return Core::ERROR_NONE;
+    });
+
+    Core::Sink<MockEmitter> emitter;
+    delegate->AddNotification(VideoOutputDelegate::EVENT_ON_VO_PORT_CHANGED, &emitter);
+
+    EXPECT_CALL(emitter, Emit(StrEq(VideoOutputDelegate::EVENT_ON_VO_PORT_CHANGED), StrEq("\"hdmi\""), StrEq("")))
+        .Times(1);
+
+    EXPECT_TRUE(delegate->EmitOnPortChanged());
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+}
+
+// TEST_ID: AGC_L1_188
+// EmitOnRefreshRateChanged: registered emitters should receive the mapped refresh-rate payload.
+TEST_F(DisplayDelegateTest, AGC_L1_188_VideoOutputEmitOnRefreshRateChanged_Dispatches)
+{
+    auto delegate = plugin.mDelegate->getVideoOutputDelegate();
+    ASSERT_NE(nullptr, delegate);
+
+    ON_CALL(*dispProps, FrameRate(_))
+        .WillByDefault(Invoke([](Exchange::IDisplayProperties::FrameRateType& out) {
+            out = Exchange::IDisplayProperties::FRAMERATE_59_94;
+            return Core::ERROR_NONE;
+        }));
+
+    Core::Sink<MockEmitter> emitter;
+    delegate->AddNotification(VideoOutputDelegate::EVENT_ON_VO_REFRESH_RATE_CHANGED, &emitter);
+
+    EXPECT_CALL(emitter, Emit(StrEq(VideoOutputDelegate::EVENT_ON_VO_REFRESH_RATE_CHANGED), StrEq("59.94"), StrEq("")))
+        .Times(1);
+
+    EXPECT_TRUE(delegate->EmitOnRefreshRateChanged());
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
 }
 
 } // anonymous namespace
