@@ -749,7 +749,7 @@ uint32_t Test_HandleRequest_VideoOutputQuantizationRange_NoDisplay()
 }
 
 // TEST_ID: AGC_L0_104C
-// VideoOutput.cecActiveState returns the safe default when Thunder is unavailable.
+// VideoOutput.cecState returns the safe default when Thunder is unavailable.
 uint32_t Test_HandleRequest_VideoOutputCecActiveState_NoDisplay()
 {
     TestResult tr;
@@ -758,10 +758,9 @@ uint32_t Test_HandleRequest_VideoOutputCecActiveState_NoDisplay()
     std::string result;
     Exchange::GatewayContext ctx = DefaultContext();
 
-    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "videooutput.cecactivestate", "{}", result);
-    const bool streamboxFallback = ((ERROR_NONE == rc) && ("\"unsupported\"" == result));
-    const bool tvPanelFallback = ((ERROR_UNAVAILABLE == rc) && (result.find("NotSupported") != std::string::npos));
-    ExpectTrue(tr, (streamboxFallback || tvPanelFallback), "videooutput.cecactivestate returns streambox or TV-panel fallback in L0");
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "videooutput.cecstate", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "videooutput.cecstate returns ERROR_NONE when Thunder is unavailable");
+    ExpectEqStr(tr, result, "\"unsupported\"", "videooutput.cecstate returns unsupported when Thunder is unavailable");
     return tr.failures;
 }
 
@@ -798,10 +797,10 @@ uint32_t Test_HandleRequest_VideoOutputHdcp()
 }
 
 // TEST_ID: AGC_L0_112
-// Handler-map getter: videooutput.cecactivestate
+// Handler-map getter: videooutput.cecstate
 uint32_t Test_HandleRequest_VideoOutputCecActiveState()
 {
-    return DelegateGetterTest("videooutput.cecactivestate");
+    return DelegateGetterTest("videooutput.cecstate");
 }
 
 // TEST_ID: AGC_L0_113

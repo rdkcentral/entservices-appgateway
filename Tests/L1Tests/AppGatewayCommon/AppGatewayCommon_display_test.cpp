@@ -882,7 +882,7 @@ TEST_F(DisplayDelegateTest, AGC_L1_175_VideoOutputHdcp_NonInternalReturnsNone)
 }
 
 // TEST_ID: AGC_L1_176
-// videooutput.cecactivestate: TV panel (internal display) should follow the TV-specific path.
+// GetVideoOutputCecActiveState: TV panel (internal display) should follow the TV-specific path.
 TEST_F(DisplayDelegateTest, AGC_L1_176_VideoOutputCecActiveState_TvPanelReturnsNotSupported)
 {
     displaySettingsDisp.SetHandler("getConnectedVideoDisplays", [](const std::string&, const std::string&, std::string& resp) {
@@ -890,16 +890,15 @@ TEST_F(DisplayDelegateTest, AGC_L1_176_VideoOutputCecActiveState_TvPanelReturnsN
         return Core::ERROR_NONE;
     });
 
-    const auto ctx = MakeCtx();
     string result;
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.cecactivestate", "{}", result);
+    const auto rc = plugin.GetVideoOutputCecActiveState(result);
 
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
-    EXPECT_NE(result.find("NotSupported"), std::string::npos);
+    EXPECT_EQ(result, "\"Wrong device class\"");
 }
 
 // TEST_ID: AGC_L1_177
-// videooutput.cecactivestate: streambox/HDMI device should query HdmiCecSource and return "active".
+// GetVideoOutputCecActiveState: streambox/HDMI device should query HdmiCecSource and return "active".
 TEST_F(DisplayDelegateTest, AGC_L1_177_VideoOutputCecActiveState_StreamboxReturnsActive)
 {
     displaySettingsDisp.SetHandler("getConnectedVideoDisplays", [](const std::string&, const std::string&, std::string& resp) {
@@ -915,9 +914,8 @@ TEST_F(DisplayDelegateTest, AGC_L1_177_VideoOutputCecActiveState_StreamboxReturn
         return Core::ERROR_NONE;
     });
 
-    const auto ctx = MakeCtx();
     string result;
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "videooutput.cecactivestate", "{}", result);
+    const auto rc = plugin.GetVideoOutputCecActiveState(result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_EQ(result, "\"active\"");
