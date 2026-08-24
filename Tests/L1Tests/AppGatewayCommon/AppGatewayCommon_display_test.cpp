@@ -1105,14 +1105,18 @@ TEST_F(DisplayDelegateTest, AGC_L1_187_VideoOutputEmitOnPortChanged_Dispatches)
         return Core::ERROR_NONE;
     });
 
-    Core::Sink<MockEmitter> emitter;
-    delegate->AddNotification("VideoOutput.onPortChanged", &emitter);
+    MockEmitter* emitter = new MockEmitter();
+    emitter->AddRef();
+    delegate->AddNotification("VideoOutput.onPortChanged", emitter);
 
-    EXPECT_CALL(emitter, Emit(StrEq("VideoOutput.onPortChanged"), StrEq("\"hdmi\""), StrEq("")))
+    EXPECT_CALL(*emitter, Emit(StrEq("VideoOutput.onPortChanged"), StrEq("\"hdmi\""), StrEq("")))
         .Times(1);
 
     EXPECT_TRUE(delegate->EmitOnPortChanged());
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    delegate->RemoveNotification("VideoOutput.onPortChanged", emitter);
+    emitter->Release();
 }
 
 // TEST_ID: AGC_L1_188
@@ -1128,14 +1132,18 @@ TEST_F(DisplayDelegateTest, AGC_L1_188_VideoOutputEmitOnRefreshRateChanged_Dispa
             return Core::ERROR_NONE;
         }));
 
-    Core::Sink<MockEmitter> emitter;
-    delegate->AddNotification("VideoOutput.onRefreshRateChanged", &emitter);
+    MockEmitter* emitter = new MockEmitter();
+    emitter->AddRef();
+    delegate->AddNotification("VideoOutput.onRefreshRateChanged", emitter);
 
-    EXPECT_CALL(emitter, Emit(StrEq("VideoOutput.onRefreshRateChanged"), StrEq("59.94"), StrEq("")))
+    EXPECT_CALL(*emitter, Emit(StrEq("VideoOutput.onRefreshRateChanged"), StrEq("59.94"), StrEq("")))
         .Times(1);
 
     EXPECT_TRUE(delegate->EmitOnRefreshRateChanged());
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    delegate->RemoveNotification("VideoOutput.onRefreshRateChanged", emitter);
+    emitter->Release();
 }
 
 } // anonymous namespace
