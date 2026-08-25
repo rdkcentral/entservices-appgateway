@@ -386,6 +386,11 @@ namespace Plugin {
 
             isImmediateEvent = true;
         }
+        else if (AGW_MARKER_JOB_TIMING == eventName) {
+            LOGINFO("Sending job timing event to T2: job=%s, timing=%s", context.appId.c_str(), eventData.c_str());
+            SendT2Event(eventName.c_str(), eventData, context);
+            isImmediateEvent = true;
+        }
 
         // For non-immediate events, cache and check threshold
         if (!isImmediateEvent) {
