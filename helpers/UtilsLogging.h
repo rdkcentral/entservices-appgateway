@@ -50,9 +50,10 @@ namespace LogSanitizer {
 constexpr size_t kMaxLogPayloadLength = 200;
 constexpr size_t kMaxJsonDepth = 32;
 
-static const std::array<const char*, 9> kSensitiveJsonKeys = {
+static const std::array<const char*, 10> kSensitiveJsonKeys = {
 	"sat",
 	"cdnaccesstoken",
+	"accounttoken",
 	"advertising.vcid2",
 	"license",
 	"accesstoken",
@@ -62,11 +63,13 @@ static const std::array<const char*, 9> kSensitiveJsonKeys = {
 	"authtoken"
 };
 
-static const std::array<const char*, 20> kSensitiveNeedles = {
+static const std::array<const char*, 22> kSensitiveNeedles = {
 	"\"sat\"",
 	"\\\"sat\\\"",
 	"\"cdnaccesstoken\"",
 	"\\\"cdnaccesstoken\\\"",
+	"\"accounttoken\"",
+	"\\\"accounttoken\\\"",
 	"\"advertising.vcid2\"",
 	"\\\"advertising.vcid2\\\"",
 	"\"license\"",
@@ -123,6 +126,58 @@ inline bool ContainsSensitiveField(const std::string& input)
 	return false;
 }
 
+inline void ScanJsonVariantForSensitivity(const Core::JSON::Variant& value, const char* key, const size_t depth, JsonScanState& state)
+{
+	if (state.foundOversizedString || depth > kMaxJsonDepth) {
+		return;
+	}
+
+	if (key != nullptr && !state.foundSensitive && IsSensitiveJsonKey(key)) {
+		state.foundSensitive = true;
+	}
+
+	if (key != nullptr && !state.foundOversizedString) {
+		if (std::char_traits<char>::length(key) > kMaxLogPayloadLength) {
+			state.foundOversizedString = true;
+			return;
+		}
+	}
+
+	switch (value.Content()) {
+	case Core::JSON::Variant::type::STRING: {
+		const auto& jsonString = static_cast<const Core::JSON::String&>(value);
+		if (!state.foundOversizedString && jsonString.Value().size() > kMaxLogPayloadLength) {
+			state.foundOversizedString = true;
+		}
+		break;
+	}
+	case Core::JSON::Variant::type::OBJECT: {
+		const Core::JSON::VariantContainer& nested = value.Object();
+		Core::JSON::VariantContainer::Iterator nestedIt = nested.Variants();
+		while (nestedIt.Next()) {
+			ScanJsonVariantForSensitivity(nestedIt.Current(), nestedIt.Label(), depth + 1, state);
+			if (state.foundOversizedString) {
+				return;
+			}
+		}
+		break;
+	}
+	case Core::JSON::Variant::type::ARRAY: {
+		const Core::JSON::ArrayType<Core::JSON::Variant>& arr = value.Array();
+		auto arrIt = arr.Elements();
+		while (arrIt.Next()) {
+			ScanJsonVariantForSensitivity(arrIt.Current(), nullptr, depth + 1, state);
+			if (state.foundOversizedString) {
+				return;
+			}
+		}
+		break;
+	}
+	default:
+		break;
+	}
+}
+
 inline bool HasSensitiveDataInJson(const std::string& input)
 {
 	const bool keySignatureFound = ContainsSensitiveField(input);
@@ -149,59 +204,10 @@ inline bool HasSensitiveDataInJson(const std::string& input)
 	}
 
 	JsonScanState state;
-	struct WorkItem {
-		const Core::JSON::Variant* value;
-		const char* key;
-		size_t depth;
-	};
-	std::vector<WorkItem> stack;
-	stack.reserve(32);
-	stack.push_back(WorkItem{&root, nullptr, 0});
+	ScanJsonVariantForSensitivity(root, nullptr, 0, state);
 
-	while (!stack.empty()) {
-		const WorkItem current = stack.back();
-		stack.pop_back();
-
-		if (current.depth > kMaxJsonDepth || (state.foundSensitive && state.foundOversizedString)) {
-			continue;
-		}
-
-		if (current.key != nullptr && !state.foundSensitive && IsSensitiveJsonKey(current.key)) {
-			state.foundSensitive = true;
-		}
-
-		switch (current.value->Content()) {
-		case Core::JSON::Variant::type::STRING: {
-			if (!state.foundOversizedString) {
-				const auto& jsonString = static_cast<const Core::JSON::String&>(*current.value);
-				if (jsonString.Value().size() > kMaxLogPayloadLength) {
-					state.foundOversizedString = true;
-				}
-			}
-			break;
-		}
-		case Core::JSON::Variant::type::OBJECT: {
-			const Core::JSON::VariantContainer& nested = current.value->Object();
-			Core::JSON::VariantContainer::Iterator nestedIt = nested.Variants();
-			while (nestedIt.Next()) {
-				stack.push_back(WorkItem{&(nestedIt.Current()), nestedIt.Label(), current.depth + 1});
-			}
-			break;
-		}
-		case Core::JSON::Variant::type::ARRAY: {
-			const Core::JSON::ArrayType<Core::JSON::Variant>& arr = current.value->Array();
-			auto arrIt = arr.Elements();
-			while (arrIt.Next()) {
-				stack.push_back(WorkItem{&(arrIt.Current()), nullptr, current.depth + 1});
-			}
-			break;
-		}
-		default:
-			break;
-		}
-	}
-
-	return keySignatureFound || state.foundSensitive || state.foundOversizedString;
+	const bool isSensitive = keySignatureFound || state.foundSensitive || state.foundOversizedString;
+	return isSensitive;
 }
 
 inline std::string RedactSensitiveForLog(const std::string& input, bool& isSensitive)
