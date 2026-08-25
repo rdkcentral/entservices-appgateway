@@ -288,6 +288,32 @@ namespace Plugin {
         { "device.timeinactivestate", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDeviceTimeInActiveState(result);
         }},
+        // Device Branding APIs (Phase 1)
+        { "device.setosname", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string& payload, std::string& result) -> Core::hresult {
+            std::string osName;
+            if (JsonValidation::ValidateAndExtractString(payload, osName)) {
+                return ResponseUtils::SetNullResponseForSuccess(self->SetDeviceOsName(std::move(osName)), result);
+            }
+            result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
+            return Core::ERROR_BAD_REQUEST;
+        }},
+        { "device.osname", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetDeviceOsName(result);
+        }},
+        { "device.setosversion", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string& payload, std::string& result) -> Core::hresult {
+            std::string osVersion;
+            if (JsonValidation::ValidateAndExtractString(payload, osVersion)) {
+                return ResponseUtils::SetNullResponseForSuccess(self->SetDeviceOsVersion(std::move(osVersion)), result);
+            }
+            result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
+            return Core::ERROR_BAD_REQUEST;
+        }},
+        { "device.osversion", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetDeviceOsVersion(result);
+        }},
+        { "device.firmware", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetDeviceFirmware(result);
+        }},
         { "stats.memoryusage", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string&, std::string& result) {
             return self->GetStatsMemoryUsage(ctx.appId, result);
         }},
@@ -1306,6 +1332,47 @@ namespace Plugin {
             auto systemDelegate = mDelegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDeviceTimeInActiveState(result);
+        }
+
+        // Device Branding APIs (Phase 1)
+        Core::hresult AppGatewayCommon::SetDeviceOsName(const string &osName)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->SetDeviceOsName(osName);
+        }
+
+        Core::hresult AppGatewayCommon::GetDeviceOsName(string &result)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDeviceOsName(result);
+        }
+
+        Core::hresult AppGatewayCommon::SetDeviceOsVersion(const string &osVersion)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->SetDeviceOsVersion(osVersion);
+        }
+
+        Core::hresult AppGatewayCommon::GetDeviceOsVersion(string &result)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDeviceOsVersion(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetDeviceFirmware(string &result)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDeviceFirmware(result);
         }
 
         Core::hresult AppGatewayCommon::GetStatsMemoryUsage(const string &appId, string &result)

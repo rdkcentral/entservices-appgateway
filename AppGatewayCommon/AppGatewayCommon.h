@@ -180,6 +180,12 @@ namespace WPEFramework {
             Core::hresult GetDeviceClass(string &result /* @out */);
             Core::hresult GetDeviceUptime(string &result /* @out */);
             Core::hresult GetDeviceTimeInActiveState(string &result /* @out */);
+            // Helper methods for Device Branding APIs (Phase 1) - called by HandleAppGatewayRequest
+            Core::hresult SetDeviceOsName(const string &osName /* @in */);
+            Core::hresult GetDeviceOsName(string &result /* @out */);
+            Core::hresult SetDeviceOsVersion(const string &osVersion /* @in */);
+            Core::hresult GetDeviceOsVersion(string &result /* @out */);
+            Core::hresult GetDeviceFirmware(string &result /* @out */);
             Core::hresult GetStatsMemoryUsage(const string &appId /* @in */, string &result /* @out */);
             Core::hresult LifecycleFinished(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
