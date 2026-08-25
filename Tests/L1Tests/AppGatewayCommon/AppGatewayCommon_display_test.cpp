@@ -1105,18 +1105,26 @@ TEST_F(DisplayDelegateTest, AGC_L1_187_VideoOutputEmitOnPortChanged_Dispatches)
         return Core::ERROR_NONE;
     });
 
-    MockEmitter* emitter = new MockEmitter();
-    emitter->AddRef();
-    delegate->AddNotification("VideoOutput.onPortChanged", emitter);
+    Core::Sink<MockEmitter> emitter;
+    std::atomic<bool> emitted(false);
 
-    EXPECT_CALL(*emitter, Emit(StrEq("VideoOutput.onPortChanged"), StrEq("\"hdmi\""), StrEq("")))
-        .Times(1);
+    delegate->AddNotification("VideoOutput.onPortChanged", &emitter);
+
+    EXPECT_CALL(emitter, Emit(StrEq("VideoOutput.onPortChanged"), StrEq("\"hdmi\""), StrEq("")))
+        .WillOnce(Invoke([&emitted](const string&, const string&, const string&) {
+            emitted.store(true, std::memory_order_release);
+        }));
 
     EXPECT_TRUE(delegate->EmitOnPortChanged());
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    delegate->RemoveNotification("VideoOutput.onPortChanged", emitter);
-    emitter->Release();
+    for (int attempt = 0; (attempt < 20) && (false == emitted.load(std::memory_order_acquire)); ++attempt) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    EXPECT_TRUE(emitted.load(std::memory_order_acquire));
+
+    delegate->RemoveNotification("VideoOutput.onPortChanged", &emitter);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }
 
 // TEST_ID: AGC_L1_188
@@ -1132,18 +1140,26 @@ TEST_F(DisplayDelegateTest, AGC_L1_188_VideoOutputEmitOnRefreshRateChanged_Dispa
             return Core::ERROR_NONE;
         }));
 
-    MockEmitter* emitter = new MockEmitter();
-    emitter->AddRef();
-    delegate->AddNotification("VideoOutput.onRefreshRateChanged", emitter);
+    Core::Sink<MockEmitter> emitter;
+    std::atomic<bool> emitted(false);
 
-    EXPECT_CALL(*emitter, Emit(StrEq("VideoOutput.onRefreshRateChanged"), StrEq("59.94"), StrEq("")))
-        .Times(1);
+    delegate->AddNotification("VideoOutput.onRefreshRateChanged", &emitter);
+
+    EXPECT_CALL(emitter, Emit(StrEq("VideoOutput.onRefreshRateChanged"), StrEq("59.94"), StrEq("")))
+        .WillOnce(Invoke([&emitted](const string&, const string&, const string&) {
+            emitted.store(true, std::memory_order_release);
+        }));
 
     EXPECT_TRUE(delegate->EmitOnRefreshRateChanged());
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    delegate->RemoveNotification("VideoOutput.onRefreshRateChanged", emitter);
-    emitter->Release();
+    for (int attempt = 0; (attempt < 20) && (false == emitted.load(std::memory_order_acquire)); ++attempt) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    EXPECT_TRUE(emitted.load(std::memory_order_acquire));
+
+    delegate->RemoveNotification("VideoOutput.onRefreshRateChanged", &emitter);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }
 
 } // anonymous namespace
