@@ -546,6 +546,26 @@
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
         },
+        "device.osName": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.setOsName": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.osVersion": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.setOsVersion": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "device.firmware": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
         "stats.memoryUsage": {
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
