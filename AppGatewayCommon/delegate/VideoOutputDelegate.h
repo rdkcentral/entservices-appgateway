@@ -31,6 +31,7 @@
 #include "UtilsController.h"
 #include "UtilsJsonrpcDirectLink.h"
 #include "UtilsLogging.h"
+#include "StringUtils.h"
 
 using namespace WPEFramework;
 
@@ -119,7 +120,7 @@ public:
             if (!port.empty() && port.front() == '"' && port.back() == '"') {
                 port = port.substr(1, port.size() - 2);
             }
-            port = ToLower(port);
+            port = StringUtils::toLower(port);
             return (port == "internal");
         }
         return false;
@@ -261,7 +262,7 @@ public:
                 auto arr = displays.Array();
                 if (arr.Length() > 0) {
                     std::string portName = arr[0].String();
-                    std::string lowerPort = ToLower(portName);
+                    std::string lowerPort = StringUtils::toLower(portName);
                     if (lowerPort.find("hdmi") != std::string::npos) {
                         result = "\"hdmi\"";
                     } else if (lowerPort.find("internal") != std::string::npos) {
@@ -612,7 +613,7 @@ private:
     static void ParseResolutionString(const std::string& res, int& w, int& h)
     {
         // Map common named resolutions to {width, height}
-        std::string lower = ToLower(res);
+        std::string lower = StringUtils::toLower(res);
         // First try WxH (e.g. "3840x2160")
         auto xpos = lower.find('x');
         if (xpos != std::string::npos) {
@@ -717,17 +718,6 @@ private:
         // else result stays "\"none\""
 
         return true;
-    }
-
-    // ─── String utilities ─────────────────────────────────────────────────
-
-    static std::string ToLower(const std::string& in)
-    {
-        std::string out = in;
-        std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) {
-            return static_cast<char>(::tolower(c));
-        });
-        return out;
     }
 
     // ─── Thunder event subscriptions ──────────────────────────────────────
