@@ -338,16 +338,29 @@ uint32_t Test_HandleAppEventNotifier_VideoOutputHdcpEvent_ListenTrue()
 // VideoOutputDelegate registration path: videooutput.oncecstatechanged listen=true.
 uint32_t Test_HandleAppEventNotifier_VideoOutputCecActiveStateEvent_ListenTrue()
 {
+    const uint32_t rc = notif->HandleAppEventNotifier(emitter, "videooutput.oncecstatechanged", true, status);
+    ExpectEqU32(tr, rc, ERROR_NONE, "VideoOutput CecActiveState event listen=true returns ERROR_NONE");
+    ExpectTrue(tr, status, "VideoOutput CecActiveState event listen=true sets status true");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    emitter->Release();
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_097A
+// AvOutputDelegate registration path: device.ondolbyatmosexperienceavailablechanged listen=true.
+uint32_t Test_HandleAppEventNotifier_DolbyAtmosEvent_ListenTrue()
+{
     TestResult tr;
     PluginAndService& ps = SharedFixture::instance().ps();
     QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
     auto* emitter = new StubEmitter();
 
     bool status = false;
-    const uint32_t rc = notif->HandleAppEventNotifier(emitter, "videooutput.oncecstatechanged", true, status);
-    ExpectEqU32(tr, rc, ERROR_NONE, "VideoOutput CecActiveState event listen=true returns ERROR_NONE");
-    ExpectTrue(tr, status, "VideoOutput CecActiveState event listen=true sets status true");
-
+    const uint32_t rc = notif->HandleAppEventNotifier(emitter, "device.ondolbyatmosexperienceavailablechanged", true, status);
+    ExpectEqU32(tr, rc, ERROR_NONE, "Dolby Atmos event listen=true returns ERROR_NONE (job submitted)");
+    ExpectTrue(tr, status, "Dolby Atmos event listen=true sets status true");
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     emitter->Release();

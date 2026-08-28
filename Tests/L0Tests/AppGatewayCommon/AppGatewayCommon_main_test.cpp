@@ -53,6 +53,7 @@ extern uint32_t Test_HandleRequest_VideoOutputColorFormat();
 extern uint32_t Test_HandleRequest_VideoOutputColorimetry();
 extern uint32_t Test_HandleRequest_VideoOutputDynamicRange();
 extern uint32_t Test_HandleRequest_VideoOutputQuantizationRange();
+extern uint32_t Test_HandleRequest_DeviceDolbyAtmosExperience();
 extern uint32_t Test_HandleRequest_VoiceGuidanceEnabled();
 extern uint32_t Test_HandleRequest_VoiceGuidanceNavigationHints();
 extern uint32_t Test_HandleRequest_VoiceGuidanceSettings_NonRDK8();
@@ -153,6 +154,7 @@ extern uint32_t Test_HandleAppEventNotifier_VideoOutputPortOnlyTeardown_NoCrash(
 extern uint32_t Test_HandleAppEventNotifier_VideoOutputHdcpOnlyTeardown_NoCrash();
 extern uint32_t Test_HandleAppEventNotifier_VideoOutputCecOnlyTeardown_NoCrash();
 extern uint32_t Test_HandleAppEventNotifier_VideoOutputRefreshRateOnlyTeardown_NoCrash();
+extern uint32_t Test_HandleAppEventNotifier_DolbyAtmosEvent_ListenTrue();
 
 // AppGatewayCommon_display_test.cpp
 extern uint32_t Test_HandleRequest_DisplayEdid_NoDisplay();
@@ -220,6 +222,7 @@ int main()
         { "HandleRequest_VideoOutputColorimetry",           Test_HandleRequest_VideoOutputColorimetry },
         { "HandleRequest_VideoOutputDynamicRange",          Test_HandleRequest_VideoOutputDynamicRange },
         { "HandleRequest_VideoOutputQuantizationRange",     Test_HandleRequest_VideoOutputQuantizationRange },
+        { "HandleRequest_DeviceDolbyAtmosExperience",     Test_HandleRequest_DeviceDolbyAtmosExperience },
         { "HandleRequest_VoiceGuidanceEnabled",           Test_HandleRequest_VoiceGuidanceEnabled },
         { "HandleRequest_VoiceGuidanceNavigationHints",   Test_HandleRequest_VoiceGuidanceNavigationHints },
         { "HandleRequest_VoiceGuidanceSettings_NonRDK8",  Test_HandleRequest_VoiceGuidanceSettings_NonRDK8 },
@@ -315,6 +318,7 @@ int main()
         { "EventNotifier_VOHdcpOnlyTeardown_NoCrash", Test_HandleAppEventNotifier_VideoOutputHdcpOnlyTeardown_NoCrash },
         { "EventNotifier_VOCecOnlyTeardown_NoCrash", Test_HandleAppEventNotifier_VideoOutputCecOnlyTeardown_NoCrash },
         { "EventNotifier_VORefreshRateOnlyTeardown_NoCrash", Test_HandleAppEventNotifier_VideoOutputRefreshRateOnlyTeardown_NoCrash },
+        { "EventNotifier_DolbyAtmosEvent_ListenTrue",     Test_HandleAppEventNotifier_DolbyAtmosEvent_ListenTrue },
         // --- Display tests (AGC_L0_098–AGC_L0_107) ---
         { "DisplayEdid_NoDisplay",                        Test_HandleRequest_DisplayEdid_NoDisplay },
         { "DisplayEdid_CaseInsensitive",                  Test_HandleRequest_DisplayEdid_CaseInsensitive },

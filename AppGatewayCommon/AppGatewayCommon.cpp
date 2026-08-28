@@ -213,6 +213,8 @@ namespace Plugin {
         }},
         { "videooutput.quantizationrange", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetVideoOutputQuantizationRange(result);
+        { "device.dolbyatmosexperience", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetDolbyAtmosExperience(result);
         }},
         { "voiceguidance.navigationhints", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetVoiceGuidanceHints(result);
@@ -1293,6 +1295,21 @@ namespace Plugin {
             auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
             if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputQuantizationRange(result);
+        Core::hresult AppGatewayCommon::GetDolbyAtmosExperience(string &result)
+        {
+            LOGINFO("GetDolbyAtmosExperience AppGatewayCommon");
+            if (!mDelegate) {
+                result = "false";
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            auto avOutputDelegate = mDelegate->getAvOutputDelegate();
+            if (!avOutputDelegate) {
+                result = "false";
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            return avOutputDelegate->GetDolbyAtmosExperience(result);
         }
 
         template <typename DelegateType, typename LifecycleType, typename Func, typename... Args>

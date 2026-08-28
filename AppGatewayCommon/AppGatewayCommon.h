@@ -186,6 +186,7 @@ namespace WPEFramework {
             Core::hresult GetVideoOutputColorimetry(string &result /* @out */);
             Core::hresult GetVideoOutputDynamicRange(string &result /* @out */);
             Core::hresult GetVideoOutputQuantizationRange(string &result /* @out */);
+            Core::hresult GetDolbyAtmosExperience(string &result /* @out */);
             // Helper methods for Device info APIs - called by HandleAppGatewayRequest
             Core::hresult GetDeviceChipsetId(string &result /* @out */);
             Core::hresult GetDeviceClass(string &result /* @out */);
