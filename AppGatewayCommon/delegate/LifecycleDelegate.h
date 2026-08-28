@@ -440,8 +440,10 @@ class LifecycleDelegate : public BaseEventDelegate
             // Only update the registry when a non-empty, non-null intent is provided.
             // An empty or "null" intent on subsequent transitions (e.g. ACTIVE) must not
             // overwrite a previously stored intent (e.g. secondScreen set on INITIALIZING).
+            bool bIntentUpdated = false;
             if (!navigationIntent.empty() && navigationIntent != "null") {
                 mParent.mNavigationIntentRegistry.AddNavigationIntent(appInstanceId, navigationIntent);
+                bIntentUpdated = true;
             }
 
             // if new Lifecycle state is INITIALIZING then add to app instance map
@@ -467,8 +469,8 @@ class LifecycleDelegate : public BaseEventDelegate
             } 
 
             // handle lifecycle update
-            mParent.HandleLifecycleUpdate(appInstanceId, oldLifecycleState, newLifecycleState);            
-            
+            mParent.HandleLifecycleUpdate(appInstanceId, oldLifecycleState, newLifecycleState, bIntentUpdated);
+
         }
 
         BEGIN_INTERFACE_MAP(LifecycleNotificationHandler)
@@ -886,7 +888,10 @@ class LifecycleDelegate : public BaseEventDelegate
     }
 
     // Handle Lifecycle update for a given appInstanceId by accepting the previous and current lifecycle state
-    void HandleLifecycleUpdate(const string& appInstanceId,  const Exchange::ILifecycleManager::LifecycleState oldLifecycleState, const Exchange::ILifecycleManager::LifecycleState newLifecycleState)
+    void HandleLifecycleUpdate(const string& appInstanceId,
+                               const Exchange::ILifecycleManager::LifecycleState oldLifecycleState,
+                               const Exchange::ILifecycleManager::LifecycleState newLifecycleState,
+                               const bool bIntentUpdated = true)
     {
         // update lifecycle state registry
         mLifecycleStateRegistry.UpdateLifecycleState(appInstanceId, newLifecycleState);
@@ -902,9 +907,11 @@ class LifecycleDelegate : public BaseEventDelegate
 
         // Background / Context: DispatchLastKnownIntent reads app specific intent from from mNavigationIntentRegistry
         // and emits Actions.onIntent.
-        // The ACTIVE-only gate was the original conservative trigger point, but the new requirement is to ensure
-        // intent dispatch is not missed regardless of which lifecycle state the app settles into after launch.
-        DispatchLastKnownIntent(appId);
+        // Dispatch the intent only when this lifecycle update supplied a new navigation intent
+        // that was stored in the registry.
+        if (bIntentUpdated) {
+            DispatchLastKnownIntent(appId);
+        }
 
         HandleLifecycle1Update(appInstanceId, oldLifecycleState, newLifecycleState);
     }

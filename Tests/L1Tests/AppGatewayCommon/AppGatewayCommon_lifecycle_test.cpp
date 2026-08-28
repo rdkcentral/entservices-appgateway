@@ -1177,7 +1177,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_206_ActionsOnIntent_SubscribeUnsubscribe)
     EXPECT_TRUE(status);
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_207_ActionsOnIntent_EmittedOnActiveTransition)
+TEST_F(LifecycleDelegateTest, AGC_L1_207_ActionsOnIntent_EmittedWhenIntentUpdatedOnActiveTransition)
 {
     ASSERT_NE(capturedNotification, nullptr);
 
@@ -1200,9 +1200,39 @@ TEST_F(LifecycleDelegateTest, AGC_L1_207_ActionsOnIntent_EmittedOnActiveTransiti
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Actions.onIntent"), _, _))
         .Times(::testing::AtLeast(1));
 
-    // Transition to ACTIVE — should fire DispatchLastKnownIntent → Actions.onIntent
+    // Transition to ACTIVE with an updated intent should fire DispatchLastKnownIntent → Actions.onIntent
     capturedNotification->OnAppLifecycleStateChanged(
         "test.app", "instance-ev-001",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        "{\"action\":\"browse\"}"
+    );
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_207a_ActionsOnIntent_NotEmittedWhenIntentNotUpdated)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-ev-002",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        "{\"action\":\"search\"}"
+    );
+
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+    lifecycleDelegate->AddNotification("Actions.onIntent", emitter);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Actions.onIntent"), _, _)).Times(0);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-ev-002",
         Exchange::ILifecycleManager::INITIALIZING,
         Exchange::ILifecycleManager::ACTIVE,
         ""
