@@ -213,6 +213,7 @@ namespace Plugin {
         }},
         { "videooutput.quantizationrange", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetVideoOutputQuantizationRange(result);
+        }},
         { "device.dolbyatmosexperience", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDolbyAtmosExperience(result);
         }},
@@ -1295,6 +1296,8 @@ namespace Plugin {
             auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
             if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputQuantizationRange(result);
+        }
+
         Core::hresult AppGatewayCommon::GetDolbyAtmosExperience(string &result)
         {
             LOGINFO("GetDolbyAtmosExperience AppGatewayCommon");
