@@ -338,6 +338,12 @@ uint32_t Test_HandleAppEventNotifier_VideoOutputHdcpEvent_ListenTrue()
 // VideoOutputDelegate registration path: videooutput.oncecstatechanged listen=true.
 uint32_t Test_HandleAppEventNotifier_VideoOutputCecActiveStateEvent_ListenTrue()
 {
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppNotificationHandler> notif(ps.plugin);
+    auto* emitter = new StubEmitter();
+
+    bool status = false;
     const uint32_t rc = notif->HandleAppEventNotifier(emitter, "videooutput.oncecstatechanged", true, status);
     ExpectEqU32(tr, rc, ERROR_NONE, "VideoOutput CecActiveState event listen=true returns ERROR_NONE");
     ExpectTrue(tr, status, "VideoOutput CecActiveState event listen=true sets status true");
