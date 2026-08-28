@@ -430,7 +430,9 @@ namespace WPEFramework
             LOGTRACE("Resolved method '%s' to alias '%s'", method.c_str(), alias.c_str());            
             // Check if the given method is an event
             if (mResolverPtr->HasEvent(method)) {
-                result = PreProcessEvent(context, alias, method, origin, params, resolution);
+                // Events may fan out to multiple aliases (e.g. both org.rdk.AppGatewayCommon and org.rdk.LaunchDelegate)
+                std::vector<std::string> aliases = mResolverPtr->ResolveAliases(method);
+                result = PreProcessEvent(context, aliases, method, origin, params, resolution);
             } else if(mResolverPtr->HasComRpcRequestSupport(method)) {
                 result = ProcessComRpcRequest(context, alias, method, params, origin, resolution);
             } else {
@@ -514,7 +516,7 @@ namespace WPEFramework
         }
         
 
-        uint32_t AppGatewayImplementation::PreProcessEvent(const Context &context, const string& alias, const string &method, const string& origin, const string& params,
+        uint32_t AppGatewayImplementation::PreProcessEvent(const Context &context, const std::vector<std::string>& aliases, const string &method, const string& origin, const string& params,
         string &resolution) {
             JsonObject params_obj;
             if (params_obj.FromString(params)) {
@@ -526,8 +528,17 @@ namespace WPEFramework
                         if (mResolverPtr->IsVersionedEvent(method)) {
                             eventName = ContextUtils::GetEventNameFromContextBasedonVersion(context.version, method);
                         }
-                        
-                        auto ret_value = HandleEvent(context, alias, eventName, origin, resultValue);
+
+                        // Fan out the (un)subscribe request to every alias configured for this event.
+                        Core::hresult ret_value = Core::ERROR_GENERAL;
+                        for (const auto& alias : aliases) {
+                            Core::hresult aliasResult = HandleEvent(context, alias, eventName, origin, resultValue);
+                            if (aliasResult != Core::ERROR_NONE) {
+                                LOGERR("PreProcessEvent: HandleEvent failed for alias=%s method=%s", alias.c_str(), method.c_str());
+                            } else {
+                                ret_value = Core::ERROR_NONE;
+                            }
+                        }
                         if (ret_value == Core::ERROR_NONE && resultValue) {
                             std::string hookMethod;
                             if (mResolverPtr->HasEventHook(method, hookMethod)) {
@@ -567,6 +578,8 @@ namespace WPEFramework
 
         Core::hresult AppGatewayImplementation::HandleEvent(const Context &context, const string &alias,  const string &event, const string &origin, const bool listen) {
             Core::SafeSyncType<Core::CriticalSection> lock(mAppNotificationsLock);
+            LOGDBG("HandleEvent: appId=%s alias=%s event=%s origin=%s listen=%s",
+                   context.appId.c_str(), alias.c_str(), event.c_str(), origin.c_str(), listen ? "true" : "false");
             if (nullptr == mAppNotifications) {
                 mAppNotifications = mService->QueryInterfaceByCallsign<Exchange::IAppNotifications>(APP_NOTIFICATIONS_CALLSIGN);
                 if (nullptr == mAppNotifications) {
