@@ -103,6 +103,10 @@ namespace WPEFramework
                     // Use helper functions to extract all fields consistently
                     r.alias = ExtractStringField(resolutionObj, "alias");
                     r.aliases = ExtractStringArrayField(resolutionObj, "aliases");
+                    // Keep single-alias consumers (logging, non-event resolution) working when only 'aliases' is configured.
+                    if (r.alias.empty() && !r.aliases.empty()) {
+                        r.alias = r.aliases[0];
+                    }
                     r.event = ExtractStringField(resolutionObj, "event");
                     r.eventHook = ExtractStringField(resolutionObj, "eventHook");
                     r.permissionGroup = ExtractStringField(resolutionObj, "permissionGroup");
