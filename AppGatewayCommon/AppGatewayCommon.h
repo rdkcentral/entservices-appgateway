@@ -175,6 +175,7 @@ namespace WPEFramework {
             Core::hresult GetHdcp(string &result /* @out */);
             Core::hresult GetHdr(string &result /* @out */);
             Core::hresult GetAudio(string &result /* @out */);
+            Core::hresult GetDolbyAtmosExperience(string &result /* @out */);
             // Helper methods for Device info APIs - called by HandleAppGatewayRequest
             Core::hresult GetDeviceChipsetId(string &result /* @out */);
             Core::hresult GetDeviceClass(string &result /* @out */);

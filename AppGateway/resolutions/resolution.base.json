@@ -238,6 +238,10 @@
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
         },
+        "device.dolbyatmosexperience": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
         "device.onhdrchanged": {
             "alias": "org.rdk.AppGatewayCommon",
             "event": "Device.onHdrChanged"
@@ -257,6 +261,10 @@
         "device.onaudiochanged": {
             "alias": "org.rdk.AppGatewayCommon",
             "event": "Device.onAudioChanged"
+        },
+        "device.ondolbyatmosexperienceavailablechanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "Device.onDolbyAtmosExperienceAvailableChanged"
         },
         "device.ondevicenamechanged": {
             "alias": "org.rdk.AppGatewayCommon",
