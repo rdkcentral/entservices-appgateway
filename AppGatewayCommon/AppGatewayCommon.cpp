@@ -295,7 +295,7 @@ namespace Plugin {
         { "device.setosname", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string& payload, std::string& result) -> Core::hresult {
             std::string osName;
             if (JsonValidation::ValidateAndExtractString(payload, osName)) {
-                return ResponseUtils::SetNullResponseForSuccess(self->SetDeviceOsName(std::move(osName)), result);
+                return ResponseUtils::SetNullResponseForSuccess(self->SetDeviceOsName(osName), result);
             }
             result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
             return Core::ERROR_BAD_REQUEST;
@@ -306,7 +306,7 @@ namespace Plugin {
         { "device.setosversion", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string& payload, std::string& result) -> Core::hresult {
             std::string osVersion;
             if (JsonValidation::ValidateAndExtractString(payload, osVersion)) {
-                return ResponseUtils::SetNullResponseForSuccess(self->SetDeviceOsVersion(std::move(osVersion)), result);
+                return ResponseUtils::SetNullResponseForSuccess(self->SetDeviceOsVersion(osVersion), result);
             }
             result = "{\"error\":\"Invalid payload: missing or invalid 'value' field\"}";
             return Core::ERROR_BAD_REQUEST;

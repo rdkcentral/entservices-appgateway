@@ -22,7 +22,7 @@ curl -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":"100","method
 
 ## org.rdk.AppGatewayCommon.1: org.rdk.System callsign-derived aliases
 
-Below are example requests for each of the 13 methods exposed by org.rdk.AppGatewayCommon.1. 
+Below are example requests for each of the 14 methods exposed by org.rdk.AppGatewayCommon.1 (methods 1–9 via org.rdk.System; methods 10–14 are Device Branding APIs via IDeviceInfo). 
 - For getters/response-only methods, no params are included.
 - For methods that require input, an example params object is provided.
 - For subscribe methods, the listen parameter is demonstrated.

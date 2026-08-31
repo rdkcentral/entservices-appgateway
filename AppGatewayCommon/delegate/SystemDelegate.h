@@ -1106,7 +1106,9 @@ public:
             LOGERR("SystemDelegate: IDeviceInfo::OsName(get) failed rc=%u", rc);
             return Core::ERROR_GENERAL;
         }
-        result = "\"" + info.osname + "\"";
+        Core::JSON::String jsonStr;
+        jsonStr = info.osname;
+        jsonStr.ToString(result);
         return Core::ERROR_NONE;
     }
 
@@ -1159,7 +1161,9 @@ public:
             LOGERR("SystemDelegate: IDeviceInfo::OsVersion(get) failed rc=%u", rc);
             return Core::ERROR_GENERAL;
         }
-        result = "\"" + info.osversion + "\"";
+        Core::JSON::String jsonStr;
+        jsonStr = info.osversion;
+        jsonStr.ToString(result);
         return Core::ERROR_NONE;
     }
 
@@ -1186,7 +1190,9 @@ public:
             LOGERR("SystemDelegate: IDeviceInfo::FirmwareVersion failed rc=%u", rc);
             return Core::ERROR_GENERAL;
         }
-        result = "\"" + info.imagename + "\"";
+        Core::JSON::String jsonStr;
+        jsonStr = info.imagename;
+        jsonStr.ToString(result);
         return Core::ERROR_NONE;
     }
 

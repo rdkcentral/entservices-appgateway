@@ -179,7 +179,9 @@ protected:
     void TearDown() override
     {
         plugin.Deinitialize(&service);
-        // mockDi is ref-counted; plugin holds no reference after Deinitialize.
+        // Release the fixture-owned reference (initial refcount of 1).
+        // Any reference held by the plugin was already released in Deinitialize.
+        mockDi->Release();
     }
 };
 
