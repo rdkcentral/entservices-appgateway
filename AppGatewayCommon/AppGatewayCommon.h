@@ -208,7 +208,6 @@ namespace WPEFramework {
             Core::hresult SpeechSynthesisCancel(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult SpeechSynthesisPause(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult SpeechSynthesisResume(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
-            Exchange::ITextToSpeech* GetTTSInterface() const;
             Core::hresult GetNetworkConnected(string &result /* @out */);
             // Helper methods for Display APIs - called by HandleAppGatewayRequest
             Core::hresult GetDisplayEdid(string &result /* @out */);
