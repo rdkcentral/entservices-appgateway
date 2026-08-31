@@ -132,8 +132,8 @@ public:
 
         std::string serializedVoices = "[";
         bool firstVoice = true;
-        while (voices->Next()) {
-            const auto voice = voices->Current();
+        Exchange::ITextToSpeech::VoiceInfo voice{};
+        while (voices->Next(voice)) {
             if (!firstVoice) {
                 serializedVoices += ",";
             }
