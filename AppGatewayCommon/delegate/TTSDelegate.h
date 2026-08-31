@@ -22,11 +22,9 @@
 #include "UtilsLogging.h"
 #include "ContextUtils.h"
 #include "UtilsFirebolt.h"
-// UtilsFirebolt.h defines plain ERROR_NOT_SUPPORTED/ERROR_NOT_AVAILABLE/ERROR_NOT_PERMITTED
-// macros that collide with Core::ERROR_NOT_SUPPORTED etc. used below; undef locally to this file.
+// UtilsFirebolt.h defines a plain ERROR_NOT_SUPPORTED macro that collides with
+// Core::ERROR_NOT_SUPPORTED used below; undef locally to this file.
 #undef ERROR_NOT_SUPPORTED
-#undef ERROR_NOT_AVAILABLE
-#undef ERROR_NOT_PERMITTED
 #include <mutex>
 #include <limits>
 #include "ObjectUtils.h"
@@ -104,7 +102,6 @@ public:
             return Core::ERROR_NONE;
         }
 
-#if defined(ITEXTTOSPEECH_VERSION) && (ITEXTTOSPEECH_VERSION >= 2)
         std::string languageFilter;
         if (!payload.empty() && (payload != "null")) {
             Core::JSON::VariantContainer params;
@@ -145,10 +142,6 @@ public:
         serializedVoices += "]";
         result = serializedVoices;
         return Core::ERROR_NONE;
-#else
-        ErrorUtils::NotSupported(result);
-        return Core::ERROR_NOT_SUPPORTED;
-#endif
     }
 
     Core::hresult SpeechSynthesisSpeak(const std::string& appId, const std::string& payload, std::string& result)
@@ -173,7 +166,6 @@ public:
         Exchange::ITextToSpeech::TTSErrorDetail detailStatus = Exchange::ITextToSpeech::TTS_OK;
         uint32_t utteranceId = 0;
 
-#if defined(ITEXTTOSPEECH_VERSION) && (ITEXTTOSPEECH_VERSION >= 2)
         Exchange::ITextToSpeech::SpeechUtterance utterance{};
         utterance.language = "";
         utterance.voice = "";
@@ -203,9 +195,6 @@ public:
         }
 
         const auto status = tts->SpeakWithUtterance(callsign, utterance, text, utteranceId, detailStatus);
-#else
-        const auto status = tts->Speak(callsign, text, utteranceId, detailStatus);
-#endif
 
         if (Core::ERROR_NONE != status) {
             return MapTtsTransportError(status, "speak", result);
@@ -442,7 +431,6 @@ private:
         }
     }
 
-#if defined(ITEXTTOSPEECH_VERSION) && (ITEXTTOSPEECH_VERSION >= 2)
     static void ApplyUtteranceOverrides(const Core::JSON::VariantContainer& container,
                                         Exchange::ITextToSpeech::SpeechUtterance& utterance,
                                         bool& piiProvided)
@@ -481,7 +469,6 @@ private:
         voiceObject.ToString(serialized);
         return serialized;
     }
-#endif
 
     Exchange::ITextToSpeech* GetTTS() {
         std::lock_guard<std::mutex> lock(mTTSMutex);
@@ -560,12 +547,10 @@ private:
             mParent.Dispatch("TextToSpeech.onTtsstatechanged", ObjectUtils::CreateBooleanJsonString("value", state));
         }
 
-#if defined(ITEXTTOSPEECH_VERSION) && (ITEXTTOSPEECH_VERSION >= 2)
         void OnVoicesChanged() override
         {
             mParent.Dispatch("SpeechSynthesis.onVoicesChanged", "null");
         }
-#endif
 
         BEGIN_INTERFACE_MAP(TTSNotificationHandler)
         INTERFACE_ENTRY(Exchange::ITextToSpeech::INotification)
