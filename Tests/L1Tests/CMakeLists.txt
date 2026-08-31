@@ -40,6 +40,7 @@ set(MODULE_NAME ${NAMESPACE}${PLUGIN_NAME})
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(APPGATEWAY_L1TEST_TARGET "")
 
 # Standalone when configured directly with: cmake -S <repo>/Tests/L1Tests ...
 set(_L1TESTS_STANDALONE_BUILD OFF)
@@ -140,6 +141,14 @@ if(_L1TESTS_STANDALONE_BUILD)
         # AppGateway/CMakeLists.txt defines the implementation library target
         # which AppGatewayL1Test must link against to resolve symbols.
         add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../AppGateway ${CMAKE_BINARY_DIR}/AppGateway)
+
+        if(TARGET AppGateway)
+            set(APPGATEWAY_L1TEST_TARGET AppGateway)
+        elseif(TARGET ${NAMESPACE}AppGateway)
+            set(APPGATEWAY_L1TEST_TARGET ${NAMESPACE}AppGateway)
+        else()
+            message(FATAL_ERROR "AppGateway target was not created for the L1 tests-only build")
+        endif()
     endif()
 
     if(PLUGIN_APPGATEWAYCOMMON)
@@ -151,7 +160,7 @@ if(_L1TESTS_STANDALONE_BUILD)
         # 100ms during L1 tests. No Thunder daemon runs in the test environment
         # so every Subscribe call exhausts its full timeout; 4 calls × 2000ms
         # adds ~8s of dead wait per Initialize() cycle.
-        target_compile_definitions(AppGatewayCommon PRIVATE
+        target_compile_definitions(${NAMESPACE}AppGatewayCommon PRIVATE
             SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS=100
         )
     endif()
@@ -256,7 +265,7 @@ if(PLUGIN_APPGATEWAY)
     )
 
     list(APPEND APPGATEWAY_L1TEST_LIB
-        AppGateway
+        ${APPGATEWAY_L1TEST_TARGET}
         ${NAMESPACE}Plugins::${NAMESPACE}Plugins
     )
 else()
@@ -284,7 +293,7 @@ if(PLUGIN_APPGATEWAYCOMMON)
     )
 
     list(APPEND APPGATEWAYCOMMON_L1TEST_LIB
-        AppGatewayCommon
+        ${NAMESPACE}AppGatewayCommon
         ${NAMESPACE}Plugins::${NAMESPACE}Plugins
     )
 else()
