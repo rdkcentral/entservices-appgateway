@@ -19,6 +19,12 @@ jobs:
     with:
       caller_source: local
 
+  # NOTE: this job invokes a reusable workflow via `uses:`, so no additional
+  # `steps:` can be attached here (GitHub Actions restriction). The actual
+  # "wait-for-thunder" readiness gate that prevents the intermittent
+  # "Failed to open IShell" startup race lives in the called workflow itself:
+  # see the "Wait for Thunder to be ready" step in .github/workflows/L2-tests.yml,
+  # which runs immediately before RdkServicesL2Test (L2testController.cpp) executes.
   trigger-L2:
     uses: ./.github/workflows/L2-tests.yml
     with:

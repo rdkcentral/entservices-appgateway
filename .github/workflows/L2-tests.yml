@@ -976,6 +976,36 @@ jobs:
           gcc -O0 -shared -fPIC -o /tmp/libgcov_segv_flush.so /tmp/gcov_segv_flush.c -ldl -lpthread
           echo "Built /tmp/libgcov_segv_flush.so"
 
+      - name: Wait for Thunder to be ready
+        # Guards against the intermittent "Failed to open IShell" startup race in
+        # L2testController.cpp by not launching RdkServicesL2Test until the
+        # Thunder JSON-RPC Controller endpoint is actually accepting requests
+        # (not just TCP-connectable) for the AppGatewayCommon plugin.
+        run: |
+          export PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
+          export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
+          THUNDER_URL="http://127.0.0.1:9998/jsonrpc"
+          MAX_ATTEMPTS=30
+          ready=false
+          for i in $(seq 1 ${MAX_ATTEMPTS}); do
+            if curl -sS --max-time 2 "${THUNDER_URL}" \
+               -H 'Content-Type: application/json' \
+               -d '{"jsonrpc":"2.0","id":1,"method":"Controller.1.status@AppGatewayCommon"}' >/dev/null 2>&1; then
+              echo "Thunder is ready"
+              ready=true
+              break
+            fi
+            echo "Waiting for Thunder/IShell... (${i}/${MAX_ATTEMPTS})"
+            sleep 1
+          done
+          if [ "${ready}" != "true" ]; then
+            echo "::error::Timed out after ${MAX_ATTEMPTS}s waiting for Thunder JSON-RPC endpoint ${THUNDER_URL} to respond."
+            echo "---- Diagnostics ----"
+            ss -ltnp 2>/dev/null | grep 9998 || echo "No listener found on port 9998"
+            ps aux | grep -i WPEFramework | grep -v grep || echo "WPEFramework process not found"
+            exit 1
+          fi
+
       - name: Run unit tests without valgrind
         run: |
           export PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
