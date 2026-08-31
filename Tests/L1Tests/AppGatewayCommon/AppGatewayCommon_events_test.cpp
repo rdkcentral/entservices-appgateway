@@ -324,7 +324,7 @@ TEST_F(EventsTest, AGC_L1_211_Deactivated_NonMatchingConnectionId)
         uint32_t Launch() override { return 0; }
         void PostMortem() override {}
         void Terminate() override {}
-        void AddRef() const override { ++mRefCount; }
+        uint32_t AddRef() const override { return ++mRefCount; }
         uint32_t Release() const override {
             if (--mRefCount == 0) { delete this; return Core::ERROR_DESTRUCTION_SUCCEEDED; }
             return Core::ERROR_NONE;
