@@ -1070,9 +1070,7 @@ public:
             return Core::ERROR_UNAVAILABLE;
         }
 
-        Exchange::IDeviceInfo::DeviceOsName info{};
-        info.osName = osName;
-        const Core::hresult rc = di->OsName(info);
+        const Core::hresult rc = di->OsName(osName);
         di->Release();
 
         if (rc != Core::ERROR_NONE)
@@ -1125,9 +1123,7 @@ public:
             return Core::ERROR_UNAVAILABLE;
         }
 
-        Exchange::IDeviceInfo::DeviceOsVersion info{};
-        info.osVersion = osVersion;
-        const Core::hresult rc = di->OsVersion(info);
+        const Core::hresult rc = di->OsVersion(osVersion);
         di->Release();
 
         if (rc != Core::ERROR_NONE)

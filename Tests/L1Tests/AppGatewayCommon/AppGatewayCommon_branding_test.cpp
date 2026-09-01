@@ -115,10 +115,10 @@ public:
     }
 
     // Methods under test
-    MOCK_METHOD(Core::hresult, OsName,    (Exchange::IDeviceInfo::DeviceOsName&),       (const, override));
-    MOCK_METHOD(Core::hresult, OsName,    (const Exchange::IDeviceInfo::DeviceOsName&), (override));
-    MOCK_METHOD(Core::hresult, OsVersion, (Exchange::IDeviceInfo::DeviceOsVersion&),       (const, override));
-    MOCK_METHOD(Core::hresult, OsVersion, (const Exchange::IDeviceInfo::DeviceOsVersion&), (override));
+    MOCK_METHOD(Core::hresult, OsName,    (Exchange::IDeviceInfo::DeviceOsName&), (const, override));
+    MOCK_METHOD(Core::hresult, OsName,    (const string&),                        (override));
+    MOCK_METHOD(Core::hresult, OsVersion, (Exchange::IDeviceInfo::DeviceOsVersion&), (const, override));
+    MOCK_METHOD(Core::hresult, OsVersion, (const string&),                           (override));
     MOCK_METHOD(Core::hresult, FirmwareVersion, (Exchange::IDeviceInfo::FirmwareversionInfo&), (const, override));
 
     // No-op stubs for remaining pure virtuals
@@ -192,7 +192,7 @@ protected:
 /* AGC_L1_233 — Device.setOsName: valid payload, IDeviceInfo::OsName(set) succeeds */
 TEST_F(BrandingApiTest, AGC_L1_233_SetOsName_Success)
 {
-    ON_CALL(*mockDi, OsName(testing::An<const Exchange::IDeviceInfo::DeviceOsName&>()))
+    ON_CALL(*mockDi, OsName(testing::An<const string&>()))
         .WillByDefault(Return(Core::ERROR_NONE));
 
     const auto ctx = MakeCtx();
@@ -206,7 +206,7 @@ TEST_F(BrandingApiTest, AGC_L1_233_SetOsName_Success)
 /* AGC_L1_234 — Device.setOsName: IDeviceInfo::OsName(set) returns ERROR_GENERAL */
 TEST_F(BrandingApiTest, AGC_L1_234_SetOsName_InterfaceFailure)
 {
-    ON_CALL(*mockDi, OsName(testing::An<const Exchange::IDeviceInfo::DeviceOsName&>()))
+    ON_CALL(*mockDi, OsName(testing::An<const string&>()))
         .WillByDefault(Return(Core::ERROR_GENERAL));
 
     const auto ctx = MakeCtx();
@@ -330,7 +330,7 @@ TEST(BrandingApiNullDelegateTest, AGC_L1_241_GetOsName_NullDelegate)
 /* AGC_L1_242 — Device.setOsVersion: valid payload, IDeviceInfo::OsVersion(set) succeeds */
 TEST_F(BrandingApiTest, AGC_L1_242_SetOsVersion_Success)
 {
-    ON_CALL(*mockDi, OsVersion(testing::An<const Exchange::IDeviceInfo::DeviceOsVersion&>()))
+    ON_CALL(*mockDi, OsVersion(testing::An<const string&>()))
         .WillByDefault(Return(Core::ERROR_NONE));
 
     const auto ctx = MakeCtx();
@@ -344,7 +344,7 @@ TEST_F(BrandingApiTest, AGC_L1_242_SetOsVersion_Success)
 /* AGC_L1_243 — Device.setOsVersion: IDeviceInfo::OsVersion(set) returns ERROR_GENERAL */
 TEST_F(BrandingApiTest, AGC_L1_243_SetOsVersion_InterfaceFailure)
 {
-    ON_CALL(*mockDi, OsVersion(testing::An<const Exchange::IDeviceInfo::DeviceOsVersion&>()))
+    ON_CALL(*mockDi, OsVersion(testing::An<const string&>()))
         .WillByDefault(Return(Core::ERROR_GENERAL));
 
     const auto ctx = MakeCtx();
