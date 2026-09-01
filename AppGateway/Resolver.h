@@ -51,9 +51,6 @@ namespace WPEFramework
         struct Resolution
         {
             std::string alias;
-            // Optional list of aliases for event fan-out (subscribe on multiple plugins for one event key).
-            // When set, takes precedence over 'alias' for event resolution.
-            std::vector<std::string> aliases;
             std::string event;
             std::string eventHook;
             std::string permissionGroup;
@@ -82,9 +79,6 @@ namespace WPEFramework
             bool IsConfigured();
 
             std::string ResolveAlias(const std::string &request);
-
-            // Returns all aliases to fan out an event subscription to (from 'aliases' if set, else the single 'alias').
-            std::vector<std::string> ResolveAliases(const std::string &request);
             Core::hresult CallThunderPlugin(const std::string &alias, const std::string &params, std::string &response);
 
             // New Method to check if given method has ComRPC request ability
@@ -110,9 +104,6 @@ namespace WPEFramework
 
             // Helper function to extract string field from JSON variant with type checking
             static std::string ExtractStringField(const WPEFramework::Core::JSON::VariantContainer &obj, const char *fieldName);
-
-            // Helper function to extract an array-of-strings field from JSON variant with type checking
-            static std::vector<std::string> ExtractStringArrayField(const WPEFramework::Core::JSON::VariantContainer &obj, const char *fieldName);
 
             // Helper function to extract boolean field from JSON variant with type checking
             static bool ExtractBooleanField(const WPEFramework::Core::JSON::VariantContainer &obj, const char *fieldName, bool defaultValue = false);

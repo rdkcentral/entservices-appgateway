@@ -328,7 +328,7 @@
             "event": "Actions.onIntent"
         },
         "discovery.onnavigateto": {
-            "aliases": ["org.rdk.AppGatewayCommon", "org.rdk.LaunchDelegate"],
+            "alias": "org.rdk.AppGatewayCommon",
             "event": "Discovery.onNavigateTo"
         },
         "presentation.focused": {

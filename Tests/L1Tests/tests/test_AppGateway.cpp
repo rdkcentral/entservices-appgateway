@@ -724,7 +724,7 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_PreProcessEvent_MissingListe
 
         EXPECT_EQ(Core::ERROR_BAD_REQUEST,
                             impl.PreProcessEvent(ctx,
-                                                                     std::vector<std::string>{"org.rdk.DeviceInfo.name"},
+                                                                     "org.rdk.DeviceInfo.name",
                                                                      "device.event",
                                                                      "org.rdk.AppGateway",
                                                                      "{}",
@@ -740,7 +740,7 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_PreProcessEvent_InvalidParam
 
         EXPECT_EQ(Core::ERROR_BAD_REQUEST,
                             impl.PreProcessEvent(ctx,
-                                                                     std::vector<std::string>{"org.rdk.DeviceInfo.name"},
+                                                                     "org.rdk.DeviceInfo.name",
                                                                      "device.event",
                                                                      "org.rdk.AppGateway",
                                                                      "not_json",
@@ -774,7 +774,7 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_PreProcessEvent_ListenTrueWi
 
     EXPECT_EQ(Core::ERROR_GENERAL,
               impl.PreProcessEvent(ctx,
-                                   std::vector<std::string>{"org.rdk.DeviceInfo.name"},
+                                   "org.rdk.DeviceInfo.name",
                                    "device.event",
                                    "org.rdk.AppGateway",
                                    R"({"listen":true})",

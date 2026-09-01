@@ -275,7 +275,7 @@ class LifecycleDelegate : public BaseEventDelegate
 
     Core::hresult ActionsStart(const Exchange::GatewayContext& context, const string& payload /*@opaque*/, string& result /*@out @opaque*/)
     {
-        if (payload.empty() || "null" == payload) {
+        if (payload.empty() || payload == "null") {
             LOGWARN("ActionsStart: intent payload is required");
             ErrorUtils::CustomBadRequest("Intent payload is required", result);
             return Core::ERROR_BAD_REQUEST;
@@ -292,21 +292,9 @@ class LifecycleDelegate : public BaseEventDelegate
             return Core::ERROR_BAD_REQUEST;
         }
 
-        // Validate and re-serialize the intent sub-document as an opaque JSON string.
-        // Reject JSON null (Variant::type::EMPTY) and empty objects ({}) as invalid.
-        const JsonValue& intentVariant = args.Get("intent");
-        if (intentVariant.Content() == JsonValue::type::EMPTY) {
-            LOGWARN("ActionsStart: 'intent' field must not be null");
-            ErrorUtils::CustomBadRequest("'intent' field must not be null or empty", result);
-            return Core::ERROR_BAD_REQUEST;
-        }
+        // Re-serialize the intent sub-document as an opaque JSON string
         string intent;
-        intentVariant.Object().ToString(intent);
-        if (intent.empty() || intent == "{}" || "null" == intent) {
-            LOGWARN("ActionsStart: 'intent' field must not be an empty object");
-            ErrorUtils::CustomBadRequest("'intent' field must not be null or empty", result);
-            return Core::ERROR_BAD_REQUEST;
-        }
+        args.Get("intent").Object().ToString(intent);
 
         // Extract optional handlerAppId
         string handlerAppId;
@@ -438,10 +426,10 @@ class LifecycleDelegate : public BaseEventDelegate
             LOGINFO("OnAppLifecycleStateChanged: appId=%s, appInstanceId=%s, oldState=%d, newState=%d, navigationIntent=%s",
                     appId.c_str(), appInstanceId.c_str(), oldLifecycleState, newLifecycleState, navigationIntent.c_str());
 
-            // Only update the registry when a non-empty, non-null intent is provided.
-            // An empty or "null" intent on subsequent transitions (e.g. ACTIVE) must not
+            // Only update the registry when a non-empty intent is provided.
+            // An empty intent on subsequent transitions (e.g. ACTIVE) must not
             // overwrite a previously stored intent (e.g. secondScreen set on INITIALIZING).
-            if (!navigationIntent.empty() && navigationIntent != "null") {
+            if (!navigationIntent.empty()) {
                 mParent.mNavigationIntentRegistry.AddNavigationIntent(appInstanceId, navigationIntent);
             }
 
@@ -635,8 +623,8 @@ class LifecycleDelegate : public BaseEventDelegate
             };
 
             void AddNavigationIntent(const string& appInstanceId, const string& intent) {
-                if (intent.empty() || "null" == intent) {
-                    return; // ignore empty/null intents; preserve the last non-empty intent and intentId
+                if (true == intent.empty()) {
+                    return; // ignore empty intents; preserve the last non-empty intent and intentId
                 }
                 std::lock_guard<std::mutex> lock(intentMutex);
                 navigationIntentMap[appInstanceId] = { intent, ++mIntentIndex };
@@ -839,12 +827,9 @@ class LifecycleDelegate : public BaseEventDelegate
         string intent;
         uint32_t intentId = 0;
         GetLastKnownIntent(appId, intent, intentId);
-        if (!intent.empty() && intent != "null") {
+        if (!intent.empty()) {
             string payloadStr = BuildIntentResult(intentId, intent);
-            LOGINFO("IntentTrace Actions.onIntent: appId=%s intentId=%u intent=%s payload=%s",
-                    appId.c_str(), intentId, intent.c_str(), payloadStr.c_str());
             Dispatch("Actions.onIntent", payloadStr, appId);
-
             // Mirror LaunchDelegate behavior for apps still consuming Discovery.onNavigateTo.
             JsonObject intentJson;
             if (intentJson.FromString(intent)) {
@@ -863,7 +848,7 @@ class LifecycleDelegate : public BaseEventDelegate
     static string BuildIntentResult(uint32_t intentId, const string& intent)
     {
         string intentJson;
-        if (intent.empty() || "null" == intent) {
+        if (intent.empty()) {
             // No intent available – represent as an empty JSON object
             intentJson = "{}";
         } else if (intent[0] == '{' || intent[0] == '[') {
@@ -911,11 +896,10 @@ class LifecycleDelegate : public BaseEventDelegate
 
         Dispatch("Lifecycle2.onStateChanged", mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId), appId);
 
-        // Background / Context: DispatchLastKnownIntent reads app specific intent from from mNavigationIntentRegistry
-        // and emits Actions.onIntent.
-        // The ACTIVE-only gate was the original conservative trigger point, but the new requirement is to ensure
-        // intent dispatch is not missed regardless of which lifecycle state the app settles into after launch.
-        DispatchLastKnownIntent(appId);
+        // if new lifecycleState is ACTIVE trigger last known intent
+        if (newLifecycleState == Exchange::ILifecycleManager::ACTIVE) {
+            DispatchLastKnownIntent(appId);
+        }
 
         HandleLifecycle1Update(appInstanceId, oldLifecycleState, newLifecycleState);
     }

@@ -102,11 +102,6 @@ namespace WPEFramework
 
                     // Use helper functions to extract all fields consistently
                     r.alias = ExtractStringField(resolutionObj, "alias");
-                    r.aliases = ExtractStringArrayField(resolutionObj, "aliases");
-                    // Keep single-alias consumers (logging, non-event resolution) working when only 'aliases' is configured.
-                    if (r.alias.empty() && !r.aliases.empty()) {
-                        r.alias = r.aliases[0];
-                    }
                     r.event = ExtractStringField(resolutionObj, "event");
                     r.eventHook = ExtractStringField(resolutionObj, "eventHook");
                     r.permissionGroup = ExtractStringField(resolutionObj, "permissionGroup");
@@ -164,25 +159,6 @@ namespace WPEFramework
             return {}; // return empty if not found
         }
 
-        std::vector<std::string> Resolver::ResolveAliases(const std::string &key)
-        {
-            std::string lowerKey = StringUtils::toLower(key);
-            std::lock_guard<std::mutex> lock(mMutex);
-            auto it = mResolutions.find(lowerKey);
-            if (it != mResolutions.end())
-            {
-                if (!it->second.aliases.empty())
-                {
-                    return it->second.aliases;
-                }
-                if (!it->second.alias.empty())
-                {
-                    return { it->second.alias };
-                }
-            }
-            return {}; // return empty if not found
-        }
-
         void Resolver::ParseAlias(const std::string &alias, std::string &callsign, std::string &pluginMethod)
         {
             // Find last '.' in the string
@@ -212,25 +188,6 @@ namespace WPEFramework
                 return field.String();
             }
             return "";
-        }
-
-        std::vector<std::string> Resolver::ExtractStringArrayField(const WPEFramework::Core::JSON::VariantContainer &obj, const char *fieldName)
-        {
-            std::vector<std::string> result;
-            WPEFramework::Core::JSON::Variant field = obj[fieldName];
-            if (field.IsSet() && !field.IsNull() && field.Content() == WPEFramework::Core::JSON::Variant::type::ARRAY)
-            {
-                WPEFramework::Core::JSON::ArrayType<WPEFramework::Core::JSON::Variant> arr = field.Array();
-                auto index = arr.Elements();
-                while (index.Next())
-                {
-                    if (index.Current().Content() == WPEFramework::Core::JSON::Variant::type::STRING)
-                    {
-                        result.push_back(index.Current().String());
-                    }
-                }
-            }
-            return result;
         }
 
         bool Resolver::ExtractBooleanField(const WPEFramework::Core::JSON::VariantContainer &obj, const char *fieldName, bool defaultValue)
