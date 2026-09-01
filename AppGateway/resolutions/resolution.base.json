@@ -630,10 +630,6 @@
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
         },
-        "videooutput.onrefreshratechanged": {
-            "alias": "org.rdk.AppGatewayCommon",
-            "event": "VideoOutput.onRefreshRateChanged"
-        },
         "videooutput.colordepth": {
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
