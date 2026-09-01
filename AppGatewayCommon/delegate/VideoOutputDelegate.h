@@ -93,9 +93,11 @@ public:
             if ((_displaySettingsRpc != nullptr) && isConnectedVideoDisplaysUpdatedSubscribed()) {
                 _displaySettingsRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("connectedVideoDisplaysUpdated"));
             }
+#if 0
             if ((_displayInfoRpc != nullptr) && isDisplayInfoSubscribed()) {
                 _displayInfoRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("updated"));
             }
+#endif
             if ((_hdcpProfileRpc != nullptr) && isHdcpProfileSubscribed()) {
                 _hdcpProfileRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("onDisplayConnectionChanged"));
             }
@@ -563,6 +565,7 @@ public:
         return Dispatch(EVENT_ON_VO_PORT_CHANGED, payload);
     }
 
+#if 0
     bool EmitOnRefreshRateChanged()
     {
         std::string payload;
@@ -572,6 +575,7 @@ public:
         }
         return Dispatch(EVENT_ON_VO_REFRESH_RATE_CHANGED, payload);
     }
+#endif
 
     // ─── HandleEvent (BaseEventDelegate) ──────────────────────────────────
 
@@ -588,8 +592,10 @@ public:
             SetupHdmiCecSourceSubscription();
         } else if (evLower == "videooutput.onportchanged") {
             SetupDisplaySettingsSubscription();
+#if 0
         } else if (evLower == "videooutput.onrefreshratechanged") {
             SetupDisplayInfoSubscription();
+#endif
         } else {
             registrationError = true;
             return false;
@@ -769,12 +775,12 @@ private:
         }
     }
 
+#if 0
     void SetupDisplayInfoSubscription()
     {
         if (true == isDisplayInfoSubscribed()) {
             return;
         }
-
         try {
             if (nullptr == _displayInfoRpc) {
                 _displayInfoRpc = ::Utils::getThunderControllerClient(DISPLAYINFO_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY_VIDEOOUTPUT);
@@ -798,7 +804,7 @@ private:
             LOGERR("VideoOutputDelegate: exception during DisplayInfo subscription");
         }
     }
-
+#endif
     void SetupHdcpProfileSubscription()
     {
         if (true == isHdcpProfileSubscribed()) {
@@ -889,6 +895,7 @@ private:
         (void)EmitOnPortChanged();
     }
 
+#if 0
     void OnDisplayInfoUpdated(const Core::JSON::VariantContainer& params)
     {
         (void)params;
@@ -897,6 +904,7 @@ private:
         std::string colorimetry;
         (void)GetVideoOutputColorimetry(colorimetry);
     }
+#endif
 
     // ─── Subscription state tracking ──────────────────────────────────────
 
@@ -947,7 +955,7 @@ private:
         Core::SafeSyncType<Core::CriticalSection> lock(_subscriptionLock);
         _hdmiCecSourceSubscribed = true;
     }
-
+#if 0
     bool isDisplayInfoSubscribed() const
     {
         Core::SafeSyncType<Core::CriticalSection> lock(_subscriptionLock);
@@ -959,7 +967,7 @@ private:
         Core::SafeSyncType<Core::CriticalSection> lock(_subscriptionLock);
         _displayInfoSubscribed = true;
     }
-
+#endif
     // ─── JSON-RPC link acquisition ────────────────────────────────────────
 
     std::shared_ptr<WPEFramework::Utils::JSONRPCDirectLink> AcquireLink(const std::string& callsign) const

@@ -147,13 +147,11 @@ extern uint32_t Test_HandleAppEventNotifier_VideoOutputResolutionEvent_ListenTru
 extern uint32_t Test_HandleAppEventNotifier_VideoOutputHdcpEvent_ListenTrue();
 extern uint32_t Test_HandleAppEventNotifier_VideoOutputCecActiveStateEvent_ListenTrue();
 extern uint32_t Test_HandleAppEventNotifier_VideoOutputPortEvent_ListenTrue();
-extern uint32_t Test_HandleAppEventNotifier_VideoOutputRefreshRateEvent_ListenTrue();
 extern uint32_t Test_HandleAppEventNotifier_VideoOutputTeardownAfterSubscriptions_NoCrash();
 extern uint32_t Test_HandleAppEventNotifier_VideoOutputResolutionOnlyTeardown_NoCrash();
 extern uint32_t Test_HandleAppEventNotifier_VideoOutputPortOnlyTeardown_NoCrash();
 extern uint32_t Test_HandleAppEventNotifier_VideoOutputHdcpOnlyTeardown_NoCrash();
 extern uint32_t Test_HandleAppEventNotifier_VideoOutputCecOnlyTeardown_NoCrash();
-extern uint32_t Test_HandleAppEventNotifier_VideoOutputRefreshRateOnlyTeardown_NoCrash();
 extern uint32_t Test_HandleAppEventNotifier_DolbyAtmosEvent_ListenTrue();
 
 // AppGatewayCommon_display_test.cpp
@@ -311,13 +309,11 @@ int main()
         { "EventNotifier_VOHdcp_ListenTrue",                Test_HandleAppEventNotifier_VideoOutputHdcpEvent_ListenTrue },
         { "EventNotifier_VOCecActiveState_ListenTrue",      Test_HandleAppEventNotifier_VideoOutputCecActiveStateEvent_ListenTrue },
         { "EventNotifier_VOPort_ListenTrue",                Test_HandleAppEventNotifier_VideoOutputPortEvent_ListenTrue },
-        { "EventNotifier_VORefreshRate_ListenTrue",         Test_HandleAppEventNotifier_VideoOutputRefreshRateEvent_ListenTrue },
         { "EventNotifier_VOTeardownAfterSubscriptions_NoCrash", Test_HandleAppEventNotifier_VideoOutputTeardownAfterSubscriptions_NoCrash },
         { "EventNotifier_VOResolutionOnlyTeardown_NoCrash", Test_HandleAppEventNotifier_VideoOutputResolutionOnlyTeardown_NoCrash },
         { "EventNotifier_VOPortOnlyTeardown_NoCrash", Test_HandleAppEventNotifier_VideoOutputPortOnlyTeardown_NoCrash },
         { "EventNotifier_VOHdcpOnlyTeardown_NoCrash", Test_HandleAppEventNotifier_VideoOutputHdcpOnlyTeardown_NoCrash },
         { "EventNotifier_VOCecOnlyTeardown_NoCrash", Test_HandleAppEventNotifier_VideoOutputCecOnlyTeardown_NoCrash },
-        { "EventNotifier_VORefreshRateOnlyTeardown_NoCrash", Test_HandleAppEventNotifier_VideoOutputRefreshRateOnlyTeardown_NoCrash },
         { "EventNotifier_DolbyAtmosEvent_ListenTrue",     Test_HandleAppEventNotifier_DolbyAtmosEvent_ListenTrue },
         // --- Display tests (AGC_L0_098–AGC_L0_107) ---
         { "DisplayEdid_NoDisplay",                        Test_HandleRequest_DisplayEdid_NoDisplay },

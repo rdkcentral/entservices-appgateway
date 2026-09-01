@@ -1136,39 +1136,4 @@ TEST_F(DisplayDelegateTest, AGC_L1_187_VideoOutputEmitOnPortChanged_Dispatches)
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }
 
-// TEST_ID: AGC_L1_188
-// EmitOnRefreshRateChanged: registered emitters should receive the mapped refresh-rate payload.
-TEST_F(DisplayDelegateTest, AGC_L1_188_VideoOutputEmitOnRefreshRateChanged_Dispatches)
-{
-    auto delegate = plugin.mDelegate->getVideoOutputDelegate();
-    ASSERT_NE(nullptr, delegate);
-
-    ON_CALL(*dispProps, FrameRate(_))
-        .WillByDefault(Invoke([](Exchange::IDisplayProperties::FrameRateType& out) {
-            out = Exchange::IDisplayProperties::FRAMERATE_59_94;
-            return Core::ERROR_NONE;
-        }));
-
-    Core::Sink<MockEmitter> emitter;
-    std::atomic<bool> emitted(false);
-
-    delegate->AddNotification("VideoOutput.onRefreshRateChanged", &emitter);
-
-    EXPECT_CALL(emitter, Emit(StrEq("VideoOutput.onRefreshRateChanged"), StrEq("59.94"), StrEq("")))
-        .WillOnce(Invoke([&emitted](const string&, const string&, const string&) {
-            emitted.store(true, std::memory_order_release);
-        }));
-
-    EXPECT_TRUE(delegate->EmitOnRefreshRateChanged());
-
-    for (int attempt = 0; (attempt < 20) && (false == emitted.load(std::memory_order_acquire)); ++attempt) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-
-    EXPECT_TRUE(emitted.load(std::memory_order_acquire));
-
-    delegate->RemoveNotification("VideoOutput.onRefreshRateChanged", &emitter);
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-}
-
 } // anonymous namespace
