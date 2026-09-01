@@ -184,6 +184,9 @@ namespace Plugin {
         { "device.audio", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetAudio(result);
         }},
+        { "device.dolbyatmosexperience", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetDolbyAtmosExperience(result);
+        }},
         { "voiceguidance.navigationhints", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetVoiceGuidanceHints(result);
         }},
@@ -1163,6 +1166,23 @@ namespace Plugin {
             return systemDelegate->GetAudio(result);
         }
 
+        Core::hresult AppGatewayCommon::GetDolbyAtmosExperience(string &result)
+        {
+            LOGINFO("GetDolbyAtmosExperience AppGatewayCommon");
+            if (!mDelegate) {
+                result = "false";
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            auto avOutputDelegate = mDelegate->getAvOutputDelegate();
+            if (!avOutputDelegate) {
+                result = "false";
+                return Core::ERROR_UNAVAILABLE;
+            }
+
+            return avOutputDelegate->GetDolbyAtmosExperience(result);
+        }
+
         template <typename DelegateType, typename LifecycleType, typename Func, typename... Args>
         Core::hresult InvokeLifecycleDelegate(const std::shared_ptr<DelegateType>& delegate,
                                             std::shared_ptr<LifecycleType> (DelegateType::*getLifecycleDelegate)() const,
@@ -1195,7 +1215,13 @@ namespace Plugin {
 
         Core::hresult AppGatewayCommon::LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleReady, ctx, payload, result);
+            Core::hresult hr = InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleReady, ctx, payload, result);
+            if (Core::ERROR_NONE == hr) {
+                // Telemetry: emit APP_READY_split marker
+                // CSV format: appId
+                AGW_REPORT_EVENT(ctx, AGW_MARKER_APP_READY, ctx.appId);
+            }
+            return hr;
         }
 
         Core::hresult AppGatewayCommon::LifecycleClose(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)

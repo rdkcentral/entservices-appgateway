@@ -39,6 +39,7 @@ extern uint32_t Test_HandleRequest_DeviceVideoResolution();
 extern uint32_t Test_HandleRequest_DeviceHdcp();
 extern uint32_t Test_HandleRequest_DeviceHdr();
 extern uint32_t Test_HandleRequest_DeviceAudio();
+extern uint32_t Test_HandleRequest_DeviceDolbyAtmosExperience();
 extern uint32_t Test_HandleRequest_VoiceGuidanceEnabled();
 extern uint32_t Test_HandleRequest_VoiceGuidanceNavigationHints();
 extern uint32_t Test_HandleRequest_VoiceGuidanceSettings_NonRDK8();
@@ -132,6 +133,7 @@ extern uint32_t Test_HandleAppEventNotifier_UserSettingsEvent_ListenTrue();
 extern uint32_t Test_HandleAppEventNotifier_TTSEvent_ListenTrue();
 extern uint32_t Test_HandleAppEventNotifier_SystemDeviceEvent();
 extern uint32_t Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly();
+extern uint32_t Test_HandleAppEventNotifier_DolbyAtmosEvent_ListenTrue();
 
 // AppGatewayCommon_display_test.cpp
 extern uint32_t Test_HandleRequest_DisplayEdid_NoDisplay();
@@ -185,6 +187,7 @@ int main()
         { "HandleRequest_DeviceHdcp",                     Test_HandleRequest_DeviceHdcp },
         { "HandleRequest_DeviceHdr",                      Test_HandleRequest_DeviceHdr },
         { "HandleRequest_DeviceAudio",                    Test_HandleRequest_DeviceAudio },
+        { "HandleRequest_DeviceDolbyAtmosExperience",     Test_HandleRequest_DeviceDolbyAtmosExperience },
         { "HandleRequest_VoiceGuidanceEnabled",           Test_HandleRequest_VoiceGuidanceEnabled },
         { "HandleRequest_VoiceGuidanceNavigationHints",   Test_HandleRequest_VoiceGuidanceNavigationHints },
         { "HandleRequest_VoiceGuidanceSettings_NonRDK8",  Test_HandleRequest_VoiceGuidanceSettings_NonRDK8 },
@@ -272,6 +275,7 @@ int main()
         { "EventNotifier_TTSEvent_ListenTrue",            Test_HandleAppEventNotifier_TTSEvent_ListenTrue },
         { "EventNotifier_SystemDeviceEvent",              Test_HandleAppEventNotifier_SystemDeviceEvent },
         { "EventNotifier_NetworkEvent_UnsubscribeOnly",   Test_HandleAppEventNotifier_NetworkEvent_UnsubscribeOnly },
+        { "EventNotifier_DolbyAtmosEvent_ListenTrue",     Test_HandleAppEventNotifier_DolbyAtmosEvent_ListenTrue },
         // --- Display tests (AGC_L0_098–AGC_L0_107) ---
         { "DisplayEdid_NoDisplay",                        Test_HandleRequest_DisplayEdid_NoDisplay },
         { "DisplayEdid_CaseInsensitive",                  Test_HandleRequest_DisplayEdid_CaseInsensitive },
