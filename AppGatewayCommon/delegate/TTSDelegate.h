@@ -22,9 +22,6 @@
 #include "UtilsLogging.h"
 #include "ContextUtils.h"
 #include "UtilsFirebolt.h"
-// UtilsFirebolt.h defines a plain ERROR_NOT_SUPPORTED macro that collides with
-// Core::ERROR_NOT_SUPPORTED used below; undef locally to this file.
-#undef ERROR_NOT_SUPPORTED
 #include <mutex>
 #include <limits>
 #include "ObjectUtils.h"
