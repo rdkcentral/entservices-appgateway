@@ -1071,7 +1071,7 @@ public:
         }
 
         Exchange::IDeviceInfo::DeviceOsName info{};
-        info.osname = osName;
+        info.osName = osName;
         const Core::hresult rc = di->OsName(info);
         di->Release();
 
@@ -1107,7 +1107,7 @@ public:
             return Core::ERROR_GENERAL;
         }
         Core::JSON::String jsonStr;
-        jsonStr = info.osname;
+        jsonStr = info.osName;
         jsonStr.ToString(result);
         return Core::ERROR_NONE;
     }
@@ -1126,7 +1126,7 @@ public:
         }
 
         Exchange::IDeviceInfo::DeviceOsVersion info{};
-        info.osversion = osVersion;
+        info.osVersion = osVersion;
         const Core::hresult rc = di->OsVersion(info);
         di->Release();
 
@@ -1162,7 +1162,7 @@ public:
             return Core::ERROR_GENERAL;
         }
         Core::JSON::String jsonStr;
-        jsonStr = info.osversion;
+        jsonStr = info.osVersion;
         jsonStr.ToString(result);
         return Core::ERROR_NONE;
     }

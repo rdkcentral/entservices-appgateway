@@ -248,7 +248,7 @@ TEST_F(BrandingApiTest, AGC_L1_237_GetOsName_Success)
 {
     ON_CALL(*mockDi, OsName(testing::An<Exchange::IDeviceInfo::DeviceOsName&>()))
         .WillByDefault(Invoke([](Exchange::IDeviceInfo::DeviceOsName& out) {
-            out.osname = "RDK-E";
+            out.osName = "RDK-E";
             return Core::ERROR_NONE;
         }));
 
@@ -265,7 +265,7 @@ TEST_F(BrandingApiTest, AGC_L1_238_GetOsName_EmptyValue)
 {
     ON_CALL(*mockDi, OsName(testing::An<Exchange::IDeviceInfo::DeviceOsName&>()))
         .WillByDefault(Invoke([](Exchange::IDeviceInfo::DeviceOsName& out) {
-            out.osname = "";
+            out.osName = "";
             return Core::ERROR_NONE;
         }));
 
@@ -386,7 +386,7 @@ TEST_F(BrandingApiTest, AGC_L1_246_GetOsVersion_Success)
 {
     ON_CALL(*mockDi, OsVersion(testing::An<Exchange::IDeviceInfo::DeviceOsVersion&>()))
         .WillByDefault(Invoke([](Exchange::IDeviceInfo::DeviceOsVersion& out) {
-            out.osversion = "8.3";
+            out.osVersion = "8.3";
             return Core::ERROR_NONE;
         }));
 
@@ -403,7 +403,7 @@ TEST_F(BrandingApiTest, AGC_L1_247_GetOsVersion_EmptyValue)
 {
     ON_CALL(*mockDi, OsVersion(testing::An<Exchange::IDeviceInfo::DeviceOsVersion&>()))
         .WillByDefault(Invoke([](Exchange::IDeviceInfo::DeviceOsVersion& out) {
-            out.osversion = "";
+            out.osVersion = "";
             return Core::ERROR_NONE;
         }));
 
@@ -554,7 +554,7 @@ TEST_F(BrandingApiTest, AGC_L1_256_CaseInsensitiveRouting)
 {
     ON_CALL(*mockDi, OsName(testing::An<Exchange::IDeviceInfo::DeviceOsName&>()))
         .WillByDefault(Invoke([](Exchange::IDeviceInfo::DeviceOsName& out) {
-            out.osname = "RDK-E";
+            out.osName = "RDK-E";
             return Core::ERROR_NONE;
         }));
 
