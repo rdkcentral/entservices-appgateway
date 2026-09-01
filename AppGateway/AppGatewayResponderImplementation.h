@@ -27,6 +27,7 @@
 #include <com/com.h>
 #include <core/core.h>
 #include <map>
+#include <mutex>
 #include <unordered_set>
 #include <sstream>
 #include <unordered_map>
@@ -35,7 +36,7 @@
 namespace WPEFramework {
 namespace Plugin {
     using Context = Exchange::GatewayContext;
-    class AppGatewayResponderImplementation : public Exchange::IConfiguration, public Exchange::IAppGatewayResponder
+    class AppGatewayResponderImplementation : public Exchange::IConfiguration, public Exchange::IAppGatewayResponder, public Exchange::IAppGatewayAppSessionGuard
     {
 
     public:
@@ -49,6 +50,7 @@ namespace Plugin {
         BEGIN_INTERFACE_MAP(AppGatewayResponderImplementation)
         INTERFACE_ENTRY(Exchange::IConfiguration)
         INTERFACE_ENTRY(Exchange::IAppGatewayResponder)
+        INTERFACE_ENTRY(Exchange::IAppGatewayAppSessionGuard)
         END_INTERFACE_MAP
 
     public:
@@ -68,7 +70,11 @@ namespace Plugin {
         virtual Core::hresult Unregister(Exchange::IAppGatewayResponder::INotification *notification) override;
 
         virtual void OnConnectionStatusChanged(const string& appId, const uint32_t connectionId, const bool connected);
-        
+
+        // IAppGatewayAppSessionGuard interface
+        Core::hresult SuspendTraffic(const string& appId) override;
+        Core::hresult ResumeTraffic(const string& appId) override;
+
         // IConfiguration interface
         uint32_t Configure(PluginHost::IShell* service) override;
 
@@ -378,6 +384,30 @@ namespace Plugin {
 
         void ReturnMessageInSocket(const uint32_t connectionId, const int requestId, const string payload);
 
+        // Thread-safe registry tracking appIds whose WebSocket traffic is currently paused
+        // (i.e., the application is in the HIBERNATED lifecycle state).
+        class PausedAppsRegistry {
+        public:
+            void Pause(const string& appId) {
+                std::lock_guard<std::mutex> lock(mMutex);
+                mPausedApps.insert(appId);
+            }
+
+            void Resume(const string& appId) {
+                std::lock_guard<std::mutex> lock(mMutex);
+                mPausedApps.erase(appId);
+            }
+
+            bool IsPaused(const string& appId) const {
+                std::lock_guard<std::mutex> lock(mMutex);
+                return mPausedApps.find(appId) != mPausedApps.end();
+            }
+
+        private:
+            mutable std::mutex mMutex;
+            std::unordered_set<string> mPausedApps;
+        };
+
         PluginHost::IShell* mService;
         WebSocketConnectionManager mWsManager;
         mutable Core::CriticalSection mAuthenticatorLock;
@@ -391,6 +421,7 @@ namespace Plugin {
         bool mEnhancedLoggingEnabled;
         CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
         DebugDisabledConnectionsRegistry mDebugDisabledConnectionsRegistry;
+        PausedAppsRegistry mPausedAppsRegistry;
     };
 } // namespace Plugin
 } // namespace WPEFramework

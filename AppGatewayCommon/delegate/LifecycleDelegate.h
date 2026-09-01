@@ -28,6 +28,7 @@
 #include <interfaces/IRDKWindowManager.h>
 #include <interfaces/IRuntimeManager.h>
 #include <interfaces/IAppActions.h>
+#include <interfaces/IAppGateway.h>
 #include "UtilsLogging.h"
 #include "UtilsCallsign.h"
 #include "UtilsFirebolt.h"
@@ -56,7 +57,7 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
 class LifecycleDelegate : public BaseEventDelegate
 {
     public:
-    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell), mLifecycleManagerState(nullptr), mWindowManager(nullptr), mNotificationHandler(*this), mWindowManagerNotificationHandler(*this)
+    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell), mLifecycleManagerState(nullptr), mWindowManager(nullptr), mNotificationHandler(*this), mWindowManagerNotificationHandler(*this), mSessionGuard(nullptr)
     {
         if (ConfigUtils::useAppManagers()) {
            Exchange::ILifecycleManagerState *lifecycleManagerState = GetLifecycleManagerStateInterface();
@@ -96,6 +97,12 @@ class LifecycleDelegate : public BaseEventDelegate
                 mWindowManager = nullptr;
             }
         }
+        // Release session guard reference acquired in SetSessionGuard
+        std::lock_guard<std::mutex> lock(mSessionGuardMutex);
+        if (mSessionGuard != nullptr) {
+            mSessionGuard->Release();
+            mSessionGuard = nullptr;
+        }
     }
 
     bool HandleSubscription(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen)
@@ -110,6 +117,22 @@ class LifecycleDelegate : public BaseEventDelegate
             RemoveNotification(event, cb);
         }
         return true;
+    }
+
+    // Sets the session guard used to pause/resume WebSocket traffic during hibernation.
+    // Called by AppGatewayCommon during Initialize (set) and Deinitialize (clear with nullptr).
+    // Only used in the Lifecycle 2 (AppManagers) code path; must not be called on the
+    // LaunchDelegate path.
+    void SetSessionGuard(Exchange::IAppGatewayAppSessionGuard* sessionGuard)
+    {
+        std::lock_guard<std::mutex> lock(mSessionGuardMutex);
+        if (mSessionGuard != nullptr) {
+            mSessionGuard->Release();
+        }
+        mSessionGuard = sessionGuard;
+        if (mSessionGuard != nullptr) {
+            mSessionGuard->AddRef();
+        }
     }
 
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError)
@@ -873,9 +896,46 @@ class LifecycleDelegate : public BaseEventDelegate
         }
     }
 
+    // Returns an AddRef'd session guard pointer, lazily re-acquiring it if the
+    // one-time Initialize() injection was missed due to plugin startup ordering.
+    Exchange::IAppGatewayAppSessionGuard* AcquireSessionGuardRef()
+    {
+        {
+            std::lock_guard<std::mutex> lock(mSessionGuardMutex);
+            if (mSessionGuard != nullptr) {
+                mSessionGuard->AddRef();
+                return mSessionGuard;
+            }
+        }
+
+        if (!ConfigUtils::useAppManagers() || mShell == nullptr) {
+            return nullptr;
+        }
+
+        Exchange::IAppGatewayAppSessionGuard* sessionGuard =
+            mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayAppSessionGuard>(APP_GATEWAY_CALLSIGN);
+        if (sessionGuard == nullptr) {
+            LOGWARN("AcquireSessionGuardRef: IAppGatewayAppSessionGuard still not available");
+            return nullptr;
+        }
+
+        SetSessionGuard(sessionGuard);
+        LOGINFO("AcquireSessionGuardRef: lazily acquired IAppGatewayAppSessionGuard");
+        sessionGuard->Release();
+
+        std::lock_guard<std::mutex> lock(mSessionGuardMutex);
+        if (mSessionGuard != nullptr) {
+            mSessionGuard->AddRef();
+            return mSessionGuard;
+        }
+
+        return nullptr;
+    }
+
     // Handle Lifecycle update for a given appInstanceId by accepting the previous and current lifecycle state
     void HandleLifecycleUpdate(const string& appInstanceId,  const Exchange::ILifecycleManager::LifecycleState oldLifecycleState, const Exchange::ILifecycleManager::LifecycleState newLifecycleState)
     {
+        LOGINFO("HandleLifecycleUpdate: appInstanceId=%s, oldState=%d, newState=%d", appInstanceId.c_str(), oldLifecycleState, newLifecycleState);
         // update lifecycle state registry
         mLifecycleStateRegistry.UpdateLifecycleState(appInstanceId, newLifecycleState);
 
@@ -886,7 +946,48 @@ class LifecycleDelegate : public BaseEventDelegate
             return;
         }
 
+        // Lifecycle 2 only: manage WebSocket traffic gate around hibernation.
+        //
+        // Resume MUST happen before Dispatch() so the state-change event is not
+        // itself dropped by the still-paused responder.  Suspend is best-effort
+        // and happens after Dispatch() when entering HIBERNATED.
+        //
+        // Acquire a raw ref under the mutex, then release the mutex before making
+        // any COM-RPC calls to avoid holding the lock across a cross-process call.
+        const bool needsResume = ConfigUtils::useAppManagers() && !appId.empty() &&
+                                 (newLifecycleState == Exchange::ILifecycleManager::INITIALIZING ||
+                                  oldLifecycleState == Exchange::ILifecycleManager::HIBERNATED);
+        const bool needsSuspend = ConfigUtils::useAppManagers() && !appId.empty() &&
+                                  newLifecycleState == Exchange::ILifecycleManager::HIBERNATED;
+
+        Exchange::IAppGatewayAppSessionGuard* guardRef = nullptr;
+        if (needsResume || needsSuspend) {
+            guardRef = AcquireSessionGuardRef();
+        }
+
+        LOGINFO("HandleLifecycleUpdate: appId=%s, needsResume=%d, needsSuspend=%d, guardRef=%p", appId.c_str(), needsResume, needsSuspend, guardRef);
+        // Resume before dispatch so the Lifecycle2.onStateChanged event is delivered.
+        if (needsResume && guardRef != nullptr) {
+            if (newLifecycleState == Exchange::ILifecycleManager::INITIALIZING) {
+                LOGINFO("HandleLifecycleUpdate: clearing stale traffic suspension for new session appId=%s", appId.c_str());
+            } else {
+                LOGINFO("HandleLifecycleUpdate: resuming traffic for resumed appId=%s", appId.c_str());
+            }
+            guardRef->ResumeTraffic(appId);
+        }
+
         Dispatch("Lifecycle2.onStateChanged", mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId), appId);
+
+        // Suspend after dispatch (best-effort) when entering HIBERNATED.
+        if (needsSuspend && guardRef != nullptr) {
+            LOGINFO("HandleLifecycleUpdate: suspending traffic for hibernating appId=%s", appId.c_str());
+            guardRef->SuspendTraffic(appId);
+        }
+
+        if (guardRef != nullptr) {
+            guardRef->Release();
+            guardRef = nullptr;
+        }
 
         // if new lifecycleState is ACTIVE trigger last known intent
         if (newLifecycleState == Exchange::ILifecycleManager::ACTIVE) {
@@ -910,6 +1011,9 @@ class LifecycleDelegate : public BaseEventDelegate
         LifecycleStateRegistry mLifecycleStateRegistry;
         NavigationIntentRegistry mNavigationIntentRegistry;
         FocusedAppRegistry mFocusedAppRegistry;
+        // Session guard for pausing/resuming WebSocket traffic during hibernation (Lifecycle 2 only).
+        Exchange::IAppGatewayAppSessionGuard* mSessionGuard;
+        std::mutex mSessionGuardMutex;
 };
 
 

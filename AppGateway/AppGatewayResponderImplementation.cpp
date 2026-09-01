@@ -230,12 +230,20 @@ namespace WPEFramework
 
         Core::hresult AppGatewayResponderImplementation::Respond(const Context& context, const string& payload)
         {
+            if (mPausedAppsRegistry.IsPaused(context.appId)) {
+                LOGDBG("Respond: dropping outgoing response for hibernated appId=%s", context.appId.c_str());
+                return Core::ERROR_NONE;
+            }
             Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context.connectionId, context.requestId, payload));
             return Core::ERROR_NONE;
         }
 
         Core::hresult AppGatewayResponderImplementation::Emit(const Context& context /* @in */, 
                 const string& method /* @in */, const string& payload /* @in @opaque */) {
+            if (mPausedAppsRegistry.IsPaused(context.appId)) {
+                LOGDBG("Emit: dropping outgoing notification for hibernated appId=%s", context.appId.c_str());
+                return Core::ERROR_NONE;
+            }
             // check if the connection is compliant with JSON RPC
             if (mCompliantJsonRpcRegistry.IsCompliantJsonRpc(context.connectionId)) {
                 Core::IWorkerPool::Instance().Submit(EmitJob::Create(this, context.connectionId, method, payload));
@@ -248,6 +256,11 @@ namespace WPEFramework
 
         Core::hresult AppGatewayResponderImplementation::Request(const uint32_t connectionId /* @in */, 
                 const uint32_t id /* @in */, const string& method /* @in */, const string& params /* @in @opaque */) {
+            string appId;
+            if (mAppIdRegistry.Get(connectionId, appId) && mPausedAppsRegistry.IsPaused(appId)) {
+                LOGDBG("Request: dropping outgoing request for hibernated appId=%s", appId.c_str());
+                return Core::ERROR_NONE;
+            }
             Core::IWorkerPool::Instance().Submit(RequestJob::Create(this, connectionId, id, method, params));
             return Core::ERROR_NONE;
         }
@@ -304,6 +317,11 @@ namespace WPEFramework
             AppGatewayTelemetry::getInstance().IncrementTotalCalls(context);
 
             if (hasAppId) {
+
+                if (mPausedAppsRegistry.IsPaused(appId)) {
+                    LOGDBG("DispatchWsMsg: dropping incoming message for hibernated appId=%s", appId.c_str());
+                    return;
+                }
 
                 if (mEnhancedLoggingEnabled || !mDebugDisabledConnectionsRegistry.IsDebugDisabled(connectionId)) {
                     if (mEnhancedLoggingEnabled) {
@@ -441,6 +459,28 @@ namespace WPEFramework
             // Notify automation server of connection status change
             mWsManager.UpdateConnection(connectionId, appId, connected);
             #endif
+        }
+
+        Core::hresult AppGatewayResponderImplementation::SuspendTraffic(const string& appId)
+        {
+            if (appId.empty()) {
+                LOGWARN("SuspendTraffic: appId is empty");
+                return Core::ERROR_BAD_REQUEST;
+            }
+            LOGINFO("SuspendTraffic: suspending traffic for appId=%s", appId.c_str());
+            mPausedAppsRegistry.Pause(appId);
+            return Core::ERROR_NONE;
+        }
+
+        Core::hresult AppGatewayResponderImplementation::ResumeTraffic(const string& appId)
+        {
+            if (appId.empty()) {
+                LOGWARN("ResumeTraffic: appId is empty");
+                return Core::ERROR_BAD_REQUEST;
+            }
+            LOGINFO("ResumeTraffic: resuming traffic for appId=%s", appId.c_str());
+            mPausedAppsRegistry.Resume(appId);
+            return Core::ERROR_NONE;
         }
 
     } // namespace Plugin
