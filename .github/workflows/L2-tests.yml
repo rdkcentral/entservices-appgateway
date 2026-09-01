@@ -976,33 +976,64 @@ jobs:
           gcc -O0 -shared -fPIC -o /tmp/libgcov_segv_flush.so /tmp/gcov_segv_flush.c -ldl -lpthread
           echo "Built /tmp/libgcov_segv_flush.so"
 
-      - name: Wait for Thunder to be ready
-        # Guards against the intermittent "Failed to open IShell" startup race in
-        # L2testController.cpp by not launching RdkServicesL2Test until the
-        # Thunder JSON-RPC Controller endpoint is actually accepting requests
-        # (not just TCP-connectable) for the AppGatewayCommon plugin.
+      - name: Start Thunder
         run: |
+          set -euo pipefail
+
+          export THUNDER_PORT=9998
+          export THUNDER_URL="http://127.0.0.1:${THUNDER_PORT}/jsonrpc"
+
+          mkdir -p "$GITHUB_WORKSPACE/logs"
+
+          # Adjust the binary path if your install layout differs
+          THUNDER_BIN="$GITHUB_WORKSPACE/install/usr/bin/WPEFramework"
+
+          if [ ! -x "$THUNDER_BIN" ]; then
+            echo "::error::Thunder binary not found at $THUNDER_BIN"
+            find "$GITHUB_WORKSPACE/install" -type f | grep WPEFramework || true
+            exit 1
+          fi
+
           export PATH=$GITHUB_WORKSPACE/install/usr/bin:${PATH}
           export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/install/usr/lib:$GITHUB_WORKSPACE/install/usr/lib/wpeframework/plugins:${LD_LIBRARY_PATH}
-          THUNDER_URL="http://127.0.0.1:9998/jsonrpc"
-          MAX_ATTEMPTS=30
+
+          nohup "$THUNDER_BIN" -c "$GITHUB_WORKSPACE/install/etc/WPEFramework/config.json" > "$GITHUB_WORKSPACE/logs/thunder.log" 2>&1 &
+
+          echo $! > "$GITHUB_WORKSPACE/logs/thunder.pid"
+          sleep 2
+
+          if ! ps -p "$(cat "$GITHUB_WORKSPACE/logs/thunder.pid")" >/dev/null 2>&1; then
+            echo "::error::Thunder exited immediately after startup"
+            echo "---- thunder.log ----"
+            cat "$GITHUB_WORKSPACE/logs/thunder.log" || true
+            exit 1
+          fi
+
+          # Process being alive is not sufficient — poll the JSON-RPC endpoint until
+          # it actually accepts requests, otherwise the IShell startup race resurfaces.
           ready=false
-          for i in $(seq 1 ${MAX_ATTEMPTS}); do
+          for i in $(seq 1 30); do
             if curl -sS --max-time 2 "${THUNDER_URL}" \
                -H 'Content-Type: application/json' \
                -d '{"jsonrpc":"2.0","id":1,"method":"Controller.1.status@AppGatewayCommon"}' >/dev/null 2>&1; then
-              echo "Thunder is ready"
+              echo "Thunder is ready after ~${i}s"
               ready=true
               break
             fi
-            echo "Waiting for Thunder/IShell... (${i}/${MAX_ATTEMPTS})"
+            if ! ps -p "$(cat "$GITHUB_WORKSPACE/logs/thunder.pid")" >/dev/null 2>&1; then
+              echo "::error::Thunder process died while waiting for readiness"
+              echo "---- thunder.log ----"
+              cat "$GITHUB_WORKSPACE/logs/thunder.log" || true
+              exit 1
+            fi
+            echo "Waiting for Thunder/IShell... (${i}/30)"
             sleep 1
           done
+
           if [ "${ready}" != "true" ]; then
-            echo "::error::Timed out after ${MAX_ATTEMPTS}s waiting for Thunder JSON-RPC endpoint ${THUNDER_URL} to respond."
-            echo "---- Diagnostics ----"
-            ss -ltnp 2>/dev/null | grep 9998 || echo "No listener found on port 9998"
-            ps aux | grep -i WPEFramework | grep -v grep || echo "WPEFramework process not found"
+            echo "::error::Timed out waiting for Thunder JSON-RPC endpoint ${THUNDER_URL} to respond."
+            echo "---- thunder.log ----"
+            cat "$GITHUB_WORKSPACE/logs/thunder.log" || true
             exit 1
           fi
 
@@ -1023,6 +1054,14 @@ jobs:
             chmod +x "$WPE_REAL"
             echo "Wrapped WPEFramework with gcov SIGSEGV handler (real: $WPE_REAL)"
           fi
+          # NOTE: RdkServicesL2Test (L2testController.cpp) unconditionally calls
+          # StartThunder(), which popen()'s its own WPEFramework instance on the same
+          # port (9998). Since the "Start Thunder" step above already has an instance
+          # bound to that port, this WILL conflict (port already in use / duplicate
+          # process) until L2testController.cpp is updated to detect and reuse an
+          # already-running Thunder instead of spawning its own. Tracked separately
+          # against entservices-testframework; do not merge this workflow change
+          # without that companion fix landing first.
           set +e
           RdkServicesL2Test
           rc=$?
@@ -1038,7 +1077,19 @@ jobs:
           cp -f $(pwd)/rdkL2TestResults.json $GITHUB_WORKSPACE/rdkL2TestResultsWithoutValgrind.json 2>/dev/null || true
           rm -f $(pwd)/rdkL2TestResults.json 2>/dev/null || true
 
-      - name: Generate coverage
+      - name: Stop Thunder
+        if: always()
+        run: |
+          if [ -f "$GITHUB_WORKSPACE/logs/thunder.pid" ]; then
+            pid=$(cat "$GITHUB_WORKSPACE/logs/thunder.pid")
+            if ps -p "$pid" >/dev/null 2>&1; then
+              kill "$pid" 2>/dev/null || true
+              sleep 1
+              kill -9 "$pid" 2>/dev/null || true
+            fi
+          fi
+
+
         if: ${{ matrix.coverage == 'with-coverage' && !env.ACT }}
         run: >
           cp $GITHUB_WORKSPACE/entservices-testframework/Tests/L2Tests/.lcovrc_l2 ~/.lcovrc
