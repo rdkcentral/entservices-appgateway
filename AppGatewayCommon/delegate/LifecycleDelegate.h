@@ -50,6 +50,7 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
     "lifecycle.onunloading",
     "lifecycle2.onstatechanged",
     "actions.onintent",
+    "discovery.onnavigateto",
     "presentation.onfocusedchanged"
 };
 
@@ -843,6 +844,13 @@ class LifecycleDelegate : public BaseEventDelegate
         if (!intent.empty() && intent != "null") {
             string payloadStr = BuildIntentResult(intentId, intent);
             Dispatch("Actions.onIntent", payloadStr, appId);
+            // Mirror LaunchDelegate behavior for apps still consuming Discovery.onNavigateTo.
+            JsonObject intentJson;
+            if (intentJson.FromString(intent)) {
+                string discoveryPayload;
+                intentJson.ToString(discoveryPayload);
+                Dispatch("Discovery.onNavigateTo", discoveryPayload, appId);
+            }
         }
     }
 
