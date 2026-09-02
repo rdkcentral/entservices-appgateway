@@ -145,6 +145,10 @@ class SettingsDelegate {
             return avOutputDelegate;
         }
 
+        std::shared_ptr<TTSDelegate> getTTSDelegate() const {
+            return ttsDelegate;
+        }
+
     private:
         std::shared_ptr<UserSettingsDelegate> userSettings;
         std::shared_ptr<SystemDelegate> systemDelegate;

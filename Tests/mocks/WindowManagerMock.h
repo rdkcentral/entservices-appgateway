@@ -54,7 +54,7 @@ public:
     const bool focus,
     const string& capabilities),
     (override));
-    MOCK_METHOD(WPEFramework::Core::hresult, GetApps, (string& appsIds), (const, override));
+    MOCK_METHOD(WPEFramework::Core::hresult, GetApps, (IStringIterator*& appsIds), (const, override));
     MOCK_METHOD(WPEFramework::Core::hresult, SetFocus, (const string& client), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, SetVisible, (const std::string& client, bool visible), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, AddKeyIntercept, (const string& intercept), (override));

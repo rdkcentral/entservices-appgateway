@@ -20,7 +20,6 @@
 #include "AppGatewayCommon.h"
 #include <interfaces/IConfiguration.h>
 #include "StringUtils.h"
-#include "UtilsFirebolt.h"
 #include "UtilsAppGatewayTelemetry.h"
 #include "UtilsJsonValidation.h"
 #include "ContextUtils.h"
@@ -279,6 +278,21 @@ namespace Plugin {
         {"network.connected", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetNetworkConnected(result);
         }},
+        { "speechsynthesis.voices", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->SpeechSynthesisVoices(ctx, payload, result);
+        }},
+        { "speechsynthesis.speak", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->SpeechSynthesisSpeak(ctx, payload, result);
+        }},
+        { "speechsynthesis.cancel", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->SpeechSynthesisCancel(ctx, payload, result);
+        }},
+        { "speechsynthesis.pause", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->SpeechSynthesisPause(ctx, payload, result);
+        }},
+        { "speechsynthesis.resume", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->SpeechSynthesisResume(ctx, payload, result);
+        }},
         { "device.chipsetid", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDeviceChipsetId(result);
         }},
@@ -471,6 +485,47 @@ namespace Plugin {
             LOGERR("Unsupported method: %s", method.c_str());
             return Core::ERROR_UNKNOWN_KEY;
         }
+
+    Core::hresult AppGatewayCommon::SpeechSynthesisVoices(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
+    {
+        result = "[]";
+        if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+        auto ttsDelegate = mDelegate->getTTSDelegate();
+        if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
+        return ttsDelegate->SpeechSynthesisVoices(payload, result);
+    }
+
+    Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+    {
+        if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+        auto ttsDelegate = mDelegate->getTTSDelegate();
+        if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
+        return ttsDelegate->SpeechSynthesisSpeak(ctx.appId, payload, result);
+    }
+
+    Core::hresult AppGatewayCommon::SpeechSynthesisCancel(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
+    {
+        if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+        auto ttsDelegate = mDelegate->getTTSDelegate();
+        if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
+        return ttsDelegate->SpeechSynthesisCancel(payload, result);
+    }
+
+    Core::hresult AppGatewayCommon::SpeechSynthesisPause(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
+    {
+        if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+        auto ttsDelegate = mDelegate->getTTSDelegate();
+        if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
+        return ttsDelegate->SpeechSynthesisPause(payload, result);
+    }
+
+    Core::hresult AppGatewayCommon::SpeechSynthesisResume(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
+    {
+        if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+        auto ttsDelegate = mDelegate->getTTSDelegate();
+        if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
+        return ttsDelegate->SpeechSynthesisResume(payload, result);
+    }
     
     Core::hresult AppGatewayCommon::SetName(const string &value /* @in */, string &result)
         {

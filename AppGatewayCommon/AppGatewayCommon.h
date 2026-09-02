@@ -203,6 +203,11 @@ namespace WPEFramework {
                                           const string& method ,
                                           const string& payload /*@opaque */,
                                           string& result /*@out @opaque */);
+            Core::hresult SpeechSynthesisVoices(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult SpeechSynthesisSpeak(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult SpeechSynthesisCancel(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult SpeechSynthesisPause(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult SpeechSynthesisResume(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult GetNetworkConnected(string &result /* @out */);
             // Helper methods for Display APIs - called by HandleAppGatewayRequest
             Core::hresult GetDisplayEdid(string &result /* @out */);
