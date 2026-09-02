@@ -98,7 +98,7 @@ public:
     explicit MockDeviceInfo() : _refCount(1) {}
     virtual ~MockDeviceInfo() = default;
 
-    void AddRef() const override { _refCount.fetch_add(1, std::memory_order_relaxed); }
+    uint32_t AddRef() const override { return _refCount.fetch_add(1, std::memory_order_relaxed) + 1; }
     uint32_t Release() const override
     {
         const uint32_t r = _refCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
@@ -152,7 +152,7 @@ private:
 class BrandingApiTest : public ::testing::Test {
 protected:
     NiceMock<ServiceMock>  service;
-    AppGatewayCommon       plugin;
+    Core::Sink<AppGatewayCommon> plugin;
     NiceMock<MockDeviceInfo>* mockDi { nullptr };
 
     void SetUp() override
@@ -229,7 +229,7 @@ TEST_F(BrandingApiTest, AGC_L1_235_SetOsName_InvalidPayload)
 /* AGC_L1_236 — Device.setOsName: null delegate returns UNAVAILABLE */
 TEST(BrandingApiNullDelegateTest, AGC_L1_236_SetOsName_NullDelegate)
 {
-    AppGatewayCommon plugin;
+    Core::Sink<AppGatewayCommon> plugin;
     plugin.mDelegate.reset();
 
     const auto ctx = MakeCtx();
@@ -294,7 +294,7 @@ TEST_F(BrandingApiTest, AGC_L1_239_GetOsName_InterfaceFailure)
 TEST(BrandingApiUnavailableTest, AGC_L1_240_GetOsName_DeviceInfoUnavailable)
 {
     NiceMock<ServiceMock> service;
-    AppGatewayCommon plugin;
+    Core::Sink<AppGatewayCommon> plugin;
 
     ON_CALL(service, QueryInterfaceByCallsign(_, _)).WillByDefault(Return(nullptr));
     EXPECT_CALL(service, AddRef()).Times(1);
@@ -313,7 +313,7 @@ TEST(BrandingApiUnavailableTest, AGC_L1_240_GetOsName_DeviceInfoUnavailable)
 /* AGC_L1_241 — Device.osName: null delegate returns UNAVAILABLE */
 TEST(BrandingApiNullDelegateTest, AGC_L1_241_GetOsName_NullDelegate)
 {
-    AppGatewayCommon plugin;
+    Core::Sink<AppGatewayCommon> plugin;
     plugin.mDelegate.reset();
 
     const auto ctx = MakeCtx();
@@ -367,7 +367,7 @@ TEST_F(BrandingApiTest, AGC_L1_244_SetOsVersion_InvalidPayload)
 /* AGC_L1_245 — Device.setOsVersion: null delegate returns UNAVAILABLE */
 TEST(BrandingApiNullDelegateTest, AGC_L1_245_SetOsVersion_NullDelegate)
 {
-    AppGatewayCommon plugin;
+    Core::Sink<AppGatewayCommon> plugin;
     plugin.mDelegate.reset();
 
     const auto ctx = MakeCtx();
@@ -432,7 +432,7 @@ TEST_F(BrandingApiTest, AGC_L1_248_GetOsVersion_InterfaceFailure)
 TEST(BrandingApiUnavailableTest, AGC_L1_249_GetOsVersion_DeviceInfoUnavailable)
 {
     NiceMock<ServiceMock> service;
-    AppGatewayCommon plugin;
+    Core::Sink<AppGatewayCommon> plugin;
 
     ON_CALL(service, QueryInterfaceByCallsign(_, _)).WillByDefault(Return(nullptr));
     EXPECT_CALL(service, AddRef()).Times(1);
@@ -451,7 +451,7 @@ TEST(BrandingApiUnavailableTest, AGC_L1_249_GetOsVersion_DeviceInfoUnavailable)
 /* AGC_L1_250 — Device.osVersion: null delegate returns UNAVAILABLE */
 TEST(BrandingApiNullDelegateTest, AGC_L1_250_GetOsVersion_NullDelegate)
 {
-    AppGatewayCommon plugin;
+    Core::Sink<AppGatewayCommon> plugin;
     plugin.mDelegate.reset();
 
     const auto ctx = MakeCtx();
@@ -516,7 +516,7 @@ TEST_F(BrandingApiTest, AGC_L1_253_GetFirmware_InterfaceFailure)
 TEST(BrandingApiUnavailableTest, AGC_L1_254_GetFirmware_DeviceInfoUnavailable)
 {
     NiceMock<ServiceMock> service;
-    AppGatewayCommon plugin;
+    Core::Sink<AppGatewayCommon> plugin;
 
     ON_CALL(service, QueryInterfaceByCallsign(_, _)).WillByDefault(Return(nullptr));
     EXPECT_CALL(service, AddRef()).Times(1);
@@ -535,7 +535,7 @@ TEST(BrandingApiUnavailableTest, AGC_L1_254_GetFirmware_DeviceInfoUnavailable)
 /* AGC_L1_255 — Device.firmware: null delegate returns UNAVAILABLE */
 TEST(BrandingApiNullDelegateTest, AGC_L1_255_GetFirmware_NullDelegate)
 {
-    AppGatewayCommon plugin;
+    Core::Sink<AppGatewayCommon> plugin;
     plugin.mDelegate.reset();
 
     const auto ctx = MakeCtx();
