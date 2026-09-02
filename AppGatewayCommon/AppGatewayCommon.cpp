@@ -1241,7 +1241,13 @@ namespace Plugin {
 
         Core::hresult AppGatewayCommon::LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleReady, ctx, payload, result);
+            Core::hresult hr = InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleReady, ctx, payload, result);
+            if (Core::ERROR_NONE == hr) {
+                // Telemetry: emit APP_READY_split marker
+                // CSV format: appId
+                AGW_REPORT_EVENT(ctx, AGW_MARKER_APP_READY, ctx.appId);
+            }
+            return hr;
         }
 
         Core::hresult AppGatewayCommon::LifecycleClose(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
