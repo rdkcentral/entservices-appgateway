@@ -175,11 +175,29 @@ namespace WPEFramework {
             Core::hresult GetHdcp(string &result /* @out */);
             Core::hresult GetHdr(string &result /* @out */);
             Core::hresult GetAudio(string &result /* @out */);
+            // Helper methods for VideoOutput APIs - called by HandleAppGatewayRequest
+            Core::hresult GetVideoOutputResolution(string &result /* @out */);
+            Core::hresult GetVideoOutputHdcp(string &result /* @out */);
+            Core::hresult GetVideoOutputCecActiveState(string &result /* @out */);
+            Core::hresult GetVideoOutputPort(string &result /* @out */);
+            Core::hresult GetVideoOutputRefreshRate(string &result /* @out */);
+            Core::hresult GetVideoOutputColorDepth(string &result /* @out */);
+            Core::hresult GetVideoOutputColorFormat(string &result /* @out */);
+            Core::hresult GetVideoOutputColorimetry(string &result /* @out */);
+            Core::hresult GetVideoOutputDynamicRange(string &result /* @out */);
+            Core::hresult GetVideoOutputQuantizationRange(string &result /* @out */);
+            Core::hresult GetDolbyAtmosExperience(string &result /* @out */);
             // Helper methods for Device info APIs - called by HandleAppGatewayRequest
             Core::hresult GetDeviceChipsetId(string &result /* @out */);
             Core::hresult GetDeviceClass(string &result /* @out */);
             Core::hresult GetDeviceUptime(string &result /* @out */);
             Core::hresult GetDeviceTimeInActiveState(string &result /* @out */);
+            // Helper methods for Device Branding APIs (Phase 1) - called by HandleAppGatewayRequest
+            Core::hresult SetDeviceOsName(const string &osName /* @in */);
+            Core::hresult GetDeviceOsName(string &result /* @out */);
+            Core::hresult SetDeviceOsVersion(const string &osVersion /* @in */);
+            Core::hresult GetDeviceOsVersion(string &result /* @out */);
+            Core::hresult GetDeviceFirmware(string &result /* @out */);
             Core::hresult GetStatsMemoryUsage(const string &appId /* @in */, string &result /* @out */);
             Core::hresult LifecycleFinished(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
@@ -192,6 +210,7 @@ namespace WPEFramework {
             Core::hresult ActionsStart(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult ActionsIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult GetPresentationFocused(const Exchange::GatewayContext& ctx, const std::string& payload, std::string &result /* @out */);
+            Core::hresult SetIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             
             // EventRegistrationJob helper method (AppGatewayCommon-specific)
             bool SafeSubmitEventRegistrationJob(Exchange::IAppNotificationHandler::IEmitter* cb, 
