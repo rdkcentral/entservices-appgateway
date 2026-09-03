@@ -789,6 +789,45 @@ public:
       * - dolbyDigital5.1+: contains "EAC3" or "DD+" or "DOLBY DIGITAL PLUS" or "AC4"
       * - dolbyAtmos: contains "ATMOS"
       */
+     // Applies token-matching rules to a single format string (case-insensitive) — shared by
+     // SetFlagsFromSupported (array from getAudioFormat) and the audioFormatChanged event path
+     // (single currentAudioFormat token).
+     static bool ApplyAudioToken(const std::string& tokenIn, bool& stereo, bool& dd51, bool& dd51p, bool& atmos)
+     {
+         if (tokenIn.empty()) {
+             return false;
+         }
+         std::string u = tokenIn;
+         std::transform(u.begin(), u.end(), u.begin(), [](unsigned char c){ return static_cast<char>(::toupper(c)); });
+
+         bool recognized = false;
+         // Stereo detection
+         if (u.find("PCM") != std::string::npos || u.find("STEREO") != std::string::npos) {
+             stereo = true; recognized = true;
+         }
+         // Dolby Digital (AC3)
+         // Only match "AC3" if not preceded by 'E' (i.e., not "EAC3")
+         bool isAC3 = false;
+         size_t ac3_pos = u.find("AC3");
+         if (ac3_pos != std::string::npos) {
+             if (ac3_pos == 0 || u[ac3_pos - 1] != 'E') {
+                 isAC3 = true;
+             }
+         }
+         if (isAC3 || u.find("DOLBY AC3") != std::string::npos || u.find("DOLBY DIGITAL") != std::string::npos) {
+             dd51 = true; recognized = true;
+         }
+         // Dolby Digital Plus (EAC3/DD+/AC4)
+         if (u.find("EAC3") != std::string::npos || u.find("DD+") != std::string::npos || u.find("DOLBY DIGITAL PLUS") != std::string::npos || u.find("AC4") != std::string::npos) {
+             dd51p = true; recognized = true;
+         }
+         // Atmos (any transport)
+         if (u.find("ATMOS") != std::string::npos) {
+             atmos = true; recognized = true;
+         }
+         return recognized;
+     }
+
      static bool SetFlagsFromSupported(const WPEFramework::Core::JSON::Variant& supportedNode,
                                        bool& stereo, bool& dd51, bool& dd51p, bool& atmos)
      {
@@ -798,37 +837,8 @@ public:
              auto arr = supportedNode.Array();
              const uint16_t n = arr.Length();
              for (uint16_t i = 0; i < n; ++i) {
-                 std::string token = arr[i].String();
-                 if (token.empty()) {
-                     continue;
-                 }
-                 std::string u = std::move(token);
-                 std::transform(u.begin(), u.end(), u.begin(), [](unsigned char c){ return static_cast<char>(::toupper(c)); });
-
-                 // Stereo detection
-                 if (u.find("PCM") != std::string::npos || u.find("STEREO") != std::string::npos) {
-                     stereo = true; anyRecognized = true;
-                 }
-                 // Dolby Digital (AC3)
-                 // Only match "AC3" if not preceded by 'E' (i.e., not "EAC3")
-                 bool isAC3 = false;
-                 // Check for "AC3" not preceded by 'E'
-                 size_t ac3_pos = u.find("AC3");
-                 if (ac3_pos != std::string::npos) {
-                     if (ac3_pos == 0 || u[ac3_pos - 1] != 'E') {
-                         isAC3 = true;
-                     }
-                 }
-                 if (isAC3 || u.find("DOLBY AC3") != std::string::npos || u.find("DOLBY DIGITAL") != std::string::npos) {
-                     dd51 = true; anyRecognized = true;
-                 }
-                 // Dolby Digital Plus (EAC3/DD+/AC4)
-                 if (u.find("EAC3") != std::string::npos || u.find("DD+") != std::string::npos || u.find("DOLBY DIGITAL PLUS") != std::string::npos || u.find("AC4") != std::string::npos) {
-                     dd51p = true; anyRecognized = true;
-                 }
-                 // Atmos (any transport)
-                 if (u.find("ATMOS") != std::string::npos) {
-                     atmos = true; anyRecognized = true;
+                 if (ApplyAudioToken(arr[i].String(), stereo, dd51, dd51p, atmos)) {
+                     anyRecognized = true;
                  }
              }
          }
@@ -946,6 +956,68 @@ public:
         }
 
         Dispatch(EVENT_ON_AUDIO_CHANGED, payload);
+        return true;
+    }
+
+    // ---- Event exposure variants built directly from JSONRPC event params ----
+    // Used only by the On*Changed handlers below so the handler never makes a COMRPC/JSONRPC
+    // call from within the JSONRPC event-dispatch context (root cause of the COMRPC timeout
+    // scenario described in the class-level notes).
+
+    // PUBLIC_INTERFACE
+    bool EmitOnScreenResolutionChanged(int width, int height)
+    {
+        const std::string payload = "[" + std::to_string(width) + "," + std::to_string(height) + "]";
+        Dispatch(EVENT_ON_SCREEN_RES_CHANGED, payload);
+        return true;
+    }
+
+    // PUBLIC_INTERFACE
+    bool EmitOnVideoResolutionChanged(int width, int height)
+    {
+        int vw = 1920, vh = 1080;
+        if (width >= 3840 || height >= 2160) {
+            vw = 3840; vh = 2160;
+        }
+        const std::string payload = "[" + std::to_string(vw) + "," + std::to_string(vh) + "]";
+        Dispatch(EVENT_ON_VIDEO_RES_CHANGED, payload);
+        return true;
+    }
+
+    // PUBLIC_INTERFACE
+    bool EmitOnAudioChanged(const std::string& currentAudioFormat)
+    {
+        bool stereo = false, dd51 = false, dd51p = false, atmos = false;
+        (void)ApplyAudioToken(currentAudioFormat, stereo, dd51, dd51p, atmos);
+        const std::string payload = std::string("{\"stereo\":") + (stereo ? "true" : "false")
+                   + ",\"dolbyDigital5.1\":" + (dd51 ? "true" : "false")
+                   + ",\"dolbyDigital5.1+\":" + (dd51p ? "true" : "false")
+                   + ",\"dolbyAtmos\":" + (atmos ? "true" : "false") + "}";
+        Dispatch(EVENT_ON_AUDIO_CHANGED, payload);
+        return true;
+    }
+
+    // PUBLIC_INTERFACE
+    // Mirrors GetHdcp()'s "result" parsing, but reads hdcpReason/currentHDCPVersion directly
+    // from the onDisplayConnectionChanged event payload.
+    bool EmitOnHdcpChanged(const WPEFramework::Core::JSON::VariantContainer& params)
+    {
+        bool hdcp14 = false;
+        bool hdcp22 = false;
+        if (params.HasLabel(_T("hdcpReason")) && params.HasLabel(_T("currentHDCPVersion"))) {
+            auto reasonV = params.Get(_T("hdcpReason"));
+            auto verV = params.Get(_T("currentHDCPVersion"));
+            if (reasonV.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER &&
+                static_cast<int>(reasonV.Number()) == 2 &&
+                verV.Content() == WPEFramework::Core::JSON::Variant::type::STRING) {
+                const std::string v = verV.String();
+                if (v == "1.4") { hdcp14 = true; }
+                else { hdcp22 = true; }
+            }
+        }
+        const std::string payload = std::string("{\"hdcp1.4\":") + (hdcp14 ? "true" : "false")
+                   + ",\"hdcp2.2\":" + (hdcp22 ? "true" : "false") + "}";
+        Dispatch(EVENT_ON_HDCP_CHANGED, payload);
         return true;
     }
 
@@ -2007,26 +2079,49 @@ private:
     // Event handlers invoked by Thunder JSON-RPC subscription
     void OnDisplaySettingsResolutionChanged(const WPEFramework::Core::JSON::VariantContainer& params)
     {
-        (void)params;
         LOGINFO("[AppGatewayCommon|DisplaySettings.resolutionChanged] Incoming alias=%s.%s, invoking handlers...",
                 DISPLAYSETTINGS_CALLSIGN, "resolutionChanged");
-        // Re-query state and dispatch debounced events
-        const bool screenEmitted = EmitOnScreenResolutionChanged();
-        const bool videoEmitted = EmitOnVideoResolutionChanged();
+
+        // Use width/height from the event payload directly instead of re-querying DisplaySettings
+        // via JSONRPC — a COMRPC call back into DeviceSettings(OOP) from this event-dispatch
+        // context can time out.
+        bool haveDims = false;
+        int width = 0, height = 0;
+        if (params.HasLabel(_T("width")) && params.HasLabel(_T("height"))) {
+            auto wv = params.Get(_T("width"));
+            auto hv = params.Get(_T("height"));
+            if (wv.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER &&
+                hv.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER) {
+                width = static_cast<int>(wv.Number());
+                height = static_cast<int>(hv.Number());
+                haveDims = true;
+            }
+        }
+        if (!haveDims) {
+            LOGERR("[AppGatewayCommon|DisplaySettings.resolutionChanged] missing width/height in event payload — skipping");
+            return;
+        }
+
+        const bool screenEmitted = EmitOnScreenResolutionChanged(width, height);
+        const bool videoEmitted = EmitOnVideoResolutionChanged(width, height);
         LOGINFO("[AppGatewayCommon|DisplaySettings.resolutionChanged] Handler responses: onScreenResolutionChanged=%s onVideoResolutionChanged=%s",
                 screenEmitted ? "emitted" : "skipped", videoEmitted ? "emitted" : "skipped");
     }
 
     void OnHdcpProfileDisplayConnectionChanged(const WPEFramework::Core::JSON::VariantContainer& params)
     {
-        (void)params;
         LOGINFO("[AppGatewayCommon|HdcpProfile.onDisplayConnectionChanged] Incoming alias=%s.%s, invoking handlers...",
                 HDCPPROFILE_CALLSIGN, "onDisplayConnectionChanged");
-        // Re-query state and dispatch debounced events
-        const bool hdcpEmitted = EmitOnHdcpChanged();
-        const bool hdrEmitted = EmitOnHdrChanged();
-        LOGINFO("[AppGatewayCommon|HdcpProfile.onDisplayConnectionChanged] Handler responses: onHdcpChanged=%s onHdrChanged=%s",
-                hdcpEmitted ? "emitted" : "skipped", hdrEmitted ? "emitted" : "skipped");
+
+        // Use the HDCPStatus fields from the event payload directly instead of re-querying via
+        // JSONRPC — a COMRPC call back into DeviceSettings(OOP) from this event-dispatch context
+        // can time out.
+        const bool hdcpEmitted = EmitOnHdcpChanged(params);
+        // EmitOnHdrChanged() needs DisplaySettings' HDR capabilities, which are not part of this
+        // event's payload — needs a separate implementation. Commented out for now.
+        // const bool hdrEmitted = EmitOnHdrChanged();
+        LOGINFO("[AppGatewayCommon|HdcpProfile.onDisplayConnectionChanged] Handler responses: onHdcpChanged=%s",
+                hdcpEmitted ? "emitted" : "skipped");
     }
 
     void OnSystemFriendlyNameChanged(const WPEFramework::Core::JSON::VariantContainer& params)
@@ -2042,11 +2137,25 @@ private:
 
     void OnDisplaySettingsAudioFormatChanged(const WPEFramework::Core::JSON::VariantContainer& params)
     {
-        (void)params;
         LOGINFO("[AppGatewayCommon|DisplaySettings.audioFormatChanged] Incoming alias=%s.%s, invoking handlers...",
                 DISPLAYSETTINGS_CALLSIGN, "audioFormatChanged");
-        // Re-query state and dispatch event
-        const bool audioEmitted = EmitOnAudioChanged();
+
+        // Use currentAudioFormat from the event payload directly instead of re-querying
+        // DisplaySettings via JSONRPC — a COMRPC call back into DeviceSettings(OOP) from this
+        // event-dispatch context can time out.
+        std::string currentAudioFormat;
+        if (params.HasLabel(_T("currentAudioFormat"))) {
+            auto v = params.Get(_T("currentAudioFormat"));
+            if (v.Content() == WPEFramework::Core::JSON::Variant::type::STRING) {
+                currentAudioFormat = v.String();
+            }
+        }
+        if (currentAudioFormat.empty()) {
+            LOGERR("[AppGatewayCommon|DisplaySettings.audioFormatChanged] missing currentAudioFormat in event payload — skipping");
+            return;
+        }
+
+        const bool audioEmitted = EmitOnAudioChanged(currentAudioFormat);
         LOGINFO("[AppGatewayCommon|DisplaySettings.audioFormatChanged] Handler responses: onAudioChanged=%s",
                 audioEmitted ? "emitted" : "skipped");
     }
