@@ -597,6 +597,62 @@
         "parentalcontrol.viewingrestrictions": {
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
+        },
+        "videooutput.resolution": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "videooutput.onresolutionchanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "VideoOutput.onResolutionChanged"
+        },
+        "videooutput.hdcp": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "videooutput.onhdcpchanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "VideoOutput.onHdcpChanged"
+        },
+        "videooutput.cecstate": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "videooutput.oncecstatechanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "VideoOutput.onCecstateChanged"
+        },
+        "videooutput.port": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "videooutput.onportchanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "VideoOutput.onPortChanged"
+        },
+        "videooutput.refreshrate": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "videooutput.colordepth": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "videooutput.colorformat": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "videooutput.colorimetry": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "videooutput.dynamicrange": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "videooutput.quantizationrange": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
         }
     }
 }
