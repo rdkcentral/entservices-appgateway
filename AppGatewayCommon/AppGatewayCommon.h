@@ -175,6 +175,17 @@ namespace WPEFramework {
             Core::hresult GetHdcp(string &result /* @out */);
             Core::hresult GetHdr(string &result /* @out */);
             Core::hresult GetAudio(string &result /* @out */);
+            // Helper methods for VideoOutput APIs - called by HandleAppGatewayRequest
+            Core::hresult GetVideoOutputResolution(string &result /* @out */);
+            Core::hresult GetVideoOutputHdcp(string &result /* @out */);
+            Core::hresult GetVideoOutputCecActiveState(string &result /* @out */);
+            Core::hresult GetVideoOutputPort(string &result /* @out */);
+            Core::hresult GetVideoOutputRefreshRate(string &result /* @out */);
+            Core::hresult GetVideoOutputColorDepth(string &result /* @out */);
+            Core::hresult GetVideoOutputColorFormat(string &result /* @out */);
+            Core::hresult GetVideoOutputColorimetry(string &result /* @out */);
+            Core::hresult GetVideoOutputDynamicRange(string &result /* @out */);
+            Core::hresult GetVideoOutputQuantizationRange(string &result /* @out */);
             Core::hresult GetDolbyAtmosExperience(string &result /* @out */);
             // Helper methods for Device info APIs - called by HandleAppGatewayRequest
             Core::hresult GetDeviceChipsetId(string &result /* @out */);
