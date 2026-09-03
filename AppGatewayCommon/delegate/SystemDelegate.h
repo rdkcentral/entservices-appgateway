@@ -1055,6 +1055,143 @@ public:
         return Core::ERROR_NONE;
     }
 
+    // ---- Device Branding APIs (Phase 1) ----
+
+    // PUBLIC_INTERFACE
+    // Device.setOsName — writes operating system name to DeviceInfo.osname (persisted)
+    Core::hresult SetDeviceOsName(const std::string &osName)
+    {
+        if (nullptr == _shell) return Core::ERROR_UNAVAILABLE;
+
+        auto* di = _shell->QueryInterfaceByCallsign<Exchange::IDeviceInfo>(DEVICEINFO_CALLSIGN);
+        if (nullptr == di)
+        {
+            LOGWARN("SystemDelegate: IDeviceInfo unavailable for SetOsName");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        const Core::hresult rc = di->OsName(osName);
+        di->Release();
+
+        if (rc != Core::ERROR_NONE)
+        {
+            LOGERR("SystemDelegate: IDeviceInfo::OsName(set) failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    // Device.osName — reads operating system name from DeviceInfo.osname
+    Core::hresult GetDeviceOsName(std::string &result)
+    {
+        result.clear();
+        if (nullptr == _shell) return Core::ERROR_UNAVAILABLE;
+
+        auto* di = _shell->QueryInterfaceByCallsign<Exchange::IDeviceInfo>(DEVICEINFO_CALLSIGN);
+        if (nullptr == di)
+        {
+            LOGWARN("SystemDelegate: IDeviceInfo unavailable for GetOsName");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        Exchange::IDeviceInfo::DeviceOsName info{};
+        const Core::hresult rc = di->OsName(info);
+        di->Release();
+
+        if (rc != Core::ERROR_NONE)
+        {
+            LOGERR("SystemDelegate: IDeviceInfo::OsName(get) failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        Core::JSON::String jsonStr;
+        jsonStr = info.osName;
+        jsonStr.ToString(result);
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    // Device.setOsVersion — writes operating system version to DeviceInfo.osversion (persisted)
+    Core::hresult SetDeviceOsVersion(const std::string &osVersion)
+    {
+        if (nullptr == _shell) return Core::ERROR_UNAVAILABLE;
+
+        auto* di = _shell->QueryInterfaceByCallsign<Exchange::IDeviceInfo>(DEVICEINFO_CALLSIGN);
+        if (nullptr == di)
+        {
+            LOGWARN("SystemDelegate: IDeviceInfo unavailable for SetOsVersion");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        const Core::hresult rc = di->OsVersion(osVersion);
+        di->Release();
+
+        if (rc != Core::ERROR_NONE)
+        {
+            LOGERR("SystemDelegate: IDeviceInfo::OsVersion(set) failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    // Device.osVersion — reads operating system version from DeviceInfo.osversion
+    Core::hresult GetDeviceOsVersion(std::string &result)
+    {
+        result.clear();
+        if (nullptr == _shell) return Core::ERROR_UNAVAILABLE;
+
+        auto* di = _shell->QueryInterfaceByCallsign<Exchange::IDeviceInfo>(DEVICEINFO_CALLSIGN);
+        if (nullptr == di)
+        {
+            LOGWARN("SystemDelegate: IDeviceInfo unavailable for GetOsVersion");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        Exchange::IDeviceInfo::DeviceOsVersion info{};
+        const Core::hresult rc = di->OsVersion(info);
+        di->Release();
+
+        if (rc != Core::ERROR_NONE)
+        {
+            LOGERR("SystemDelegate: IDeviceInfo::OsVersion(get) failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        Core::JSON::String jsonStr;
+        jsonStr = info.osVersion;
+        jsonStr.ToString(result);
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
+    // Device.firmware — reads firmware image name from DeviceInfo.firmwareversion.imagename
+    Core::hresult GetDeviceFirmware(std::string &result)
+    {
+        result.clear();
+        if (nullptr == _shell) return Core::ERROR_UNAVAILABLE;
+
+        auto* di = _shell->QueryInterfaceByCallsign<Exchange::IDeviceInfo>(DEVICEINFO_CALLSIGN);
+        if (nullptr == di)
+        {
+            LOGWARN("SystemDelegate: IDeviceInfo unavailable for FirmwareVersion");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        Exchange::IDeviceInfo::FirmwareversionInfo info{};
+        const Core::hresult rc = di->FirmwareVersion(info);
+        di->Release();
+
+        if (rc != Core::ERROR_NONE)
+        {
+            LOGERR("SystemDelegate: IDeviceInfo::FirmwareVersion failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        Core::JSON::String jsonStr;
+        jsonStr = info.imagename;
+        jsonStr.ToString(result);
+        return Core::ERROR_NONE;
+    }
+
     // PUBLIC_INTERFACE
     bool EmitOnTimezoneChanged(const WPEFramework::Core::JSON::VariantContainer& params)
     {
