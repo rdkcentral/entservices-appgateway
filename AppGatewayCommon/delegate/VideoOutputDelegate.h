@@ -20,6 +20,7 @@
 #pragma once
 
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -61,6 +62,40 @@ using namespace WPEFramework;
 
 class VideoOutputDelegate : public BaseEventDelegate
 {
+private:
+    // Small helper job that runs an arbitrary std::function on a worker-pool thread.
+    // Used to move re-query/emit work OFF the Thunder notification-delivery thread,
+    // so we never make a blocking COM/JSON-RPC call back into the same plugin that
+    // is currently dispatching the event to us (avoids circular-wait/timeout risk,
+    // same root cause pattern as RDKEMW-24422).
+    class EXTERNAL WorkerPoolTask : public Core::IDispatch
+    {
+    public:
+        explicit WorkerPoolTask(std::function<void()> work)
+            : _work(std::move(work))
+        {
+        }
+        WorkerPoolTask() = delete;
+        WorkerPoolTask(const WorkerPoolTask&) = delete;
+        WorkerPoolTask& operator=(const WorkerPoolTask&) = delete;
+        ~WorkerPoolTask() override = default;
+
+        void Dispatch() override
+        {
+            _work();
+        }
+
+    private:
+        std::function<void()> _work;
+    };
+
+    // Convenience helper: submit work to the Thunder worker pool.
+    static void PostToWorkerPool(std::function<void()> work)
+    {
+        Core::IWorkerPool::Instance().Submit(
+            Core::ProxyType<Core::IDispatch>(Core::ProxyType<WorkerPoolTask>::Create(std::move(work))));
+    }
+
 public:
     // Firebolt VideoOutput event constants
     static constexpr const char* EVENT_ON_VO_RESOLUTION_CHANGED       = "VideoOutput.onResolutionChanged";
@@ -870,29 +905,37 @@ private:
     void OnResolutionChanged(const Core::JSON::VariantContainer& params)
     {
         (void)params;
-        LOGINFO("[AppGatewayCommon|DisplaySettings.resolutionChanged] Incoming, re-querying resolution...");
-        (void)EmitOnResolutionChanged();
+        LOGINFO("[AppGatewayCommon|DisplaySettings.resolutionChanged] Incoming, posting to workerpool...");
+        PostToWorkerPool([this]() {
+            (void)EmitOnResolutionChanged();
+        });
     }
 
     void OnDisplayConnectionChanged(const Core::JSON::VariantContainer& params)
     {
         (void)params;
-        LOGINFO("[AppGatewayCommon|HdcpProfile.onDisplayConnectionChanged] Incoming, re-querying HDCP...");
-        (void)EmitOnHdcpChanged();
+        LOGINFO("[AppGatewayCommon|HdcpProfile.onDisplayConnectionChanged] Incoming, posting to workerpool...");
+        PostToWorkerPool([this]() {
+            (void)EmitOnHdcpChanged();
+        });
     }
 
     void OnActiveSourceStatusUpdated(const Core::JSON::VariantContainer& params)
     {
         (void)params;
-        LOGINFO("[AppGatewayCommon|HdmiCecSource.onActiveSourceStatusUpdated] Incoming, re-querying CEC state...");
-        (void)EmitOnCecActiveStateChanged();
+        LOGINFO("[AppGatewayCommon|HdmiCecSource.onActiveSourceStatusUpdated] Incoming, posting to workerpool...");
+        PostToWorkerPool([this]() {
+            (void)EmitOnCecActiveStateChanged();
+        });
     }
 
     void OnConnectedVideoDisplaysUpdated(const Core::JSON::VariantContainer& params)
     {
         (void)params;
-        LOGINFO("[AppGatewayCommon|DisplaySettings.connectedVideoDisplaysUpdated] Incoming, re-querying port...");
-        (void)EmitOnPortChanged();
+        LOGINFO("[AppGatewayCommon|DisplaySettings.connectedVideoDisplaysUpdated] Incoming, posting to workerpool...");
+        PostToWorkerPool([this]() {
+            (void)EmitOnPortChanged();
+        });
     }
 
 #if 0
