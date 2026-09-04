@@ -97,6 +97,46 @@ public:
     static constexpr const char* EVENT_ON_COUNTRY_CHANGED     = "Localization.onCountryChanged";
 
 private:
+    // Small helper job that runs an arbitrary std::function on a worker-pool thread.
+    // Used to move re-query/emit work OFF the Thunder notification-delivery thread,
+    // so we never make a blocking COM/JSON-RPC call back into the same plugin that
+    // is currently dispatching the event to us (this was the root cause of the
+    // 20+ second timeouts described in RDKEMW-24422).
+    //
+    // NOTE: intentionally NOT using Utils::Job here — that class's base type
+    // (Core::IDispatchType<void> vs Core::IDispatch) depends on whether
+    // USE_THUNDER_R4 is defined for this translation unit, which caused a
+    // "template argument 1" compile failure in the Yocto build because
+    // AppGatewayCommon does not define USE_THUNDER_R4. WorkerPoolTask always
+    // derives from Core::IDispatch, so it is unaffected by that macro.
+    class EXTERNAL WorkerPoolTask : public Core::IDispatch
+    {
+    public:
+        explicit WorkerPoolTask(std::function<void()> work)
+            : _work(std::move(work))
+        {
+        }
+        WorkerPoolTask() = delete;
+        WorkerPoolTask(const WorkerPoolTask&) = delete;
+        WorkerPoolTask& operator=(const WorkerPoolTask&) = delete;
+        ~WorkerPoolTask() override = default;
+
+        void Dispatch() override
+        {
+            _work();
+        }
+
+    private:
+        std::function<void()> _work;
+    };
+
+    // Convenience helper: submit work to the Thunder worker pool.
+    static void PostToWorkerPool(std::function<void()> work)
+    {
+        Core::IWorkerPool::Instance().Submit(
+            Core::ProxyType<Core::IDispatch>(Core::ProxyType<WorkerPoolTask>::Create(std::move(work))));
+    }
+
     class SystemServicesNotification : public Exchange::ISystemServices::INotification
     {
     private:
