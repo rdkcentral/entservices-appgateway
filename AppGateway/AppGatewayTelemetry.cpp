@@ -354,6 +354,16 @@ namespace Plugin {
             SendT2Event(eventName.c_str(), eventData);
             return Core::ERROR_NONE;
         }
+        else if (AGW_MARKER_JOB_TIMING == eventName) {
+            JsonObject data;
+            std::string jobName;
+            if (data.FromString(eventData) && data.HasLabel("job")) {
+                jobName = data["job"].String();
+            }
+            LOGINFO("Sending job timing event to T2: job=%s, timing=%s", jobName.c_str(), eventData.c_str());
+            SendT2Event(eventName.c_str(), eventData, context);
+            isImmediateEvent = true;
+        }
 
         // Immediate JSON-wrapped events: each entry names the JSON field to extract,
         // the aggregate-tracking method to call, and maps to the same send-then-return path.
@@ -1478,11 +1488,18 @@ namespace Plugin {
         // Context fields first
         // Skip adding context fields for UNKNOWN or SYSTEM contexts
         bool includeContext = (context.appId != "UNKNOWN" && context.appId != "SYSTEM");
+        bool isJobTiming = (std::string(marker) == AGW_MARKER_JOB_TIMING);
 
         if (includeContext) {
-            contextPayload["request_id"] = context.requestId;
-            contextPayload["connection_id"] = context.connectionId;
-            contextPayload["app_id"] = context.appId;
+            if (!isJobTiming || context.requestId != 0) {
+                contextPayload["request_id"] = context.requestId;
+            }
+            if (!isJobTiming || context.connectionId != 0) {
+                contextPayload["connection_id"] = context.connectionId;
+            }
+            if (!isJobTiming || !context.appId.empty()) {
+                contextPayload["app_id"] = context.appId;
+            }
         }
 
         // Parse the payload string as JSON if possible, otherwise include as raw string
@@ -1517,11 +1534,18 @@ namespace Plugin {
         // Context fields first
         // Skip adding context fields for UNKNOWN or SYSTEM contexts
         bool includeContext = (context.appId != "UNKNOWN" && context.appId != "SYSTEM");
+        bool isJobTiming = (std::string(marker) == AGW_MARKER_JOB_TIMING);
 
         if (includeContext) {
-            contextPayload["request_id"] = context.requestId;
-            contextPayload["connection_id"] = context.connectionId;
-            contextPayload["app_id"] = context.appId;
+            if (!isJobTiming || context.requestId != 0) {
+                contextPayload["request_id"] = context.requestId;
+            }
+            if (!isJobTiming || context.connectionId != 0) {
+                contextPayload["connection_id"] = context.connectionId;
+            }
+            if (!isJobTiming || !context.appId.empty()) {
+                contextPayload["app_id"] = context.appId;
+            }
         }
 
         // Merge payload fields into contextPayload
