@@ -193,7 +193,8 @@ public:
 
         const auto status = tts->SpeakWithUtterance(callsign, utterance, text, utteranceId, detailStatus);
 
-        if (Core::ERROR_NONE != status) {
+        // Implementation collapses every TTS-level failure to ERROR_GENERAL, so detailStatus (when set) takes precedence.
+        if ((Core::ERROR_NONE != status) && (Exchange::ITextToSpeech::TTS_OK == detailStatus)) {
             return MapTtsTransportError(status, "speak", result);
         }
 
@@ -258,7 +259,8 @@ public:
         Exchange::ITextToSpeech::TTSErrorDetail detailStatus = Exchange::ITextToSpeech::TTS_OK;
         const auto status = tts->Pause(utteranceId, detailStatus);
 
-        if (Core::ERROR_NONE != status) {
+        // Implementation collapses every TTS-level failure to ERROR_GENERAL, so detailStatus (when set) takes precedence.
+        if ((Core::ERROR_NONE != status) && (Exchange::ITextToSpeech::TTS_OK == detailStatus)) {
             return MapTtsTransportError(status, "pause", result);
         }
 
@@ -294,7 +296,8 @@ public:
         Exchange::ITextToSpeech::TTSErrorDetail detailStatus = Exchange::ITextToSpeech::TTS_OK;
         const auto status = tts->Resume(utteranceId, detailStatus);
 
-        if (Core::ERROR_NONE != status) {
+        // Implementation collapses every TTS-level failure to ERROR_GENERAL, so detailStatus (when set) takes precedence.
+        if ((Core::ERROR_NONE != status) && (Exchange::ITextToSpeech::TTS_OK == detailStatus)) {
             return MapTtsTransportError(status, "resume", result);
         }
 
@@ -392,6 +395,10 @@ private:
 
     static Core::hresult MapTtsTransportError(const Core::hresult status, const std::string& action, std::string& result)
     {
+        if (Core::ERROR_NONE != status) {
+            LOGERR("SpeechSynthesis %s transport call failed with status %d", action.c_str(), status);
+        }
+
         switch (status) {
         case Core::ERROR_NONE:
             return Core::ERROR_NONE;
@@ -409,6 +416,10 @@ private:
 
     static Core::hresult MapTtsDetailError(const Exchange::ITextToSpeech::TTSErrorDetail status, const std::string& action, std::string& result)
     {
+        if (Exchange::ITextToSpeech::TTS_OK != status) {
+            LOGERR("SpeechSynthesis %s failed with TTS detail status %d", action.c_str(), static_cast<int>(status));
+        }
+
         switch (status) {
         case Exchange::ITextToSpeech::TTS_OK:
             return Core::ERROR_NONE;
