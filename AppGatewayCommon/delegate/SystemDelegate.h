@@ -22,6 +22,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdio>
+#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -2150,12 +2151,12 @@ private:
         // Re-query state and dispatch debounced events on a worker-pool thread, NOT on this
         // notification thread, to avoid a blocking COM-RPC call back into the same plugin
         // that is currently dispatching this event (circular-wait/timeout risk).
-        Core::IWorkerPool::Instance().Submit(Core::ProxyType<Core::IDispatch>(Core::ProxyType<Utils::Job>::Create([this]() {
+        PostToWorkerPool([this]() {
             const bool screenEmitted = EmitOnScreenResolutionChanged();
             const bool videoEmitted = EmitOnVideoResolutionChanged();
             LOGINFO("[AppGatewayCommon|DisplaySettings.resolutionChanged] Handler responses: onScreenResolutionChanged=%s onVideoResolutionChanged=%s",
                     screenEmitted ? "emitted" : "skipped", videoEmitted ? "emitted" : "skipped");
-        })));
+        });
     }
 
     void OnHdcpProfileDisplayConnectionChanged(const WPEFramework::Core::JSON::VariantContainer& params)
@@ -2166,12 +2167,12 @@ private:
         // Re-query state and dispatch debounced events on a worker-pool thread, NOT on this
         // notification thread, to avoid a blocking COM-RPC call back into the same plugin
         // that is currently dispatching this event (circular-wait/timeout risk).
-        Core::IWorkerPool::Instance().Submit(Core::ProxyType<Core::IDispatch>(Core::ProxyType<Utils::Job>::Create([this]() {
+        PostToWorkerPool([this]() {
             const bool hdcpEmitted = EmitOnHdcpChanged();
             const bool hdrEmitted = EmitOnHdrChanged();
             LOGINFO("[AppGatewayCommon|HdcpProfile.onDisplayConnectionChanged] Handler responses: onHdcpChanged=%s onHdrChanged=%s",
                     hdcpEmitted ? "emitted" : "skipped", hdrEmitted ? "emitted" : "skipped");
-        })));
+        });
     }
 
     void OnSystemFriendlyNameChanged(const WPEFramework::Core::JSON::VariantContainer& params)
@@ -2193,11 +2194,11 @@ private:
         // Re-query state and dispatch event on a worker-pool thread, NOT on this notification
         // thread, to avoid a blocking COM-RPC call back into the same plugin that is currently
         // dispatching this event (circular-wait/timeout risk).
-        Core::IWorkerPool::Instance().Submit(Core::ProxyType<Core::IDispatch>(Core::ProxyType<Utils::Job>::Create([this]() {
+        PostToWorkerPool([this]() {
             const bool audioEmitted = EmitOnAudioChanged();
             LOGINFO("[AppGatewayCommon|DisplaySettings.audioFormatChanged] Handler responses: onAudioChanged=%s",
                     audioEmitted ? "emitted" : "skipped");
-        })));
+        });
     }
 
     void OnSystemTimezoneChanged(const WPEFramework::Core::JSON::VariantContainer& params)
