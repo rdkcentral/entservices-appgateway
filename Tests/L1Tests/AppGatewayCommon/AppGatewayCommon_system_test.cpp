@@ -94,10 +94,7 @@ public:
         _handlers[method] = std::move(handler);
     }
 
-    void AddRef() const override
-    {
-        ++_refCount;
-    }
+    uint32_t AddRef() const override { return ++_refCount; }
 
     uint32_t Release() const override
     {

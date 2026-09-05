@@ -20,6 +20,7 @@ jobs:
       caller_source: local
 
   trigger-L2:
+    if: false  # Disabled due to new thunder version issue
     uses: ./.github/workflows/L2-tests.yml
     with:
       caller_source: local

@@ -26,7 +26,7 @@ class MockTextToSpeech : public WPEFramework::Exchange::ITextToSpeech {
 public:
     ~MockTextToSpeech() override = default;
 
-    MOCK_METHOD(void, AddRef, (), (const, override));
+    MOCK_METHOD(uint32_t, AddRef, (), (const, override));
     MOCK_METHOD(uint32_t, Release, (), (const, override));
 
     MOCK_METHOD(WPEFramework::Core::hresult, Register, (INotification * sink), (override));
