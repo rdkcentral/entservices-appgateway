@@ -109,6 +109,15 @@ extern uint32_t Test_HandleRequest_PresentationFocused_Routed();
 extern uint32_t Test_HandleRequest_PresentationFocused_ResultIsBooleanString();
 extern uint32_t Test_HandleRequest_PresentationFocused_CaseInsensitive();
 
+// AppGatewayCommon_routing_test.cpp (texttospeech.speak — AGC_L0_101–AGC_L0_107)
+extern uint32_t Test_HandleRequest_TextToSpeechSpeak_ValidPayload();
+extern uint32_t Test_HandleRequest_TextToSpeechSpeak_EmptyPayload();
+extern uint32_t Test_HandleRequest_TextToSpeechSpeak_NullPayload();
+extern uint32_t Test_HandleRequest_TextToSpeechSpeak_InvalidJSON();
+extern uint32_t Test_HandleRequest_TextToSpeechSpeak_EmptyText();
+extern uint32_t Test_HandleRequest_TextToSpeechSpeak_EmptyCallsign();
+extern uint32_t Test_HandleRequest_TextToSpeechSpeak_CaseInsensitive();
+
 // AppGatewayCommon_events_test.cpp
 extern uint32_t Test_CheckPermissionGroup_DefaultAllowed();
 extern uint32_t Test_Authenticate_DelegateUnavailable();
@@ -213,6 +222,14 @@ int main()
         { "HandleRequest_PresentationFocused_Routed",             Test_HandleRequest_PresentationFocused_Routed },
         { "HandleRequest_PresentationFocused_ResultIsBooleanStr", Test_HandleRequest_PresentationFocused_ResultIsBooleanString },
         { "HandleRequest_PresentationFocused_CaseInsensitive",    Test_HandleRequest_PresentationFocused_CaseInsensitive },
+        // --- texttospeech.speak tests (AGC_L0_101–AGC_L0_107) ---
+        { "HandleRequest_TextToSpeechSpeak_ValidPayload",        Test_HandleRequest_TextToSpeechSpeak_ValidPayload },
+        { "HandleRequest_TextToSpeechSpeak_EmptyPayload",        Test_HandleRequest_TextToSpeechSpeak_EmptyPayload },
+        { "HandleRequest_TextToSpeechSpeak_NullPayload",         Test_HandleRequest_TextToSpeechSpeak_NullPayload },
+        { "HandleRequest_TextToSpeechSpeak_InvalidJSON",        Test_HandleRequest_TextToSpeechSpeak_InvalidJSON },
+        { "HandleRequest_TextToSpeechSpeak_EmptyText",          Test_HandleRequest_TextToSpeechSpeak_EmptyText },
+        { "HandleRequest_TextToSpeechSpeak_EmptyCallsign",       Test_HandleRequest_TextToSpeechSpeak_EmptyCallsign },
+        { "HandleRequest_TextToSpeechSpeak_CaseInsensitive",     Test_HandleRequest_TextToSpeechSpeak_CaseInsensitive },
         // --- Setters tests (AGC_L0_057–AGC_L0_085) ---
         { "HandleRequest_SetterInvalidPayload",           Test_HandleRequest_SetterInvalidPayload },
         { "HandleRequest_SetterValidPayload_DelegateUnavailable", Test_HandleRequest_SetterValidPayload_DelegateUnavailable },

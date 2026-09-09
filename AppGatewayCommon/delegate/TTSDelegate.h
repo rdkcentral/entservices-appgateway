@@ -23,6 +23,7 @@
 #include "ContextUtils.h"
 #include <mutex>
 #include "ObjectUtils.h"
+#include "UtilsFirebolt.h"
 
 
 #define TTS_CALLSIGN "org.rdk.TextToSpeech"
@@ -83,6 +84,47 @@ public:
         }
         registrationError = true; // event not recognized - signal error to caller
         return false;
+    }
+
+    Core::hresult TextToSpeechSpeak(const Exchange::GatewayContext& ctx, const string& payload, string& result)
+    {
+        JsonObject paramsObj;
+        string callsign = ctx.appId;
+        string text;
+
+        if (payload.empty() || "null" == payload) {
+             ErrorUtils::CustomBadRequest("Payload is required", result);
+             return Core::ERROR_BAD_REQUEST;
+         }
+         if (!paramsObj.FromString(payload)) {
+             ErrorUtils::CustomBadRequest("Invalid JSON payload", result);
+             return Core::ERROR_BAD_REQUEST;
+         }
+        if (paramsObj.HasLabel("callsign") && Core::JSON::Variant::type::STRING == paramsObj["callsign"].Content()) {
+            callsign = paramsObj.Get("callsign").String();
+        }
+        if (paramsObj.HasLabel("text") && Core::JSON::Variant::type::STRING == paramsObj["text"].Content()) {
+            text = paramsObj.Get("text").String();
+        }
+        if (text.empty() || callsign.empty()) {
+            return Core::ERROR_INVALID_INPUT_LENGTH;
+        }
+        auto tts = GetTTS();
+        if (nullptr == tts) return Core::ERROR_UNAVAILABLE;
+        uint32_t speechid;
+        TTSErrorDetail status;
+        auto ret = tts->Speak( callsign, text, speechid, status);
+        if (Core::ERROR_NONE == ret) {
+            JsonObject response;
+            response["speechid"] = speechid;
+            response["TTS_Status"] = static_cast<uint8_t>(status);
+            response["success"] = TTSErrorDetail::TTS_OK == status;
+            result = response.ToString();
+        } else {
+            LOGERR("TextToSpeech::Speak failed for callsign %s with error %u", callsign.c_str(), ret);
+            ErrorUtils::CustomInternal("Failed to speak text", result);
+        }
+        return ret;
     }
 
 private:
