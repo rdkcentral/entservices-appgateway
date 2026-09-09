@@ -376,6 +376,9 @@ namespace Plugin {
         }},
         { "parentalcontrol.viewingrestrictions", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetViewingRestrictions(result);
+        }},
+        {"texttospeech.speak", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->TextToSpeechSpeak(ctx, payload, result);
         }}
     };
 
