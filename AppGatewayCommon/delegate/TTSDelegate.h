@@ -100,10 +100,10 @@ public:
              ErrorUtils::CustomBadRequest("Invalid JSON payload", result);
              return Core::ERROR_BAD_REQUEST;
          }
-        if (paramsObj.HasLabel("callsign") && paramsObj["callsign"].Content() == Core::JSON::Variant::type::STRING) {
+        if (paramsObj.HasLabel("callsign") && Core::JSON::Variant::type::STRING == paramsObj["callsign"].Content()) {
             callsign = paramsObj.Get("callsign").String();
         }
-        if (paramsObj.HasLabel("text") && paramsObj["text"].Content() == Core::JSON::Variant::type::STRING) {
+        if (paramsObj.HasLabel("text") && Core::JSON::Variant::type::STRING == paramsObj["text"].Content()) {
             text = paramsObj.Get("text").String();
         }
         if (text.empty() || callsign.empty()) {
@@ -121,6 +121,7 @@ public:
             response["success"] = TTSErrorDetail::TTS_OK == status;
             result = response.ToString();
         } else {
+            LOGERR("TextToSpeech::Speak failed for callsign %s with error %u", callsign.c_str(), ret);
             ErrorUtils::CustomInternal("Failed to speak text", result);
         }
         return ret;
