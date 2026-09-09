@@ -305,6 +305,9 @@ namespace Plugin {
         }},
         {"presentation.focused", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->GetPresentationFocused(ctx, payload, result);
+        }},
+        {"texttospeech.speak", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->TextToSpeechSpeak(ctx, payload, result);
         }}
     };
 
