@@ -1350,5 +1350,14 @@ namespace Plugin {
             return systemDelegate->GetDisplayVideoResolutions(result);
         }
 
+        Core::hresult AppGatewayCommon::TextToSpeechSpeak(const Exchange::GatewayContext& ctx, const string& payload, string& result)
+        {
+            result = "{}";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto ttsDelegate = mDelegate->getTTSDelegate();
+            if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
+            return ttsDelegate->TextToSpeechSpeak(ctx, payload, result);
+        }
+
 } // namespace Plugin
 } // namespace WPEFramework
