@@ -22,6 +22,7 @@
 #include "UtilsLogging.h"
 #include "ContextUtils.h"
 #include "UtilsFirebolt.h"
+#include <cmath>
 #include <mutex>
 #include <limits>
 #include "ObjectUtils.h"
@@ -137,7 +138,7 @@ public:
         voices->Release();
 
         serializedVoices += "]";
-        result = serializedVoices;
+        result = std::move(serializedVoices);
         return Core::ERROR_NONE;
     }
 
@@ -332,10 +333,15 @@ private:
         const auto& field = container.Get(fieldName);
         if (field.Content() == Core::JSON::Variant::type::NUMBER) {
             const double numericValue = field.Number();
-            if ((numericValue < 0.0) || (numericValue > static_cast<double>(std::numeric_limits<uint32_t>::max()))) {
+            if (!std::isfinite(numericValue) || (numericValue < 0.0) ||
+                (numericValue > static_cast<double>(std::numeric_limits<uint32_t>::max()))) {
                 return false;
             }
-            value = static_cast<uint32_t>(numericValue);
+            const uint32_t convertedValue = static_cast<uint32_t>(numericValue);
+            if (numericValue != static_cast<double>(convertedValue)) {
+                return false;
+            }
+            value = convertedValue;
             return true;
         }
         if (field.Content() == Core::JSON::Variant::type::STRING) {
@@ -426,10 +432,10 @@ private:
         double numericValue = 0.0;
 
         if (TryGetStringField(container, "lang", stringValue) || TryGetStringField(container, "language", stringValue)) {
-            utterance.language = stringValue;
+            utterance.language = std::move(stringValue);
         }
         if (TryGetStringField(container, "voice", stringValue)) {
-            utterance.voice = stringValue;
+            utterance.voice = std::move(stringValue);
         }
         if (TryGetDoubleField(container, "volume", numericValue)) {
             utterance.volume = numericValue;
@@ -488,42 +494,34 @@ private:
         }
         void OnSpeechReady(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onWillSpeak", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "synthesisStarting");
         }
         void OnSpeechStarted(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onSpeechStart", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "playbackStarting");
         }
         void OnSpeechPaused(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onSpeechPause", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "paused");
         }
         void OnSpeechResumed(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onSpeechResume", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "resumed");
         }
         void OnSpeechInterrupted(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onSpeechInterrupted", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "interrupted");
         }
         void OnNetworkError(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onNetworkError", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "networkFailed");
         }
         void OnPlaybackError(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onPlaybackError", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "playbackFailed");
         }
         void OnSpeechComplete(const uint32_t speechid)
         {
-            mParent.Dispatch("TextToSpeech.onSpeechComplete", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "completed");
         }
 
