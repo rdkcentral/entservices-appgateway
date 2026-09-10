@@ -396,7 +396,7 @@ private:
     static Core::hresult MapTtsTransportError(const Core::hresult status, const std::string& action, std::string& result)
     {
         if (Core::ERROR_NONE != status) {
-            LOGERR("SpeechSynthesis %s transport call failed with status %d", action.c_str(), status);
+            LOGERR("SpeechSynthesis %s transport call failed with status %u", action.c_str(), static_cast<uint32_t>(status));
         }
 
         switch (status) {
