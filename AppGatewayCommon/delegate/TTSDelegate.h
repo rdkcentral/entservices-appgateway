@@ -94,10 +94,10 @@ public:
         if (paramsObj.FromString(payload)) {
             // Parse and validate payload
             // if callsign is available use that, otherwise use the app id
-            if (paramsObj.HasKey("callsign")) {
+            if (paramsObj.HasLabel("callsign")) {
                 callsign = paramsObj["callsign"].String();
             }
-            if (paramsObj.HasKey("text")) {
+            if (paramsObj.HasLabel("text")) {
                 text = paramsObj["text"].String();
             }
         }
@@ -108,14 +108,14 @@ public:
         auto tts = GetTTS();
         if (!tts) return Core::ERROR_UNAVAILABLE;
         uint32_t speechid;
-        TTSErrorDetail status;
-        auto ret = tts->speak(&callsign,&text, &speechid, &status);
+        Exchange::ITextToSpeech::TTSErrorDetail status;
+        auto ret = tts->Speak(callsign, text, speechid, status);
         if (ret == Core::ERROR_NONE) {
             JsonObject response;
             response["speechid"] = speechid;
             response["TTS_Status"] = static_cast<uint8_t>(status);
-            response["success"] = status == TTSErrorDetail::TTS_OK;
-            result = response.ToString();
+            response["success"] = status == Exchange::ITextToSpeech::TTSErrorDetail::TTS_OK;
+            response.ToString(result);
         } else {
             ErrorUtils::CustomInternal("Failed to speak text", result);
         }
