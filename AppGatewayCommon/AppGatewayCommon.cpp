@@ -542,14 +542,14 @@ namespace Plugin {
             return Core::ERROR_UNKNOWN_KEY;
         }
 
-    Core::hresult AppGatewayCommon::SpeechSynthesisVoices(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
-    {
-        result = "[]";
-        if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-        auto ttsDelegate = mDelegate->getTTSDelegate();
-        if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
-        return ttsDelegate->SpeechSynthesisVoices(payload, result);
-    }
+Core::hresult AppGatewayCommon::SpeechSynthesisVoices(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
+{
+    result = "[]";
+    if (!mDelegate) { ErrorUtils::NotAvailable(result); return Core::ERROR_UNAVAILABLE; }
+    auto ttsDelegate = mDelegate->getTTSDelegate();
+    if (!ttsDelegate) { ErrorUtils::NotAvailable(result); return Core::ERROR_UNAVAILABLE; }
+    return ttsDelegate->SpeechSynthesisVoices(payload, result);
+}
 
 Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
 {
