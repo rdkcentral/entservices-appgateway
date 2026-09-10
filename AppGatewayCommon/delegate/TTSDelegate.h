@@ -91,14 +91,26 @@ public:
         JsonObject paramsObj;
         string callsign = ctx.appId;
         string text;
-        if (paramsObj.FromString(payload)) {
+
+        if (payload.empty() || "null" == payload) {
+             LOGWARN("TextToSpeechSpeak: payload is required");
+             ErrorUtils::CustomBadRequest("Payload is required", result);
+             return Core::ERROR_BAD_REQUEST;
+         }
+         if (!paramsObj.FromString(payload)) {
+             LOGWARN("TextToSpeechSpeak: invalid JSON payload");
+             ErrorUtils::CustomBadRequest("Invalid JSON payload", result);
+             return Core::ERROR_BAD_REQUEST;
+         }
+
+         if (paramsObj.FromString(payload)) {
             // Parse and validate payload
             // if callsign is available use that, otherwise use the app id
-            if (paramsObj.HasLabel("callsign")) {
-                callsign = paramsObj["callsign"].String();
+            if (paramsObj.HasLabel("callsign") && Core::JSON::Variant::type::STRING == paramsObj["callsign"].Content()) {
+                callsign = paramsObj.Get("callsign").String();
             }
-            if (paramsObj.HasLabel("text")) {
-                text = paramsObj["text"].String();
+            if (paramsObj.HasLabel("text") && Core::JSON::Variant::type::STRING == paramsObj["text"].Content()) {
+                text = paramsObj.Get("text").String();
             }
         }
 
@@ -106,17 +118,18 @@ public:
             return Core::ERROR_INVALID_INPUT_LENGTH;
         }
         auto tts = GetTTS();
-        if (!tts) return Core::ERROR_UNAVAILABLE;
+        if (nullptr == tts) return Core::ERROR_UNAVAILABLE;
         uint32_t speechid;
         Exchange::ITextToSpeech::TTSErrorDetail status;
         auto ret = tts->Speak(callsign, text, speechid, status);
-        if (ret == Core::ERROR_NONE) {
+        if (Core::ERROR_NONE == ret) {
             JsonObject response;
             response["speechid"] = speechid;
             response["TTS_Status"] = static_cast<uint8_t>(status);
-            response["success"] = status == Exchange::ITextToSpeech::TTSErrorDetail::TTS_OK;
+            response["success"] = (Exchange::ITextToSpeech::TTSErrorDetail::TTS_OK == status);
             response.ToString(result);
         } else {
+            LOGERR("TextToSpeech::Speak failed for callsign %s with error %u", callsign.c_str(), ret);
             ErrorUtils::CustomInternal("Failed to speak text", result);
         }
         return ret;
