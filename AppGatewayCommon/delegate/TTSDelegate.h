@@ -159,7 +159,6 @@ public:
             return Core::ERROR_UNAVAILABLE;
         }
 
-        const std::string callsign = appId.empty() ? "AppGateway" : appId;
         Exchange::ITextToSpeech::TTSErrorDetail detailStatus = Exchange::ITextToSpeech::TTS_OK;
         uint32_t utteranceId = 0;
 
@@ -170,28 +169,14 @@ public:
         utterance.rate = -1.0;
         utterance.pitch = -1.0;
 
-        bool piiProvided = false;
-        ApplyUtteranceOverrides(params, utterance, piiProvided);
+        ApplyUtteranceOverrides(params, utterance);
 
         Core::JSON::VariantContainer options;
         if (TryGetObjectField(params, "options", options)) {
-            ApplyUtteranceOverrides(options, utterance, piiProvided);
+            ApplyUtteranceOverrides(options, utterance);
         }
 
-        if ((utterance.volume >= 0.0) && !IsInRange(utterance.volume, 0.0, 1.0)) {
-            return BadSpeechSynthesisRequest("SpeechSynthesis.speak 'volume' must be between 0.0 and 1.0", result);
-        }
-        if ((utterance.rate >= 0.0) && !IsInRange(utterance.rate, 0.1, 10.0)) {
-            return BadSpeechSynthesisRequest("SpeechSynthesis.speak 'rate' must be between 0.1 and 10.0", result);
-        }
-        if ((utterance.pitch >= 0.0) && !IsInRange(utterance.pitch, 0.0, 2.0)) {
-            return BadSpeechSynthesisRequest("SpeechSynthesis.speak 'pitch' must be between 0.0 and 2.0", result);
-        }
-        if (piiProvided) {
-            LOGINFO("SpeechSynthesis.speak received 'pii' but ITextToSpeech v2 has no matching field; ignoring it");
-        }
-
-        const auto status = tts->SpeakWithUtterance(callsign, utterance, text, utteranceId, detailStatus);
+        const auto status = tts->SpeakWithUtterance(appId, utterance, text, utteranceId, detailStatus);
 
         // Implementation collapses every TTS-level failure to ERROR_GENERAL, so detailStatus (when set) takes precedence.
         if ((Core::ERROR_NONE != status) && (Exchange::ITextToSpeech::TTS_OK == detailStatus)) {
@@ -382,11 +367,6 @@ private:
         return true;
     }
 
-    static bool IsInRange(const double value, const double minimum, const double maximum)
-    {
-        return (value >= minimum) && (value <= maximum);
-    }
-
     static Core::hresult BadSpeechSynthesisRequest(const std::string& message, std::string& result)
     {
         ErrorUtils::CustomBadRequest(message, result);
@@ -440,8 +420,7 @@ private:
     }
 
     static void ApplyUtteranceOverrides(const Core::JSON::VariantContainer& container,
-                                        Exchange::ITextToSpeech::SpeechUtterance& utterance,
-                                        bool& piiProvided)
+                                        Exchange::ITextToSpeech::SpeechUtterance& utterance)
     {
         std::string stringValue;
         double numericValue = 0.0;
@@ -460,9 +439,6 @@ private:
         }
         if (TryGetDoubleField(container, "pitch", numericValue)) {
             utterance.pitch = numericValue;
-        }
-        if (container.HasLabel("pii")) {
-            piiProvided = true;
         }
     }
 
