@@ -339,71 +339,58 @@ namespace Plugin {
             return Core::ERROR_NONE;
         }
 
-        // 
         // Supported event name patterns:
+        // - "APP_METRICS_ERROR_split" - App error from FbMetrics (sent immediately, raw CSV)
+        // - "APP_SIGNIN_STATUS_split" - Sign-in/sign-out from FbDiscovery (sent immediately, raw CSV)
+        // - "APP_READY_split"         - App readiness from AppGatewayCommon (sent immediately, raw CSV)
         // - "ENTS_ERROR_AppGwPluginApiError" - API errors from other plugins (sent immediately)
         // - "ENTS_ERROR_AppGwPlugExtnSrvErr" - External service errors (sent immediately)
         // - Any other event name - Generic telemetry event (cached and flushed periodically)
 
-        bool isImmediateEvent = false;
-
-        // Check if this is an API error event - send immediately to T2
-        if (AGW_MARKER_PLUGIN_API_ERROR == eventName) {
-            // Extract API name from eventData if possible
-            // eventData expected format: {"plugin": "<pluginName>", "api": "<apiName>", "error": "<errorDetails>"}
-            JsonObject data;
-            std::string apiName = eventName;
-            if (data.FromString(eventData) && data.HasLabel("api")) {
-                apiName = data["api"].String();
-            }
-
-            // Track error count for aggregated metrics (sent periodically)
-            RecordApiError(context, apiName);
-
-            // Send error event immediately to T2 for forensics
-
-            LOGINFO("Sending immediate API error event to T2: api=%s", apiName.c_str());
-            SendT2Event(eventName.c_str(), eventData, context);
-
-            isImmediateEvent = true;
-        }
-        // Check if this is an external service error event - send immediately to T2
-        else if (AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR == eventName) {
-            // Extract service name from eventData if possible
-            // eventData expected format: {"plugin": "<pluginName>", "service": "<serviceName>", "error": "<errorDetails>"}
-            JsonObject data;
-            std::string serviceName = eventName;
-            if (data.FromString(eventData) && data.HasLabel("service")) {
-                serviceName = data["service"].String();
-            }
-
-            // Track error count for aggregated metrics (sent periodically)
-            RecordExternalServiceErrorInternal(context, serviceName);
-
-            // Send error event immediately to T2 for forensics
-            LOGINFO("Sending immediate external service error event to T2: service=%s", serviceName.c_str());
-            SendT2Event(eventName.c_str(), eventData, context);
-
-            isImmediateEvent = true;
+        // Ripple Log Markers: raw CSV payload sent immediately — no JSON wrapping, no context fields.
+        if (AGW_MARKER_APP_METRICS_ERROR == eventName ||
+            AGW_MARKER_APP_SIGNIN_STATUS == eventName ||
+            AGW_MARKER_APP_READY == eventName) {
+            SendT2Event(eventName.c_str(), eventData);
+            return Core::ERROR_NONE;
         }
 
-        // For non-immediate events, cache and check threshold
-        if (!isImmediateEvent) {
-            bool shouldFlush = false;
-            {
-                Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
-                mCachedEventCount++;
+        // Immediate JSON-wrapped events: each entry names the JSON field to extract,
+        // the aggregate-tracking method to call, and maps to the same send-then-return path.
+        // eventData expected format: {"plugin": "<pluginName>", "<jsonField>": "<value>", "error": "<errorDetails>"}
+        using RecordFn = void (AppGatewayTelemetry::*)(const Exchange::GatewayContext&, const std::string&);
+        struct ImmediateJsonEvent { const char* marker; const char* jsonField; RecordFn recordFn; };
+        static const ImmediateJsonEvent kImmediateJsonEvents[] = {
+            { AGW_MARKER_PLUGIN_API_ERROR,         "api",     &AppGatewayTelemetry::RecordApiError                  },
+            { AGW_MARKER_PLUGIN_EXT_SERVICE_ERROR, "service", &AppGatewayTelemetry::RecordExternalServiceErrorInternal },
+        };
 
-                // Check if we've reached the threshold
-                if (mCachedEventCount >= mCacheThreshold) {
-                    shouldFlush = true;
-                    LOGINFO("Cache threshold reached (%u), flushing telemetry data", mCachedEventCount);
-                }
+        for (const auto& cfg : kImmediateJsonEvents) {
+            if (eventName == cfg.marker) {
+                JsonObject data;
+                std::string name = (data.FromString(eventData) && data.HasLabel(cfg.jsonField))
+                                       ? data[cfg.jsonField].String()
+                                       : eventName;
+                (this->*cfg.recordFn)(context, name);
+                LOGINFO("Sending immediate event to T2: marker=%s, %s=%s",
+                        eventName.c_str(), cfg.jsonField, name.c_str());
+                SendT2Event(eventName.c_str(), eventData, context);
+                return Core::ERROR_NONE;
             }
+        }
 
-            if (shouldFlush) {
-                FlushTelemetryData();
+        // Generic event: cache and flush when threshold is reached.
+        bool shouldFlush = false;
+        {
+            Core::SafeSyncType<Core::CriticalSection> lock(mAdminLock);
+            if (++mCachedEventCount >= mCacheThreshold) {
+                shouldFlush = true;
+                LOGINFO("Cache threshold reached (%u), flushing telemetry data", mCachedEventCount);
             }
+        }
+
+        if (shouldFlush) {
+            FlushTelemetryData();
         }
 
         return Core::ERROR_NONE;
@@ -975,7 +962,7 @@ namespace Plugin {
         }
 
         return Core::ERROR_NONE;
-        }
+    }
 
     void AppGatewayTelemetry::OnTimerExpired()
     {
@@ -1552,6 +1539,17 @@ namespace Plugin {
         LOGINFO("marker=%s, payload=%s", marker, formattedPayload.c_str());
         Utils::Telemetry::sendMessage(const_cast<char*>(marker),
                                         const_cast<char*>(formattedPayload.c_str()));
+    }
+
+    void AppGatewayTelemetry::SendT2Event(const char* marker, const std::string& rawPayload)
+    {
+        // Raw overload: sends the payload string as-is to T2 without any JSON wrapping or
+        // context fields prepended. Intended for _split markers whose eventData is already
+        // a correctly-formatted CSV string (e.g. APP_METRICS_ERROR_split, APP_SIGNIN_STATUS_split,
+        // APP_READY_split).
+        LOGINFO("marker=%s, payload=%s", marker, rawPayload.c_str());
+        Utils::Telemetry::sendMessage(const_cast<char*>(marker),
+                                      const_cast<char*>(rawPayload.c_str()));
     }
 
     void AppGatewayTelemetry::ResetHealthStats()
