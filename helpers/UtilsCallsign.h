@@ -31,7 +31,7 @@
 #define FB_PRIVACY_CALLSIGN "org.rdk.FbPrivacy"
 #define FB_METRICS_CALLSIGN "org.rdk.FbMetrics"
 #define ANALYTICS_PLUGIN_CALLSIGN "org.rdk.Analytics"
-#define RDKAPPMANAGERS_PATH "/etc/rdkappmanagers"
+#define RDKAPPMANAGERS_PATH "/tmp/ai2managers"
 
 // Use this class to check whether certain plugins are configured
 class ConfigUtils {
