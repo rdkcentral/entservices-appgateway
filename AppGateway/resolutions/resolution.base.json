@@ -238,7 +238,7 @@
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
         },
-        "device.dolbyatmosexperience": {
+        "device.dolbyatmosexperienceavailable": {
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
         },

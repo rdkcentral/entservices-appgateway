@@ -187,10 +187,10 @@ uint32_t Test_HandleRequest_DeviceAudio()
 }
 
 // TEST_ID: AGC_L0_026A
-// Handler-map getter: device.dolbyatmosexperience
+// Handler-map getter: device.dolbyatmosexperienceavailable
 uint32_t Test_HandleRequest_DeviceDolbyAtmosExperience()
 {
-    return DelegateGetterTest("device.dolbyatmosexperience");
+    return DelegateGetterTest("device.dolbyatmosexperienceavailable");
 }
 
 // TEST_ID: AGC_L0_027
