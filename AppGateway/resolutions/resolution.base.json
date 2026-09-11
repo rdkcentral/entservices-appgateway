@@ -486,6 +486,34 @@
         "TextToSpeech.getspeechstate": {
             "alias": "org.rdk.TextToSpeech.getspeechstate"
         },
+        "SpeechSynthesis.voices": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "SpeechSynthesis.speak": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "SpeechSynthesis.cancel": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "SpeechSynthesis.pause": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "SpeechSynthesis.resume": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "SpeechSynthesis.onUtteranceEvent": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "SpeechSynthesis.onUtteranceEvent"
+        },
+        "SpeechSynthesis.onVoicesChanged": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "event": "SpeechSynthesis.onVoicesChanged"
+        },
         "TextToSpeech.onWillspeak": {
             "alias": "org.rdk.AppGatewayCommon",
             "event": "TextToSpeech.onWillspeak"
