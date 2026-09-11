@@ -180,6 +180,25 @@
 #define AGW_MARKER_LINCHPIN_NOTIFICATION_COUNT      "ENTS_INFO_AppGwLinchPinNotificationCount"
 
 /**
+ * @brief Job timing metric marker — queue-wait + execution latency
+ * @details Reports three timing values per job dispatch:
+ *   - queue_wait_ms  : T2 - T1 (submit → Dispatch start)
+ *   - exec_ms        : T3 - T2 (Dispatch start → Dispatch end)
+ *   - total_ms       : T3 - T1 (submit → Dispatch complete)
+ * @payload { "job": "<jobClassName>", "queue_wait_ms": <double>,
+ *            "exec_ms": <double>, "total_ms": <double> }
+ *          Available request, connection, and app identifiers are reported through GatewayContext.
+ * @usage Emitted by ScopedJobTimer RAII class. Preferred entry point:
+ *        inherit AppGatewayTelemetryHelper::JobTiming and call AGW_TIME_JOB
+ *        inside Dispatch(). Legacy AGW_TRACK_JOB_LATENCY macro is still
+ *        supported for backward compatibility.
+ * @note This is an EVENT marker (RecordEvent) not a metric (RecordMetric) because
+ *       per-job latency has forensic value as individual occurrences; aggregation
+ *       would hide outliers and queue-wait spikes.
+ */
+#define AGW_MARKER_JOB_TIMING   "ENTS_INFO_AppGwJobTiming"
+
+/**
  * @brief API error count metric prefix
  * @details Per-API error count metrics sent periodically
  */
