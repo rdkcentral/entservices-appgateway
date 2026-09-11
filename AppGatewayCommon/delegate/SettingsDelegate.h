@@ -152,10 +152,6 @@ class SettingsDelegate {
             return avOutputDelegate;
         }
 
-        std::shared_ptr<TTSDelegate> getTTSDelegate() const {
-            return ttsDelegate;
-        }
-  
         std::shared_ptr<VideoOutputDelegate> getVideoOutputDelegate() const {
             return videoOutputDelegate;
         }
