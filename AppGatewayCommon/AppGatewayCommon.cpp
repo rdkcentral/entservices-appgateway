@@ -213,7 +213,7 @@ namespace Plugin {
         { "videooutput.quantizationrange", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetVideoOutputQuantizationRange(result);
         }},
-        { "device.dolbyatmosexperience", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+        { "device.dolbyatmosexperienceavailable", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDolbyAtmosExperience(result);
         }},
         { "voiceguidance.navigationhints", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
