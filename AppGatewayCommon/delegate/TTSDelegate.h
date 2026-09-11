@@ -492,36 +492,45 @@ private:
         {
             mParent.Dispatch("TextToSpeech.onVoiceChanged", ObjectUtils::CreateStringObject(voice));
         }
+        // Legacy per-event notification is kept alongside the unified onUtteranceEvent for backward compatibility.
         void OnSpeechReady(const uint32_t speechid)
         {
+            mParent.Dispatch("TextToSpeech.onWillSpeak", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "synthesisStarting");
         }
         void OnSpeechStarted(const uint32_t speechid)
         {
+            mParent.Dispatch("TextToSpeech.onSpeechStart", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "playbackStarting");
         }
         void OnSpeechPaused(const uint32_t speechid)
         {
+            mParent.Dispatch("TextToSpeech.onSpeechPause", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "paused");
         }
         void OnSpeechResumed(const uint32_t speechid)
         {
+            mParent.Dispatch("TextToSpeech.onSpeechResume", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "resumed");
         }
         void OnSpeechInterrupted(const uint32_t speechid)
         {
+            mParent.Dispatch("TextToSpeech.onSpeechInterrupted", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "interrupted");
         }
         void OnNetworkError(const uint32_t speechid)
         {
+            mParent.Dispatch("TextToSpeech.onNetworkError", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "networkFailed");
         }
         void OnPlaybackError(const uint32_t speechid)
         {
+            mParent.Dispatch("TextToSpeech.onPlaybackError", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "playbackFailed");
         }
         void OnSpeechComplete(const uint32_t speechid)
         {
+            mParent.Dispatch("TextToSpeech.onSpeechComplete", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "completed");
         }
 
