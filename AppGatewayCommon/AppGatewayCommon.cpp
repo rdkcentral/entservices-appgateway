@@ -390,6 +390,9 @@ namespace Plugin {
         }},
         { "parentalcontrol.viewingrestrictions", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetViewingRestrictions(result);
+        }},
+        {"texttospeech.speak", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->TextToSpeechSpeak(ctx, payload, result);
         }}
     };
 
@@ -1687,6 +1690,15 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
             auto systemDelegate = mDelegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDisplayVideoResolutions(result);
+        }
+
+        Core::hresult AppGatewayCommon::TextToSpeechSpeak(const Exchange::GatewayContext& ctx, const string& payload, string& result)
+        {
+            result = "{}";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto ttsDelegate = mDelegate->getTTSDelegate();
+            if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
+            return ttsDelegate->TextToSpeechSpeak(ctx, payload, result);
         }
 
 } // namespace Plugin

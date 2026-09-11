@@ -232,6 +232,7 @@ namespace WPEFramework {
             Core::hresult GetDisplayMaxResolution(string &result /* @out */);
             Core::hresult GetDisplayColorimetry(string &result /* @out */);
             Core::hresult GetDisplayVideoResolutions(string &result /* @out */);
+            Core::hresult TextToSpeechSpeak(const Exchange::GatewayContext& ctx, const string& payload, string& result /* @out */);
         private:
             PluginHost::IShell* mShell;
             uint32_t mConnectionId;

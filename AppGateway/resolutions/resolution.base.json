@@ -469,7 +469,8 @@
             "alias": "org.rdk.TextToSpeech.getttsconfiguration"
         },
         "TextToSpeech.speak": {
-            "alias": "org.rdk.TextToSpeech.speak"
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
         },
         "TextToSpeech.setttsconfiguration": {
             "alias": "org.rdk.TextToSpeech.setttsconfiguration"
