@@ -993,9 +993,35 @@ jobs:
             chmod +x "$WPE_REAL"
             echo "Wrapped WPEFramework with gcov SIGSEGV handler (real: $WPE_REAL)"
           fi
+          # RdkServicesL2Test (L2testController.cpp) owns the Thunder lifecycle: it
+          # calls StartThunder() internally via popen() and only then opens IShell.
+          # We deliberately do NOT pre-launch WPEFramework ourselves here — doing so
+          # would cause a port-9998 conflict/duplicate-process race with the instance
+          # that L2testController.cpp spawns on its own. Instead, launch the test
+          # binary in the background and run a concurrent, non-blocking JSON-RPC
+          # readiness poll purely for diagnostics/logging; the actual retry/backoff
+          # around the "Failed to open IShell" race is implemented in
+          # L2testController.cpp's initClient().
+          THUNDER_URL="http://127.0.0.1:9998/jsonrpc"
           set +e
-          RdkServicesL2Test
+          RdkServicesL2Test &
+          test_pid=$!
+          (
+            for i in $(seq 1 30); do
+              if curl -sS --max-time 2 "${THUNDER_URL}" \
+                 -H 'Content-Type: application/json' \
+                 -d '{"jsonrpc":"2.0","id":1,"method":"Controller.1.status@AppGatewayCommon"}' >/dev/null 2>&1; then
+                echo "Thunder became ready after ~${i}s"
+                break
+              fi
+              echo "Waiting for Thunder/IShell... (${i}/30)"
+              sleep 1
+            done
+          ) &
+          waiter_pid=$!
+          wait "${test_pid}"
           rc=$?
+          kill "${waiter_pid}" 2>/dev/null || true
           set -e
           # Restore original binary
           if [ -f "${WPE_REAL}.real" ]; then
