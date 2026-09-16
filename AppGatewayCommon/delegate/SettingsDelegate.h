@@ -134,6 +134,10 @@ class SettingsDelegate {
             return appDelegate;
         }
 
+        std::shared_ptr<TTSDelegate> getTTSDelegate() const {
+            return ttsDelegate;
+        }
+
     private:
         std::shared_ptr<UserSettingsDelegate> userSettings;
         std::shared_ptr<SystemDelegate> systemDelegate;
