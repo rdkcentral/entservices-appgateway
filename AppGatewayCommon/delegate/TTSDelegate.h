@@ -112,14 +112,14 @@ public:
         auto tts = GetTTS();
         if (nullptr == tts) return Core::ERROR_UNAVAILABLE;
         uint32_t speechid;
-        TTSErrorDetail status;
+        Exchange::ITextToSpeech::TTSErrorDetail status;
         auto ret = tts->Speak( callsign, text, speechid, status);
         if (Core::ERROR_NONE == ret) {
             JsonObject response;
             response["speechid"] = speechid;
             response["TTS_Status"] = static_cast<uint8_t>(status);
-            response["success"] = TTSErrorDetail::TTS_OK == status;
-            result = response.ToString();
+            response["success"] = Exchange::ITextToSpeech::TTSErrorDetail::TTS_OK == status;
+            response.ToString(result);
         } else {
             LOGERR("TextToSpeech::Speak failed for callsign %s with error %u", callsign.c_str(), ret);
             ErrorUtils::CustomInternal("Failed to speak text", result);
