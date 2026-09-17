@@ -159,6 +159,11 @@ public:
         }
 
         WPEFramework::Core::JSON::VariantContainer params;
+
+        JsonArray deviceInfoParams;
+        deviceInfoParams.Add("make");
+        params["params"] = deviceInfoParams;
+
         WPEFramework::Core::JSON::VariantContainer response;
         const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getDeviceInfo", params, response);
         if (rc == Core::ERROR_NONE)
