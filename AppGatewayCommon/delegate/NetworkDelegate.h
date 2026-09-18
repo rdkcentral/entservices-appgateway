@@ -32,7 +32,6 @@
 #include "ObjectUtils.h"
 #include "UtilsFirebolt.h"
 #include <mutex>
-#include <optional>
 
 using namespace WPEFramework;
 
@@ -48,7 +47,8 @@ class NetworkDelegate : public BaseEventDelegate
 {
 public:
     NetworkDelegate(PluginHost::IShell *shell)
-        : BaseEventDelegate(), mNetworkManager(nullptr), mShell(shell), mNotificationHandler(*this)
+        : BaseEventDelegate(), mNetworkManager(nullptr), mShell(shell), mNotificationHandler(*this),
+          mLastConnected(false), mHasLastConnected(false)
     {
     }
 
@@ -267,11 +267,12 @@ private:
     {
         {
             std::lock_guard<std::mutex> lock(mConnectedStateMutex);
-            if (mLastConnected.has_value() && (*mLastConnected == connected)) {
+            if (mHasLastConnected && (mLastConnected == connected)) {
                 LOGTRACE("Network.onConnectedChanged suppressed, state unchanged (%s)", connected ? "true" : "false");
                 return;
             }
             mLastConnected = connected;
+            mHasLastConnected = true;
         }
         LOGINFO("Dispatching Network.onConnectedChanged: %s", connected ? "true" : "false");
         Dispatch("Network.onConnectedChanged", ObjectUtils::CreateBooleanJsonString("value", connected));
@@ -365,7 +366,8 @@ private:
     Core::Sink<NetworkNotificationHandler> mNotificationHandler;
     mutable std::mutex mRegistrationMutex;
     std::mutex mConnectedStateMutex;
-    std::optional<bool> mLastConnected;
+    bool mLastConnected;
+    bool mHasLastConnected;
 };
 
 #endif // __NETWORKDELEGATE_H__
