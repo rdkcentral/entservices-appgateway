@@ -47,7 +47,8 @@ class NetworkDelegate : public BaseEventDelegate
 {
 public:
     NetworkDelegate(PluginHost::IShell *shell)
-        : BaseEventDelegate(), mNetworkManager(nullptr), mShell(shell), mNotificationHandler(*this)
+        : BaseEventDelegate(), mNetworkManager(nullptr), mShell(shell), mNotificationHandler(*this),
+          mLastConnected(false), mHasLastConnected(false)
     {
     }
 
@@ -146,15 +147,13 @@ public:
             return Core::ERROR_UNAVAILABLE;
         }
 
-        string interface;
-        Core::hresult rc = networkManager->GetPrimaryInterface(interface);
+        bool connected = false;
+        Core::hresult rc = QueryInternetConnected(networkManager, connected);
         if (rc == Core::ERROR_NONE) {
-            // Transform the response: return_or_error(.result, "couldn't get network connected status")
-            // Return the boolean result directly as per transform specification
-            result = interface.empty() ? "false" : "true";
+            result = connected ? "true" : "false";
             return Core::ERROR_NONE;
         } else {
-            LOGERR("Failed to get primary interface on NetworkManager, error: %u", rc);
+            LOGERR("Failed to query internet connectivity on NetworkManager, error: %u", rc);
             ErrorUtils::CustomInternal("Failed to get NetworkInfo", result);
             return Core::ERROR_GENERAL;
         }
@@ -248,6 +247,53 @@ public:
     }
 
 private:
+    // Firebolt spec: Network.connected is "whether the device has a useable
+    // network connection", i.e. internet reachability. An active interface
+    // *name* stays non-empty across a disconnect, so it cannot carry this.
+    Core::hresult QueryInternetConnected(Exchange::INetworkManager *networkManager, bool &connected)
+    {
+        string ipversion; // empty: let NetworkManager pick the IP version
+        string interface;
+        Exchange::INetworkManager::InternetStatus status = Exchange::INetworkManager::INTERNET_NOT_AVAILABLE;
+
+        Core::hresult rc = networkManager->IsConnectedToInternet(ipversion, interface, status);
+        if (rc == Core::ERROR_NONE) {
+            connected = (Exchange::INetworkManager::INTERNET_FULLY_CONNECTED == status);
+        }
+        return rc;
+    }
+
+    void PublishConnectedChanged(bool connected)
+    {
+        {
+            std::lock_guard<std::mutex> lock(mConnectedStateMutex);
+            if (mHasLastConnected && (mLastConnected == connected)) {
+                LOGTRACE("Network.onConnectedChanged suppressed, state unchanged (%s)", connected ? "true" : "false");
+                return;
+            }
+            mLastConnected = connected;
+            mHasLastConnected = true;
+        }
+        LOGINFO("Dispatching Network.onConnectedChanged: %s", connected ? "true" : "false");
+        Dispatch("Network.onConnectedChanged", ObjectUtils::CreateBooleanJsonString("value", connected));
+    }
+
+    void RefreshConnectedState()
+    {
+        Exchange::INetworkManager *networkManager = GetNetworkManagerInterface();
+        if (networkManager == nullptr) {
+            LOGERR("NetworkManager interface not available, cannot refresh connected state");
+            return;
+        }
+
+        bool connected = false;
+        if (QueryInternetConnected(networkManager, connected) == Core::ERROR_NONE) {
+            PublishConnectedChanged(connected);
+        } else {
+            LOGERR("Failed to refresh connected state from NetworkManager");
+        }
+    }
+
     class NetworkNotificationHandler : public Exchange::INetworkManager::INotification
     {
     public:
@@ -257,7 +303,14 @@ private:
         void onActiveInterfaceChange(const string prevActiveInterface, const string currentActiveInterface)
         {
             LOGDBG("onActiveInterfaceChange: prev=%s, current=%s", prevActiveInterface.c_str(), currentActiveInterface.c_str());
-            mParent.Dispatch("Network.onConnectedChanged", ObjectUtils::CreateBooleanJsonString("value", currentActiveInterface.empty() ? false : true) );
+
+            // No active interface at all is an unambiguous disconnect. Otherwise the
+            // name alone says nothing about reachability, so ask NetworkManager.
+            if (currentActiveInterface.empty()) {
+                mParent.PublishConnectedChanged(false);
+            } else {
+                mParent.RefreshConnectedState();
+            }
         }
 
         void onInternetStatusChange(const Exchange::INetworkManager::InternetStatus prevState, const Exchange::INetworkManager::InternetStatus currState, const string interface)
@@ -280,6 +333,9 @@ private:
             jsonStream << "{\"network\":{\"state\":\"" << statusToString(currState) 
                       << "\",\"prevState\":\"" << statusToString(prevState) << "\"}}";
             mParent.Dispatch("device.onNetworkChanged", jsonStream.str());
+
+            mParent.PublishConnectedChanged(
+                Exchange::INetworkManager::INTERNET_FULLY_CONNECTED == currState);
         }
         
         // Registration management methods
@@ -309,6 +365,9 @@ private:
     PluginHost::IShell *mShell;
     Core::Sink<NetworkNotificationHandler> mNotificationHandler;
     mutable std::mutex mRegistrationMutex;
+    std::mutex mConnectedStateMutex;
+    bool mLastConnected;
+    bool mHasLastConnected;
 };
 
 #endif // __NETWORKDELEGATE_H__

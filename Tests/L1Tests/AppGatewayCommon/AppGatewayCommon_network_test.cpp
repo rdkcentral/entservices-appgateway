@@ -148,8 +148,9 @@ NiceMock<MockINetworkManager>* NetworkDelegateTest::sMockNetwork = nullptr;
 
 TEST_F(NetworkDelegateTest, AGC_L1_147_GetNetworkConnected_Connected)
 {
-    EXPECT_CALL(mockNetwork, GetPrimaryInterface(_))
-        .WillOnce(DoAll(SetArgReferee<0>("eth0"), Return(Core::ERROR_NONE)));
+    EXPECT_CALL(mockNetwork, IsConnectedToInternet(_, _, _))
+        .WillOnce(DoAll(SetArgReferee<2>(Exchange::INetworkManager::INTERNET_FULLY_CONNECTED),
+                        Return(Core::ERROR_NONE)));
 
     const auto ctx = MakeContext();
     string result;
@@ -161,8 +162,9 @@ TEST_F(NetworkDelegateTest, AGC_L1_147_GetNetworkConnected_Connected)
 
 TEST_F(NetworkDelegateTest, AGC_L1_148_GetNetworkConnected_Disconnected)
 {
-    EXPECT_CALL(mockNetwork, GetPrimaryInterface(_))
-        .WillOnce(DoAll(SetArgReferee<0>(""), Return(Core::ERROR_NONE)));
+    EXPECT_CALL(mockNetwork, IsConnectedToInternet(_, _, _))
+        .WillOnce(DoAll(SetArgReferee<2>(Exchange::INetworkManager::INTERNET_NOT_AVAILABLE),
+                        Return(Core::ERROR_NONE)));
 
     const auto ctx = MakeContext();
     string result;
@@ -174,7 +176,7 @@ TEST_F(NetworkDelegateTest, AGC_L1_148_GetNetworkConnected_Disconnected)
 
 TEST_F(NetworkDelegateTest, AGC_L1_149_GetNetworkConnected_CallFails)
 {
-    EXPECT_CALL(mockNetwork, GetPrimaryInterface(_))
+    EXPECT_CALL(mockNetwork, IsConnectedToInternet(_, _, _))
         .WillOnce(Return(Core::ERROR_GENERAL));
 
     const auto ctx = MakeContext();
@@ -292,10 +294,12 @@ TEST_F(NetworkDelegateTest, AGC_L1_154_GetInternetConnectionStatus_CallFails)
 
 /* ---------- Additional network error paths ---------- */
 
-TEST_F(NetworkDelegateTest, AGC_L1_155_GetNetworkConnected_EmptyPrimaryInterface)
+TEST_F(NetworkDelegateTest, AGC_L1_155_GetNetworkConnected_LinkUpButNoInternet)
 {
-    EXPECT_CALL(mockNetwork, GetPrimaryInterface(_))
-        .WillOnce(DoAll(SetArgReferee<0>(string("")), Return(Core::ERROR_NONE)));
+    // Regression: an interface is up and named, but has no useable connection.
+    EXPECT_CALL(mockNetwork, IsConnectedToInternet(_, _, _))
+        .WillOnce(DoAll(SetArgReferee<2>(Exchange::INetworkManager::INTERNET_LIMITED),
+                        Return(Core::ERROR_NONE)));
 
     const auto ctx = MakeContext();
     string result;
@@ -515,6 +519,63 @@ TEST_F(NetworkNotificationTest, AGC_L1_161_NetworkNotification_onInternetStatusC
     );
 
     std::this_thread::sleep_for(std::chrono::milliseconds(25));
+}
+
+// Regression for "onConnectedChanged always reports true": the active interface
+// keeps its name across a disconnect, so the name alone must not decide the value.
+TEST_F(NetworkNotificationTest, AGC_L1_162_NetworkNotification_ActiveInterfaceNamedButOffline_EmitsFalse)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    EXPECT_CALL(mockNetwork, IsConnectedToInternet(_, _, _))
+        .Times(AnyNumber())
+        .WillRepeatedly(DoAll(SetArgReferee<2>(Exchange::INetworkManager::INTERNET_NOT_AVAILABLE),
+                              Return(Core::ERROR_NONE)));
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "Network.onConnectedChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    ASSERT_NE(capturedNotification, nullptr);
+
+    string payload;
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Network.onConnectedChanged"), _, _))
+        .Times(::testing::AtLeast(1))
+        .WillRepeatedly(::testing::Invoke(
+            [&payload](const string&, const string& p, const string&) { payload = p; }));
+
+    capturedNotification->onActiveInterfaceChange("wlan0", "wlan0");
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    EXPECT_NE(payload.find("false"), std::string::npos);
+}
+
+TEST_F(NetworkNotificationTest, AGC_L1_163_NetworkNotification_InternetLost_EmitsConnectedFalse)
+{
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+
+    bool status = false;
+    plugin.HandleAppEventNotifier(emitter, "Network.onConnectedChanged", true, status);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    ASSERT_NE(capturedNotification, nullptr);
+
+    string payload;
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Network.onConnectedChanged"), _, _))
+        .Times(::testing::AtLeast(1))
+        .WillRepeatedly(::testing::Invoke(
+            [&payload](const string&, const string& p, const string&) { payload = p; }));
+
+    capturedNotification->onInternetStatusChange(
+        Exchange::INetworkManager::INTERNET_FULLY_CONNECTED,
+        Exchange::INetworkManager::INTERNET_NOT_AVAILABLE,
+        "eth0"
+    );
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    EXPECT_NE(payload.find("false"), std::string::npos);
 }
 
 } // namespace
