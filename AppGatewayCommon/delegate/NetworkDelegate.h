@@ -247,9 +247,7 @@ public:
     }
 
 private:
-    // Firebolt spec: Network.connected is "whether the device has a useable
-    // network connection", i.e. internet reachability. An active interface
-    // *name* stays non-empty across a disconnect, so it cannot carry this.
+    // Query internet connection status because an active interface name does not indicate connectivity.
     Core::hresult QueryInternetConnected(Exchange::INetworkManager *networkManager, bool &connected)
     {
         string ipversion; // empty: let NetworkManager pick the IP version
@@ -304,8 +302,7 @@ private:
         {
             LOGDBG("onActiveInterfaceChange: prev=%s, current=%s", prevActiveInterface.c_str(), currentActiveInterface.c_str());
 
-            // No active interface at all is an disconnect. Otherwise the
-            // name alone says nothing about reachability, so ask NetworkManager.
+            // An empty interface indicates disconnection; otherwise query NetworkManager because the interface name alone does not confirm connectivity.
             if (currentActiveInterface.empty()) {
                 mParent.PublishConnectedChanged(false);
             } else {
