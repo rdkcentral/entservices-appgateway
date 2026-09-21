@@ -162,7 +162,7 @@ public:
 
         JsonArray deviceInfoParams;
         deviceInfoParams.Add("make");
-        params["params"] = deviceInfoParams;
+        params["params"] = std::move(deviceInfoParams);
 
         WPEFramework::Core::JSON::VariantContainer response;
         const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getDeviceInfo", params, response);
