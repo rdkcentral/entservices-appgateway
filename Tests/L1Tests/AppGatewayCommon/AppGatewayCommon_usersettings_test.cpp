@@ -326,6 +326,19 @@ TEST_F(UserSettingsTest, AGC_L1_039_GetPresentationLanguage_Success)
     EXPECT_NE(result.find("en"), std::string::npos);
 }
 
+TEST_F(UserSettingsTest, AGC_L1_039A_GetPresentationLanguage_FireboltReturnsFullBcp47Value)
+{
+    EXPECT_CALL(mockUserSettings, GetPresentationLanguage(_))
+        .WillOnce(DoAll(SetArgReferee<0>("en-US"), Return(Core::ERROR_NONE)));
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.presentationlanguage", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("\"en-US\"", result);
+}
+
 /* ---------- High Contrast ---------- */
 
 TEST_F(UserSettingsTest, AGC_L1_040_GetHighContrast_Success)

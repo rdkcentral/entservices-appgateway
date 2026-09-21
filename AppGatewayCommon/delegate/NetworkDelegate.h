@@ -304,7 +304,7 @@ private:
         {
             LOGDBG("onActiveInterfaceChange: prev=%s, current=%s", prevActiveInterface.c_str(), currentActiveInterface.c_str());
 
-            // No active interface at all is an unambiguous disconnect. Otherwise the
+            // No active interface at all is an disconnect. Otherwise the
             // name alone says nothing about reachability, so ask NetworkManager.
             if (currentActiveInterface.empty()) {
                 mParent.PublishConnectedChanged(false);
