@@ -26,35 +26,27 @@
 #include <map>
 #include <unordered_set>
 #include <utility>
-#include <atomic>
+#include <memory>
 
 using namespace WPEFramework;
 
-class BaseEventDelegate
+class BaseEventDelegate : public std::enable_shared_from_this<BaseEventDelegate>
 {
 public:
     class EXTERNAL EventDelegateDispatchJob : public Core::IDispatch
     {
     public:
-        EventDelegateDispatchJob(BaseEventDelegate *delegate, const string &event, const string &payload, string appId = "")
-            : mDelegate(delegate), mEvent(event), mPayload(payload), mAppId(std::move(appId))
+        EventDelegateDispatchJob(std::shared_ptr<BaseEventDelegate> delegate, const string &event, const string &payload, string appId = "")
+            : mDelegate(std::move(delegate)), mEvent(event), mPayload(payload), mAppId(std::move(appId))
         {
-            if (mDelegate != nullptr) {
-                mDelegate->AddRef();
-            }
         }
 
         EventDelegateDispatchJob() = delete;
         EventDelegateDispatchJob(const EventDelegateDispatchJob &) = delete;
         EventDelegateDispatchJob &operator=(const EventDelegateDispatchJob &) = delete;
-        ~EventDelegateDispatchJob()
-        {
-            if (mDelegate != nullptr) {
-                mDelegate->Release();
-            }
-        }
+        ~EventDelegateDispatchJob() = default;
 
-        static Core::ProxyType<Core::IDispatch> Create(BaseEventDelegate *parent,
+        static Core::ProxyType<Core::IDispatch> Create(std::shared_ptr<BaseEventDelegate> parent,
                                                        const string &event, const string &payload, string appId = "")
         {
             return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<EventDelegateDispatchJob>::Create(parent, event, payload, std::move(appId))));
@@ -68,19 +60,18 @@ public:
         }
 
     private:
-        BaseEventDelegate *mDelegate;
+        std::shared_ptr<BaseEventDelegate> mDelegate;
         string mEvent;
         string mPayload;
         string mAppId;
     };
 
     BaseEventDelegate() : mRegisteredNotifications(),
-                          mRegisterMutex(),
-                          mRefCount(1)
+                          mRegisterMutex()
     {
     }
 
-    ~BaseEventDelegate()
+    virtual ~BaseEventDelegate()
     {
         // Cleanup registered notifications
         for (auto &entry : mRegisteredNotifications)
@@ -92,21 +83,6 @@ public:
         }
 
         mRegisteredNotifications.clear();
-    }
-
-    // Manual reference counting for job lifetime safety
-    void AddRef() const
-    {
-        ++mRefCount;
-    }
-
-    uint32_t Release() const
-    {
-        uint32_t result = --mRefCount;
-        if (result == 0) {
-            delete this;
-        }
-        return result;
     }
 
     virtual bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError) = 0;
@@ -121,7 +97,7 @@ public:
             return false;
         }
 
-        Core::IWorkerPool::Instance().Submit(EventDelegateDispatchJob::Create(this, event, payload, std::move(appId)));
+        Core::IWorkerPool::Instance().Submit(EventDelegateDispatchJob::Create(shared_from_this(), event, payload, std::move(appId)));
 
         return true;
     }
@@ -263,6 +239,5 @@ public:
 private:
     std::map<string, std::unordered_set<Exchange::IAppNotificationHandler::IEmitter *>> mRegisteredNotifications;
     std::mutex mRegisterMutex;
-    mutable std::atomic<uint32_t> mRefCount;
 };
 #endif
