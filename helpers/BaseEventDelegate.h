@@ -26,6 +26,7 @@
 #include <map>
 #include <unordered_set>
 #include <utility>
+#include <atomic>
 
 using namespace WPEFramework;
 
@@ -36,13 +37,21 @@ public:
     {
     public:
         EventDelegateDispatchJob(BaseEventDelegate *delegate, const string &event, const string &payload, string appId = "")
-            : mDelegate(*delegate), mEvent(event), mPayload(payload), mAppId(std::move(appId)) {}
+            : mDelegate(delegate), mEvent(event), mPayload(payload), mAppId(std::move(appId))
+        {
+            if (mDelegate != nullptr) {
+                mDelegate->AddRef();
+            }
+        }
 
         EventDelegateDispatchJob() = delete;
         EventDelegateDispatchJob(const EventDelegateDispatchJob &) = delete;
         EventDelegateDispatchJob &operator=(const EventDelegateDispatchJob &) = delete;
         ~EventDelegateDispatchJob()
         {
+            if (mDelegate != nullptr) {
+                mDelegate->Release();
+            }
         }
 
         static Core::ProxyType<Core::IDispatch> Create(BaseEventDelegate *parent,
@@ -53,18 +62,21 @@ public:
 
         virtual void Dispatch()
         {
-            mDelegate.DispatchToAppNotifications(mEvent, mPayload, mAppId);
+            if (mDelegate != nullptr) {
+                mDelegate->DispatchToAppNotifications(mEvent, mPayload, mAppId);
+            }
         }
 
     private:
-        BaseEventDelegate &mDelegate;
+        BaseEventDelegate *mDelegate;
         string mEvent;
         string mPayload;
         string mAppId;
     };
 
     BaseEventDelegate() : mRegisteredNotifications(),
-                          mRegisterMutex()
+                          mRegisterMutex(),
+                          mRefCount(1)
     {
     }
 
@@ -80,6 +92,21 @@ public:
         }
 
         mRegisteredNotifications.clear();
+    }
+
+    // Manual reference counting for job lifetime safety
+    void AddRef() const
+    {
+        ++mRefCount;
+    }
+
+    uint32_t Release() const
+    {
+        uint32_t result = --mRefCount;
+        if (result == 0) {
+            delete this;
+        }
+        return result;
     }
 
     virtual bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError) = 0;
@@ -236,5 +263,6 @@ public:
 private:
     std::map<string, std::unordered_set<Exchange::IAppNotificationHandler::IEmitter *>> mRegisteredNotifications;
     std::mutex mRegisterMutex;
+    mutable std::atomic<uint32_t> mRefCount;
 };
 #endif
