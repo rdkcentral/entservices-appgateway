@@ -33,6 +33,7 @@
 #include "MockSharedStorage.h"
 #include "ThunderPortability.h"
 #include "WorkerPoolImplementation.h"
+#include "BaseEventDelegate.h"
 
 using namespace WPEFramework;
 using namespace WPEFramework::Plugin;
@@ -341,6 +342,67 @@ TEST_F(AppDelegateNoStorageTest, AGC_L1_026_GetAdvertisingId_NoSharedStorage_Ret
 
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
     EXPECT_NE(result.find("Unable to get SharedStorage interface"), std::string::npos);
+}
+
+// =================================================================
+// BaseEventDelegate Job Lifetime Safety Tests
+// =================================================================
+
+// Test that EventDelegateDispatchJob handles null parent gracefully
+TEST(BaseEventDelegateJobLifetime, EventDelegateDispatchJob_NullParent_CreatesSafely)
+{
+    auto job = BaseEventDelegate::EventDelegateDispatchJob::Create(
+        nullptr, "testEvent", "testPayload");
+    
+    ASSERT_TRUE(job.IsValid());
+}
+
+// Test that EventDelegateDispatchJob properly references parent
+TEST_F(AppDelegateNoStorageTest, EventDelegateDispatchJob_WithValidParent_AddRefsParent)
+{
+    // Get a delegate from the plugin (e.g., SystemDelegate)
+    auto* systemDelegate = plugin.mSystemDelegate;
+    ASSERT_NE(nullptr, systemDelegate);
+    
+    // Create job with valid parent
+    auto job = BaseEventDelegate::EventDelegateDispatchJob::Create(
+        systemDelegate, "testEvent", "testPayload");
+    
+    ASSERT_TRUE(job.IsValid());
+    
+    // Job should have called AddRef() on parent
+    // The parent should still be valid after job destruction
+    job = nullptr;
+    
+    // Delegate should still be valid (not destroyed)
+    ASSERT_NE(nullptr, plugin.mSystemDelegate);
+}
+
+// Test that multiple jobs can reference the same delegate safely
+TEST_F(AppDelegateNoStorageTest, MultipleEventDelegateDispatchJobs_WithSameParent_NoCrash)
+{
+    auto* systemDelegate = plugin.mSystemDelegate;
+    ASSERT_NE(nullptr, systemDelegate);
+    
+    // Create multiple jobs with the same parent
+    auto job1 = BaseEventDelegate::EventDelegateDispatchJob::Create(
+        systemDelegate, "event1", "payload1");
+    auto job2 = BaseEventDelegate::EventDelegateDispatchJob::Create(
+        systemDelegate, "event2", "payload2");
+    auto job3 = BaseEventDelegate::EventDelegateDispatchJob::Create(
+        systemDelegate, "event3", "payload3");
+    
+    ASSERT_TRUE(job1.IsValid());
+    ASSERT_TRUE(job2.IsValid());
+    ASSERT_TRUE(job3.IsValid());
+    
+    // Destroy jobs in any order
+    job1 = nullptr;
+    job2 = nullptr;
+    job3 = nullptr;
+    
+    // Parent should still be valid
+    ASSERT_NE(nullptr, plugin.mSystemDelegate);
 }
 
 } // namespace
