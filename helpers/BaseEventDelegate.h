@@ -54,7 +54,7 @@ public:
 
         virtual void Dispatch()
         {
-            if (mDelegate != nullptr) {
+            if (nullptr != mDelegate) {
                 mDelegate->DispatchToAppNotifications(mEvent, mPayload, mAppId);
             }
         }

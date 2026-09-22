@@ -83,7 +83,7 @@ namespace Plugin {
             const uint32_t connectionId)
                 : mParent(parent), mMethod(method), mParams(params), mRequestId(requestId), mConnectionId(connectionId)
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->AddRef();
                 }
             }
@@ -94,7 +94,7 @@ namespace Plugin {
             WsMsgJob &operator=(const WsMsgJob &) = delete;
             ~WsMsgJob()
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->Release();
                 }
             }
@@ -108,7 +108,7 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
                 }
             }
@@ -131,7 +131,7 @@ namespace Plugin {
             )
                 : mParent(parent), mPayload(payload), mRequestId(requestId), mConnectionId(connectionId)
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->AddRef();
                 }
             }
@@ -142,7 +142,7 @@ namespace Plugin {
             RespondJob &operator=(const RespondJob &) = delete;
             ~RespondJob()
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->Release();
                 }
             }
@@ -155,7 +155,7 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->ReturnMessageInSocket(mConnectionId, mRequestId, mPayload);
                 }
             }
@@ -177,7 +177,7 @@ namespace Plugin {
             )
                 : mParent(parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId)
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->AddRef();
                 }
             }
@@ -188,7 +188,7 @@ namespace Plugin {
             EmitJob &operator=(const EmitJob &) = delete;
             ~EmitJob()
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->Release();
                 }
             }
@@ -201,7 +201,7 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->mWsManager.DispatchNotificationToConnection(mConnectionId, mDesignator, mPayload);
                 }
             }
@@ -224,7 +224,7 @@ namespace Plugin {
             )
                 : mParent(parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId), mRequestId(requestId)
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->AddRef();
                 }
             }
@@ -235,7 +235,7 @@ namespace Plugin {
             RequestJob &operator=(const RequestJob &) = delete;
             ~RequestJob()
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->Release();
                 }
             }
@@ -248,7 +248,7 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->mWsManager.SendRequestToConnection(mConnectionId, mDesignator, mRequestId, mPayload);
                 }
             }
@@ -271,7 +271,7 @@ namespace Plugin {
             )
                 : mParent(parent), mConnectionId(connectionId), mAppId(appId), mConnected(connected)
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->AddRef();
                 }
             }
@@ -282,7 +282,7 @@ namespace Plugin {
             ConnectionStatusNotificationJob &operator=(const ConnectionStatusNotificationJob &) = delete;
             ~ConnectionStatusNotificationJob()
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->Release();
                 }
             }
@@ -295,7 +295,7 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->OnConnectionStatusChanged(mAppId, mConnectionId, mConnected);
                 }
             }

@@ -68,7 +68,7 @@ namespace Plugin {
             )
                 : mParent(parent), mPayload(payload), mContext(context), mDestination(destination)
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->AddRef();
                 }
             }
@@ -79,7 +79,7 @@ namespace Plugin {
             RespondJob &operator=(const RespondJob &) = delete;
             ~RespondJob()
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->Release();
                 }
             }
@@ -92,7 +92,7 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     if(ContextUtils::IsOriginGateway(mDestination)) {
                         mParent->ReturnMessageInSocket(mContext, std::move(mPayload));
                     } else {

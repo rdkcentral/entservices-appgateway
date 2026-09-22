@@ -161,7 +161,7 @@ namespace Plugin {
                 SubscriberJob(AppNotificationsImplementation* delegate, const string& module, const string& event, const bool subscribe)
                     : mParent(delegate), mEvent(event), mModule(module), mSubscribe(subscribe)
                 {
-                    if (mParent != nullptr) {
+                    if (nullptr != mParent) {
                         mParent->AddRef();
                     }
                 }
@@ -171,7 +171,7 @@ namespace Plugin {
                 SubscriberJob &operator=(const SubscriberJob &) = delete;
                 ~SubscriberJob()
                 {
-                    if (mParent != nullptr) {
+                    if (nullptr != mParent) {
                         mParent->Release();
                     }
                 }
@@ -184,7 +184,7 @@ namespace Plugin {
                 
                 virtual void Dispatch()
                 {
-                    if (mParent != nullptr) {
+                    if (nullptr != mParent) {
                         if (mSubscribe) {
                             mParent->mThunderManager.Subscribe(mModule, mEvent);
                         } else {
@@ -206,7 +206,7 @@ namespace Plugin {
                 EmitJob(AppNotificationsImplementation* delegate, const string& event, const string& payload, const string& appId)
                     : mParent(delegate), mEvent(event), mPayload(payload), mAppId(appId)
                 {
-                    if (mParent != nullptr) {
+                    if (nullptr != mParent) {
                         mParent->AddRef();
                     }
                 }
@@ -216,7 +216,7 @@ namespace Plugin {
                 EmitJob &operator=(const EmitJob &) = delete;
                 ~EmitJob()
                 {
-                    if (mParent != nullptr) {
+                    if (nullptr != mParent) {
                         mParent->Release();
                     }
                 }
@@ -229,7 +229,7 @@ namespace Plugin {
                 
                 virtual void Dispatch()
                 {
-                    if (mParent != nullptr) {
+                    if (nullptr != mParent) {
                         mParent->mSubMap.EventUpdate(mEvent, mPayload, mAppId);
                     }
                 }

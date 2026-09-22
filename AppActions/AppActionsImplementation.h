@@ -60,7 +60,7 @@ class AppActionsImplementation :
             NotifyJob(AppActionsImplementation* parent, const string& initiator, const string& intent, const string& handlerAppId)
                 : mParent(parent), mInitiator(initiator), mIntent(intent), mHandlerAppId(handlerAppId)
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->AddRef();
                 }
             }
@@ -70,7 +70,7 @@ class AppActionsImplementation :
             NotifyJob& operator=(const NotifyJob&) = delete;
             ~NotifyJob()
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->Release();
                 }
             }
@@ -83,7 +83,7 @@ class AppActionsImplementation :
 
             void Dispatch() override
             {
-                if (mParent != nullptr) {
+                if (nullptr != mParent) {
                     mParent->DispatchActionStartRequest(mInitiator, mIntent, mHandlerAppId);
                 }
             }

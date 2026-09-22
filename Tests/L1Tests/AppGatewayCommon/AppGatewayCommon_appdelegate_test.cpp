@@ -348,49 +348,57 @@ TEST_F(AppDelegateNoStorageTest, AGC_L1_026_GetAdvertisingId_NoSharedStorage_Ret
 // BaseEventDelegate Job Lifetime Safety Tests
 // =================================================================
 
-// Test that EventDelegateDispatchJob handles null parent gracefully
+// Test that EventDelegateDispatchJob handles null parent gracefully with shared_ptr
 TEST(BaseEventDelegateJobLifetime, EventDelegateDispatchJob_NullParent_CreatesSafely)
 {
+    std::shared_ptr<BaseEventDelegate> nullDelegate = nullptr;
     auto job = BaseEventDelegate::EventDelegateDispatchJob::Create(
-        nullptr, "testEvent", "testPayload");
+        nullDelegate, "testEvent", "testPayload");
     
     ASSERT_TRUE(job.IsValid());
 }
 
-// Test that EventDelegateDispatchJob properly references parent
-TEST_F(AppDelegateNoStorageTest, EventDelegateDispatchJob_WithValidParent_AddRefsParent)
+// Test that EventDelegateDispatchJob properly references parent with shared_ptr
+TEST_F(AppDelegateNoStorageTest, EventDelegateDispatchJob_WithValidParent_UsesSharedPtr)
 {
-    // Get a delegate from the plugin (e.g., SystemDelegate)
-    auto* systemDelegate = plugin.mSystemDelegate;
+    // Get a delegate from the plugin using the correct accessor
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
     ASSERT_NE(nullptr, systemDelegate);
     
-    // Create job with valid parent
+    // Create job with valid parent using shared_ptr
+    auto delegateSharedPtr = std::dynamic_pointer_cast<BaseEventDelegate>(systemDelegate);
+    ASSERT_NE(nullptr, delegateSharedPtr);
+    
     auto job = BaseEventDelegate::EventDelegateDispatchJob::Create(
-        systemDelegate, "testEvent", "testPayload");
+        delegateSharedPtr, "testEvent", "testPayload");
     
     ASSERT_TRUE(job.IsValid());
     
-    // Job should have called AddRef() on parent
+    // Job should hold shared_ptr reference
     // The parent should still be valid after job destruction
     job = nullptr;
     
     // Delegate should still be valid (not destroyed)
-    ASSERT_NE(nullptr, plugin.mSystemDelegate);
+    systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(nullptr, systemDelegate);
 }
 
-// Test that multiple jobs can reference the same delegate safely
+// Test that multiple jobs can reference the same delegate safely with shared_ptr
 TEST_F(AppDelegateNoStorageTest, MultipleEventDelegateDispatchJobs_WithSameParent_NoCrash)
 {
-    auto* systemDelegate = plugin.mSystemDelegate;
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
     ASSERT_NE(nullptr, systemDelegate);
     
-    // Create multiple jobs with the same parent
+    auto delegateSharedPtr = std::dynamic_pointer_cast<BaseEventDelegate>(systemDelegate);
+    ASSERT_NE(nullptr, delegateSharedPtr);
+    
+    // Create multiple jobs with the same parent using shared_ptr
     auto job1 = BaseEventDelegate::EventDelegateDispatchJob::Create(
-        systemDelegate, "event1", "payload1");
+        delegateSharedPtr, "event1", "payload1");
     auto job2 = BaseEventDelegate::EventDelegateDispatchJob::Create(
-        systemDelegate, "event2", "payload2");
+        delegateSharedPtr, "event2", "payload2");
     auto job3 = BaseEventDelegate::EventDelegateDispatchJob::Create(
-        systemDelegate, "event3", "payload3");
+        delegateSharedPtr, "event3", "payload3");
     
     ASSERT_TRUE(job1.IsValid());
     ASSERT_TRUE(job2.IsValid());
@@ -401,8 +409,9 @@ TEST_F(AppDelegateNoStorageTest, MultipleEventDelegateDispatchJobs_WithSameParen
     job2 = nullptr;
     job3 = nullptr;
     
-    // Parent should still be valid
-    ASSERT_NE(nullptr, plugin.mSystemDelegate);
+    // Parent should still be valid due to shared_ptr ownership
+    systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(nullptr, systemDelegate);
 }
 
 } // namespace

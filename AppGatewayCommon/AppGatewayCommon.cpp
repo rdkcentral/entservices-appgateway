@@ -613,6 +613,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
                 return false;
             }
 
+            // Lock to prevent race with Deinitialize resetting mDelegate
+            std::lock_guard<std::mutex> lk(mJobDrainMutex);
+
             if (nullptr == mDelegate) {
                 LOGERR("SafeSubmitEventRegistrationJob: Delegate is null");
                 return false;

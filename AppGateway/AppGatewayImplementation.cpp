@@ -556,7 +556,7 @@ namespace WPEFramework
 
         void AppGatewayImplementation::EventHookJob::Dispatch()
         {
-            if (mParent != nullptr) {
+            if (nullptr != mParent) {
                 LOGINFO("EventHookJob: triggering hook method=%s for appId=%s",
                          mHookMethod.c_str(), mContext.appId.c_str());
                 std::string resolution;

@@ -54,7 +54,7 @@ namespace WPEFramework {
                     if (mCallback != nullptr) {
                         mCallback->AddRef();
                     }
-                    if (mParent != nullptr) {
+                    if (nullptr != mParent) {
                         mParent->AddRef();
                     }
                 }
@@ -68,7 +68,7 @@ namespace WPEFramework {
                         mCallback->Release();
                         mCallback = nullptr;
                     }
-                    if (mParent != nullptr) {
+                    if (nullptr != mParent) {
                         mParent->Release();
                     }
                 }
@@ -80,7 +80,7 @@ namespace WPEFramework {
                 }
                 virtual void Dispatch()
                 {
-                    if (mParent != nullptr) {
+                    if (nullptr != mParent) {
                         mParent->mDelegate->HandleAppEventNotifier(mCallback, mEvent, mListen);
                         // fetch_sub returns the previous value; if it was 1 the
                         // counter is now 0 (last in-flight job finished). Lock
