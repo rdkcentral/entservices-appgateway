@@ -50,9 +50,12 @@ namespace WPEFramework {
                 EventRegistrationJob(AppGatewayCommon *parent,
                 Exchange::IAppNotificationHandler::IEmitter *cb,
                 const string &event,
-                const bool listen): mParent(*parent), mCallback(cb), mEvent(event), mListen(listen) {
+                const bool listen): mParent(parent), mCallback(cb), mEvent(event), mListen(listen) {
                     if (mCallback != nullptr) {
                         mCallback->AddRef();
+                    }
+                    if (mParent != nullptr) {
+                        mParent->AddRef();
                     }
                 }
             public:
@@ -65,6 +68,9 @@ namespace WPEFramework {
                         mCallback->Release();
                         mCallback = nullptr;
                     }
+                    if (mParent != nullptr) {
+                        mParent->Release();
+                    }
                 }
 
                 static Core::ProxyType<Core::IDispatch> Create(AppGatewayCommon *parent,
@@ -74,19 +80,21 @@ namespace WPEFramework {
                 }
                 virtual void Dispatch()
                 {
-                    mParent.mDelegate->HandleAppEventNotifier(mCallback, mEvent, mListen);
-                    // fetch_sub returns the previous value; if it was 1 the
-                    // counter is now 0 (last in-flight job finished). Lock
-                    // the mutex so the notify wakes up Deinitialize's
-                    // wait — this ensures the signal is never missed.
-                    if (1 == mParent.mActiveJobs.fetch_sub(1, std::memory_order_acq_rel)) {
-                        std::lock_guard<std::mutex> lk(mParent.mJobDrainMutex);
-                        mParent.mJobDrainCv.notify_all();
+                    if (mParent != nullptr) {
+                        mParent->mDelegate->HandleAppEventNotifier(mCallback, mEvent, mListen);
+                        // fetch_sub returns the previous value; if it was 1 the
+                        // counter is now 0 (last in-flight job finished). Lock
+                        // the mutex so the notify wakes up Deinitialize's
+                        // wait — this ensures the signal is never missed.
+                        if (1 == mParent->mActiveJobs.fetch_sub(1, std::memory_order_acq_rel)) {
+                            std::lock_guard<std::mutex> lk(mParent->mJobDrainMutex);
+                            mParent->mJobDrainCv.notify_all();
+                        }
                     }
                 }
 
             private:
-            AppGatewayCommon &mParent;
+            AppGatewayCommon *mParent;
             Exchange::IAppNotificationHandler::IEmitter *mCallback;
             const string mEvent;
             const bool mListen;
