@@ -68,18 +68,23 @@ public:
     {
     }
 
-    ~BaseEventDelegate()
+    virtual ~BaseEventDelegate()
     {
         // Cleanup registered notifications
-        for (auto &entry : mRegisteredNotifications)
+        std::map<string, std::unordered_set<Exchange::IAppNotificationHandler::IEmitter*>> local;
+
+        {
+            std::lock_guard<std::mutex> lock(mRegisterMutex);
+            local.swap(mRegisteredNotifications);
+        }
+
+        for (auto &entry : local)
         {
             for (auto emitter : entry.second)
             {
                 emitter->Release();
             }
         }
-
-        mRegisteredNotifications.clear();
     }
 
     virtual bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError) = 0;
