@@ -7,6 +7,7 @@
 #include "Module.h"
 #include <interfaces/IConfiguration.h>
 #include <interfaces/IAppActions.h>
+#include "UtilsAppGatewayTelemetry.h"
 
 namespace WPEFramework {
 namespace Plugin {
@@ -54,7 +55,8 @@ class AppActionsImplementation :
 
     private:
 
-        class EXTERNAL NotifyJob : public Core::IDispatch
+        class EXTERNAL NotifyJob : public Core::IDispatch,
+                                   public AppGatewayTelemetryHelper::JobTiming
         {
         public:
             NotifyJob(AppActionsImplementation* parent, const string& initiator, const string& intent, const string& handlerAppId)
@@ -79,6 +81,8 @@ class AppActionsImplementation :
 
             void Dispatch() override
             {
+                AGW_TIME_JOB(timer, "NotifyJob[" + mIntent + "]",
+                    0, 0, mHandlerAppId);
                 mParent.DispatchActionStartRequest(mInitiator, mIntent, mHandlerAppId);
             }
 
