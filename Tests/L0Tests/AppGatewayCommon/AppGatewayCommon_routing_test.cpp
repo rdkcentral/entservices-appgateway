@@ -892,3 +892,115 @@ uint32_t Test_HandleRequest_ActionsStart_EmptyObjectIntentField()
     ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "actions.start with empty object intent field returns ERROR_BAD_REQUEST");
     return tr.failures;
 }
+
+// ============================================================================
+// texttospeech.speak tests
+// ============================================================================
+
+// texttospeech.speak with valid payload returns ERROR_UNAVAILABLE in L0
+// because the TTS COM-RPC interface (GetTTS()) is nullptr.
+uint32_t Test_HandleRequest_TextToSpeechSpeak_ValidPayload()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "texttospeech.speak", R"({"text":"Hello world"})", result);
+    ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "texttospeech.speak returns ERROR_UNAVAILABLE when TTS plugin unavailable");
+    return tr.failures;
+}
+
+// texttospeech.speak with empty payload returns ERROR_BAD_REQUEST.
+uint32_t Test_HandleRequest_TextToSpeechSpeak_EmptyPayload()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "texttospeech.speak", "", result);
+    ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "texttospeech.speak with empty payload returns ERROR_BAD_REQUEST");
+    return tr.failures;
+}
+
+// texttospeech.speak with null payload returns ERROR_BAD_REQUEST.
+uint32_t Test_HandleRequest_TextToSpeechSpeak_NullPayload()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "texttospeech.speak", "null", result);
+    ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "texttospeech.speak with null payload returns ERROR_BAD_REQUEST");
+    return tr.failures;
+}
+
+// texttospeech.speak with invalid JSON payload returns ERROR_BAD_REQUEST.
+uint32_t Test_HandleRequest_TextToSpeechSpeak_InvalidJSON()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "texttospeech.speak", "{invalid json}", result);
+    ExpectEqU32(tr, rc, ERROR_BAD_REQUEST, "texttospeech.speak with invalid JSON returns ERROR_BAD_REQUEST");
+    return tr.failures;
+}
+
+// texttospeech.speak with empty text returns ERROR_INVALID_INPUT_LENGTH.
+uint32_t Test_HandleRequest_TextToSpeechSpeak_EmptyText()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "texttospeech.speak", R"({"text":""})", result);
+    ExpectEqU32(tr, rc, ERROR_INVALID_INPUT_LENGTH, "texttospeech.speak with empty text returns ERROR_INVALID_INPUT_LENGTH");
+    return tr.failures;
+}
+
+// texttospeech.speak with empty callsign (from ctx.appId) returns ERROR_INVALID_INPUT_LENGTH.
+uint32_t Test_HandleRequest_TextToSpeechSpeak_EmptyCallsign()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+    ctx.appId = ""; // Empty callsign from context
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "texttospeech.speak", R"({"text":"Hello"})", result);
+    ExpectEqU32(tr, rc, ERROR_INVALID_INPUT_LENGTH, "texttospeech.speak with empty callsign returns ERROR_INVALID_INPUT_LENGTH");
+    return tr.failures;
+}
+
+// texttospeech.speak is case-insensitive: TEXTTOSPEECH.SPEAK is lowered
+// internally and routes to the same handler as texttospeech.speak.
+uint32_t Test_HandleRequest_TextToSpeechSpeak_CaseInsensitive()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "TEXTTOSPEECH.SPEAK", R"({"text":"Hello"})", result);
+    ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "TEXTTOSPEECH.SPEAK (uppercase) routes same as texttospeech.speak");
+    return tr.failures;
+}

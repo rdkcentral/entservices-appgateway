@@ -124,6 +124,15 @@ extern uint32_t Test_HandleRequest_PresentationFocused_Routed();
 extern uint32_t Test_HandleRequest_PresentationFocused_ResultIsBooleanString();
 extern uint32_t Test_HandleRequest_PresentationFocused_CaseInsensitive();
 
+// AppGatewayCommon_routing_test.cpp (texttospeech.speak tests)
+extern uint32_t Test_HandleRequest_TextToSpeechSpeak_ValidPayload();
+extern uint32_t Test_HandleRequest_TextToSpeechSpeak_EmptyPayload();
+extern uint32_t Test_HandleRequest_TextToSpeechSpeak_NullPayload();
+extern uint32_t Test_HandleRequest_TextToSpeechSpeak_InvalidJSON();
+extern uint32_t Test_HandleRequest_TextToSpeechSpeak_EmptyText();
+extern uint32_t Test_HandleRequest_TextToSpeechSpeak_EmptyCallsign();
+extern uint32_t Test_HandleRequest_TextToSpeechSpeak_CaseInsensitive();
+
 // AppGatewayCommon_routing_test.cpp (ParentalControl getters — AGC_L0_101–AGC_L0_103)
 extern uint32_t Test_HandleRequest_ParentalControl_PinControl();
 extern uint32_t Test_HandleRequest_ParentalControl_BlockNotRatedContent();
@@ -262,6 +271,14 @@ int main()
         { "HandleRequest_PresentationFocused_Routed",             Test_HandleRequest_PresentationFocused_Routed },
         { "HandleRequest_PresentationFocused_ResultIsBooleanStr", Test_HandleRequest_PresentationFocused_ResultIsBooleanString },
         { "HandleRequest_PresentationFocused_CaseInsensitive",    Test_HandleRequest_PresentationFocused_CaseInsensitive },
+        // --- texttospeech.speak tests ---
+        { "HandleRequest_TextToSpeechSpeak_ValidPayload",        Test_HandleRequest_TextToSpeechSpeak_ValidPayload },
+        { "HandleRequest_TextToSpeechSpeak_EmptyPayload",        Test_HandleRequest_TextToSpeechSpeak_EmptyPayload },
+        { "HandleRequest_TextToSpeechSpeak_NullPayload",         Test_HandleRequest_TextToSpeechSpeak_NullPayload },
+        { "HandleRequest_TextToSpeechSpeak_InvalidJSON",        Test_HandleRequest_TextToSpeechSpeak_InvalidJSON },
+        { "HandleRequest_TextToSpeechSpeak_EmptyText",          Test_HandleRequest_TextToSpeechSpeak_EmptyText },
+        { "HandleRequest_TextToSpeechSpeak_EmptyCallsign",       Test_HandleRequest_TextToSpeechSpeak_EmptyCallsign },
+        { "HandleRequest_TextToSpeechSpeak_CaseInsensitive",     Test_HandleRequest_TextToSpeechSpeak_CaseInsensitive },
         // --- ParentalControl getter tests (AGC_L0_101–AGC_L0_103) ---
         { "HandleRequest_ParentalControl_PinControl",             Test_HandleRequest_ParentalControl_PinControl },
         { "HandleRequest_ParentalControl_BlockNotRatedContent",   Test_HandleRequest_ParentalControl_BlockNotRatedContent },
