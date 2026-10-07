@@ -14,7 +14,7 @@ env:
   THUNDER_TOOLS_REF: "R4_4-RDK"
   THUNDER_TOOLS_COMMIT_SHA: "d5dd83c7c19c49c7f25c558c126500bd2d64f7a4"
   THUNDER_COMMIT_SHA: "2c0fcc5529e7da734be558ca6efa05d934dcce31"
-  INTERFACES_REF: "topic/RDKEMW-20993"
+  INTERFACES_REF: "20bd0b0825acfe27eb33ffd0e7e38fc0702e82d5"
   NETWORKMANAGER_REF: "cea0da05b03de770e4ce967f0446f28885fc6219"
   AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME}}
   AUTOMATICS_PASSCODE: ${{ secrets. AUTOMATICS_PASSCODE}}
@@ -167,10 +167,7 @@ jobs:
           #patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/1004-Add-support-for-project-dir.patch
           #patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/RDKEMW-733-Add-ENTOS-IDS.patch
           #patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/Jsonrpc_dynamic_error_handling.patch
-          # COM-RPC's default CommunicationTimeOut is too short for the coverage-instrumented L2Tests plugin to activate; raises it to 15 min.
-          # Use sed instead of the patch file: the pinned Thunder commit already changed this value upstream (3000 -> 20000),
-          # which breaks the patch's diff context ("Hunk FAILED"). sed is resilient to the upstream value changing again.
-          sed -i -E 's/(CommunicationTimeOut = )[0-9]+( \};)/\1900000\2/' Source/com/Administrator.h
+          #patch -p1 < $GITHUB_WORKSPACE/entservices-testframework/patches/Increase_Timout_For_L2Tests_Plugin.patch
           cd -
       - name: Build Thunder
         run: >
