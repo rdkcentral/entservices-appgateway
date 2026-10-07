@@ -232,8 +232,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Optional: write extracted numbers for baseline update.
     # Skipped (with a warning) when either of L0/L1 lacks valid coverage
-    # data. L2 is included in the payload only when available, so callers
-    # that do not pass --l2 keep producing an L0/L1-only baseline.
+    # data. When --l2 is omitted, preserve any existing L2 baseline value.
     # ------------------------------------------------------------------
     if args.output_json:
         coverage_complete = (
@@ -250,6 +249,8 @@ def main() -> None:
             }
             if l2_coverage is not None:
                 payload["L2"] = l2_coverage
+            elif baseline_l2 is not None:
+                payload["L2"] = baseline_l2
             try:
                 with open(args.output_json, "w", encoding="utf-8") as fh:
                     json.dump(payload, fh, indent=2)
