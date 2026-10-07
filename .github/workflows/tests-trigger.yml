@@ -29,6 +29,11 @@ jobs:
   coverage-gate:
     name: Coverage Gate
     needs: [trigger-L0, trigger-L1, trigger-L2]
+    if: >-
+      ${{ !cancelled() &&
+      needs.trigger-L0.result == 'success' &&
+      needs.trigger-L1.result == 'success' &&
+      (needs.trigger-L2.result == 'success' || needs.trigger-L2.result == 'skipped') }}
     runs-on: ubuntu-latest
     # Transient runner/action failures must not block
     continue-on-error: true
@@ -102,12 +107,13 @@ jobs:
     # AND the coverage gate passes. If coverage fails the gate (below threshold
     # or regressed from baseline), the baseline must not be updated.
     if: >-
+      ${{ !cancelled() &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/develop' &&
       needs.trigger-L0.result == 'success' &&
       needs.trigger-L1.result == 'success' &&
       (needs.trigger-L2.result == 'success' || needs.trigger-L2.result == 'skipped') &&
-      needs.coverage-gate.result == 'success'
+      needs.coverage-gate.result == 'success' }}
     needs: [trigger-L0, trigger-L1, trigger-L2, coverage-gate]
     runs-on: ubuntu-latest
     permissions:
