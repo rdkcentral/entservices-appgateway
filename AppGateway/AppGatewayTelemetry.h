@@ -34,6 +34,8 @@
 
 // Default cache threshold (number of records before forced flush)
 #define TELEMETRY_DEFAULT_CACHE_THRESHOLD                    1000
+#define TELEMETRY_DEFAULT_JOB_TIMING_QUEUE_WAIT_THRESHOLD_MS 250.0
+#define TELEMETRY_DEFAULT_JOB_TIMING_TOTAL_THRESHOLD_MS      1000.0
 
 namespace WPEFramework {
 namespace Plugin {
@@ -192,6 +194,22 @@ namespace Plugin {
         ~AppGatewayTelemetry() override;
 
     private:
+        class JobTimingConfig : public Core::JSON::Container
+        {
+        public:
+            JobTimingConfig()
+                : Core::JSON::Container()
+                , QueueWaitThresholdMs(TELEMETRY_DEFAULT_JOB_TIMING_QUEUE_WAIT_THRESHOLD_MS)
+                , TotalThresholdMs(TELEMETRY_DEFAULT_JOB_TIMING_TOTAL_THRESHOLD_MS)
+            {
+                Add(_T("queueWaitThresholdMs"), &QueueWaitThresholdMs);
+                Add(_T("totalThresholdMs"), &TotalThresholdMs);
+            }
+
+            Core::JSON::Double QueueWaitThresholdMs;
+            Core::JSON::Double TotalThresholdMs;
+        };
+
         /**
          * @brief Metric data structure for aggregation
          */
@@ -596,6 +614,8 @@ namespace Plugin {
         // Configuration
         uint32_t mReportingIntervalSec;
         uint32_t mCacheThreshold;
+        double mJobTimingQueueWaitThresholdMs;
+        double mJobTimingTotalThresholdMs;
         TelemetryFormat mTelemetryFormat;  // Output format (JSON or COMPACT)
 
         // Timer for periodic reporting

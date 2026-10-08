@@ -40,6 +40,8 @@ namespace Plugin {
         : mService(nullptr)
         , mReportingIntervalSec(TELEMETRY_DEFAULT_REPORTING_INTERVAL_SEC)
         , mCacheThreshold(TELEMETRY_DEFAULT_CACHE_THRESHOLD)
+        , mJobTimingQueueWaitThresholdMs(TELEMETRY_DEFAULT_JOB_TIMING_QUEUE_WAIT_THRESHOLD_MS)
+        , mJobTimingTotalThresholdMs(TELEMETRY_DEFAULT_JOB_TIMING_TOTAL_THRESHOLD_MS)
         , mTelemetryFormat(TelemetryFormat::JSON)  // Default to JSON format
         , mTimer(Core::ProxyType<TelemetryTimer>::Create(this))
         , mTimerHandler(1024 * 64, _T("AppGwTelemetryTimer"))
@@ -67,6 +69,27 @@ namespace Plugin {
 
         mService = service;
         mReportingStartTime = std::chrono::steady_clock::now();
+        mJobTimingQueueWaitThresholdMs = TELEMETRY_DEFAULT_JOB_TIMING_QUEUE_WAIT_THRESHOLD_MS;
+        mJobTimingTotalThresholdMs = TELEMETRY_DEFAULT_JOB_TIMING_TOTAL_THRESHOLD_MS;
+
+        if (mService != nullptr) {
+            JobTimingConfig config;
+            Core::OptionalType<Core::JSON::Error> error;
+            const std::string configLine = mService->ConfigLine();
+            if (config.FromString(configLine, error)) {
+                if (config.QueueWaitThresholdMs.Value() >= 0.0) {
+                    mJobTimingQueueWaitThresholdMs = config.QueueWaitThresholdMs.Value();
+                }
+                if (config.TotalThresholdMs.Value() >= 0.0) {
+                    mJobTimingTotalThresholdMs = config.TotalThresholdMs.Value();
+                }
+            } else {
+                LOGWARN("AppGatewayTelemetry: Failed to parse JobTiming config: %s, using defaults",
+                    error.IsSet() ? error.Value().Message().c_str() : "Unknown");
+            }
+        }
+        LOGINFO("AppGatewayTelemetry: JobTiming warning thresholds queue_wait_ms=%.2f ms, total_ms=%.2f ms",
+            mJobTimingQueueWaitThresholdMs, mJobTimingTotalThresholdMs);
 
         // Telemetry initialization is handled by PowerManager for all Thunder plugins,
         // including AppGateway. Avoid calling init() here to prevent multiple initializations.
@@ -1590,10 +1613,10 @@ namespace Plugin {
 
         const bool excessiveQueueWait = payloadObj.HasLabel("queue_wait_ms") &&
             payloadObj["queue_wait_ms"].Content() == Core::JSON::Variant::type::NUMBER &&
-            payloadObj["queue_wait_ms"].Number() > 250.0;
+            payloadObj["queue_wait_ms"].Number() > mJobTimingQueueWaitThresholdMs;
         const bool excessiveTotalTime = payloadObj.HasLabel("total_ms") &&
             payloadObj["total_ms"].Content() == Core::JSON::Variant::type::NUMBER &&
-            payloadObj["total_ms"].Number() > 1000.0;
+            payloadObj["total_ms"].Number() > mJobTimingTotalThresholdMs;
         if (excessiveQueueWait || excessiveTotalTime) {
             LOGWARN("marker=%s, payload=%s", AGW_MARKER_JOB_TIMING, formattedPayload.c_str());
         }
