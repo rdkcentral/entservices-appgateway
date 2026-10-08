@@ -27,6 +27,7 @@
 #include <com/com.h>
 #include <core/core.h>
 #include <map>
+#include "UtilsAppGatewayTelemetry.h"
 #include <unordered_set>
 #include <sstream>
 #include <unordered_map>
@@ -73,7 +74,8 @@ namespace Plugin {
         uint32_t Configure(PluginHost::IShell* service) override;
 
     private:
-        class EXTERNAL WsMsgJob : public Core::IDispatch
+        class EXTERNAL WsMsgJob : public Core::IDispatch,
+                                  public AppGatewayTelemetryHelper::JobTiming
         {
         protected:
             WsMsgJob(AppGatewayResponderImplementation *parent, 
@@ -104,6 +106,8 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                AGW_TIME_JOB(timer, "WsMsgJob[" + mMethod + "]",
+                    mRequestId, mConnectionId, "");
                 mParent.DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
             }
 
@@ -115,7 +119,8 @@ namespace Plugin {
             const uint32_t mConnectionId;
         };
 
-        class EXTERNAL RespondJob : public Core::IDispatch
+        class EXTERNAL RespondJob : public Core::IDispatch,
+                                    public AppGatewayTelemetryHelper::JobTiming
         {
         protected:
             RespondJob(AppGatewayResponderImplementation *parent, 
@@ -145,6 +150,8 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                AGW_TIME_JOB(timer, "RespondJob", 
+                    mRequestId, mConnectionId, "");
                 mParent.ReturnMessageInSocket(mConnectionId, mRequestId, mPayload);                
             }
 
@@ -155,7 +162,8 @@ namespace Plugin {
             const uint32_t mConnectionId;
         };
 
-          class EXTERNAL EmitJob : public Core::IDispatch
+          class EXTERNAL EmitJob : public Core::IDispatch,
+                                  public AppGatewayTelemetryHelper::JobTiming
         {
         protected:
             EmitJob(AppGatewayResponderImplementation *parent, 
@@ -185,6 +193,8 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                AGW_TIME_JOB(timer, "EmitJob[" + mDesignator + "]",
+                    0, mConnectionId, "");
                 mParent.mWsManager.DispatchNotificationToConnection(mConnectionId, mDesignator, mPayload);
             }
 
@@ -195,7 +205,8 @@ namespace Plugin {
             const uint32_t mConnectionId;
         };
 
-        class EXTERNAL RequestJob : public Core::IDispatch
+        class EXTERNAL RequestJob : public Core::IDispatch,
+                                    public AppGatewayTelemetryHelper::JobTiming
         {
         protected:
             RequestJob(AppGatewayResponderImplementation *parent, 
@@ -226,6 +237,8 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                AGW_TIME_JOB(timer, "RequestJob[" + mDesignator + "]",
+                    mRequestId, mConnectionId, "");
                 mParent.mWsManager.SendRequestToConnection(mConnectionId, mDesignator, mRequestId, mPayload);
             }
 
@@ -237,7 +250,8 @@ namespace Plugin {
             const uint32_t mRequestId;
         };
 
-        class EXTERNAL ConnectionStatusNotificationJob : public Core::IDispatch
+        class EXTERNAL ConnectionStatusNotificationJob : public Core::IDispatch,
+                                                         public AppGatewayTelemetryHelper::JobTiming
         {
         protected:
             ConnectionStatusNotificationJob(AppGatewayResponderImplementation *parent,
@@ -267,6 +281,8 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                AGW_TIME_JOB(timer, "ConnStatusJob[" + std::string(mConnected?"connect":"disconnect") + "]",
+                    0, mConnectionId, mAppId);
                 mParent.OnConnectionStatusChanged(mAppId, mConnectionId, mConnected);
             }
 
