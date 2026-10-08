@@ -32,7 +32,7 @@
 #define APPGATEWAY_SOCKET_ADDRESS "127.0.0.1:3473"
 #define DEFAULT_CONFIG_PATH "/etc/app-gateway/resolution.base.json"
 
-namespace WPEFramework
+namespace Thunder
 {
     namespace Plugin
     {
@@ -311,7 +311,7 @@ namespace WPEFramework
                                appId.c_str(), connectionId, requestId, method.c_str(), params.c_str());
                     } else {
                         bool hasSensitiveParams = false;
-                        const std::string safeParams = WPEFramework::LogSanitizer::RedactSensitiveForLog(params, hasSensitiveParams);
+                        const std::string safeParams = Thunder::LogSanitizer::RedactSensitiveForLog(params, hasSensitiveParams);
                         if (hasSensitiveParams) {
                             LOGDBG("%s-->[[a-%d-%d]] method=%s, %s",
                                    appId.c_str(), connectionId, requestId, method.c_str(), safeParams.c_str());
@@ -360,7 +360,7 @@ namespace WPEFramework
                     LOGDBG("<--[[a-%d-%d]] payload=%s", connectionId, requestId, payload.c_str());
                 } else {
                     bool hasSensitiveData = false;
-                    const std::string safePayload = WPEFramework::LogSanitizer::RedactSensitiveForLog(payload, hasSensitiveData);
+                    const std::string safePayload = Thunder::LogSanitizer::RedactSensitiveForLog(payload, hasSensitiveData);
                     if (hasSensitiveData) {
                         LOGDBG("<--[[a-%d-%d]] %s", connectionId, requestId, safePayload.c_str());
                     } else {
@@ -444,4 +444,4 @@ namespace WPEFramework
         }
 
     } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

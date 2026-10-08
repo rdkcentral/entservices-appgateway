@@ -22,7 +22,7 @@
 #include <interfaces/IAppNotifications.h>
 
 
-namespace WPEFramework {
+namespace Thunder {
 
     namespace Plugin {
 
@@ -67,4 +67,4 @@ namespace WPEFramework {
             uint32_t mConnectionId;
         };
 	} // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

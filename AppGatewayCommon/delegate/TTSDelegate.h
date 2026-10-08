@@ -33,7 +33,7 @@
 #define APP_API_METHOD_PREFIX "TextToSpeech."
 #define APP_SPEECH_SYNTHESIS_METHOD_PREFIX "SpeechSynthesis."
 
-using namespace WPEFramework;
+using namespace Thunder;
 
 class TTSDelegate : public BaseEventDelegate
 {

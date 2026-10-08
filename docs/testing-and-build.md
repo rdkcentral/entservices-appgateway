@@ -27,7 +27,7 @@ Root CMake
 
 ## 3. Code Organization (Folder & File-Level)
 
-- `CMakeLists.txt`: discovers WPEFramework, defines global options/definitions, and conditionally adds four plugin directories and test trees.
+- `CMakeLists.txt`: discovers Thunder, defines global options/definitions, and conditionally adds four plugin directories and test trees.
 - `Tests/L0Tests`: focused branch/unit tests for all four subsystems, common bootstrap helpers, and mocks.
 - `Tests/L1Tests`: service-level tests for AppGateway, AppNotifications, AppActions, AppGatewayCommon, and utilities.
 - `Tests/L2Tests`: integration-style AppGateway tests.
@@ -54,7 +54,7 @@ Actual test setup calls the production lifecycle, for example the AppGateway sui
 
 ## 5. Configuration & Build Integration
 
-Root options include `PLUGIN_APPGATEWAY`, `PLUGIN_APPNOTIFICATIONS`, `PLUGIN_APPGATEWAYCOMMON`, and `PLUGIN_APPACTIONS`; test options include `RDK_SERVICES_L1_TEST` and `RDK_SERVICE_L2_TEST`. `BUILD_ENABLE_TELEMETRY_LOGGING` adds telemetry definitions. `DISABLE_SECURITY_TOKEN` and `USE_THUNDER_R4` alter compile behavior.
+Root options include `PLUGIN_APPGATEWAY`, `PLUGIN_APPNOTIFICATIONS`, `PLUGIN_APPGATEWAYCOMMON`, and `PLUGIN_APPACTIONS`; test options include `RDK_SERVICES_L1_TEST` and `RDK_SERVICE_L2_TEST`. `BUILD_ENABLE_TELEMETRY_LOGGING` adds telemetry definitions. `DISABLE_SECURITY_TOKEN` alters compile behavior, while Thunder API compatibility comes from the header-provided `THUNDER_VERSION` macro.
 
 Plugin CMake files use `${NAMESPACE}` for plugin/definition packages at the target level, install modules under `lib/${STORAGE_DIRECTORY}/plugins`, and generate plugin configuration with `write_config`. AppGateway adds optional automation and telemetry-msgsender flags.
 

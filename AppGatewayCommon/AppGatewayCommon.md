@@ -76,7 +76,7 @@ The delegate classes encapsulate platform-specific COM-RPC calls. The exact memb
 
 `AppGatewayCommon.conf.in` defines callsign `org.rdk.AppGatewayCommon`, `precondition = ["Platform"]`, generated autostart/startup order, and no explicit mode/locator in the checked-in template. CMake sets version `1.0.0`, uses C++11, links Thunder plugins/definitions and `uuid`, and defines `MODULE_NAME=Plugin_AppGatewayCommon`. `ENABLE_FIREBOLT_TEXTTRACK` enables an optional compile definition; L2 builds omit `-Wl,-z,defs` for coverage compatibility.
 
-Runtime dependencies are acquired through `IShell` and delegate classes. `RDKAPPMANAGERS_PATH` is defined at the root build level; `DISABLE_SECURITY_TOKEN` and `USE_THUNDER_R4` are also root-level options.
+Runtime dependencies are acquired through `IShell` and delegate classes. `RDKAPPMANAGERS_PATH` and `DISABLE_SECURITY_TOKEN` are defined at the root build level. Thunder API compatibility is selected from the `THUNDER_VERSION` macro provided by the Thunder headers.
 
 ## 6. Internal Workflows & Execution Flow
 

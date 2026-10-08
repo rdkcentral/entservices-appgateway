@@ -45,7 +45,7 @@
 #define VENDOR_CONFIG_PATH ""
 #endif
 
-namespace WPEFramework
+namespace Thunder
 {
     namespace Plugin
     {
@@ -464,7 +464,7 @@ namespace WPEFramework
                     LOGWARN("Failed to parse original params as JSON: %s", params.c_str());
                 }
                 if (onlyAdditionalContext) {
-                    if (additionalContext.Content() == WPEFramework::Core::JSON::Variant::type::OBJECT) {
+                    if (additionalContext.Content() == Thunder::Core::JSON::Variant::type::OBJECT) {
                         JsonObject contextWithOrigin = additionalContext.Object();
                         contextWithOrigin["origin"] = origin;
                         JsonObject finalParamsObject;
@@ -640,5 +640,5 @@ namespace WPEFramework
         }
 
     } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder
 

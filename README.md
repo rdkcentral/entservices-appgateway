@@ -15,7 +15,7 @@ Each guide contains purpose, architecture, file/class walkthroughs, configuratio
 
 > **License:** Apache 2.0 — Copyright 2023–2025 Comcast Cable Communications Management, LLC / RDK Management
 
-`entservices-appgateway` is an RDK / WPEFramework (Thunder) plugin suite that implements the **Firebolt-compatible API Gateway** for applications running on RDK devices. It replaces the legacy Ripple Gateway and provides a single, authenticated WebSocket entry-point for all app-facing JSON-RPC calls.
+`entservices-appgateway` is an RDK Thunder plugin suite that implements the **Firebolt-compatible API Gateway** for applications running on RDK devices. It replaces the legacy Ripple Gateway and provides a single, authenticated WebSocket entry-point for all app-facing JSON-RPC calls.
 
 ---
 
@@ -229,7 +229,7 @@ See [docs/BuildSystem.md](docs/BuildSystem.md) for the full flag reference.
 | [Tests/docs/L0/AppNotifications.md](Tests/docs/L0/AppNotifications.md) | AppNotifications L0 tests — quick reference |
 | [Tests/docs/L1/AppNotificationsL1Tests.md](Tests/docs/L1/AppNotificationsL1Tests.md) | AppNotifications L1 tests — full test case list |
 | [Tests/L0Tests/common/README.md](Tests/L0Tests/common/README.md) | Shared L0 test utilities (`Tests/L0Tests/common`) |
-| [Tests/CopilotFiles/copilot-instructions-mock.md](Tests/CopilotFiles/copilot-instructions-mock.md) | WPEFramework plugin mock generation guide |
+| [Tests/CopilotFiles/copilot-instructions-mock.md](Tests/CopilotFiles/copilot-instructions-mock.md) | Thunder plugin mock generation guide |
 | [Tests/CopilotFiles/l1_tests.instructions.md](Tests/CopilotFiles/l1_tests.instructions.md) | Copilot instructions for L1 test generation |
 | [Tests/L0Tests/AppGatewayCommon/prompts/create-l0-tests-for-staged-changes.md](Tests/L0Tests/AppGatewayCommon/prompts/create-l0-tests-for-staged-changes.md) | Prompt: create L0 tests for staged changes |
 

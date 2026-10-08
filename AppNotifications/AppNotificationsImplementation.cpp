@@ -19,7 +19,7 @@
 #include "UtilsLogging.h"
 #include "StringUtils.h"
 
-namespace WPEFramework
+namespace Thunder
 {
     namespace Exchange {
         bool operator==(const IAppNotifications::AppNotificationContext& lhs,

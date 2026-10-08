@@ -34,7 +34,7 @@
 #include "UtilsLogging.h"
 #include "StringUtils.h"
 
-using namespace WPEFramework;
+using namespace Thunder;
 
 #ifndef DISPLAYSETTINGS_CALLSIGN
 #define DISPLAYSETTINGS_CALLSIGN "org.rdk.DisplaySettings"
@@ -1013,21 +1013,21 @@ private:
 #endif
     // ─── JSON-RPC link acquisition ────────────────────────────────────────
 
-    std::shared_ptr<WPEFramework::Utils::JSONRPCDirectLink> AcquireLink(const std::string& callsign) const
+    std::shared_ptr<Thunder::Utils::JSONRPCDirectLink> AcquireLink(const std::string& callsign) const
     {
         if (nullptr == _shell) {
             LOGERR("VideoOutputDelegate: shell is null");
             return nullptr;
         }
-        return WPEFramework::Utils::GetThunderControllerClient(_shell, callsign);
+        return Thunder::Utils::GetThunderControllerClient(_shell, callsign);
     }
 
 private:
     PluginHost::IShell* _shell;
-    std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _displaySettingsRpc;
-    std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _hdcpProfileRpc;
-    std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _hdmiCecSourceRpc;
-    std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _displayInfoRpc;
+    std::shared_ptr<Thunder::JSONRPC::LinkType<Thunder::Core::JSON::IElement>> _displaySettingsRpc;
+    std::shared_ptr<Thunder::JSONRPC::LinkType<Thunder::Core::JSON::IElement>> _hdcpProfileRpc;
+    std::shared_ptr<Thunder::JSONRPC::LinkType<Thunder::Core::JSON::IElement>> _hdmiCecSourceRpc;
+    std::shared_ptr<Thunder::JSONRPC::LinkType<Thunder::Core::JSON::IElement>> _displayInfoRpc;
     bool _resolutionChangedSubscribed;
     bool _connectedVideoDisplaysUpdatedSubscribed;
     bool _hdcpProfileSubscribed;

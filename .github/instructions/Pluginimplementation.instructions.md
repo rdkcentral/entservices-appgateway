@@ -19,13 +19,13 @@ Plugins should use COM-RPC (e.g., use QueryInterfaceByCallsign or QueryInterface
 Telemetry Plugin accessing UserSettings(via COM-RPC) through the IShell Interface API **QueryInterfaceByCallsign()** exposed for each Plugin - (Refer https://github.com/rdkcentral/entservices-appgateway/blob/7988b8a719e594782f041309ce2d079cf6f52863/Telemetry/TelemetryImplementation.cpp#L160 )
 
 ```cpp
-_userSettingsPlugin = _service->QueryInterfaceByCallsign<WPEFramework::Exchange::IUserSettings>(USERSETTINGS_CALLSIGN);
+_userSettingsPlugin = _service->QueryInterfaceByCallsign<Thunder::Exchange::IUserSettings>(USERSETTINGS_CALLSIGN);
 ```
 
 QueryInterface:
 
 ```cpp
-_userSettingsPlugin = _service->QueryInterface<WPEFramework::Exchange::IUserSettings>();
+_userSettingsPlugin = _service->QueryInterface<Thunder::Exchange::IUserSettings>();
 ```
 
 should not use JSON-RPC or LinkType for inter-plugin communication, as they introduce unnecessary overhead.
@@ -178,7 +178,7 @@ void Initialize(PluginHost::IShell* service) override {
         // This creates an object that acts as a client proxy for the JSON-RPC-only service.
         // It handles sending JSON-RPC requests and receiving/deserializing JSON-RPC events.
         // The type arguments specify the JSON interface (org.rdk.Network) and the CallSign.
-        m_networkmanager = make_shared<WPEFramework::JSONRPC::SmartLinkType<WPEFramework::Core::JSON::IElement> >(
+        m_networkmanager = make_shared<Thunder::JSONRPC::SmartLinkType<Thunder::Core::JSON::IElement> >(
             _T(NETWORK_MANAGER_CALLSIGN), 
             _T("org.rdk.Network"), 
             query
@@ -229,7 +229,7 @@ Instead, create the instance only when needed and release it immediately after u
 ```cpp
 void MyPlugin::setNumber() {
     ....
-    WPEFramework::Exchange::IOtherPlugin* other = shell->QueryInterfaceByCallsign<WPEFramework::Exchange::IOtherPlugin>("org.rdk.OtherPlugin");
+    Thunder::Exchange::IOtherPlugin* other = shell->QueryInterfaceByCallsign<Thunder::Exchange::IOtherPlugin>("org.rdk.OtherPlugin");
 
     if (other != nullptr) {
         other->PerformAction();
@@ -242,7 +242,7 @@ void MyPlugin::setNumber() {
 
 ```cpp
 void MyPlugin::Initialize() {
-    _otherPlugin = shell->QueryInterfaceByCallsign<WPEFramework::Exchange::IOtherPlugin>();
+    _otherPlugin = shell->QueryInterfaceByCallsign<Thunder::Exchange::IOtherPlugin>();
 }
 
 void MyPlugin::Deinitialize() {
@@ -275,7 +275,7 @@ For cases where a Thunder plugin needs to communicate frequently with another pl
 ```cpp
 void MyPlugin::Initialize() {
     lock_guard<mutex> lock(_pluginMutex);
-    _otherPlugin = shell->QueryInterfaceByCallsign<WPEFramework::Exchange::IOtherPlugin>();
+    _otherPlugin = shell->QueryInterfaceByCallsign<Thunder::Exchange::IOtherPlugin>();
 }
 
 void MyPlugin::Deinitialize() {
@@ -298,7 +298,7 @@ void MyPlugin::DoSomething() {
 
 ```cpp
 void MyPlugin::Initialize() {
-    _otherPlugin = shell->QueryInterfaceByCallsign<WPEFramework::Exchange::IOtherPlugin>();
+    _otherPlugin = shell->QueryInterfaceByCallsign<Thunder::Exchange::IOtherPlugin>();
 }
 
 void MyPlugin::Deinitialize() {

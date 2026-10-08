@@ -67,7 +67,7 @@ Used by `AppGatewayResponderImplementation` to send requests, responses, and not
 
 ## 5. Configuration & Build Integration
 
-The root `CMakeLists.txt` adds `helpers/` to the module include paths indirectly through each plugin target. Root definitions include `RDKAPPMANAGERS_PATH`, optional telemetry logging, `DISABLE_SECURITY_TOKEN`, and `USE_THUNDER_R4`. Helpers are header-driven; there is no helper library target in the checked-in root build.
+The root `CMakeLists.txt` adds `helpers/` to the module include paths indirectly through each plugin target. Root definitions include `RDKAPPMANAGERS_PATH`, optional telemetry logging, and `DISABLE_SECURITY_TOKEN`. Helpers use the `THUNDER_VERSION` macro provided by the Thunder headers for API compatibility; there is no helper library target in the checked-in root build.
 
 ## 6. Internal Workflows & Execution Flow
 

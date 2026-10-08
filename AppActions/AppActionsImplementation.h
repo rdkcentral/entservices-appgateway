@@ -8,7 +8,7 @@
 #include <interfaces/IConfiguration.h>
 #include <interfaces/IAppActions.h>
 
-namespace WPEFramework {
+namespace Thunder {
 namespace Plugin {
 
 class AppActionsImplementation :
@@ -95,5 +95,5 @@ class AppActionsImplementation :
     };
 
 } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder
 #endif // __APPACTIONSIMPLEMENTATION_H__

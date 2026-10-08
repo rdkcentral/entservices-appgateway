@@ -30,7 +30,7 @@
 #include <core/StreamJSON.h>
 
 #define DEFAULT_SOCKET_ADDRESS "127.0.0.1"
-using namespace WPEFramework;
+using namespace Thunder;
 
 class WebSocketConnectionManager
 {
@@ -341,7 +341,7 @@ public:
         WebSocketChannel &operator=(const WebSocketChannel &) = delete;
 
     public:
-        WebSocketChannel(const WPEFramework::Core::NodeId &remoteNode, WebSocketConnectionManager &parent):
+        WebSocketChannel(const Thunder::Core::NodeId &remoteNode, WebSocketConnectionManager &parent):
             Core::SocketServerType<WebSocketServer>(remoteNode),
             _parent(parent) {
             Core::SocketServerType<WebSocketConnectionManager::WebSocketServer>::Open(Core::infinite);

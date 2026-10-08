@@ -28,7 +28,7 @@
 #include "UtilsController.h"
 #include "UtilsLogging.h"
 
-using namespace WPEFramework;
+using namespace Thunder;
 
 #ifndef AVOUTPUT_CALLSIGN
 #define AVOUTPUT_CALLSIGN "org.rdk.AudioOutput"

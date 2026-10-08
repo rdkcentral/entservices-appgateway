@@ -36,7 +36,7 @@
 #include <functional>
 #include <mutex>
 
-using namespace WPEFramework;
+using namespace Thunder;
 
 #define NETWORKMANAGER_CALLSIGN "org.rdk.NetworkManager"
 

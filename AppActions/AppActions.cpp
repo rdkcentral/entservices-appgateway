@@ -6,7 +6,7 @@
 #define API_VERSION_NUMBER_MINOR    APPACTIONS_MINOR_VERSION
 #define API_VERSION_NUMBER_PATCH    APPACTIONS_PATCH_VERSION
 
-namespace WPEFramework {
+namespace Thunder {
 namespace Plugin {
     SERVICE_REGISTRATION(AppActions, API_VERSION_NUMBER_MAJOR, API_VERSION_NUMBER_MINOR, API_VERSION_NUMBER_PATCH);
 
@@ -56,7 +56,7 @@ namespace Plugin {
                 if (Core::ERROR_NONE == mAppActionsConfigure->Configure(mService))
                 {
                     mAppActions->Register(&mAppActionsNotification);
-                    //Invoking Plugin API register to wpeframework
+                    //Invoking Plugin API register to thunder
                     Exchange::JAppActions::Register(*this, mAppActions);
                 } else {
                     SYSLOG(Logging::Startup, (_T("AppActions::Initialize: could not be configured")));
@@ -151,4 +151,4 @@ namespace Plugin {
     }
 
 } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

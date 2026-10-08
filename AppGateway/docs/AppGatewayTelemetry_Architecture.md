@@ -227,7 +227,7 @@ Other plugins can report telemetry to AppGateway using the `IAppGatewayTelemetry
 
 **Interface:** `Exchange::IAppGatewayTelemetry`  
 **Access:** Via `INTERFACE_AGGREGATE` exposed by AppGateway plugin  
-**Protocol:** WPEFramework COM-RPC (binary, efficient)
+**Protocol:** Thunder COM-RPC (binary, efficient)
 
 **See:**
 - [IAppGatewayTelemetry.h](../../../../../../entservices-apis/apis/IAppGatewayTelemetry.h) - COM-RPC interface definition

@@ -29,7 +29,7 @@
 #include <sstream>
 #include "UtilsFirebolt.h"
 #include <mutex>
-using namespace WPEFramework;
+using namespace Thunder;
 #define USERSETTINGS_CALLSIGN "org.rdk.UserSettings"
 #define TEXTTRACK_CALLSIGN "org.rdk.TextTrack"
 

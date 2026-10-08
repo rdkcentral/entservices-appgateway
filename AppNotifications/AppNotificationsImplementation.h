@@ -28,7 +28,7 @@
 #include "ContextUtils.h"
 #include "UtilsCallsign.h"
 
-namespace WPEFramework {
+namespace Thunder {
 namespace Plugin {
     class AppNotificationsImplementation : public Exchange::IAppNotifications, public Exchange::IConfiguration {
     private:

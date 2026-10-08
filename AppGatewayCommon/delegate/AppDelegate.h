@@ -34,7 +34,7 @@
 #define DEVICE_UID_KEY "fireboltDeviceUid"
 
 
-using namespace WPEFramework;
+using namespace Thunder;
 
 class AppDelegate {
     public:

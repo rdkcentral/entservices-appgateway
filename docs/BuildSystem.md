@@ -2,7 +2,7 @@
 
 > **Root build file:** `CMakeLists.txt`
 > **Build system:** CMake (minimum version 3.3)
-> **Framework:** WPEFramework (Thunder)
+> **Framework:** Thunder (Thunder)
 
 ---
 
@@ -31,7 +31,7 @@ CMakeLists.txt              ← Root; conditionally includes each plugin subdire
 
 ### Key Operations
 
-1. Finds the `WPEFramework` package.
+1. Finds the `Thunder` package.
 2. Appends `cmake/` to `CMAKE_MODULE_PATH` for helper scripts.
 3. Sets `PRODUCT_CONFIG_DIR` to `/etc/entservices`.
 4. Derives `STORAGE_DIRECTORY` from `${NAMESPACE}` (lowercased) — used for install paths.
@@ -69,7 +69,7 @@ These flags are set at the root level and affect all plugins.
 |---|---|---|---|
 | `BUILD_ENABLE_TELEMETRY_LOGGING` | `BOOL` | OFF | Defines `ENABLE_TELEMETRY_LOGGING`; links `telemetry_msgsender` in AppGateway |
 | `DISABLE_SECURITY_TOKEN` | `BOOL` | OFF | Defines `DISABLE_SECURITY_TOKEN`; bypasses auth token checks in AppGateway |
-| `USE_THUNDER_R4` | `BOOL` | OFF | Defines `USE_THUNDER_R4`; switches to Thunder R4 API usage |
+| `THUNDER_VERSION` | Header-provided macro | — | Selects Thunder API compatibility; `UtilsController.h` uses `Core::IDispatchType<void>` for versions up to 4 and `Core::IDispatch` otherwise |
 | `RDK_SERVICES_L1_TEST` | `BOOL` | OFF | Includes `Tests/L1Tests/` |
 | `RDK_SERVICE_L2_TEST` | `BOOL` | OFF | Includes `Tests/L2Tests/` |
 
@@ -81,7 +81,7 @@ These flags are set at the root level and affect all plugins.
 
 **File:** `AppGateway/CMakeLists.txt`
 
-**Output:** `libWPEFrameworkAppGateway.so`  
+**Output:** `libThunderAppGateway.so`  
 **Version defines:** `APPGATEWAY_MAJOR_VERSION`, `APPGATEWAY_MINOR_VERSION`, `APPGATEWAY_PATCH_VERSION` (1.0.0)
 
 **Sources compiled:**
@@ -129,7 +129,7 @@ endif()
 
 **File:** `AppGatewayCommon/CMakeLists.txt`
 
-**Output:** `libWPEFrameworkAppGatewayCommon.so`  
+**Output:** `libThunderAppGatewayCommon.so`  
 **Version defines:** `APPGATEWAYCOMMON_MAJOR_VERSION`, `APPGATEWAYCOMMON_MINOR_VERSION`, `APPGATEWAYCOMMON_PATCH_VERSION` (1.0.0)
 
 **Sources compiled:**
@@ -151,7 +151,7 @@ Module.cpp
 **Optional dependency:**
 ```cmake
 find_library(NMPROXY_LIB NAMES ${NAMESPACE}NetworkManagerProxy
-    PATHS ${CMAKE_SYSROOT}/usr/lib/wpeframework/proxystubs)
+    PATHS ${CMAKE_SYSROOT}/usr/lib/${STORAGE_DIRECTORY}/proxystubs)
 ```
 
 **Linked libraries:** `${NAMESPACE}Plugins`, `${NAMESPACE}Definitions`, `uuid`
@@ -166,7 +166,7 @@ find_library(NMPROXY_LIB NAMES ${NAMESPACE}NetworkManagerProxy
 
 **File:** `AppNotifications/CMakeLists.txt`
 
-**Output:** `libWPEFrameworkAppNotifications.so`  
+**Output:** `libThunderAppNotifications.so`  
 **Version defines:** `APPNOTIFICATIONS_MAJOR_VERSION/MINOR/PATCH` (1.0.0)
 
 **Sources compiled:**
@@ -201,8 +201,8 @@ Module.cpp
 
 | Library | Sources | Install Path |
 |---|---|---|
-| `libWPEFrameworkAppActions.so` | `AppActions.cpp`, `AppActions.h`, `Module.cpp` | `${CMAKE_INSTALL_PREFIX}/lib/${STORAGE_DIRECTORY}/plugins` |
-| `libWPEFrameworkAppActionsImplementation.so` | `AppActionsImplementation.cpp`, `AppActionsImplementation.h`, `Module.cpp` | `lib/${STORAGE_DIRECTORY}/plugins` |
+| `libThunderAppActions.so` | `AppActions.cpp`, `AppActions.h`, `Module.cpp` | `${CMAKE_INSTALL_PREFIX}/lib/${STORAGE_DIRECTORY}/plugins` |
+| `libThunderAppActionsImplementation.so` | `AppActionsImplementation.cpp`, `AppActionsImplementation.h`, `Module.cpp` | `lib/${STORAGE_DIRECTORY}/plugins` |
 
 **Version defines:** `APPACTIONS_MAJOR_VERSION/MINOR/PATCH` (1.0.0)
 
@@ -364,7 +364,7 @@ This JSON file is the **central routing table** of the AppGateway system. It map
 mkdir build && cd build
 
 cmake .. \
-  -DNAMESPACE=WPEFramework \
+  -DNAMESPACE=Thunder \
   -DPLUGIN_APPGATEWAY=ON \
   -DPLUGIN_APPGATEWAYCOMMON=ON \
   -DPLUGIN_APPNOTIFICATIONS=ON \

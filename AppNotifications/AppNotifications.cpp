@@ -28,7 +28,7 @@
 
 AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_APPNOTIFICATIONS)
 
-namespace WPEFramework {
+namespace Thunder {
 
 namespace {
     static Plugin::Metadata<Plugin::AppNotifications> metadata(
@@ -134,4 +134,4 @@ namespace Plugin {
     }
 
 } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

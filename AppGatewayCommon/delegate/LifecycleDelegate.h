@@ -34,7 +34,7 @@
 #include <atomic>
 #include <set>
 
-using namespace WPEFramework;
+using namespace Thunder;
 
 #define LIFECYCLE_MANAGER_CALLSIGN "org.rdk.LifecycleManager"
 #define WINDOW_MANAGER_CALLSIGN "org.rdk.RDKWindowManager"
@@ -380,7 +380,7 @@ class LifecycleDelegate : public BaseEventDelegate
         // Structure: { "memory": { "user": { "usage": ..., "limit": ... } },
         //              "gpu":    { "memory": { "usage": ..., "limit": ... } } }
 
-        WPEFramework::Core::JSON::VariantContainer infoObj;
+        Thunder::Core::JSON::VariantContainer infoObj;
         if (!infoObj.FromString(info)) {
             LOGERR("LifecycleDelegate: GetInfo returned malformed JSON: %s", info.c_str());
             returnDefaults();
@@ -392,16 +392,16 @@ class LifecycleDelegate : public BaseEventDelegate
             return Core::ERROR_NONE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer memoryObj = infoObj[_T("memory")].Object();
-        WPEFramework::Core::JSON::VariantContainer gpuObj    = infoObj[_T("gpu")].Object();
+        Thunder::Core::JSON::VariantContainer memoryObj = infoObj[_T("memory")].Object();
+        Thunder::Core::JSON::VariantContainer gpuObj    = infoObj[_T("gpu")].Object();
         if (!memoryObj.HasLabel(_T("user")) || !gpuObj.HasLabel(_T("memory"))) {
             LOGERR("LifecycleDelegate: GetInfo missing memory.user or gpu.memory field");
             returnDefaults();
             return Core::ERROR_NONE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer userObj   = memoryObj[_T("user")].Object();
-        WPEFramework::Core::JSON::VariantContainer gpuMemObj = gpuObj[_T("memory")].Object();
+        Thunder::Core::JSON::VariantContainer userObj   = memoryObj[_T("user")].Object();
+        Thunder::Core::JSON::VariantContainer gpuMemObj = gpuObj[_T("memory")].Object();
 
         JsonObject obj;
         obj["userMemoryUsed"]  = static_cast<int64_t>(userObj[_T("usage")].Number());

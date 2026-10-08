@@ -32,7 +32,7 @@
 #include <unordered_map>
 
 
-namespace WPEFramework {
+namespace Thunder {
 namespace Plugin {
     using Context = Exchange::GatewayContext;
     class AppGatewayResponderImplementation : public Exchange::IConfiguration, public Exchange::IAppGatewayResponder
@@ -393,4 +393,4 @@ namespace Plugin {
         DebugDisabledConnectionsRegistry mDebugDisabledConnectionsRegistry;
     };
 } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

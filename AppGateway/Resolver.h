@@ -26,25 +26,25 @@
 #include <mutex>
 #include <core/Enumerate.h>
 
-namespace WPEFramework
+namespace Thunder
 {
     namespace Plugin
     {
 
         // Configuration container for the entire resolutions file
-        class ConfigContainer : public WPEFramework::Core::JSON::Container
+        class ConfigContainer : public Thunder::Core::JSON::Container
         {
         public:
             ConfigContainer(const ConfigContainer &) = delete;
             ConfigContainer &operator=(const ConfigContainer &) = delete;
 
             ConfigContainer()
-                : WPEFramework::Core::JSON::Container(), Resolutions()
+                : Thunder::Core::JSON::Container(), Resolutions()
             {
                 Add(_T("resolutions"), &Resolutions);
             }
 
-            WPEFramework::Core::JSON::VariantContainer Resolutions;
+            Thunder::Core::JSON::VariantContainer Resolutions;
         };
 
         // Struct holding resolution info
@@ -62,7 +62,7 @@ namespace WPEFramework
 
 
 
-        using namespace WPEFramework;
+        using namespace Thunder;
         class Resolver
         {
         public:
@@ -103,10 +103,10 @@ namespace WPEFramework
             void ParseAlias(const std::string &alias, std::string &callsign, std::string &pluginMethod);
 
             // Helper function to extract string field from JSON variant with type checking
-            static std::string ExtractStringField(const WPEFramework::Core::JSON::VariantContainer &obj, const char *fieldName);
+            static std::string ExtractStringField(const Thunder::Core::JSON::VariantContainer &obj, const char *fieldName);
 
             // Helper function to extract boolean field from JSON variant with type checking
-            static bool ExtractBooleanField(const WPEFramework::Core::JSON::VariantContainer &obj, const char *fieldName, bool defaultValue = false);
+            static bool ExtractBooleanField(const Thunder::Core::JSON::VariantContainer &obj, const char *fieldName, bool defaultValue = false);
             JsonValue ExtractAdditionalContext(JsonObject &obj, const char *fieldName);
             
             
@@ -118,5 +118,5 @@ namespace WPEFramework
         using ResolverPtr = std::shared_ptr<Resolver>;
 
     } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder
 

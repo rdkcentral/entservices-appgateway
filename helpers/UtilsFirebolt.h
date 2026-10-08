@@ -23,7 +23,7 @@
 #include <mutex>
 #include <map>
 
-using namespace WPEFramework;
+using namespace Thunder;
 
 #define FIREBOLT_ERROR_NOT_SUPPORTED (-50100)
 #define FIREBOLT_ERROR_NOT_AVAILABLE (-50200)

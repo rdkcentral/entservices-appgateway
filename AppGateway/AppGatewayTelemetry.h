@@ -35,7 +35,7 @@
 // Default cache threshold (number of records before forced flush)
 #define TELEMETRY_DEFAULT_CACHE_THRESHOLD                    1000
 
-namespace WPEFramework {
+namespace Thunder {
 namespace Plugin {
 
     /**
@@ -642,4 +642,4 @@ namespace Plugin {
     };
 
 } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

@@ -31,7 +31,7 @@
 
 AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_APPGATEWAYCOMMON)
 
-namespace WPEFramework {
+namespace Thunder {
 
 namespace {
     static Plugin::Metadata<Plugin::AppGatewayCommon> metadata(
@@ -1702,4 +1702,4 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         }
 
 } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

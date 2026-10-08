@@ -24,7 +24,7 @@
 
 #include "UtilsLogging.h"
 
-namespace WPEFramework {
+namespace Thunder {
 namespace Plugin {
 
 template<typename T>
@@ -101,4 +101,4 @@ private:
 };
 
 } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder
