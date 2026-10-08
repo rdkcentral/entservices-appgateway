@@ -927,4 +927,5 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_232_UserSettings_OnVoiceGuidanceHint
     std::this_thread::sleep_for(std::chrono::milliseconds(25));
 }
 
+
 } // namespace
