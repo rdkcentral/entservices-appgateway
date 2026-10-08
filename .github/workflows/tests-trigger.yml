@@ -20,14 +20,20 @@ jobs:
       caller_source: local
 
   trigger-L2:
-    if: false  # Disabled due to new thunder version issue
+    # Disabled due to new thunder version issue
+    if: false
     uses: ./.github/workflows/L2-tests.yml
     with:
       caller_source: local
 
   coverage-gate:
     name: Coverage Gate
-    needs: [trigger-L0, trigger-L1]
+    needs: [trigger-L0, trigger-L1, trigger-L2]
+    if: >-
+      ${{ !cancelled() &&
+      needs.trigger-L0.result == 'success' &&
+      needs.trigger-L1.result == 'success' &&
+      (needs.trigger-L2.result == 'success' || needs.trigger-L2.result == 'skipped') }}
     runs-on: ubuntu-latest
     # Transient runner/action failures must not block
     continue-on-error: true
@@ -72,26 +78,43 @@ jobs:
           name: artifacts-L1-appgateway
           path: ./l1-coverage
 
+      - name: Download L2 coverage artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: artifacts-L2-infra
+          path: ./l2-coverage
+
       - name: Compare coverage to baseline
         continue-on-error: false
         run: |
+          set -euo pipefail
+          # Only pass --l2 when the artifact actually exists (trigger-L2 may be disabled).
+          L2_ARGS=()
+          if [ -f ./l2-coverage/filtered_coverage.info ]; then
+            L2_ARGS=(--l2 ./l2-coverage/filtered_coverage.info)
+          fi
+
           python3 .github/scripts/compare_coverage.py \
             --baseline coverage-baseline.json \
             --l0 ./l0-coverage/filtered_coverage.info \
-            --l1 ./l1-coverage/filtered_coverage.info
+            --l1 ./l1-coverage/filtered_coverage.info \
+            "${L2_ARGS[@]}"
 
   update-baseline:
     name: Update Coverage Baseline
-    # Runs ONLY on a direct push to develop AND only when both test suites pass
+    # Runs ONLY on a direct push to develop AND only when all test suites pass
     # AND the coverage gate passes. If coverage fails the gate (below threshold
     # or regressed from baseline), the baseline must not be updated.
     if: >-
+      ${{ !cancelled() &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/develop' &&
       needs.trigger-L0.result == 'success' &&
       needs.trigger-L1.result == 'success' &&
-      needs.coverage-gate.result == 'success'
-    needs: [trigger-L0, trigger-L1, coverage-gate]
+      (needs.trigger-L2.result == 'success' || needs.trigger-L2.result == 'skipped') &&
+      needs.coverage-gate.result == 'success' }}
+    needs: [trigger-L0, trigger-L1, trigger-L2, coverage-gate]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -137,6 +160,14 @@ jobs:
           name: artifacts-L1-appgateway
           path: ./l1-coverage
 
+      - name: Download L2 coverage artifacts
+        # trigger-L2 is currently disabled (if:false) so this artifact won't exist yet; don't fail the job over it.
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: artifacts-L2-infra
+          path: ./l2-coverage
+
       - name: Extract coverage and write new baseline
         id: extract
         run: |
@@ -145,10 +176,18 @@ jobs:
           BL_ARG="old-baseline.json"
           [ -f "$BL_ARG" ] || echo '{}' > "$BL_ARG"
 
+          # Only pass --l2 when the artifact actually exists, so a disabled/missing
+          # trigger-L2 still produces an L0/L1-only baseline instead of being skipped entirely.
+          L2_ARGS=()
+          if [ -f ./l2-coverage/filtered_coverage.info ]; then
+            L2_ARGS=(--l2 ./l2-coverage/filtered_coverage.info)
+          fi
+
           python3 .github/scripts/compare_coverage.py \
             --baseline "$BL_ARG" \
             --l0 ./l0-coverage/filtered_coverage.info \
             --l1 ./l1-coverage/filtered_coverage.info \
+            "${L2_ARGS[@]}" \
             --output-json new-baseline.json \
             --commit "$GITHUB_SHA" \
             --timestamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
