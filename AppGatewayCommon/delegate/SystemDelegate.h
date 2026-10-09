@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <functional>
+#include <list>
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -251,10 +252,19 @@ public:
         }
 
         Exchange::ISystemServices::DeviceInfo deviceInfo;
-        // The first GetDeviceInfo parameter is an optional selector/context.
-        // Passing nullptr here is the expected way to query the default/current
-        // device rather than a specific target.
-        const uint32_t rc = sysServices->GetDeviceInfo(nullptr, deviceInfo);
+        std::list<std::string> deviceInfoKeys;
+        deviceInfoKeys.emplace_back("make");
+
+        auto* params = Core::Service<RPC::StringIterator>::Create<RPC::IStringIterator>(deviceInfoKeys);
+        if (params == nullptr)
+        {
+            make = "unknown";
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        const uint32_t rc = sysServices->GetDeviceInfo(params, deviceInfo);
+        params->Release();
+
         if (rc == Core::ERROR_NONE && deviceInfo.success && !deviceInfo.make.empty())
         {
             make = deviceInfo.make;
