@@ -30,6 +30,7 @@
 // App Gateway is only available via local connections,
 // so we can use a simple in-memory registry to track connection IDs and their associated app IDs.
 #define APPGATEWAY_SOCKET_ADDRESS "127.0.0.1:3473"
+
 #define DEFAULT_CONFIG_PATH "/etc/app-gateway/resolution.base.json"
 
 namespace WPEFramework

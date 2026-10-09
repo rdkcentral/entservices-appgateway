@@ -31,6 +31,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include "UtilsAppGatewayTelemetry.h"
 #include <unordered_set>
 #include <sstream>
 #include <unordered_map>
@@ -86,7 +87,7 @@ namespace Plugin {
         };
 
         template <typename TParent>
-        class RefCountedDispatchJob : public Core::IDispatch 
+        class RefCountedDispatchJob : public Core::IDispatch, public AppGatewayTelemetryHelper::JobTiming
         {
             protected:
                 RefCountedDispatchJob(TParent* parent)
@@ -133,6 +134,8 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                AGW_TIME_JOB(timer, "WsMsgJob[" + mMethod + "]",
+                    mRequestId, mConnectionId, "");
                 mParent.DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
             }
 
@@ -168,6 +171,8 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                AGW_TIME_JOB(timer, "RespondJob", 
+                    mRequestId, mConnectionId, "");
                 mParent.ReturnMessageInSocket(mConnectionId, mRequestId, mPayload);                
             }
 
@@ -202,6 +207,8 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                AGW_TIME_JOB(timer, "EmitJob[" + mDesignator + "]",
+                    0, mConnectionId, "");
                 mParent.mWsManager.DispatchNotificationToConnection(mConnectionId, mDesignator, mPayload);
             }
 
@@ -237,6 +244,8 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                AGW_TIME_JOB(timer, "RequestJob[" + mDesignator + "]",
+                    mRequestId, mConnectionId, "");
                 mParent.mWsManager.SendRequestToConnection(mConnectionId, mDesignator, mRequestId, mPayload);
             }
 
@@ -275,6 +284,8 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                AGW_TIME_JOB(timer, "ConnStatusJob[" + std::string(mConnected?"connect":"disconnect") + "]",
+                    0, mConnectionId, mAppId);
                 mParent.OnConnectionStatusChanged(mAppId, mConnectionId, mConnected);
             }
 

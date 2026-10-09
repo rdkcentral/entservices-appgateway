@@ -267,7 +267,8 @@ private:
     // Runs work on a worker pool thread. onInterfaceStateChange uses this to get
     // off the NetworkManager notification thread before calling back into
     // NetworkManager, same fix as RDKEMW-24422 (see SystemDelegate.h).
-    class EXTERNAL WorkerPoolTask : public Core::IDispatch
+    class EXTERNAL WorkerPoolTask : public Core::IDispatch,
+                                    public AppGatewayTelemetryHelper::JobTiming
     {
     public:
         explicit WorkerPoolTask(std::function<void()> work)
@@ -281,6 +282,7 @@ private:
 
         void Dispatch() override
         {
+            AGW_TIME_JOB(timer, "NetworkWorkerPoolTask", 0, 0, "");
             _work();
         }
 
