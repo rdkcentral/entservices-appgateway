@@ -129,7 +129,7 @@ public:
     Core::hresult GetDeviceInfo(IStringIterator* const& params, DeviceInfo& deviceInfo /* @out */) override
     {
         JsonArray deviceInfoParams;
-        if (params != nullptr) {
+        if (nullptr != params) {
             string requestedKey;
             while (params->Next(requestedKey)) {
                 deviceInfoParams.Add(requestedKey);
