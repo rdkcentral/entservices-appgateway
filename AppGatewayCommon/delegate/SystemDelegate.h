@@ -256,8 +256,9 @@ public:
         deviceInfoKeys.emplace_back("make");
 
         auto* params = Core::Service<RPC::StringIterator>::Create<RPC::IStringIterator>(deviceInfoKeys);
-        if (params == nullptr)
+        if (nullptr == params)
         {
+            LOGERR("SystemDelegate: failed to create device-info parameter iterator");
             make = "unknown";
             return Core::ERROR_UNAVAILABLE;
         }
