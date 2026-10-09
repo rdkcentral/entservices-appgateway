@@ -242,8 +242,8 @@ namespace WPEFramework
                         #endif
                         #endif
                         
-                        QueueWorkerJob([this, connectionId, appId = std::move(appId)]() {
-                            return ConnectionStatusNotificationJob::Create(this, connectionId, std::move(appId), true);
+                        QueueWorkerJob([this, connectionId, appId]() {
+                            return ConnectionStatusNotificationJob::Create(this, connectionId, appId, true);
                         });
 
                         return true;
