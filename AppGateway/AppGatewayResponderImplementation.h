@@ -26,11 +26,16 @@
 #include "ContextUtils.h"
 #include <com/com.h>
 #include <core/core.h>
+#include <atomic>
+#include <condition_variable>
+#include <functional>
 #include <map>
+#include <memory>
 #include "UtilsAppGatewayTelemetry.h"
 #include <unordered_set>
 #include <sstream>
 #include <unordered_map>
+#include <utility>
 
 
 namespace WPEFramework {
@@ -74,8 +79,36 @@ namespace Plugin {
         uint32_t Configure(PluginHost::IShell* service) override;
 
     private:
-        class EXTERNAL WsMsgJob : public Core::IDispatch,
-                                  public AppGatewayTelemetryHelper::JobTiming
+        struct ShutdownState {
+            std::atomic<bool> stopping{false};
+            std::atomic<uint32_t> activeJobs{0};
+            std::mutex mutex;
+            std::condition_variable cv;
+        };
+
+        template <typename TParent>
+        class RefCountedDispatchJob : public Core::IDispatch, public AppGatewayTelemetryHelper::JobTiming
+        {
+            protected:
+                RefCountedDispatchJob(TParent* parent)
+                    : mParent(*parent)
+                    , mShutdownState(parent->mShutdownState)
+                {
+                    mParent.AddRef();
+                }
+
+                ~RefCountedDispatchJob() override
+                {
+                    TParent* parent = &mParent;
+                    parent->Release();
+                    TParent::CompleteJob(mShutdownState);
+                }
+
+                TParent& mParent;
+                std::shared_ptr<ShutdownState> mShutdownState;
+        };
+
+        class EXTERNAL WsMsgJob : public RefCountedDispatchJob<AppGatewayResponderImplementation>
         {
         protected:
             WsMsgJob(AppGatewayResponderImplementation *parent, 
@@ -83,19 +116,14 @@ namespace Plugin {
             const std::string& params,
             const uint32_t requestId,
             const uint32_t connectionId)
-                : mParent(*parent), mMethod(method), mParams(params), mRequestId(requestId), mConnectionId(connectionId)
+                : RefCountedDispatchJob(parent), mMethod(method), mParams(params), mRequestId(requestId), mConnectionId(connectionId)
             {
-                mParent.AddRef();
             }
 
         public:
             WsMsgJob() = delete;
             WsMsgJob(const WsMsgJob &) = delete;
             WsMsgJob &operator=(const WsMsgJob &) = delete;
-            ~WsMsgJob()
-            {
-                mParent.Release();
-            }
 
         public:
             static Core::ProxyType<Core::IDispatch> Create(AppGatewayResponderImplementation *parent,
@@ -112,15 +140,13 @@ namespace Plugin {
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
             const std::string mMethod;
             const std::string mParams;
             const uint32_t mRequestId;
             const uint32_t mConnectionId;
         };
 
-        class EXTERNAL RespondJob : public Core::IDispatch,
-                                    public AppGatewayTelemetryHelper::JobTiming
+        class EXTERNAL RespondJob : public RefCountedDispatchJob<AppGatewayResponderImplementation>
         {
         protected:
             RespondJob(AppGatewayResponderImplementation *parent, 
@@ -128,19 +154,14 @@ namespace Plugin {
             const uint32_t requestId,
             const std::string& payload
             )
-                : mParent(*parent), mPayload(payload), mRequestId(requestId), mConnectionId(connectionId)
+                : RefCountedDispatchJob(parent), mPayload(payload), mRequestId(requestId), mConnectionId(connectionId)
             {
-                mParent.AddRef();
             }
 
         public:
             RespondJob() = delete;
-        RespondJob(const RespondJob &) = delete;
+            RespondJob(const RespondJob &) = delete;
             RespondJob &operator=(const RespondJob &) = delete;
-            ~RespondJob()
-            {
-                mParent.Release();
-            }
 
         public:
             static Core::ProxyType<Core::IDispatch> Create(AppGatewayResponderImplementation *parent,
@@ -156,14 +177,12 @@ namespace Plugin {
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
             const std::string mPayload;
             const uint32_t mRequestId;
             const uint32_t mConnectionId;
         };
 
-          class EXTERNAL EmitJob : public Core::IDispatch,
-                                  public AppGatewayTelemetryHelper::JobTiming
+          class EXTERNAL EmitJob : public RefCountedDispatchJob<AppGatewayResponderImplementation>
         {
         protected:
             EmitJob(AppGatewayResponderImplementation *parent, 
@@ -171,19 +190,14 @@ namespace Plugin {
             const std::string& designator,
             const std::string& payload
             )
-                : mParent(*parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId)
+                : RefCountedDispatchJob(parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId)
             {
-                mParent.AddRef();
             }
 
         public:
             EmitJob() = delete;
             EmitJob(const EmitJob &) = delete;
             EmitJob &operator=(const EmitJob &) = delete;
-            ~EmitJob()
-            {
-                mParent.Release();
-            }
 
         public:
             static Core::ProxyType<Core::IDispatch> Create(AppGatewayResponderImplementation *parent,
@@ -199,14 +213,12 @@ namespace Plugin {
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
             const std::string mPayload;
             const std::string mDesignator;
             const uint32_t mConnectionId;
         };
 
-        class EXTERNAL RequestJob : public Core::IDispatch,
-                                    public AppGatewayTelemetryHelper::JobTiming
+        class EXTERNAL RequestJob : public RefCountedDispatchJob<AppGatewayResponderImplementation>
         {
         protected:
             RequestJob(AppGatewayResponderImplementation *parent, 
@@ -215,19 +227,14 @@ namespace Plugin {
             const std::string& designator,
             const std::string& payload
             )
-                : mParent(*parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId), mRequestId(requestId)
+                : RefCountedDispatchJob(parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId), mRequestId(requestId)
             {
-                mParent.AddRef();
             }
 
         public:
             RequestJob() = delete;
             RequestJob(const RequestJob &) = delete;
             RequestJob &operator=(const RequestJob &) = delete;
-            ~RequestJob()
-            {
-                mParent.Release();
-            }
 
         public:
             static Core::ProxyType<Core::IDispatch> Create(AppGatewayResponderImplementation *parent,
@@ -243,41 +250,37 @@ namespace Plugin {
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
             const std::string mPayload;
             const std::string mDesignator;
             const uint32_t mConnectionId;
             const uint32_t mRequestId;
         };
 
-        class EXTERNAL ConnectionStatusNotificationJob : public Core::IDispatch,
-                                                         public AppGatewayTelemetryHelper::JobTiming
+        class EXTERNAL ConnectionStatusNotificationJob : public RefCountedDispatchJob<AppGatewayResponderImplementation>
         {
         protected:
             ConnectionStatusNotificationJob(AppGatewayResponderImplementation *parent,
             const uint32_t connectionId,
-            const std::string& appId,
+            std::string appId,
             const bool connected
             )
-                : mParent(*parent), mConnectionId(connectionId), mAppId(appId), mConnected(connected)
+                : RefCountedDispatchJob(parent)
+                , mConnectionId(connectionId)
+                , mAppId(std::move(appId))
+                , mConnected(connected)
             {
-                mParent.AddRef();
             }
 
         public:
             ConnectionStatusNotificationJob() = delete;
             ConnectionStatusNotificationJob(const ConnectionStatusNotificationJob &) = delete;
             ConnectionStatusNotificationJob &operator=(const ConnectionStatusNotificationJob &) = delete;
-            ~ConnectionStatusNotificationJob()
-            {
-                mParent.Release();
-            }
 
         public:
             static Core::ProxyType<Core::IDispatch> Create(AppGatewayResponderImplementation *parent,
-                const uint32_t connectionId, const std::string& appId, const bool connected)
+                const uint32_t connectionId, std::string appId, const bool connected)
             {
-                return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<ConnectionStatusNotificationJob>::Create(parent, connectionId, appId, connected)));
+                return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<ConnectionStatusNotificationJob>::Create(parent, connectionId, std::move(appId), connected)));
             }
             virtual void Dispatch()
             {
@@ -287,7 +290,6 @@ namespace Plugin {
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
             const uint32_t mConnectionId;
             const std::string mAppId;
             const bool mConnected;
@@ -391,6 +393,12 @@ namespace Plugin {
             const uint32_t requestId,
             const uint32_t connectionId);
 
+    public:
+        void BeginShutdown();
+
+    private:
+        static void CompleteJob(const std::shared_ptr<ShutdownState>& shutdownState);
+        bool QueueWorkerJob(const std::function<Core::ProxyType<Core::IDispatch>()>& jobFactory);
 
         void ReturnMessageInSocket(const uint32_t connectionId, const int requestId, const string payload);
 
@@ -405,6 +413,7 @@ namespace Plugin {
         mutable Core::CriticalSection mConnectionStatusImplLock;
         std::list<Exchange::IAppGatewayResponder::INotification*> mConnectionStatusNotification;
         bool mEnhancedLoggingEnabled;
+        std::shared_ptr<ShutdownState> mShutdownState;
         CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
         DebugDisabledConnectionsRegistry mDebugDisabledConnectionsRegistry;
     };

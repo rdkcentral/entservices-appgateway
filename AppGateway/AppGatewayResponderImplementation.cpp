@@ -45,7 +45,8 @@ namespace WPEFramework
             mAuthenticator(nullptr),
             mResolver(nullptr),
             mConnectionStatusImplLock(),
-            mEnhancedLoggingEnabled(false)
+            mEnhancedLoggingEnabled(false),
+            mShutdownState(std::make_shared<ShutdownState>())
         {
             LOGINFO("AppGatewayResponderImplementation constructor");
 #ifdef ENABLE_APP_GATEWAY_AUTOMATION
@@ -59,6 +60,9 @@ namespace WPEFramework
 
         AppGatewayResponderImplementation::~AppGatewayResponderImplementation()
         {
+            if (nullptr != mShutdownState) {
+                mShutdownState->stopping.store(true, std::memory_order_release);
+            }
             LOGINFO("AppGatewayResponderImplementation destructor");
             
             // Clear WebSocket handlers before destruction to prevent use-after-free
@@ -85,6 +89,58 @@ namespace WPEFramework
                 mAuthenticator = nullptr;
             }
 
+        }
+
+        void AppGatewayResponderImplementation::BeginShutdown()
+        {
+            auto shutdownState = mShutdownState;
+            if (nullptr == shutdownState) {
+                return;
+            }
+
+            {
+                std::lock_guard<std::mutex> lock(shutdownState->mutex);
+                shutdownState->stopping.store(true, std::memory_order_release);
+            }
+
+            std::unique_lock<std::mutex> lock(shutdownState->mutex);
+            shutdownState->cv.wait(lock, [shutdownState]() {
+                return (0 == shutdownState->activeJobs.load(std::memory_order_acquire));
+            });
+        }
+
+        void AppGatewayResponderImplementation::CompleteJob(const std::shared_ptr<ShutdownState>& shutdownState)
+        {
+            if (nullptr == shutdownState) {
+                return;
+            }
+
+            if (1 == shutdownState->activeJobs.fetch_sub(1, std::memory_order_acq_rel)) {
+                std::lock_guard<std::mutex> lock(shutdownState->mutex);
+                shutdownState->cv.notify_all();
+            }
+        }
+
+        bool AppGatewayResponderImplementation::QueueWorkerJob(const std::function<Core::ProxyType<Core::IDispatch>()>& jobFactory)
+        {
+            auto shutdownState = mShutdownState;
+            if (nullptr == shutdownState) {
+                return false;
+            }
+
+            Core::ProxyType<Core::IDispatch> job;
+            {
+                std::unique_lock<std::mutex> lock(shutdownState->mutex);
+                if (shutdownState->stopping.load(std::memory_order_acquire)) {
+                    return false;
+                }
+
+                shutdownState->activeJobs.fetch_add(1, std::memory_order_acq_rel);
+                job = jobFactory();
+            }
+
+            Core::IWorkerPool::Instance().Submit(job);
+            return true;
         }
 
         uint32_t AppGatewayResponderImplementation::Configure(PluginHost::IShell *shell)
@@ -129,7 +185,12 @@ namespace WPEFramework
             mWsManager.SetMessageHandler(
                 [this](const std::string &method, const std::string &params, const int requestId, const uint32_t connectionId)
                 {
-                    Core::IWorkerPool::Instance().Submit(WsMsgJob::Create(this, method, params, requestId, connectionId));
+                    if (mShutdownState->stopping.load(std::memory_order_acquire)) {
+                        return;
+                    }
+                    QueueWorkerJob([this, method, params, requestId, connectionId]() {
+                        return WsMsgJob::Create(this, method, params, requestId, connectionId);
+                    });
                 });
 
             mWsManager.SetAuthHandler(
@@ -181,7 +242,9 @@ namespace WPEFramework
                         #endif
                         #endif
                         
-                        Core::IWorkerPool::Instance().Submit(ConnectionStatusNotificationJob::Create(this, connectionId, appId, true));
+                        QueueWorkerJob([this, connectionId, appId]() {
+                            return ConnectionStatusNotificationJob::Create(this, connectionId, appId, true);
+                        });
 
                         return true;
                     }
@@ -210,7 +273,9 @@ namespace WPEFramework
                     AppGatewayTelemetry::getInstance().DecrementWebSocketConnections(context);
                     
                     if (appId != "UNKNOWN") {
-                        Core::IWorkerPool::Instance().Submit(ConnectionStatusNotificationJob::Create(this, connectionId, appId, false));
+                        QueueWorkerJob([this, connectionId, appId = std::move(appId)]() {
+                            return ConnectionStatusNotificationJob::Create(this, connectionId, std::move(appId), false);
+                        });
                     }
                     
                     mAppIdRegistry.Remove(connectionId);
@@ -231,25 +296,42 @@ namespace WPEFramework
 
         Core::hresult AppGatewayResponderImplementation::Respond(const Context& context, const string& payload)
         {
-            Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context.connectionId, context.requestId, payload));
+            if (mShutdownState->stopping.load(std::memory_order_acquire)) {
+                return Core::ERROR_NONE;
+            }
+            QueueWorkerJob([this, context, payload]() {
+                return RespondJob::Create(this, context.connectionId, context.requestId, payload);
+            });
             return Core::ERROR_NONE;
         }
 
         Core::hresult AppGatewayResponderImplementation::Emit(const Context& context /* @in */, 
                 const string& method /* @in */, const string& payload /* @in @opaque */) {
+            if (mShutdownState->stopping.load(std::memory_order_acquire)) {
+                return Core::ERROR_NONE;
+            }
             // check if the connection is compliant with JSON RPC
             if (mCompliantJsonRpcRegistry.IsCompliantJsonRpc(context.connectionId)) {
-                Core::IWorkerPool::Instance().Submit(EmitJob::Create(this, context.connectionId, method, payload));
+                QueueWorkerJob([this, context, method, payload]() {
+                    return EmitJob::Create(this, context.connectionId, method, payload);
+                });
             }
             else {
-                Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context.connectionId, context.requestId, payload));
+                QueueWorkerJob([this, context, payload]() {
+                    return RespondJob::Create(this, context.connectionId, context.requestId, payload);
+                });
             }
             return Core::ERROR_NONE;
         }
 
         Core::hresult AppGatewayResponderImplementation::Request(const uint32_t connectionId /* @in */, 
                 const uint32_t id /* @in */, const string& method /* @in */, const string& params /* @in @opaque */) {
-            Core::IWorkerPool::Instance().Submit(RequestJob::Create(this, connectionId, id, method, params));
+            if (mShutdownState->stopping.load(std::memory_order_acquire)) {
+                return Core::ERROR_NONE;
+            }
+            QueueWorkerJob([this, connectionId, id, method, params]() {
+                return RequestJob::Create(this, connectionId, id, method, params);
+            });
             return Core::ERROR_NONE;
         }
 

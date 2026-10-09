@@ -21,6 +21,7 @@
 #include <interfaces/IAppGateway.h>
 #include <interfaces/IAppNotifications.h>
 #include <interfaces/IConfiguration.h>
+#include <atomic>
 #include <mutex>
 #include <map>
 #include "UtilsLogging.h"
@@ -135,6 +136,7 @@ namespace Plugin {
     public:
         AppNotificationsImplementation();
         ~AppNotificationsImplementation();
+        void Stop();
 
         BEGIN_INTERFACE_MAP(AppNotificationsImplementation)
         INTERFACE_ENTRY(Exchange::IAppNotifications)
@@ -253,6 +255,7 @@ namespace Plugin {
         };
 
     private:
+        std::atomic<bool> mStopping{false};
         PluginHost::IShell* mShell;
         SubscriberMap mSubMap;
         ThunderSubscriptionManager mThunderManager;
