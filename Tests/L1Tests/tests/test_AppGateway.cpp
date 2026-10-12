@@ -1002,6 +1002,7 @@ TEST(AppGatewayPluginTest, AppGatewayResponderImplementation_ShutdownBarrier_Wai
     ASSERT_TRUE(jobCv.wait_for(startLock, std::chrono::seconds(2), [&]() {
         return jobStarted.load(std::memory_order_acquire);
     }));
+    startLock.unlock();
 
     std::thread shutdownThread([&]() {
         responder.BeginShutdown();
