@@ -20,7 +20,6 @@
 #include "AppGatewayCommon.h"
 #include <interfaces/IConfiguration.h>
 #include "StringUtils.h"
-#include "UtilsFirebolt.h"
 #include "UtilsAppGatewayTelemetry.h"
 #include "UtilsJsonValidation.h"
 #include "ContextUtils.h"
@@ -77,6 +76,22 @@ namespace Plugin {
         mDelegate = std::make_shared<SettingsDelegate>();
         mDelegate->setShell(mShell);
 
+        // Lifecycle 2 only: wire up the WebSocket session guard so the
+        // LifecycleDelegate can pause/resume traffic when an app hibernates.
+        if (ConfigUtils::useAppManagers()) {
+            Exchange::IAppGatewayAppSessionGuard* sessionGuard =
+                mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayAppSessionGuard>(APP_GATEWAY_CALLSIGN);
+            if (sessionGuard != nullptr) {
+                auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
+                if (lifecycleDelegate != nullptr) {
+                    lifecycleDelegate->SetSessionGuard(sessionGuard);
+                }
+                sessionGuard->Release();
+            } else {
+                LOGWARN("AppGatewayCommon::Initialize: IAppGatewayAppSessionGuard not available; hibernation WebSocket guard disabled");
+            }
+        }
+
         return EMPTY_STRING;
     }
 
@@ -94,6 +109,15 @@ namespace Plugin {
         {
             std::unique_lock<std::mutex> lk(mJobDrainMutex);
             mJobDrainCv.wait(lk, [this] { return mActiveJobs.load(std::memory_order_acquire) == 0; });
+        }
+
+        // Clear session guard reference before delegate cleanup to prevent
+        // any in-flight lifecycle callbacks from using a stale guard.
+        if (ConfigUtils::useAppManagers() && mDelegate) {
+            auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
+            if (nullptr != lifecycleDelegate) {
+                lifecycleDelegate->SetSessionGuard(nullptr);
+            }
         }
 
         mDelegate->Cleanup();
@@ -214,7 +238,7 @@ namespace Plugin {
         { "videooutput.quantizationrange", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetVideoOutputQuantizationRange(result);
         }},
-        { "device.dolbyatmosexperience", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+        { "device.dolbyatmosexperienceavailable", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDolbyAtmosExperience(result);
         }},
         { "voiceguidance.navigationhints", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
@@ -254,7 +278,7 @@ namespace Plugin {
             return self->GetPresentationLanguage(result);
         }},
         { "localization.presentationlanguage", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
-            return self->GetPresentationLanguage(result);
+            return self->GetLocale(result);
         }},
         { "localization.locale", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetLocale(result);
@@ -308,6 +332,21 @@ namespace Plugin {
         }},
         {"network.connected", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetNetworkConnected(result);
+        }},
+        { "speechsynthesis.voices", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->SpeechSynthesisVoices(ctx, payload, result);
+        }},
+        { "speechsynthesis.speak", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->SpeechSynthesisSpeak(ctx, payload, result);
+        }},
+        { "speechsynthesis.cancel", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->SpeechSynthesisCancel(ctx, payload, result);
+        }},
+        { "speechsynthesis.pause", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->SpeechSynthesisPause(ctx, payload, result);
+        }},
+        { "speechsynthesis.resume", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->SpeechSynthesisResume(ctx, payload, result);
         }},
         { "device.chipsetid", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDeviceChipsetId(result);
@@ -376,6 +415,9 @@ namespace Plugin {
         }},
         { "parentalcontrol.viewingrestrictions", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetViewingRestrictions(result);
+        }},
+        {"texttospeech.speak", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->TextToSpeechSpeak(ctx, payload, result);
         }}
     };
 
@@ -527,6 +569,47 @@ namespace Plugin {
             LOGERR("Unsupported method: %s", method.c_str());
             return Core::ERROR_UNKNOWN_KEY;
         }
+
+Core::hresult AppGatewayCommon::SpeechSynthesisVoices(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
+{
+    result = "[]";
+    if (!mDelegate) { ErrorUtils::NotAvailable(result); return Core::ERROR_UNAVAILABLE; }
+    auto ttsDelegate = mDelegate->getTTSDelegate();
+    if (!ttsDelegate) { ErrorUtils::NotAvailable(result); return Core::ERROR_UNAVAILABLE; }
+    return ttsDelegate->SpeechSynthesisVoices(payload, result);
+}
+
+Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+{
+    if (!mDelegate) { ErrorUtils::NotAvailable(result); return Core::ERROR_UNAVAILABLE; }
+    auto ttsDelegate = mDelegate->getTTSDelegate();
+    if (!ttsDelegate) { ErrorUtils::NotAvailable(result); return Core::ERROR_UNAVAILABLE; }
+    return ttsDelegate->SpeechSynthesisSpeak(ctx.appId, payload, result);
+}
+
+    Core::hresult AppGatewayCommon::SpeechSynthesisCancel(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
+    {
+        if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+        auto ttsDelegate = mDelegate->getTTSDelegate();
+        if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
+        return ttsDelegate->SpeechSynthesisCancel(payload, result);
+    }
+
+    Core::hresult AppGatewayCommon::SpeechSynthesisPause(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
+    {
+        if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+        auto ttsDelegate = mDelegate->getTTSDelegate();
+        if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
+        return ttsDelegate->SpeechSynthesisPause(payload, result);
+    }
+
+    Core::hresult AppGatewayCommon::SpeechSynthesisResume(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
+    {
+        if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+        auto ttsDelegate = mDelegate->getTTSDelegate();
+        if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
+        return ttsDelegate->SpeechSynthesisResume(payload, result);
+    }
     
     Core::hresult AppGatewayCommon::SetName(const string &value /* @in */, string &result)
         {
@@ -1632,6 +1715,15 @@ namespace Plugin {
             auto systemDelegate = mDelegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDisplayVideoResolutions(result);
+        }
+
+        Core::hresult AppGatewayCommon::TextToSpeechSpeak(const Exchange::GatewayContext& ctx, const string& payload, string& result)
+        {
+            result = "{}";
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto ttsDelegate = mDelegate->getTTSDelegate();
+            if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
+            return ttsDelegate->TextToSpeechSpeak(ctx, payload, result);
         }
 
 } // namespace Plugin

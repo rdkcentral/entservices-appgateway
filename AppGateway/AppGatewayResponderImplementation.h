@@ -27,6 +27,8 @@
 #include <com/com.h>
 #include <core/core.h>
 #include <map>
+#include <mutex>
+#include "UtilsAppGatewayTelemetry.h"
 #include <unordered_set>
 #include <sstream>
 #include <unordered_map>
@@ -35,7 +37,7 @@
 namespace WPEFramework {
 namespace Plugin {
     using Context = Exchange::GatewayContext;
-    class AppGatewayResponderImplementation : public Exchange::IConfiguration, public Exchange::IAppGatewayResponder
+    class AppGatewayResponderImplementation : public Exchange::IConfiguration, public Exchange::IAppGatewayResponder, public Exchange::IAppGatewayAppSessionGuard
     {
 
     public:
@@ -49,6 +51,7 @@ namespace Plugin {
         BEGIN_INTERFACE_MAP(AppGatewayResponderImplementation)
         INTERFACE_ENTRY(Exchange::IConfiguration)
         INTERFACE_ENTRY(Exchange::IAppGatewayResponder)
+        INTERFACE_ENTRY(Exchange::IAppGatewayAppSessionGuard)
         END_INTERFACE_MAP
 
     public:
@@ -68,12 +71,17 @@ namespace Plugin {
         virtual Core::hresult Unregister(Exchange::IAppGatewayResponder::INotification *notification) override;
 
         virtual void OnConnectionStatusChanged(const string& appId, const uint32_t connectionId, const bool connected);
-        
+
+        // IAppGatewayAppSessionGuard interface
+        Core::hresult SuspendTraffic(const string& appId) override;
+        Core::hresult ResumeTraffic(const string& appId) override;
+
         // IConfiguration interface
         uint32_t Configure(PluginHost::IShell* service) override;
 
     private:
-        class EXTERNAL WsMsgJob : public Core::IDispatch
+        class EXTERNAL WsMsgJob : public Core::IDispatch,
+                                  public AppGatewayTelemetryHelper::JobTiming
         {
         protected:
             WsMsgJob(AppGatewayResponderImplementation *parent, 
@@ -104,6 +112,8 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                AGW_TIME_JOB(timer, "WsMsgJob[" + mMethod + "]",
+                    mRequestId, mConnectionId, "");
                 mParent.DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
             }
 
@@ -115,7 +125,8 @@ namespace Plugin {
             const uint32_t mConnectionId;
         };
 
-        class EXTERNAL RespondJob : public Core::IDispatch
+        class EXTERNAL RespondJob : public Core::IDispatch,
+                                    public AppGatewayTelemetryHelper::JobTiming
         {
         protected:
             RespondJob(AppGatewayResponderImplementation *parent, 
@@ -145,7 +156,9 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                mParent.ReturnMessageInSocket(mConnectionId, mRequestId, mPayload);                
+                AGW_TIME_JOB(timer, "RespondJob",
+                    mRequestId, mConnectionId, "");
+                mParent.DispatchResponseToConnectionIfNotPaused(mConnectionId, mRequestId, mPayload);
             }
 
         private:
@@ -155,7 +168,8 @@ namespace Plugin {
             const uint32_t mConnectionId;
         };
 
-          class EXTERNAL EmitJob : public Core::IDispatch
+          class EXTERNAL EmitJob : public Core::IDispatch,
+                                  public AppGatewayTelemetryHelper::JobTiming
         {
         protected:
             EmitJob(AppGatewayResponderImplementation *parent, 
@@ -185,7 +199,9 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                mParent.mWsManager.DispatchNotificationToConnection(mConnectionId, mDesignator, mPayload);
+                AGW_TIME_JOB(timer, "EmitJob[" + mDesignator + "]",
+                    0, mConnectionId, "");
+                mParent.DispatchNotificationToConnectionIfNotPaused(mConnectionId, mDesignator, mPayload);
             }
 
         private:
@@ -195,7 +211,8 @@ namespace Plugin {
             const uint32_t mConnectionId;
         };
 
-        class EXTERNAL RequestJob : public Core::IDispatch
+        class EXTERNAL RequestJob : public Core::IDispatch,
+                                    public AppGatewayTelemetryHelper::JobTiming
         {
         protected:
             RequestJob(AppGatewayResponderImplementation *parent, 
@@ -226,7 +243,9 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
-                mParent.mWsManager.SendRequestToConnection(mConnectionId, mDesignator, mRequestId, mPayload);
+                AGW_TIME_JOB(timer, "RequestJob[" + mDesignator + "]",
+                    mRequestId, mConnectionId, "");
+                mParent.SendRequestToConnectionIfNotPaused(mConnectionId, mDesignator, mRequestId, mPayload);
             }
 
         private:
@@ -237,7 +256,8 @@ namespace Plugin {
             const uint32_t mRequestId;
         };
 
-        class EXTERNAL ConnectionStatusNotificationJob : public Core::IDispatch
+        class EXTERNAL ConnectionStatusNotificationJob : public Core::IDispatch,
+                                                         public AppGatewayTelemetryHelper::JobTiming
         {
         protected:
             ConnectionStatusNotificationJob(AppGatewayResponderImplementation *parent,
@@ -267,6 +287,8 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                AGW_TIME_JOB(timer, "ConnStatusJob[" + std::string(mConnected?"connect":"disconnect") + "]",
+                    0, mConnectionId, mAppId);
                 mParent.OnConnectionStatusChanged(mAppId, mConnectionId, mConnected);
             }
 
@@ -375,8 +397,35 @@ namespace Plugin {
             const uint32_t requestId,
             const uint32_t connectionId);
 
-
         void ReturnMessageInSocket(const uint32_t connectionId, const int requestId, const string payload);
+
+        bool DispatchResponseToConnectionIfNotPaused(const uint32_t connectionId, const uint32_t requestId, const string& result);
+        bool DispatchNotificationToConnectionIfNotPaused(const uint32_t connectionId, const string& designator, const string& payload);
+        bool SendRequestToConnectionIfNotPaused(const uint32_t connectionId, const string& designator, const uint32_t requestId, const string& params);
+
+        // Thread-safe registry tracking appIds whose WebSocket traffic is currently paused
+        // (i.e., the application is in the HIBERNATED lifecycle state).
+        class PausedAppsRegistry {
+        public:
+            void Pause(const string& appId) {
+                std::lock_guard<std::mutex> lock(mMutex);
+                mPausedApps.insert(appId);
+            }
+
+            void Resume(const string& appId) {
+                std::lock_guard<std::mutex> lock(mMutex);
+                mPausedApps.erase(appId);
+            }
+
+            bool IsPaused(const string& appId) const {
+                std::lock_guard<std::mutex> lock(mMutex);
+                return mPausedApps.find(appId) != mPausedApps.end();
+            }
+
+        private:
+            mutable std::mutex mMutex;
+            std::unordered_set<string> mPausedApps;
+        };
 
         PluginHost::IShell* mService;
         WebSocketConnectionManager mWsManager;
@@ -391,6 +440,7 @@ namespace Plugin {
         bool mEnhancedLoggingEnabled;
         CompliantJsonRpcRegistry mCompliantJsonRpcRegistry;
         DebugDisabledConnectionsRegistry mDebugDisabledConnectionsRegistry;
+        PausedAppsRegistry mPausedAppsRegistry;
     };
 } // namespace Plugin
 } // namespace WPEFramework
