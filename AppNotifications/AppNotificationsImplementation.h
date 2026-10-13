@@ -27,6 +27,7 @@
 #include "UtilsController.h"
 #include "ContextUtils.h"
 #include "UtilsCallsign.h"
+#include "UtilsAppGatewayTelemetry.h"
 
 namespace WPEFramework {
 namespace Plugin {
@@ -155,7 +156,8 @@ namespace Plugin {
         // IConfiguration interface
         uint32_t Configure(PluginHost::IShell* shell);
 
-        class EXTERNAL SubscriberJob : public Core::IDispatch 
+        class EXTERNAL SubscriberJob : public Core::IDispatch,
+                                       public AppGatewayTelemetryHelper::JobTiming
         {
             public:
                 SubscriberJob(AppNotificationsImplementation* delegate, const string& module, const string& event, const bool subscribe)
@@ -184,6 +186,8 @@ namespace Plugin {
                 
                 virtual void Dispatch()
                 {
+                    AGW_TIME_JOB(timer, "SubscriberJob[" + std::string(mSubscribe?"sub":"unsub") + ":" + mEvent + "]",
+                        0, 0, "");
                     if (nullptr != mParent) {
                         if (mSubscribe) {
                             mParent->mThunderManager.Subscribe(mModule, mEvent);
@@ -200,7 +204,8 @@ namespace Plugin {
                 bool mSubscribe;
         };
 
-        class EXTERNAL EmitJob : public Core::IDispatch 
+        class EXTERNAL EmitJob : public Core::IDispatch,
+                                 public AppGatewayTelemetryHelper::JobTiming
         {
             public:
                 EmitJob(AppNotificationsImplementation* delegate, const string& event, const string& payload, const string& appId)
@@ -229,6 +234,8 @@ namespace Plugin {
                 
                 virtual void Dispatch()
                 {
+                    AGW_TIME_JOB(timer, "NotifEmitJob[" + mEvent + "]",
+                        0, 0, mAppId);
                     if (nullptr != mParent) {
                         mParent->mSubMap.EventUpdate(mEvent, mPayload, mAppId);
                     }

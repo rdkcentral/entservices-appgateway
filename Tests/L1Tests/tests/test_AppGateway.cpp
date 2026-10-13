@@ -39,6 +39,8 @@
 #include "Resolver.h"
 #undef private
 
+AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_APPGATEWAY)
+
 #include "ServiceMock.h"
 #include "COMLinkMock.h"
 #include "DispatcherMock.h"
@@ -1415,6 +1417,36 @@ TEST(AppGatewayPluginTest, Telemetry_InitializeAndDeinitialize_NoCrash)
     // Double-deinitialize should be safe
     telemetry.Deinitialize();
     EXPECT_FALSE(telemetry.mInitialized);
+}
+
+TEST(AppGatewayPluginTest, Telemetry_InitializeUsesConfiguredJobTimingThresholds)
+{
+    TestAppGatewayTelemetry telemetry;
+    NiceMock<ServiceMock> service;
+
+    EXPECT_CALL(service, ConfigLine()).WillRepeatedly(Return(
+        "{\"queueWaitThresholdMs\":125.5,\"totalThresholdMs\":750.25}"));
+
+    telemetry.Initialize(&service);
+    EXPECT_DOUBLE_EQ(125.5, telemetry.mJobTimingQueueWaitThresholdMs);
+    EXPECT_DOUBLE_EQ(750.25, telemetry.mJobTimingTotalThresholdMs);
+    telemetry.Deinitialize();
+}
+
+TEST(AppGatewayPluginTest, Telemetry_InitializeUsesDefaultJobTimingThresholdsForInvalidConfig)
+{
+    TestAppGatewayTelemetry telemetry;
+    NiceMock<ServiceMock> service;
+
+    EXPECT_CALL(service, ConfigLine()).WillRepeatedly(Return(
+        "{\"queueWaitThresholdMs\":-1,\"totalThresholdMs\":\"invalid\"}"));
+
+    telemetry.Initialize(&service);
+    EXPECT_DOUBLE_EQ(TELEMETRY_DEFAULT_JOB_TIMING_QUEUE_WAIT_THRESHOLD_MS,
+        telemetry.mJobTimingQueueWaitThresholdMs);
+    EXPECT_DOUBLE_EQ(TELEMETRY_DEFAULT_JOB_TIMING_TOTAL_THRESHOLD_MS,
+        telemetry.mJobTimingTotalThresholdMs);
+    telemetry.Deinitialize();
 }
 
 TEST(AppGatewayPluginTest, Telemetry_SetReportingInterval_UpdatesInterval)

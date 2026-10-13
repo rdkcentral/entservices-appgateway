@@ -27,13 +27,16 @@
 #include <unordered_set>
 #include <utility>
 #include <memory>
+#include "UtilsAppGatewayTelemetry.h"
 
 using namespace WPEFramework;
+using namespace WPEFramework::Plugin;
 
 class BaseEventDelegate : public std::enable_shared_from_this<BaseEventDelegate>
 {
 public:
-    class EXTERNAL EventDelegateDispatchJob : public Core::IDispatch
+    class EXTERNAL EventDelegateDispatchJob : public Core::IDispatch,
+                                              public AppGatewayTelemetryHelper::JobTiming
     {
     public:
         EventDelegateDispatchJob(std::shared_ptr<BaseEventDelegate> delegate, const string &event, const string &payload, string appId = "")
@@ -54,6 +57,8 @@ public:
 
         virtual void Dispatch()
         {
+            AGW_TIME_JOB(timer, "EventDispatchJob[" + mEvent + "]",
+                0, 0, mAppId);
             if (nullptr != mDelegate) {
                 mDelegate->DispatchToAppNotifications(mEvent, mPayload, mAppId);
             }

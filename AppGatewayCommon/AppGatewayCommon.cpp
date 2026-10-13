@@ -83,6 +83,22 @@ namespace Plugin {
             mShuttingDown.store(false, std::memory_order_release);
         }
 
+        // Lifecycle 2 only: wire up the WebSocket session guard so the
+        // LifecycleDelegate can pause/resume traffic when an app hibernates.
+        if (ConfigUtils::useAppManagers()) {
+            Exchange::IAppGatewayAppSessionGuard* sessionGuard =
+                mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayAppSessionGuard>(APP_GATEWAY_CALLSIGN);
+            if (sessionGuard != nullptr) {
+                auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
+                if (lifecycleDelegate != nullptr) {
+                    lifecycleDelegate->SetSessionGuard(sessionGuard);
+                }
+                sessionGuard->Release();
+            } else {
+                LOGWARN("AppGatewayCommon::Initialize: IAppGatewayAppSessionGuard not available; hibernation WebSocket guard disabled");
+            }
+        }
+
         return EMPTY_STRING;
     }
 
@@ -109,6 +125,14 @@ namespace Plugin {
             
             // Now that all jobs are done, safely cleanup the delegate under the same lock
             if (mDelegate) {
+                // Clear session guard reference before delegate cleanup to prevent
+                // any in-flight lifecycle callbacks from using a stale guard.
+                if (ConfigUtils::useAppManagers()) {
+                    auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
+                    if (nullptr != lifecycleDelegate) {
+                        lifecycleDelegate->SetSessionGuard(nullptr);
+                    }
+                }
                 mDelegate->Cleanup();
                 mDelegate.reset();
             }
@@ -268,7 +292,7 @@ namespace Plugin {
             return self->GetPresentationLanguage(result);
         }},
         { "localization.presentationlanguage", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
-            return self->GetPresentationLanguage(result);
+            return self->GetLocale(result);
         }},
         { "localization.locale", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetLocale(result);

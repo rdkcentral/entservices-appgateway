@@ -27,6 +27,7 @@
 #include <map>
 #include "UtilsLogging.h"
 #include "UtilsController.h"
+#include "UtilsAppGatewayTelemetry.h"
 #include "delegate/SettingsDelegate.h"
 #include <unordered_map>
 #include <functional>
@@ -44,7 +45,8 @@ namespace WPEFramework {
             AppGatewayCommon(const AppGatewayCommon&) = delete;
             AppGatewayCommon& operator=(const AppGatewayCommon&) = delete;
 
-            class EXTERNAL EventRegistrationJob : public Core::IDispatch
+            class EXTERNAL EventRegistrationJob : public Core::IDispatch,
+                                                  public AppGatewayTelemetryHelper::JobTiming
         {
             protected:
                 EventRegistrationJob(AppGatewayCommon *parent,
@@ -84,6 +86,8 @@ namespace WPEFramework {
                 }
                 virtual void Dispatch()
                 {
+                    AGW_TIME_JOB(timer,
+                        "EventRegJob[" + std::string(mListen?"sub":"unsub") + ":" + mEvent + "]", 0, 0, "");
                     if (nullptr != mParent) {
                         auto delegate = mParent->GetDelegateSafe();
                         if (delegate) {
