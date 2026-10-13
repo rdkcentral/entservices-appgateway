@@ -28,6 +28,7 @@
 #include <com/com.h>
 #include <core/core.h>
 #include <map>
+#include "UtilsAppGatewayTelemetry.h"
 
 
 namespace WPEFramework {
@@ -58,7 +59,8 @@ namespace Plugin {
 
     private:
 
-        class EXTERNAL RespondJob : public Core::IDispatch
+        class EXTERNAL RespondJob : public Core::IDispatch,
+                                    public AppGatewayTelemetryHelper::JobTiming
         {
         protected:
             RespondJob(AppGatewayImplementation *parent, 
@@ -88,6 +90,8 @@ namespace Plugin {
             }
             virtual void Dispatch()
             {
+                AGW_TIME_JOB(timer, "ImplRespondJob",
+                    mContext.requestId, mContext.connectionId, mContext.appId);
                 if(ContextUtils::IsOriginGateway(mDestination)) {
                     mParent.ReturnMessageInSocket(mContext, std::move(mPayload));
                 } else {
@@ -103,7 +107,8 @@ namespace Plugin {
             const std::string mDestination;
         };
 
-        class EXTERNAL EventHookJob : public Core::IDispatch
+        class EXTERNAL EventHookJob : public Core::IDispatch,
+                                      public AppGatewayTelemetryHelper::JobTiming
         {
         protected:
             EventHookJob(AppGatewayImplementation* parent,

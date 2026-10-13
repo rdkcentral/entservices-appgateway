@@ -111,6 +111,9 @@ extern uint32_t Test_AppGatewayImplementation_Resolve_NotConfigured();
 extern uint32_t Test_AppGatewayImplementation_RegionalConfig();
 
 // Direct-access coverage tests (use #define private public to reach private Send* and FlushJob methods)
+extern uint32_t Test_Telemetry_JobTimingThresholds_Defaults();
+extern uint32_t Test_Telemetry_JobTimingThresholds_Configured();
+extern uint32_t Test_Telemetry_JobTimingThresholds_InvalidConfig();
 extern uint32_t Test_Telemetry_DirectAccess_AlreadyInitialized();
 extern uint32_t Test_Telemetry_DirectAccess_SendHealthStats_Empty();
 extern uint32_t Test_Telemetry_DirectAccess_SendHealthStats_WithData();
@@ -529,6 +532,9 @@ int main()
         { "AppGatewayImplementation_RegionalConfig", Test_AppGatewayImplementation_RegionalConfig },
 
         // Direct-access coverage tests (private Send* and FlushJob methods)
+        { "Telemetry_JobTimingThresholds_Defaults", Test_Telemetry_JobTimingThresholds_Defaults },
+        { "Telemetry_JobTimingThresholds_Configured", Test_Telemetry_JobTimingThresholds_Configured },
+        { "Telemetry_JobTimingThresholds_InvalidConfig", Test_Telemetry_JobTimingThresholds_InvalidConfig },
         { "Telemetry_DirectAccess_AlreadyInitialized", Test_Telemetry_DirectAccess_AlreadyInitialized },
         { "Telemetry_DirectAccess_SendHealthStats_Empty", Test_Telemetry_DirectAccess_SendHealthStats_Empty },
         { "Telemetry_DirectAccess_SendHealthStats_WithData", Test_Telemetry_DirectAccess_SendHealthStats_WithData },
