@@ -89,9 +89,11 @@ namespace Plugin {
             const std::string& params,
             const uint32_t requestId,
             const uint32_t connectionId)
-                : mParent(*parent), mMethod(method), mParams(params), mRequestId(requestId), mConnectionId(connectionId)
+                : mParent(parent), mMethod(method), mParams(params), mRequestId(requestId), mConnectionId(connectionId)
             {
-                mParent.AddRef();
+                if (nullptr != mParent) {
+                    mParent->AddRef();
+                }
             }
 
         public:
@@ -100,7 +102,9 @@ namespace Plugin {
             WsMsgJob &operator=(const WsMsgJob &) = delete;
             ~WsMsgJob()
             {
-                mParent.Release();
+                if (nullptr != mParent) {
+                    mParent->Release();
+                }
             }
 
         public:
@@ -114,11 +118,13 @@ namespace Plugin {
             {
                 AGW_TIME_JOB(timer, "WsMsgJob[" + mMethod + "]",
                     mRequestId, mConnectionId, "");
-                mParent.DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
+                if (nullptr != mParent) {
+                    mParent->DispatchWsMsg(mMethod, mParams, mRequestId, mConnectionId);
+                }
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            AppGatewayResponderImplementation *mParent;
             const std::string mMethod;
             const std::string mParams;
             const uint32_t mRequestId;
@@ -134,9 +140,11 @@ namespace Plugin {
             const uint32_t requestId,
             const std::string& payload
             )
-                : mParent(*parent), mPayload(payload), mRequestId(requestId), mConnectionId(connectionId)
+                : mParent(parent), mPayload(payload), mRequestId(requestId), mConnectionId(connectionId)
             {
-                mParent.AddRef();
+                if (nullptr != mParent) {
+                    mParent->AddRef();
+                }
             }
 
         public:
@@ -145,7 +153,9 @@ namespace Plugin {
             RespondJob &operator=(const RespondJob &) = delete;
             ~RespondJob()
             {
-                mParent.Release();
+                if (nullptr != mParent) {
+                    mParent->Release();
+                }
             }
 
         public:
@@ -158,11 +168,13 @@ namespace Plugin {
             {
                 AGW_TIME_JOB(timer, "RespondJob",
                     mRequestId, mConnectionId, "");
-                mParent.DispatchResponseToConnectionIfNotPaused(mConnectionId, mRequestId, mPayload);
+                if (nullptr != mParent) {
+                    mParent->DispatchResponseToConnectionIfNotPaused(mConnectionId, mRequestId, mPayload);
+                }
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            AppGatewayResponderImplementation *mParent;
             const std::string mPayload;
             const uint32_t mRequestId;
             const uint32_t mConnectionId;
@@ -177,9 +189,11 @@ namespace Plugin {
             const std::string& designator,
             const std::string& payload
             )
-                : mParent(*parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId)
+                : mParent(parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId)
             {
-                mParent.AddRef();
+                if (nullptr != mParent) {
+                    mParent->AddRef();
+                }
             }
 
         public:
@@ -188,7 +202,9 @@ namespace Plugin {
             EmitJob &operator=(const EmitJob &) = delete;
             ~EmitJob()
             {
-                mParent.Release();
+                if (nullptr != mParent) {
+                    mParent->Release();
+                }
             }
 
         public:
@@ -201,11 +217,13 @@ namespace Plugin {
             {
                 AGW_TIME_JOB(timer, "EmitJob[" + mDesignator + "]",
                     0, mConnectionId, "");
-                mParent.DispatchNotificationToConnectionIfNotPaused(mConnectionId, mDesignator, mPayload);
+                if (nullptr != mParent) {
+                    mParent->DispatchNotificationToConnectionIfNotPaused(mConnectionId, mDesignator, mPayload);
+                }
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            AppGatewayResponderImplementation *mParent;
             const std::string mPayload;
             const std::string mDesignator;
             const uint32_t mConnectionId;
@@ -221,9 +239,11 @@ namespace Plugin {
             const std::string& designator,
             const std::string& payload
             )
-                : mParent(*parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId), mRequestId(requestId)
+                : mParent(parent), mPayload(payload), mDesignator(designator), mConnectionId(connectionId), mRequestId(requestId)
             {
-                mParent.AddRef();
+                if (nullptr != mParent) {
+                    mParent->AddRef();
+                }
             }
 
         public:
@@ -232,7 +252,9 @@ namespace Plugin {
             RequestJob &operator=(const RequestJob &) = delete;
             ~RequestJob()
             {
-                mParent.Release();
+                if (nullptr != mParent) {
+                    mParent->Release();
+                }
             }
 
         public:
@@ -245,11 +267,13 @@ namespace Plugin {
             {
                 AGW_TIME_JOB(timer, "RequestJob[" + mDesignator + "]",
                     mRequestId, mConnectionId, "");
-                mParent.SendRequestToConnectionIfNotPaused(mConnectionId, mDesignator, mRequestId, mPayload);
+                if (nullptr != mParent) {
+                    mParent->SendRequestToConnectionIfNotPaused(mConnectionId, mDesignator, mRequestId, mPayload);
+                }
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            AppGatewayResponderImplementation *mParent;
             const std::string mPayload;
             const std::string mDesignator;
             const uint32_t mConnectionId;
@@ -265,9 +289,11 @@ namespace Plugin {
             const std::string& appId,
             const bool connected
             )
-                : mParent(*parent), mConnectionId(connectionId), mAppId(appId), mConnected(connected)
+                : mParent(parent), mConnectionId(connectionId), mAppId(appId), mConnected(connected)
             {
-                mParent.AddRef();
+                if (nullptr != mParent) {
+                    mParent->AddRef();
+                }
             }
 
         public:
@@ -276,7 +302,9 @@ namespace Plugin {
             ConnectionStatusNotificationJob &operator=(const ConnectionStatusNotificationJob &) = delete;
             ~ConnectionStatusNotificationJob()
             {
-                mParent.Release();
+                if (nullptr != mParent) {
+                    mParent->Release();
+                }
             }
 
         public:
@@ -289,11 +317,13 @@ namespace Plugin {
             {
                 AGW_TIME_JOB(timer, "ConnStatusJob[" + std::string(mConnected?"connect":"disconnect") + "]",
                     0, mConnectionId, mAppId);
-                mParent.OnConnectionStatusChanged(mAppId, mConnectionId, mConnected);
+                if (nullptr != mParent) {
+                    mParent->OnConnectionStatusChanged(mAppId, mConnectionId, mConnected);
+                }
             }
 
         private:
-            AppGatewayResponderImplementation &mParent;
+            AppGatewayResponderImplementation *mParent;
             const uint32_t mConnectionId;
             const std::string mAppId;
             const bool mConnected;

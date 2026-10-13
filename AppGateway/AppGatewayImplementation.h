@@ -68,9 +68,11 @@ namespace Plugin {
             const std::string& payload,
             const std::string& destination
             )
-                : mParent(*parent), mPayload(payload), mContext(context), mDestination(destination)
+                : mParent(parent), mPayload(payload), mContext(context), mDestination(destination)
             {
-                mParent.AddRef();
+                if (nullptr != mParent) {
+                    mParent->AddRef();
+                }
             }
 
         public:
@@ -79,7 +81,9 @@ namespace Plugin {
             RespondJob &operator=(const RespondJob &) = delete;
             ~RespondJob()
             {
-                mParent.Release();
+                if (nullptr != mParent) {
+                    mParent->Release();
+                }
             }
 
         public:
@@ -92,16 +96,17 @@ namespace Plugin {
             {
                 AGW_TIME_JOB(timer, "ImplRespondJob",
                     mContext.requestId, mContext.connectionId, mContext.appId);
-                if(ContextUtils::IsOriginGateway(mDestination)) {
-                    mParent.ReturnMessageInSocket(mContext, std::move(mPayload));
-                } else {
-                    mParent.SendToLaunchDelegate(mContext, std::move(mPayload));
+                if (nullptr != mParent) {
+                    if(ContextUtils::IsOriginGateway(mDestination)) {
+                        mParent->ReturnMessageInSocket(mContext, std::move(mPayload));
+                    } else {
+                        mParent->SendToLaunchDelegate(mContext, std::move(mPayload));
+                    }
                 }
-                
             }
 
         private:
-            AppGatewayImplementation &mParent;
+            AppGatewayImplementation *mParent;
             const std::string mPayload;
             const Context mContext;
             const std::string mDestination;
@@ -114,9 +119,11 @@ namespace Plugin {
             EventHookJob(AppGatewayImplementation* parent,
                 const Context& context,
                 const std::string& hookMethod)
-                : mParent(*parent), mContext(context), mHookMethod(hookMethod)
+                : mParent(parent), mContext(context), mHookMethod(hookMethod)
             {
-                mParent.AddRef();
+                if (nullptr != mParent) {
+                    mParent->AddRef();
+                }
             }
 
         public:
@@ -125,7 +132,9 @@ namespace Plugin {
             EventHookJob& operator=(const EventHookJob&) = delete;
             ~EventHookJob()
             {
-                mParent.Release();
+                if (nullptr != mParent) {
+                    mParent->Release();
+                }
             }
 
         public:
@@ -137,7 +146,7 @@ namespace Plugin {
             virtual void Dispatch() override;
 
         private:
-            AppGatewayImplementation& mParent;
+            AppGatewayImplementation* mParent;
             const Context mContext;
             const std::string mHookMethod;
         };

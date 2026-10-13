@@ -56,6 +56,11 @@ public:
 
     ~NetworkDelegate()
     {
+        {
+            std::lock_guard<std::mutex> lk(mJobDrainMutex);
+            mShuttingDown = true;
+        }
+
         // Unregister first so no new jobs get queued, then wait for any already
         // running, then release. Wrong order leaves a window for a use-after-free.
         {
@@ -340,7 +345,13 @@ private:
             // Query and dispatch on a worker-pool thread, not this notification thread.
             // Locked so two rapid events can't interleave and dispatch a stale value.
             // Job is counted so ~NetworkDelegate can wait for it before destructing.
-            mParent.mActiveWorkerJobs.fetch_add(1, std::memory_order_acq_rel);
+            {
+                std::lock_guard<std::mutex> lk(mParent.mJobDrainMutex);
+                if (mParent.mShuttingDown) {
+                    return;
+                }
+                mParent.mActiveWorkerJobs.fetch_add(1, std::memory_order_acq_rel);
+            }
             mParent.PostToWorkerPool([this]() {
                 JobDrainGuard drainGuard(mParent);
                 std::lock_guard<std::mutex> lock(mParent.mQueryDispatchMutex);
@@ -417,6 +428,7 @@ private:
     std::atomic<int> mActiveWorkerJobs{0};
     std::mutex mJobDrainMutex;
     std::condition_variable mJobDrainCv;
+    bool mShuttingDown{false};
 };
 
 #endif // __NETWORKDELEGATE_H__

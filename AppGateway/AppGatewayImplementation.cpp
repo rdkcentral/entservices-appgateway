@@ -561,12 +561,14 @@ namespace WPEFramework
         {
             AGW_TIME_JOB(timer, "EventHookJob[" + mHookMethod + "]",
                 mContext.requestId, mContext.connectionId, mContext.appId);
-            LOGINFO("EventHookJob: triggering hook method=%s for appId=%s",
-                     mHookMethod.c_str(), mContext.appId.c_str());
-            std::string resolution;
-            const auto rc = mParent.FetchResolvedData(mContext, mHookMethod, "{}", "", resolution);
-            if (rc != Core::ERROR_NONE) {
-                LOGERR("EventHookJob: hook method=%s failed rc=%u", mHookMethod.c_str(), rc);
+            if (nullptr != mParent) {
+                LOGINFO("EventHookJob: triggering hook method=%s for appId=%s",
+                         mHookMethod.c_str(), mContext.appId.c_str());
+                std::string resolution;
+                const auto rc = mParent->FetchResolvedData(mContext, mHookMethod, "{}", "", resolution);
+                if (rc != Core::ERROR_NONE) {
+                    LOGERR("EventHookJob: hook method=%s failed rc=%u", mHookMethod.c_str(), rc);
+                }
             }
         }
 
