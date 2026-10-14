@@ -41,6 +41,7 @@
 #include "BaseEventDelegate.h"
 #include <algorithm>
 #include "ContextUtils.h"
+#include "ObjectUtils.h"
 #include <mutex>
 #include <interfaces/ISystemServices.h>
 
@@ -247,7 +248,7 @@ public:
         auto sysServices = AcquireSystemServices();
         if (!sysServices)
         {
-            make = "unknown";
+            // Leave the result empty: on failure the gateway answers with its own JSON error
             return Core::ERROR_UNAVAILABLE;
         }
 
@@ -259,7 +260,6 @@ public:
         if (nullptr == params)
         {
             LOGERR("SystemDelegate: failed to create device-info parameter iterator");
-            make = "unknown";
             return Core::ERROR_UNAVAILABLE;
         }
 
@@ -275,8 +275,7 @@ public:
             // Per transform: return_or_else(.result.make, "unknown")
             make = "unknown";
         }
-        // Wrap in quotes to make it a valid JSON string
-        make = "\"" + make + "\"";
+        make = ObjectUtils::StringToJsonString(make);
         return Core::ERROR_NONE;
     }
 
@@ -288,7 +287,7 @@ public:
         auto sysServices = AcquireSystemServices();
         if (!sysServices)
         {
-            name = "Living Room";
+            // Leave the result empty: on failure the gateway answers with its own JSON error
             return Core::ERROR_UNAVAILABLE;
         }
 
@@ -303,8 +302,7 @@ public:
         {
             name = "Living Room";
         }
-        // Wrap in quotes to make it a valid JSON string
-        name = "\"" + name + "\"";
+        name = ObjectUtils::StringToJsonString(name);
         return Core::ERROR_NONE;
     }
 
@@ -503,8 +501,7 @@ public:
         if (rc == Core::ERROR_NONE && success)
         {
             tz = std::move(timeZone);
-            // Wrap in quotes to make it a valid JSON string
-            tz = "\"" + tz + "\"";
+            tz = ObjectUtils::StringToJsonString(tz);
             return Core::ERROR_NONE;
         }
         LOGERR("SystemDelegate: couldn't get timezone");
@@ -1257,7 +1254,7 @@ public:
             LOGERR("[AppGatewayCommon|TimezoneChanged] newTimeZone parameter is empty");
             return false;
         }
-        Dispatch(EVENT_ON_TIMEZONE_CHANGED, "\"" + newTz + "\"");
+        Dispatch(EVENT_ON_TIMEZONE_CHANGED, ObjectUtils::StringToJsonString(newTz));
         return true;
     }
 
@@ -2228,11 +2225,18 @@ private:
 
     void OnSystemFriendlyNameChanged(const WPEFramework::Core::JSON::VariantContainer& params)
     {
-        (void)params;
         LOGINFO("[AppGatewayCommon|System.onFriendlyNameChanged] Incoming alias=%s.%s, invoking handlers...",
                 SYSTEM_CALLSIGN, "onFriendlyNameChanged");
-        // Re-query state and dispatch event
-        const bool nameEmitted = EmitOnNameChanged();
+        // Use the name the event carries, as the time zone and territory handlers do: querying
+        // org.rdk.System again from inside its own notification can block. An event without
+        // the name is skipped.
+        bool nameEmitted = false;
+        if (params.HasLabel(_T("friendlyName"))) {
+            const std::string payload = ObjectUtils::StringToJsonString(params[_T("friendlyName")].String());
+            Dispatch(EVENT_ON_NAME_CHANGED, payload);
+            Dispatch(EVENT_ON_DEVICE_NAME_CHANGED, payload);
+            nameEmitted = true;
+        }
         LOGINFO("[AppGatewayCommon|System.onFriendlyNameChanged] Handler responses: onNameChanged=%s",
                 nameEmitted ? "emitted" : "skipped");
     }

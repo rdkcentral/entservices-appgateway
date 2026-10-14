@@ -611,7 +611,10 @@ TEST_F(SystemDelegateTest, AGC_L1_098_GetTimeZone_Success)
     const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.timezone", "{}", result);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_NE(result.find("America/New_York"), std::string::npos);
+    // The result is a JSON string; '/' may be escaped as "\/" depending on the Thunder build
+    Core::JSON::String timeZone;
+    EXPECT_TRUE(timeZone.FromString(result));
+    EXPECT_EQ("America/New_York", timeZone.Value());
 }
 
 TEST_F(SystemDelegateTest, AGC_L1_099_SetTimeZone_Success)
@@ -1526,4 +1529,165 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_146_HandleEvent_Unsubscribe_RemovesEmitter
     EXPECT_FALSE(systemDelegate->IsNotificationRegistered("Device.onHdrChanged"));
 }
 
+/* ================================================================
+ * Firebolt payloads must be valid JSON
+ *
+ * String values are escaped, and Device.onNameChanged uses the name
+ * carried by the org.rdk.System event.
+ * ================================================================ */
+
+TEST_F(SystemDelegateTest, AGC_L1_259_GetDeviceName_EscapesQuotesAndBackslashes)
+{
+    systemDispatcher.SetHandler("getFriendlyName", [](const std::string&, const std::string&, std::string& resp) {
+        resp = R"({"friendlyName":"Say \"hi\" \\o"})";
+        return Core::ERROR_NONE;
+    });
+
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.name", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ(R"("Say \"hi\" \\o")", result);
+}
+
+TEST(ObjectUtilsTest, AGC_L1_260_StringToJsonString_EscapesSpecialCharacters)
+{
+    EXPECT_EQ(R"("Living Room")", ObjectUtils::StringToJsonString("Living Room"));
+    EXPECT_EQ(R"("Say \"hi\"")", ObjectUtils::StringToJsonString("Say \"hi\""));
+    EXPECT_EQ(R"("C:\\TV")", ObjectUtils::StringToJsonString("C:\\TV"));
+    EXPECT_EQ(R"("a\nb\tc")", ObjectUtils::StringToJsonString("a\nb\tc"));
+    EXPECT_EQ(R"("\u0001\u001F")", ObjectUtils::StringToJsonString("\x01\x1f"));
+    EXPECT_EQ(R"("")", ObjectUtils::StringToJsonString(""));
+}
+
+TEST_F(SystemDelegateEmitTest, AGC_L1_261_OnSystemFriendlyNameChanged_UsesEventName)
+{
+    // The handler must not query org.rdk.System again from inside its notification
+    int queries = 0;
+    systemDispatcher.SetHandler("getFriendlyName", [&queries](const std::string&, const std::string&, std::string& resp) {
+        ++queries;
+        resp = R"({"friendlyName":"Stale Name"})";
+        return Core::ERROR_NONE;
+    });
+
+    MockEmitter* emitter = SubscribeEmitter("Device.onNameChanged");
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onNameChanged"), ::testing::StrEq(R"("Say \"hi\"")"), _))
+        .Times(::testing::AtLeast(1));
+
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    Core::JSON::VariantContainer params;
+    params[_T("friendlyName")] = "Say \"hi\"";
+    systemDelegate->OnSystemFriendlyNameChanged(params);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    EXPECT_EQ(0, queries);
+}
+
+TEST_F(SystemDelegateEmitTest, AGC_L1_264_OnSystemFriendlyNameChanged_EmptyName_NoQuery)
+{
+    // An empty name is still the event's value: send "" instead of querying org.rdk.System
+    int queries = 0;
+    systemDispatcher.SetHandler("getFriendlyName", [&queries](const std::string&, const std::string&, std::string& resp) {
+        ++queries;
+        resp = R"({"friendlyName":"Stale Name"})";
+        return Core::ERROR_NONE;
+    });
+
+    MockEmitter* emitter = SubscribeEmitter("Device.onNameChanged");
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onNameChanged"), ::testing::StrEq(R"("")"), _))
+        .Times(::testing::AtLeast(1));
+
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    Core::JSON::VariantContainer params;
+    params[_T("friendlyName")] = "";
+    systemDelegate->OnSystemFriendlyNameChanged(params);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    EXPECT_EQ(0, queries);
+}
+
+TEST_F(SystemDelegateEmitTest, AGC_L1_265_OnSystemFriendlyNameChanged_NoName_Skipped)
+{
+    int queries = 0;
+    systemDispatcher.SetHandler("getFriendlyName", [&queries](const std::string&, const std::string&, std::string& resp) {
+        ++queries;
+        resp = R"({"friendlyName":"Stale Name"})";
+        return Core::ERROR_NONE;
+    });
+
+    MockEmitter* emitter = SubscribeEmitter("Device.onNameChanged");
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Device.onNameChanged"), _, _)).Times(0);
+
+    auto systemDelegate = plugin.mDelegate->getSystemDelegate();
+    ASSERT_NE(systemDelegate, nullptr);
+    Core::JSON::VariantContainer params;
+    systemDelegate->OnSystemFriendlyNameChanged(params);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    EXPECT_EQ(0, queries);
+}
+
 } // namespace
+
+class SystemNoInterfaceTest : public ::testing::Test {
+protected:
+    static Core::Sink<AppGatewayCommon>* sPlugin;
+    static NiceMock<ServiceMock>* sService;
+
+    Core::Sink<AppGatewayCommon>& plugin = *sPlugin;
+
+    static void SetUpTestSuite()
+    {
+        sService = new NiceMock<ServiceMock>();
+        sPlugin = new Core::Sink<AppGatewayCommon>();
+
+        ON_CALL(*sService, QueryInterfaceByCallsign(_, _))
+            .WillByDefault(Return(nullptr));
+
+        EXPECT_CALL(*sService, AddRef()).Times(AnyNumber());
+        EXPECT_CALL(*sService, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+        const string response = sPlugin->Initialize(sService);
+        ASSERT_TRUE(response.empty());
+    }
+
+    static void TearDownTestSuite()
+    {
+        if (sPlugin && sService) {
+            sPlugin->Deinitialize(sService);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        delete sPlugin;  sPlugin = nullptr;
+        delete sService; sService = nullptr;
+    }
+};
+
+Core::Sink<AppGatewayCommon>* SystemNoInterfaceTest::sPlugin = nullptr;
+NiceMock<ServiceMock>* SystemNoInterfaceTest::sService = nullptr;
+
+TEST_F(SystemNoInterfaceTest, AGC_L1_262_GetDeviceName_NoSystemServices_LeavesResultEmpty)
+{
+    // A bare fallback name would be forwarded as an invalid JSON payload; empty lets the gateway build its error
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.name", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_TRUE(result.empty()) << result;
+}
+
+TEST_F(SystemNoInterfaceTest, AGC_L1_263_GetDeviceMake_NoSystemServices_LeavesResultEmpty)
+{
+    const auto ctx = MakeContext();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "device.make", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+    EXPECT_TRUE(result.empty()) << result;
+}
