@@ -62,7 +62,12 @@ namespace Thunder
             uint32_t mId{0};
             std::string mCallSign{};
             std::string mThunderSecurityToken{};
-            PluginHost::ILocalDispatcher *mDispatcher{nullptr};
+#if defined(THUNDER_VERSION) && (THUNDER_VERSION <= 4)
+            using DispatcherType = PluginHost::ILocalDispatcher;
+#else
+            using DispatcherType = PluginHost::IDispatcher;
+#endif
+            DispatcherType *mDispatcher{nullptr};
 
             bool ToString(std::string &out, const std::string &in) const
             {
@@ -106,7 +111,7 @@ namespace Thunder
             {
                 if (service)
                 {
-                    mDispatcher = service->QueryInterfaceByCallsign<PluginHost::ILocalDispatcher>(mCallSign);
+                    mDispatcher = service->QueryInterfaceByCallsign<DispatcherType>(mCallSign);
                 }
             }
 
@@ -146,19 +151,23 @@ namespace Thunder
 
                 if (mDispatcher != nullptr)
                 {
-                    if (mDispatcher->Local() != nullptr)
+#if defined(THUNDER_VERSION) && (THUNDER_VERSION <= 4)
+                    // Thunder 4: only a local dispatcher can be invoked directly.
+                    if (mDispatcher->Local() == nullptr)
                     {
-                        result = mDispatcher->Invoke(channelId, id, mThunderSecurityToken, designator, parametersStr, responseStr);
+                        return result;
+                    }
+#endif
+                    result = mDispatcher->Invoke(channelId, id, mThunderSecurityToken, designator, parametersStr, responseStr);
 
-                        if (result != Core::ERROR_NONE)
-                        {
-                            LOGERR("Call failed: %s (parameters: %s) error: %d, response: %s", designator.c_str(), parametersStr.c_str(), result, responseStr.c_str());
-                        }
-                        
-                        if (FromString(response, responseStr) == false)
-                        {
-                            result = Core::ERROR_GENERAL;
-                        }
+                    if (result != Core::ERROR_NONE)
+                    {
+                        LOGERR("Call failed: %s (parameters: %s) error: %d, response: %s", designator.c_str(), parametersStr.c_str(), result, responseStr.c_str());
+                    }
+
+                    if (FromString(response, responseStr) == false)
+                    {
+                        result = Core::ERROR_GENERAL;
                     }
                 }
 
