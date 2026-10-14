@@ -19,7 +19,10 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <condition_variable>
+#include <mutex>
 #include <string>
+#include <vector>
 
 #include "Module.h"
 
@@ -32,6 +35,7 @@
 #include "WindowManagerMock.h"
 #include "AppActionsMock.h"
 #include "MockEmitter.h"
+#include "AppSessionGuardMock.h"
 #include "ThunderPortability.h"
 #include "WorkerPoolImplementation.h"
 
@@ -1177,7 +1181,7 @@ TEST_F(LifecycleDelegateTest, AGC_L1_206_ActionsOnIntent_SubscribeUnsubscribe)
     EXPECT_TRUE(status);
 }
 
-TEST_F(LifecycleDelegateTest, AGC_L1_207_ActionsOnIntent_EmittedOnActiveTransition)
+TEST_F(LifecycleDelegateTest, AGC_L1_207_ActionsOnIntent_EmittedWhenIntentUpdatedOnActiveTransition)
 {
     ASSERT_NE(capturedNotification, nullptr);
 
@@ -1200,15 +1204,528 @@ TEST_F(LifecycleDelegateTest, AGC_L1_207_ActionsOnIntent_EmittedOnActiveTransiti
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Actions.onIntent"), _, _))
         .Times(::testing::AtLeast(1));
 
-    // Transition to ACTIVE — should fire DispatchLastKnownIntent → Actions.onIntent
+    // Transition to ACTIVE with an updated intent should fire DispatchLastKnownIntent → Actions.onIntent
     capturedNotification->OnAppLifecycleStateChanged(
         "test.app", "instance-ev-001",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        "{\"action\":\"browse\"}"
+    );
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_207a_ActionsOnIntent_NotEmittedWhenIntentNotUpdated)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-ev-002",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        "{\"action\":\"search\"}"
+    );
+
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+    lifecycleDelegate->AddNotification("Actions.onIntent", emitter);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Actions.onIntent"), _, _)).Times(0);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-ev-002",
         Exchange::ILifecycleManager::INITIALIZING,
         Exchange::ILifecycleManager::ACTIVE,
         ""
     );
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_208_LifecycleDeliveredBeforeDiscoveryNavigateTo)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-order-001",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        "{\"action\":\"search\"}"
+    );
+
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+
+    std::mutex callbackMutex;
+    std::condition_variable callbackCondition;
+    std::vector<std::string> callbackOrder;
+    bool lifecycleStarted = false;
+    bool lifecycleBlocked = false;
+    bool releaseLifecycle = false;
+    bool navigationStartedWhileLifecycleBlocked = false;
+    bool callbacksOverlapped = false;
+
+    MockEmitter* lifecycleEmitter = new MockEmitter();
+    heapEmitters.push_back(lifecycleEmitter);
+    lifecycleEmitter->AddRef();
+    lifecycleDelegate->AddNotification("Lifecycle.onBackground", lifecycleEmitter);
+
+    MockEmitter* navigationEmitter = new MockEmitter();
+    heapEmitters.push_back(navigationEmitter);
+    navigationEmitter->AddRef();
+    lifecycleDelegate->AddNotification("Discovery.onNavigateTo", navigationEmitter);
+
+    EXPECT_CALL(*lifecycleEmitter, Emit(::testing::HasSubstr("Lifecycle.onBackground"), _, _))
+        .WillOnce(::testing::Invoke([&](const string&, const string&, const string&) {
+            std::unique_lock<std::mutex> lock(callbackMutex);
+            lifecycleStarted = true;
+            lifecycleBlocked = true;
+            callbackCondition.notify_all();
+
+            callbackCondition.wait_for(
+                lock,
+                std::chrono::seconds(1),
+                [&releaseLifecycle] { return releaseLifecycle; });
+
+            lifecycleBlocked = false;
+            callbackOrder.emplace_back("lifecycle");
+            callbackCondition.notify_all();
+        }));
+    EXPECT_CALL(*navigationEmitter, Emit(::testing::HasSubstr("Discovery.onNavigateTo"), _, _))
+        .WillOnce(::testing::Invoke([&](const string&, const string&, const string&) {
+            std::lock_guard<std::mutex> lock(callbackMutex);
+            navigationStartedWhileLifecycleBlocked = lifecycleBlocked;
+            callbacksOverlapped = lifecycleStarted && lifecycleBlocked;
+            callbackOrder.emplace_back("navigation");
+            callbackCondition.notify_all();
+        }));
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-order-001",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        "{\"action\":\"browse\"}"
+    );
+
+    std::unique_lock<std::mutex> lock(callbackMutex);
+    const bool lifecycleWasStarted = callbackCondition.wait_for(
+        lock,
+        std::chrono::seconds(1),
+        [&lifecycleStarted] { return lifecycleStarted; });
+
+    if (!lifecycleWasStarted) {
+        releaseLifecycle = true;
+        callbackCondition.notify_all();
+        lock.unlock();
+        FAIL() << "Lifecycle callback did not start";
+    }
+
+    releaseLifecycle = true;
+    callbackCondition.notify_all();
+
+    const bool bothCallbacksCompleted = callbackCondition.wait_for(
+        lock,
+        std::chrono::seconds(1),
+        [&callbackOrder] { return callbackOrder.size() == 2U; });
+
+    ASSERT_TRUE(bothCallbacksCompleted);
+    EXPECT_FALSE(navigationStartedWhileLifecycleBlocked);
+    EXPECT_FALSE(callbacksOverlapped);
+    ASSERT_EQ(callbackOrder.size(), 2U);
+    EXPECT_EQ(callbackOrder[0], "lifecycle");
+    EXPECT_EQ(callbackOrder[1], "navigation");
+}
+
+/* ================================================================
+ * Hibernation / WebSocket traffic-gate tests (RDKEMW-19304)
+ *
+ * These tests inject a NiceMock<AppSessionGuardMock> via
+ * SetSessionGuard() and verify:
+ *
+ *  AGC_L1_210 – INITIALIZING always calls ResumeTraffic (stale-
+ *               suspension clearance) when a session guard is set.
+ *  AGC_L1_211 – HIBERNATED→ACTIVE: ResumeTraffic is called before
+ *               Dispatch (verified via call ordering).
+ *  AGC_L1_212 – ACTIVE→HIBERNATED: SuspendTraffic is called after
+ *               Dispatch (verified via call ordering).
+ *  AGC_L1_213 – No guard set: HIBERNATED transitions do not crash.
+ *  AGC_L1_214 – SetSessionGuard(nullptr) clears the guard; subsequent
+ *               lifecycle transitions proceed without crash.
+ *  AGC_L1_215 – Multiple HIBERNATED→ACTIVE→HIBERNATED cycles work
+ *               correctly.
+ * ================================================================ */
+
+TEST_F(LifecycleDelegateTest, AGC_L1_210_INITIALIZING_CallsResumeTraffic_StaleCleanup)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+
+    NiceMock<AppSessionGuardMock> guardMock;
+
+    // Inject the guard; NiceMock means unexpected calls are silently ignored.
+    EXPECT_CALL(guardMock, AddRef()).Times(::testing::AnyNumber());
+    EXPECT_CALL(guardMock, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(guardMock, QueryInterface(::testing::_)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    // ResumeTraffic MUST be called for INITIALIZING to clear any stale suspension.
+    EXPECT_CALL(guardMock, ResumeTraffic(std::string("test.app")))
+        .Times(::testing::AtLeast(1))
+        .WillRepeatedly(Return(Core::ERROR_NONE));
+    // SuspendTraffic must NOT be called for INITIALIZING.
+    EXPECT_CALL(guardMock, SuspendTraffic(::testing::_))
+        .Times(0);
+
+    lifecycleDelegate->SetSessionGuard(&guardMock);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-210",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Clean up guard reference before test teardown.
+    lifecycleDelegate->SetSessionGuard(nullptr);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_211_HibernatedToActive_ResumeTrafficBeforeDispatch)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+
+    // Subscribe an emitter to capture Lifecycle2.onStateChanged dispatch.
+    MockEmitter* stateEmitter = new MockEmitter();
+    heapEmitters.push_back(stateEmitter);
+    stateEmitter->AddRef();
+    lifecycleDelegate->AddNotification("Lifecycle2.onStateChanged", stateEmitter);
+
+    // Bring the app to HIBERNATED first (without guard, to keep setup simple).
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-211",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-211",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::HIBERNATED,
+        ""
+    );
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+
+    // Now inject the guard before the HIBERNATED → ACTIVE transition.
+    NiceMock<AppSessionGuardMock> guardMock;
+    EXPECT_CALL(guardMock, AddRef()).Times(::testing::AnyNumber());
+    EXPECT_CALL(guardMock, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(guardMock, QueryInterface(::testing::_)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    // Track call ordering via InSequence.
+    {
+        ::testing::InSequence seq;
+        EXPECT_CALL(guardMock, ResumeTraffic(std::string("test.app")))
+            .Times(1)
+            .WillOnce(Return(Core::ERROR_NONE));
+        // After ResumeTraffic, Dispatch fires (captured by stateEmitter).
+        EXPECT_CALL(*stateEmitter, Emit(::testing::HasSubstr("Lifecycle2.onStateChanged"), _, _))
+            .Times(::testing::AtLeast(1));
+    }
+    // SuspendTraffic must NOT be called on ACTIVE transition.
+    EXPECT_CALL(guardMock, SuspendTraffic(::testing::_)).Times(0);
+
+    lifecycleDelegate->SetSessionGuard(&guardMock);
+
+    // HIBERNATED → ACTIVE: triggers ResumeTraffic then Dispatch.
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-211",
+        Exchange::ILifecycleManager::HIBERNATED,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    lifecycleDelegate->SetSessionGuard(nullptr);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_212_ActiveToHibernated_SuspendTrafficAfterDispatch)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+
+    // Subscribe an emitter for Lifecycle2.onStateChanged dispatch.
+    MockEmitter* stateEmitter = new MockEmitter();
+    heapEmitters.push_back(stateEmitter);
+    stateEmitter->AddRef();
+    lifecycleDelegate->AddNotification("Lifecycle2.onStateChanged", stateEmitter);
+
+    // Get app into ACTIVE state without guard.
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-212",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-212",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+
+    // Inject guard before ACTIVE → HIBERNATED transition.
+    NiceMock<AppSessionGuardMock> guardMock;
+    EXPECT_CALL(guardMock, AddRef()).Times(::testing::AnyNumber());
+    EXPECT_CALL(guardMock, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(guardMock, QueryInterface(::testing::_)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    {
+        ::testing::InSequence seq;
+        EXPECT_CALL(*stateEmitter, Emit(::testing::HasSubstr("Lifecycle2.onStateChanged"), _, _))
+            .Times(1);
+        EXPECT_CALL(guardMock, SuspendTraffic(std::string("test.app")))
+            .Times(1)
+            .WillOnce(Return(Core::ERROR_NONE));
+    }
+    // ResumeTraffic must NOT be called for ACTIVE → HIBERNATED.
+    EXPECT_CALL(guardMock, ResumeTraffic(::testing::_)).Times(0);
+
+    lifecycleDelegate->SetSessionGuard(&guardMock);
+
+    // ACTIVE → HIBERNATED: triggers Dispatch then SuspendTraffic.
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-212",
+        Exchange::ILifecycleManager::ACTIVE,
+        Exchange::ILifecycleManager::HIBERNATED,
+        ""
+    );
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    lifecycleDelegate->SetSessionGuard(nullptr);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_213_NoGuardSet_HibernationTransition_NoCrash)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    // Deliberately do NOT inject a session guard (nullptr, the default).
+    // The lifecycle transitions should proceed without crash.
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-213",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-213",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-213",
+        Exchange::ILifecycleManager::ACTIVE,
+        Exchange::ILifecycleManager::HIBERNATED,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-213",
+        Exchange::ILifecycleManager::HIBERNATED,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // If we reach here without crash, the test passes.
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_214_SetSessionGuard_Nullptr_ClearsGuard_NoCrash)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+
+    NiceMock<AppSessionGuardMock> guardMock;
+    EXPECT_CALL(guardMock, AddRef()).Times(::testing::AnyNumber());
+    EXPECT_CALL(guardMock, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(guardMock, QueryInterface(::testing::_)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(guardMock, ResumeTraffic(::testing::_)).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(guardMock, SuspendTraffic(::testing::_)).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+
+    // Set guard, trigger a transition, then clear it.
+    lifecycleDelegate->SetSessionGuard(&guardMock);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-214",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+    // Clear the guard.
+    lifecycleDelegate->SetSessionGuard(nullptr);
+
+    // Further transitions must not crash (guard is null).
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-214",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-214",
+        Exchange::ILifecycleManager::ACTIVE,
+        Exchange::ILifecycleManager::HIBERNATED,
+        ""
+    );
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // If we reach here without crash, the test passes.
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_215_MultipleHibernationCycles_CorrectGuardCalls)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+
+    NiceMock<AppSessionGuardMock> guardMock;
+    EXPECT_CALL(guardMock, AddRef()).Times(::testing::AnyNumber());
+    EXPECT_CALL(guardMock, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(guardMock, QueryInterface(::testing::_)).Times(::testing::AnyNumber()).WillRepeatedly(Return(nullptr));
+
+    // Two full cycles: INITIALIZING + ACTIVE + HIBERNATED + back to ACTIVE.
+    // Each ACTIVE→HIBERNATED must call SuspendTraffic exactly once.
+    // Each HIBERNATED→ACTIVE must call ResumeTraffic exactly once.
+    // INITIALIZING also calls ResumeTraffic (stale-suspension clearance).
+
+    EXPECT_CALL(guardMock, ResumeTraffic(std::string("test.app")))
+        .Times(::testing::Exactly(3)) // 1 for INITIALIZING + 2 for HIBERNATED→ACTIVE
+        .WillRepeatedly(Return(Core::ERROR_NONE));
+    EXPECT_CALL(guardMock, SuspendTraffic(std::string("test.app")))
+        .Times(::testing::Exactly(2)) // 2 for ACTIVE→HIBERNATED
+        .WillRepeatedly(Return(Core::ERROR_NONE));
+
+    lifecycleDelegate->SetSessionGuard(&guardMock);
+
+    // Cycle 1
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-215",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-215",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-215",
+        Exchange::ILifecycleManager::ACTIVE,
+        Exchange::ILifecycleManager::HIBERNATED,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-215",
+        Exchange::ILifecycleManager::HIBERNATED,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+
+    // Cycle 2 (ACTIVE → HIBERNATED → ACTIVE, no new INITIALIZING)
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-215",
+        Exchange::ILifecycleManager::ACTIVE,
+        Exchange::ILifecycleManager::HIBERNATED,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-215",
+        Exchange::ILifecycleManager::HIBERNATED,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    lifecycleDelegate->SetSessionGuard(nullptr);
+}
+
+/* ================================================================
+ * AGC_L1_233–235: null/empty intent validation in ActionsStart and
+ * lifecycle notification path.
+ * ================================================================ */
+
+TEST_F(LifecycleDelegateTest, AGC_L1_233_ActionsStart_NullIntentField_ReturnsBadRequest)
+{
+    // {"intent":null} — the intent field is JSON null
+    const auto ctx = MakeContext("test.app");
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "actions.start", "{\"intent\":null}", result);
+
+    EXPECT_EQ(Core::ERROR_BAD_REQUEST, rc);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_234_ActionsStart_EmptyObjectIntentField_ReturnsBadRequest)
+{
+    // {"intent":{}} — the intent field is an empty JSON object
+    const auto ctx = MakeContext("test.app");
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "actions.start", "{\"intent\":{}}", result);
+
+    EXPECT_EQ(Core::ERROR_BAD_REQUEST, rc);
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_235_LifecycleNotification_NullNavigationIntent_NotStored)
+{
+    // OnAppLifecycleStateChanged with navigationIntent="null" must not overwrite a stored intent.
+    ASSERT_NE(capturedNotification, nullptr);
+
+    // First store a valid intent via INITIALIZING
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-nullnav-001",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        "{\"action\":\"play\"}"
+    );
+
+    // Now fire ACTIVE with navigationIntent="null" — should be ignored
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-nullnav-001",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        "null"
+    );
+
+    // The original intent must still be retrievable
+    const auto ctx = MakeContext("test.app");
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "commoninternal.getlastintent", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    // Original intent is still there
+    EXPECT_NE(result.find("\"action\":\"play\""), std::string::npos);
+    // The literal string "null" must not appear as the intent value
+    EXPECT_EQ(result.find("\"intent\":\"null\""), std::string::npos);
 }
 
 } // namespace

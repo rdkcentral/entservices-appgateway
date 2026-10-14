@@ -28,6 +28,7 @@
 #include <interfaces/IRDKWindowManager.h>
 #include <interfaces/IRuntimeManager.h>
 #include <interfaces/IAppActions.h>
+#include <interfaces/IAppGateway.h>
 #include "UtilsLogging.h"
 #include "UtilsCallsign.h"
 #include "UtilsFirebolt.h"
@@ -50,13 +51,14 @@ static const std::set<string> VALID_LIFECYCLE_EVENT = {
     "lifecycle.onunloading",
     "lifecycle2.onstatechanged",
     "actions.onintent",
+    "discovery.onnavigateto",
     "presentation.onfocusedchanged"
 };
 
 class LifecycleDelegate : public BaseEventDelegate
 {
     public:
-    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell), mLifecycleManagerState(nullptr), mWindowManager(nullptr), mNotificationHandler(*this), mWindowManagerNotificationHandler(*this)
+    LifecycleDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mShell(shell), mLifecycleManagerState(nullptr), mWindowManager(nullptr), mNotificationHandler(*this), mWindowManagerNotificationHandler(*this), mSessionGuard(nullptr)
     {
         if (ConfigUtils::useAppManagers()) {
            Exchange::ILifecycleManagerState *lifecycleManagerState = GetLifecycleManagerStateInterface();
@@ -96,6 +98,12 @@ class LifecycleDelegate : public BaseEventDelegate
                 mWindowManager = nullptr;
             }
         }
+        // Release session guard reference acquired in SetSessionGuard
+        std::lock_guard<std::mutex> lock(mSessionGuardMutex);
+        if (mSessionGuard != nullptr) {
+            mSessionGuard->Release();
+            mSessionGuard = nullptr;
+        }
     }
 
     bool HandleSubscription(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen)
@@ -110,6 +118,22 @@ class LifecycleDelegate : public BaseEventDelegate
             RemoveNotification(event, cb);
         }
         return true;
+    }
+
+    // Sets the session guard used to pause/resume WebSocket traffic during hibernation.
+    // Called by AppGatewayCommon during Initialize (set) and Deinitialize (clear with nullptr).
+    // Only used in the Lifecycle 2 (AppManagers) code path; must not be called on the
+    // LaunchDelegate path.
+    void SetSessionGuard(Exchange::IAppGatewayAppSessionGuard* sessionGuard)
+    {
+        std::lock_guard<std::mutex> lock(mSessionGuardMutex);
+        if (mSessionGuard != nullptr) {
+            mSessionGuard->Release();
+        }
+        mSessionGuard = sessionGuard;
+        if (mSessionGuard != nullptr) {
+            mSessionGuard->AddRef();
+        }
     }
 
     bool HandleEvent(Exchange::IAppNotificationHandler::IEmitter *cb, const string &event, const bool listen, bool &registrationError)
@@ -274,7 +298,7 @@ class LifecycleDelegate : public BaseEventDelegate
 
     Core::hresult ActionsStart(const Exchange::GatewayContext& context, const string& payload /*@opaque*/, string& result /*@out @opaque*/)
     {
-        if (payload.empty() || payload == "null") {
+        if (payload.empty() || "null" == payload) {
             LOGWARN("ActionsStart: intent payload is required");
             ErrorUtils::CustomBadRequest("Intent payload is required", result);
             return Core::ERROR_BAD_REQUEST;
@@ -291,9 +315,21 @@ class LifecycleDelegate : public BaseEventDelegate
             return Core::ERROR_BAD_REQUEST;
         }
 
-        // Re-serialize the intent sub-document as an opaque JSON string
+        // Validate and re-serialize the intent sub-document as an opaque JSON string.
+        // Reject JSON null (Variant::type::EMPTY) and empty objects ({}) as invalid.
+        const JsonValue& intentVariant = args.Get("intent");
+        if (intentVariant.Content() == JsonValue::type::EMPTY) {
+            LOGWARN("ActionsStart: 'intent' field must not be null");
+            ErrorUtils::CustomBadRequest("'intent' field must not be null or empty", result);
+            return Core::ERROR_BAD_REQUEST;
+        }
         string intent;
-        args.Get("intent").Object().ToString(intent);
+        intentVariant.Object().ToString(intent);
+        if (intent.empty() || intent == "{}" || "null" == intent) {
+            LOGWARN("ActionsStart: 'intent' field must not be an empty object");
+            ErrorUtils::CustomBadRequest("'intent' field must not be null or empty", result);
+            return Core::ERROR_BAD_REQUEST;
+        }
 
         // Extract optional handlerAppId
         string handlerAppId;
@@ -425,11 +461,13 @@ class LifecycleDelegate : public BaseEventDelegate
             LOGINFO("OnAppLifecycleStateChanged: appId=%s, appInstanceId=%s, oldState=%d, newState=%d, navigationIntent=%s",
                     appId.c_str(), appInstanceId.c_str(), oldLifecycleState, newLifecycleState, navigationIntent.c_str());
 
-            // Only update the registry when a non-empty intent is provided.
-            // An empty intent on subsequent transitions (e.g. ACTIVE) must not
+            // Only update the registry when a non-empty, non-null intent is provided.
+            // An empty or "null" intent on subsequent transitions (e.g. ACTIVE) must not
             // overwrite a previously stored intent (e.g. secondScreen set on INITIALIZING).
-            if (!navigationIntent.empty()) {
+            bool bIntentUpdated = false;
+            if (!navigationIntent.empty() && navigationIntent != "null") {
                 mParent.mNavigationIntentRegistry.AddNavigationIntent(appInstanceId, navigationIntent);
+                bIntentUpdated = true;
             }
 
             // if new Lifecycle state is INITIALIZING then add to app instance map
@@ -455,8 +493,8 @@ class LifecycleDelegate : public BaseEventDelegate
             } 
 
             // handle lifecycle update
-            mParent.HandleLifecycleUpdate(appInstanceId, oldLifecycleState, newLifecycleState);            
-            
+            mParent.HandleLifecycleUpdate(appInstanceId, oldLifecycleState, newLifecycleState, bIntentUpdated);
+
         }
 
         BEGIN_INTERFACE_MAP(LifecycleNotificationHandler)
@@ -622,8 +660,8 @@ class LifecycleDelegate : public BaseEventDelegate
             };
 
             void AddNavigationIntent(const string& appInstanceId, const string& intent) {
-                if (true == intent.empty()) {
-                    return; // ignore empty intents; preserve the last non-empty intent and intentId
+                if (intent.empty() || "null" == intent) {
+                    return; // ignore empty/null intents; preserve the last non-empty intent and intentId
                 }
                 std::lock_guard<std::mutex> lock(intentMutex);
                 navigationIntentMap[appInstanceId] = { intent, ++mIntentIndex };
@@ -826,9 +864,16 @@ class LifecycleDelegate : public BaseEventDelegate
         string intent;
         uint32_t intentId = 0;
         GetLastKnownIntent(appId, intent, intentId);
-        if (!intent.empty()) {
+        if (!intent.empty() && intent != "null") {
             string payloadStr = BuildIntentResult(intentId, intent);
             Dispatch("Actions.onIntent", payloadStr, appId);
+            // Mirror LaunchDelegate behavior for apps still consuming Discovery.onNavigateTo.
+            JsonObject intentJson;
+            if (intentJson.FromString(intent)) {
+                string discoveryPayload;
+                intentJson.ToString(discoveryPayload);
+                Dispatch("Discovery.onNavigateTo", discoveryPayload, appId);
+            }
         }
     }
 
@@ -840,7 +885,7 @@ class LifecycleDelegate : public BaseEventDelegate
     static string BuildIntentResult(uint32_t intentId, const string& intent)
     {
         string intentJson;
-        if (intent.empty()) {
+        if (intent.empty() || "null" == intent) {
             // No intent available – represent as an empty JSON object
             intentJson = "{}";
         } else if (intent[0] == '{' || intent[0] == '[') {
@@ -873,27 +918,128 @@ class LifecycleDelegate : public BaseEventDelegate
         }
     }
 
-    // Handle Lifecycle update for a given appInstanceId by accepting the previous and current lifecycle state
-    void HandleLifecycleUpdate(const string& appInstanceId,  const Exchange::ILifecycleManager::LifecycleState oldLifecycleState, const Exchange::ILifecycleManager::LifecycleState newLifecycleState)
+    // Returns an AddRef'd session guard pointer, lazily re-acquiring it if the
+    // one-time Initialize() injection was missed due to plugin startup ordering.
+    Exchange::IAppGatewayAppSessionGuard* AcquireSessionGuardRef()
     {
-        // update lifecycle state registry
+        {
+            std::lock_guard<std::mutex> lock(mSessionGuardMutex);
+            if (nullptr != mSessionGuard) {
+                mSessionGuard->AddRef();
+                return mSessionGuard;
+            }
+        }
+
+        if (!ConfigUtils::useAppManagers() || nullptr == mShell) {
+            return nullptr;
+        }
+
+        Exchange::IAppGatewayAppSessionGuard* sessionGuard =
+            mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayAppSessionGuard>(APP_GATEWAY_CALLSIGN);
+        if (nullptr == sessionGuard) {
+            LOGWARN("AcquireSessionGuardRef: IAppGatewayAppSessionGuard still not available");
+            return nullptr;
+        }
+
+        SetSessionGuard(sessionGuard);
+        LOGINFO("AcquireSessionGuardRef: lazily acquired IAppGatewayAppSessionGuard");
+        sessionGuard->Release();
+
+        std::lock_guard<std::mutex> lock(mSessionGuardMutex);
+        if (nullptr != mSessionGuard) {
+            mSessionGuard->AddRef();
+            return mSessionGuard;
+        }
+
+        return nullptr;
+    }
+
+    // Updates lifecycle state, emits Lifecycle 2/1 notifications, controls the
+    // hibernation traffic gate, and dispatches a newly supplied navigation intent.
+    void HandleLifecycleUpdate(const string& appInstanceId,
+                               const Exchange::ILifecycleManager::LifecycleState oldLifecycleState,
+                               const Exchange::ILifecycleManager::LifecycleState newLifecycleState,
+                               const bool bIntentUpdated = true)
+    {
+        LOGINFO("HandleLifecycleUpdate: appInstanceId=%s, oldState=%d, newState=%d", appInstanceId.c_str(), oldLifecycleState, newLifecycleState);
+        // Update the registry before building notification payloads so consumers
+        // observe the new state.
         mLifecycleStateRegistry.UpdateLifecycleState(appInstanceId, newLifecycleState);
 
-        // get appId from appInstanceId
+        // Lifecycle notifications and traffic control are keyed by appId.
         string appId = mAppIdInstanceIdMap.GetAppId(appInstanceId);
         if (appId.empty()) {
             LOGWARN("HandleLifecycleUpdate: No appId found for appInstanceId=%s, skipping dispatch", appInstanceId.c_str());
             return;
         }
 
-        Dispatch("Lifecycle2.onStateChanged", mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId), appId);
+        // Lifecycle 2 only: clear stale suspension for every new session and
+        // reopen traffic before announcing a transition out of HIBERNATED.
+        // Entering HIBERNATED follows the inverse order: deliver the state event
+        // first, then close the traffic gate.
+        //
+        // AcquireSessionGuardRef returns an AddRef'd pointer. No session-guard
+        // mutex is held while SuspendTraffic or ResumeTraffic performs COM-RPC.
+        const bool needsResume = ConfigUtils::useAppManagers() && !appId.empty() &&
+                                 (newLifecycleState == Exchange::ILifecycleManager::INITIALIZING ||
+                                  Exchange::ILifecycleManager::HIBERNATED == oldLifecycleState);
+        const bool needsSuspend = ConfigUtils::useAppManagers() && !appId.empty() &&
+                                  Exchange::ILifecycleManager::HIBERNATED == newLifecycleState;
 
-        // if new lifecycleState is ACTIVE trigger last known intent
-        if (newLifecycleState == Exchange::ILifecycleManager::ACTIVE) {
-            DispatchLastKnownIntent(appId);
+        Exchange::IAppGatewayAppSessionGuard* guardRef = nullptr;
+        if (needsResume || needsSuspend) {
+            guardRef = AcquireSessionGuardRef();
         }
 
+        LOGINFO("HandleLifecycleUpdate: appId=%s, needsResume=%d, needsSuspend=%d, guardRef=%p", appId.c_str(), needsResume, needsSuspend, guardRef);
+        // INITIALIZING clears suspension left by a crashed prior session. Leaving
+        // HIBERNATED resumes first so the state-change event is not dropped.
+        if (needsResume && nullptr != guardRef) {
+            if (Exchange::ILifecycleManager::INITIALIZING == newLifecycleState) {
+                LOGINFO("HandleLifecycleUpdate: clearing stale traffic suspension for new session appId=%s", appId.c_str());
+            } else {
+                LOGINFO("HandleLifecycleUpdate: resuming traffic for resumed appId=%s", appId.c_str());
+            }
+            if (Core::ERROR_NONE != guardRef->ResumeTraffic(appId)) {
+                LOGERR("HandleLifecycleUpdate: failed to resume traffic for appId=%s", appId.c_str());
+            }
+        }
+
+        const string lifecyclePayload = mLifecycleStateRegistry.GetLifecycle2StateJson(appInstanceId);
+        // Normal lifecycle delivery remains asynchronous. When a guard will close
+        // the channel, deliver HIBERNATED synchronously to guarantee Emit completes
+        // before SuspendTraffic starts dropping outbound jobs.
+        if (needsSuspend && nullptr != guardRef && IsNotificationRegistered("Lifecycle2.onStateChanged")) {
+            DispatchToAppNotifications("Lifecycle2.onStateChanged", lifecyclePayload, appId);
+        } else {
+            Dispatch("Lifecycle2.onStateChanged", lifecyclePayload, appId);
+        }
+
+        // Dispatch Lifecycle 1 events before suspension so they are not dropped
+        // by the traffic gate. This ensures compatibility events like Lifecycle.onSuspended
+        // are delivered even when the app is entering HIBERNATED state.
         HandleLifecycle1Update(appInstanceId, oldLifecycleState, newLifecycleState);
+
+        // Suspension is best-effort: lifecycle processing continues if the guard
+        // was unavailable during plugin startup or lazy acquisition.
+        if (needsSuspend && nullptr != guardRef) {
+            LOGINFO("HandleLifecycleUpdate: suspending traffic for hibernating appId=%s", appId.c_str());
+            if (Core::ERROR_NONE != guardRef->SuspendTraffic(appId)) {
+                LOGERR("HandleLifecycleUpdate: failed to suspend traffic for appId=%s", appId.c_str());
+            }
+        }
+
+        if (nullptr != guardRef) {
+            guardRef->Release();
+            guardRef = nullptr;
+        }
+
+        // DispatchLastKnownIntent reads the app-specific intent from
+        // mNavigationIntentRegistry and emits Actions.onIntent. Do this only when
+        // the current lifecycle callback stored a new navigation intent.
+        if (bIntentUpdated) {
+            DispatchLastKnownIntent(appId);
+        }
     }
 
     
@@ -910,6 +1056,9 @@ class LifecycleDelegate : public BaseEventDelegate
         LifecycleStateRegistry mLifecycleStateRegistry;
         NavigationIntentRegistry mNavigationIntentRegistry;
         FocusedAppRegistry mFocusedAppRegistry;
+        // Session guard for pausing/resuming WebSocket traffic during hibernation (Lifecycle 2 only).
+        Exchange::IAppGatewayAppSessionGuard* mSessionGuard;
+        std::mutex mSessionGuardMutex;
 };
 
 

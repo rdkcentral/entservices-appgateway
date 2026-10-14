@@ -73,6 +73,14 @@ static void ExpectEqU32(TestResult& tr, const uint32_t actual, const uint32_t ex
     }
 }
 
+static void ExpectEqDouble(TestResult& tr, const double actual, const double expected, const std::string& what)
+{
+    if (actual != expected) {
+        tr.failures++;
+        std::cerr << "FAIL: " << what << " expected=" << expected << " actual=" << actual << std::endl;
+    }
+}
+
 // RAII guard - initializes/deinitializes the telemetry singleton for each test.
 //
 // Ownership: the guard owns the single ref produced by `new` (refcount = 1).
@@ -110,6 +118,50 @@ static GatewayContext MakeCtx(uint32_t reqId = 1, uint32_t connId = 1, const std
 }
 
 } // namespace
+
+uint32_t Test_Telemetry_JobTimingThresholds_Defaults()
+{
+    TestResult tr;
+    TelemetryGuard guard;
+    AppGatewayTelemetry& t = AppGatewayTelemetry::getInstance();
+    ExpectEqDouble(tr, t.mJobTimingQueueWaitThresholdMs,
+        TELEMETRY_DEFAULT_JOB_TIMING_QUEUE_WAIT_THRESHOLD_MS, "default queue wait threshold");
+    ExpectEqDouble(tr, t.mJobTimingTotalThresholdMs,
+        TELEMETRY_DEFAULT_JOB_TIMING_TOTAL_THRESHOLD_MS, "default total threshold");
+    return tr.failures;
+}
+
+uint32_t Test_Telemetry_JobTimingThresholds_Configured()
+{
+    TestResult tr;
+    L0Test::ServiceMock::Config config;
+    config.configLineOverride = "{\"queueWaitThresholdMs\":125.5,\"totalThresholdMs\":750.25}";
+    L0Test::ServiceMock* service = new L0Test::ServiceMock(config, true);
+    AppGatewayTelemetry& t = AppGatewayTelemetry::getInstance();
+    t.Initialize(service);
+    ExpectEqDouble(tr, t.mJobTimingQueueWaitThresholdMs, 125.5, "configured queue wait threshold");
+    ExpectEqDouble(tr, t.mJobTimingTotalThresholdMs, 750.25, "configured total threshold");
+    t.Deinitialize();
+    service->Release();
+    return tr.failures;
+}
+
+uint32_t Test_Telemetry_JobTimingThresholds_InvalidConfig()
+{
+    TestResult tr;
+    L0Test::ServiceMock::Config config;
+    config.configLineOverride = "{\"queueWaitThresholdMs\":-1,\"totalThresholdMs\":\"invalid\"}";
+    L0Test::ServiceMock* service = new L0Test::ServiceMock(config, true);
+    AppGatewayTelemetry& t = AppGatewayTelemetry::getInstance();
+    t.Initialize(service);
+    ExpectEqDouble(tr, t.mJobTimingQueueWaitThresholdMs,
+        TELEMETRY_DEFAULT_JOB_TIMING_QUEUE_WAIT_THRESHOLD_MS, "invalid queue wait threshold fallback");
+    ExpectEqDouble(tr, t.mJobTimingTotalThresholdMs,
+        TELEMETRY_DEFAULT_JOB_TIMING_TOTAL_THRESHOLD_MS, "invalid total threshold fallback");
+    t.Deinitialize();
+    service->Release();
+    return tr.failures;
+}
 
 // ---------------------------------------------------------------------------
 // Test DA-1: AppGatewayTelemetry::Initialize() "already initialized" branch

@@ -27,6 +27,7 @@
 #include <map>
 #include "UtilsLogging.h"
 #include "UtilsController.h"
+#include "UtilsAppGatewayTelemetry.h"
 #include "delegate/SettingsDelegate.h"
 #include <unordered_map>
 #include <functional>
@@ -44,7 +45,8 @@ namespace WPEFramework {
             AppGatewayCommon(const AppGatewayCommon&) = delete;
             AppGatewayCommon& operator=(const AppGatewayCommon&) = delete;
 
-            class EXTERNAL EventRegistrationJob : public Core::IDispatch
+            class EXTERNAL EventRegistrationJob : public Core::IDispatch,
+                                                  public AppGatewayTelemetryHelper::JobTiming
         {
             protected:
                 EventRegistrationJob(AppGatewayCommon *parent,
@@ -74,6 +76,8 @@ namespace WPEFramework {
                 }
                 virtual void Dispatch()
                 {
+                    AGW_TIME_JOB(timer,
+                        "EventRegJob[" + std::string(mListen?"sub":"unsub") + ":" + mEvent + "]", 0, 0, "");
                     mParent.mDelegate->HandleAppEventNotifier(mCallback, mEvent, mListen);
                     // fetch_sub returns the previous value; if it was 1 the
                     // counter is now 0 (last in-flight job finished). Lock
@@ -175,12 +179,29 @@ namespace WPEFramework {
             Core::hresult GetHdcp(string &result /* @out */);
             Core::hresult GetHdr(string &result /* @out */);
             Core::hresult GetAudio(string &result /* @out */);
+            // Helper methods for VideoOutput APIs - called by HandleAppGatewayRequest
+            Core::hresult GetVideoOutputResolution(string &result /* @out */);
+            Core::hresult GetVideoOutputHdcp(string &result /* @out */);
+            Core::hresult GetVideoOutputCecActiveState(string &result /* @out */);
+            Core::hresult GetVideoOutputPort(string &result /* @out */);
+            Core::hresult GetVideoOutputRefreshRate(string &result /* @out */);
+            Core::hresult GetVideoOutputColorDepth(string &result /* @out */);
+            Core::hresult GetVideoOutputColorFormat(string &result /* @out */);
+            Core::hresult GetVideoOutputColorimetry(string &result /* @out */);
+            Core::hresult GetVideoOutputDynamicRange(string &result /* @out */);
+            Core::hresult GetVideoOutputQuantizationRange(string &result /* @out */);
             Core::hresult GetDolbyAtmosExperience(string &result /* @out */);
             // Helper methods for Device info APIs - called by HandleAppGatewayRequest
             Core::hresult GetDeviceChipsetId(string &result /* @out */);
             Core::hresult GetDeviceClass(string &result /* @out */);
             Core::hresult GetDeviceUptime(string &result /* @out */);
             Core::hresult GetDeviceTimeInActiveState(string &result /* @out */);
+            // Helper methods for Device Branding APIs (Phase 1) - called by HandleAppGatewayRequest
+            Core::hresult SetDeviceOsName(const string &osName /* @in */);
+            Core::hresult GetDeviceOsName(string &result /* @out */);
+            Core::hresult SetDeviceOsVersion(const string &osVersion /* @in */);
+            Core::hresult GetDeviceOsVersion(string &result /* @out */);
+            Core::hresult GetDeviceFirmware(string &result /* @out */);
             Core::hresult GetStatsMemoryUsage(const string &appId /* @in */, string &result /* @out */);
             Core::hresult LifecycleFinished(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
@@ -203,6 +224,11 @@ namespace WPEFramework {
                                           const string& method ,
                                           const string& payload /*@opaque */,
                                           string& result /*@out @opaque */);
+            Core::hresult SpeechSynthesisVoices(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult SpeechSynthesisSpeak(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult SpeechSynthesisCancel(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult SpeechSynthesisPause(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
+            Core::hresult SpeechSynthesisResume(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult GetNetworkConnected(string &result /* @out */);
             // Helper methods for Display APIs - called by HandleAppGatewayRequest
             Core::hresult GetDisplayEdid(string &result /* @out */);
@@ -210,6 +236,7 @@ namespace WPEFramework {
             Core::hresult GetDisplayMaxResolution(string &result /* @out */);
             Core::hresult GetDisplayColorimetry(string &result /* @out */);
             Core::hresult GetDisplayVideoResolutions(string &result /* @out */);
+            Core::hresult TextToSpeechSpeak(const Exchange::GatewayContext& ctx, const string& payload, string& result /* @out */);
         private:
             PluginHost::IShell* mShell;
             uint32_t mConnectionId;
