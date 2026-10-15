@@ -14,7 +14,7 @@ env:
   THUNDER_TOOLS_REF: "R4_4-RDK"
   THUNDER_TOOLS_COMMIT_SHA: "d5dd83c7c19c49c7f25c558c126500bd2d64f7a4"
   THUNDER_COMMIT_SHA: "2c0fcc5529e7da734be558ca6efa05d934dcce31"
-  INTERFACES_REF: "20bd0b0825acfe27eb33ffd0e7e38fc0702e82d5"
+  INTERFACES_REF: "56e4194e1e3310f537eb2526b0c0a5800f06df36"
   NETWORKMANAGER_REF: "cea0da05b03de770e4ce967f0446f28885fc6219"
   AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME}}
   AUTOMATICS_PASSCODE: ${{ secrets. AUTOMATICS_PASSCODE}}
@@ -130,6 +130,12 @@ jobs:
           repository: rdkcentral/entservices-testframework
           path: entservices-testframework
           ref: 2.0.0
+
+      - name: Harden L2 controller startup
+        run: |
+          cd "$GITHUB_WORKSPACE/entservices-testframework"
+          patch --forward --batch -p1 < "$GITHUB_WORKSPACE/entservices-appgateway/Tests/patches/L2testController_startup_race.patch"
+          cd -
 
       - name: Checkout googletest
         if: steps.cache.outputs.cache-hit != 'true'
@@ -993,9 +999,35 @@ jobs:
             chmod +x "$WPE_REAL"
             echo "Wrapped WPEFramework with gcov SIGSEGV handler (real: $WPE_REAL)"
           fi
+          # RdkServicesL2Test (L2testController.cpp) owns the Thunder lifecycle: it
+          # calls StartThunder() internally via popen() and only then opens IShell.
+          # We deliberately do NOT pre-launch WPEFramework ourselves here — doing so
+          # would cause a port-9998 conflict/duplicate-process race with the instance
+          # that L2testController.cpp spawns on its own. Instead, launch the test
+          # binary in the background and run a concurrent, non-blocking JSON-RPC
+          # readiness poll purely for diagnostics/logging; the actual retry/backoff
+          # around the "Failed to open IShell" race is implemented in
+          # L2testController.cpp's initClient().
+          THUNDER_URL="http://127.0.0.1:9998/jsonrpc"
           set +e
-          RdkServicesL2Test
+          RdkServicesL2Test &
+          test_pid=$!
+          (
+            for i in $(seq 1 30); do
+              if curl -sS --max-time 2 "${THUNDER_URL}" \
+                 -H 'Content-Type: application/json' \
+                 -d '{"jsonrpc":"2.0","id":1,"method":"Controller.1.status@AppGatewayCommon"}' >/dev/null 2>&1; then
+                echo "Thunder became ready after ~${i}s"
+                break
+              fi
+              echo "Waiting for Thunder/IShell... (${i}/30)"
+              sleep 1
+            done
+          ) &
+          waiter_pid=$!
+          wait "${test_pid}"
           rc=$?
+          kill "${waiter_pid}" 2>/dev/null || true
           set -e
           # Restore original binary
           if [ -f "${WPE_REAL}.real" ]; then
