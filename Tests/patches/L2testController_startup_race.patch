@@ -1,0 +1,101 @@
+diff --git a/Tests/L2Tests/L2testController.cpp b/Tests/L2Tests/L2testController.cpp
+index 1234567..89abcde 100644
+--- a/Tests/L2Tests/L2testController.cpp
++++ b/Tests/L2Tests/L2testController.cpp
+@@ -15,5 +15,6 @@
+ #include <iostream>
+ #include <fstream>
+ #include <sstream>
++#include <algorithm>
+ #include <string>
+ #include <dirent.h>
+@@ -43,1 +44,6 @@
+ #define THUNDER_CMD_LENGTH                 1024                          /* Command length to run thunder in isolation . */
++#define THUNDER_READY_MAX_ATTEMPTS         120                            /* Maximum Thunder readiness probes. */
++#define THUNDER_READY_DELAY_MS             500                            /* Delay between readiness probes. */
++#define COMRPC_MAX_ATTEMPTS                25                             /* Maximum COM-RPC initialization attempts. */
++#define COMRPC_INITIAL_DELAY_MS            250                            /* Initial COM-RPC retry delay. */
++#define COMRPC_MAX_DELAY_MS                2000                           /* Maximum COM-RPC retry delay. */
+@@ -108,2 +113,29 @@ bool L2testController::StartThunder()
+-    /* Allow time for the server to start. */
+-    (void)sleep(1U);
++    if (0 != std::system("command -v curl >/dev/null 2>&1")) {
++        L2TEST_LOG("Thunder readiness check cannot run: curl is unavailable");
++        return false;
++    }
++
++    /* Wait for the server's JSON-RPC endpoint before attempting COM-RPC. */
++    const std::string readinessCommand =
++        "curl --silent --show-error --max-time 1 "
++        "--header 'Content-Type: application/json' "
++        "--data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"Controller.1.status\"}' "
++        "http://" + std::string(THUNDER_ADDRESS) + ":" + THUNDER_PORT + "/jsonrpc "
++        ">/dev/null 2>&1";
++
++    bool thunderReady = false;
++    for (int attempt = 1; attempt <= THUNDER_READY_MAX_ATTEMPTS; ++attempt) {
++        L2TEST_LOG("Thunder readiness attempt #%d/%d at http://%s:%s/jsonrpc",
++                   attempt, THUNDER_READY_MAX_ATTEMPTS, THUNDER_ADDRESS, THUNDER_PORT);
++        if (0 == std::system(readinessCommand.c_str())) {
++            thunderReady = true;
++            L2TEST_LOG("Thunder JSON-RPC endpoint is ready");
++            break;
++        }
++        usleep(THUNDER_READY_DELAY_MS * 1000);
++    }
++
++    if (!thunderReady) {
++        L2TEST_LOG("Thunder did not become ready after %d attempts", THUNDER_READY_MAX_ATTEMPTS);
++        return false;
++    }
+@@ -143,30 +174,33 @@ void L2testController::initClient() {
+-    const int MAX_RETRIES = 5;
+-    const int RETRY_DELAY_MS = 500;
++    int retryDelayMs = COMRPC_INITIAL_DELAY_MS;
+ 
+-    for (int attempt = 1; attempt <= MAX_RETRIES; ++attempt) {
+-        L2TEST_LOG("COM-RPC client initialization attempt #%d", attempt);
++    for (int attempt = 1; attempt <= COMRPC_MAX_ATTEMPTS; ++attempt) {
++        L2TEST_LOG("COM-RPC init attempt #%d/%d: endpoint /tmp/communicator, Thunder %s:%s",
++                   attempt, COMRPC_MAX_ATTEMPTS, THUNDER_ADDRESS, THUNDER_PORT);
+ 
+         m_client = Core::ProxyType<RPC::CommunicatorClient>::Create(Core::NodeId("/tmp/communicator"));
+         if (!m_client.IsValid()) {
+-            L2TEST_LOG("Client creation failed, retrying...");
+-            usleep(RETRY_DELAY_MS * 1000);
++            L2TEST_LOG("COM-RPC client creation failed; retrying in %dms", retryDelayMs);
++            usleep(retryDelayMs * 1000);
++            retryDelayMs = std::min(retryDelayMs * 2, COMRPC_MAX_DELAY_MS);
+             continue;
+         }
+ 
+         m_pluginShell = m_client->Open<PluginHost::IShell>(_T("org.rdk.L2Tests"), ~0, TEST_COMPLETION_TIMEOUT);
+         if (!m_pluginShell) {
+-            L2TEST_LOG("Failed to open IShell, retrying...");
++            L2TEST_LOG("Failed to open IShell at /tmp/communicator; retrying in %dms", retryDelayMs);
+             m_client.Release();
+-            usleep(RETRY_DELAY_MS * 1000);
++            usleep(retryDelayMs * 1000);
++            retryDelayMs = std::min(retryDelayMs * 2, COMRPC_MAX_DELAY_MS);
+             continue;
+         }
+ 
+         m_l2TestInterface = m_pluginShell->QueryInterface<Exchange::IL2Test>();
+         if (!m_l2TestInterface) {
+-            L2TEST_LOG("Failed to query IL2Test, retrying...");
++            L2TEST_LOG("Failed to query IL2Test; retrying in %dms", retryDelayMs);
+             m_pluginShell->Release();
+             m_pluginShell = nullptr;
+             m_client.Release();
+-            usleep(RETRY_DELAY_MS * 1000);
++            usleep(retryDelayMs * 1000);
++            retryDelayMs = std::min(retryDelayMs * 2, COMRPC_MAX_DELAY_MS);
+             continue;
+         }
+@@ -185,5 +225,5 @@ void L2testController::initClient() {
+ 
+     if (!m_client.IsValid() || !m_l2TestInterface) {
+-        L2TEST_LOG("COM-RPC client initialization failed after retries");
++        L2TEST_LOG("COM-RPC client initialization failed after %d attempts", COMRPC_MAX_ATTEMPTS);
+     }
+ }

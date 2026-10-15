@@ -131,6 +131,12 @@ jobs:
           path: entservices-testframework
           ref: 2.0.0
 
+      - name: Harden L2 controller startup
+        run: |
+          cd "$GITHUB_WORKSPACE/entservices-testframework"
+          patch --forward --batch -p1 < "$GITHUB_WORKSPACE/entservices-appgateway/Tests/patches/L2testController_startup_race.patch"
+          cd -
+
       - name: Checkout googletest
         if: steps.cache.outputs.cache-hit != 'true'
         uses: actions/checkout@v3
