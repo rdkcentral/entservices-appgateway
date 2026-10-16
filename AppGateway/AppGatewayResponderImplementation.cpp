@@ -167,6 +167,10 @@ namespace WPEFramework
             mWsManager.SetMessageHandler(
                 [this](const std::string &method, const std::string &params, const int requestId, const uint32_t connectionId)
                 {
+                    if (mEnhancedLoggingEnabled || !mDebugDisabledConnectionsRegistry.IsDebugDisabled(connectionId)) {
+                        LOGDBG("[WsRecv] a-%d-%d method=%s received, submitting to worker pool",
+                        connectionId, requestId, method.c_str());
+                    }
                     Core::IWorkerPool::Instance().Submit(WsMsgJob::Create(this, method, params, requestId, connectionId));
                 });
 

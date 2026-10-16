@@ -95,6 +95,7 @@ public:
         JsonObject paramsObj;
         string callsign = ctx.appId;
         string text;
+        LOGWARN("TextToSpeechSpeak: Entry");
 
         if (payload.empty() || "null" == payload) {
              LOGWARN("TextToSpeechSpeak: payload is required");
@@ -122,10 +123,13 @@ public:
             return Core::ERROR_INVALID_INPUT_LENGTH;
         }
         auto tts = GetTTS();
+        LOGWARN("TextToSpeechSpeak: Aquire TTS");
         if (nullptr == tts) return Core::ERROR_UNAVAILABLE;
         uint32_t speechid;
         Exchange::ITextToSpeech::TTSErrorDetail status;
+        LOGINFO("RDKEMW Before Speak(): callsign=%s text=%s",callsign.c_str(),text.c_str());
         auto ret = tts->Speak(callsign, text, speechid, status);
+        LOGINFO("RDKEMW After Speak(): callsign=%s text=%s ret=%u speechid=%u status=%u",callsign.c_str(),text.c_str(),ret,speechid,static_cast<uint32_t>(status));
         if (Core::ERROR_NONE == ret) {
             JsonObject response;
             response["speechid"] = speechid;
@@ -136,6 +140,7 @@ public:
             LOGERR("TextToSpeech::Speak failed for callsign %s with error %u", callsign.c_str(), ret);
             ErrorUtils::CustomInternal("Failed to speak text", result);
         }
+        LOGWARN("TextToSpeechSpeak: exit with ret=%u result=%s", ret, result.c_str());
         return ret;
     }
 
@@ -529,6 +534,7 @@ private:
 
         void DispatchUtteranceEvent(const uint32_t speechid, const string& eventName)
         {
+            LOGERR("TextToSpeechDBG callback - DispatchUtteranceEvent: %s", eventName.c_str());
             JsonObject payload;
             payload["utteranceId"] = speechid;
             payload["event"] = eventName;
@@ -536,60 +542,72 @@ private:
             string payloadString;
             payload.ToString(payloadString);
             mParent.Dispatch("SpeechSynthesis.onUtteranceEvent", payloadString);
+            LOGERR("TextToSpeechDBG callback - DispatchUtteranceEvent exit: %s", eventName.c_str());
         }
             
         void OnVoiceChanged(const string voice)
         {
+            LOGERR("TextToSpeechDBG callback - OnVoiceChanged");
             mParent.Dispatch("TextToSpeech.onVoiceChanged", ObjectUtils::CreateStringObject(voice));
         }
         // Legacy per-event notification is kept alongside the unified onUtteranceEvent for backward compatibility.
         void OnSpeechReady(const uint32_t speechid)
         {
+            LOGERR("TextToSpeechDBG callback - OnSpeechReady");
             mParent.Dispatch("TextToSpeech.onWillSpeak", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "synthesisStarting");
         }
         void OnSpeechStarted(const uint32_t speechid)
         {
+            LOGERR("TextToSpeechDBG callback - OnSpeechStarted");
             mParent.Dispatch("TextToSpeech.onSpeechStart", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "playbackStarting");
         }
         void OnSpeechPaused(const uint32_t speechid)
         {
+            LOGERR("TextToSpeechDBG callback - OnSpeechPaused");
             mParent.Dispatch("TextToSpeech.onSpeechPause", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "paused");
         }
         void OnSpeechResumed(const uint32_t speechid)
         {
+            LOGERR("TextToSpeechDBG callback - OnSpeechResumed");
             mParent.Dispatch("TextToSpeech.onSpeechResume", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "resumed");
         }
         void OnSpeechInterrupted(const uint32_t speechid)
         {
+            LOGERR("TextToSpeechDBG callback - OnSpeechInterrupted");
             mParent.Dispatch("TextToSpeech.onSpeechInterrupted", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "interrupted");
         }
         void OnNetworkError(const uint32_t speechid)
         {
+            LOGERR("TextToSpeechDBG callback - OnNetworkError");
             mParent.Dispatch("TextToSpeech.onNetworkError", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "networkFailed");
         }
         void OnPlaybackError(const uint32_t speechid)
         {
+            LOGERR("TextToSpeechDBG callback - OnPlaybackError");
             mParent.Dispatch("TextToSpeech.onPlaybackError", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "playbackFailed");
         }
         void OnSpeechComplete(const uint32_t speechid)
         {
+            LOGERR("TextToSpeechDBG callback - OnSpeechComplete");
             mParent.Dispatch("TextToSpeech.onSpeechComplete", ObjectUtils::CreateUInt32Object(speechid));
             DispatchUtteranceEvent(speechid, "completed");
         }
 
         void OnTTSStateChanged(const bool state) {
+            LOGERR("TextToSpeechDBG callback - OnTTSStateChanged");
             mParent.Dispatch("TextToSpeech.onTtsstatechanged", ObjectUtils::CreateBooleanJsonString("value", state));
         }
 
         void OnVoicesChanged() override
         {
+            LOGERR("TextToSpeechDBG callback - OnVoicesChanged");
             mParent.Dispatch("SpeechSynthesis.onVoicesChanged", "null");
         }
 

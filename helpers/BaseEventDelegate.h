@@ -58,7 +58,9 @@ public:
         {
             AGW_TIME_JOB(timer, "EventDispatchJob[" + mEvent + "]",
                 0, 0, mAppId);
+            LOGERR("Dispatching event %s with payload %s", mEvent.c_str(), mPayload.c_str());
             mDelegate.DispatchToAppNotifications(mEvent, mPayload, mAppId);
+            LOGERR("Dispatching exit event %s with payload %s", mEvent.c_str(), mPayload.c_str());
         }
 
     private:
@@ -91,6 +93,7 @@ public:
 
     bool Dispatch(const string &event, const string &payload, string appId = "")
     {
+        LOGERR("dispatch entry");
 
         // Check if Notification is registered if not return
         if (!IsNotificationRegistered(event))
@@ -98,8 +101,10 @@ public:
             LOGDBG("Notification %s is not registered", event.c_str());
             return false;
         }
+        LOGERR("worker pool entry");
 
         Core::IWorkerPool::Instance().Submit(EventDelegateDispatchJob::Create(this, event, payload, std::move(appId)));
+        LOGERR("worker pool exit");
 
         return true;
     }
@@ -160,9 +165,11 @@ public:
     bool IsNotificationRegistered(const string &event)
     {
         string event_l = StringUtils::toLower(event);
+        LOGERR("Lock entry");
         std::lock_guard<std::mutex> lock(mRegisterMutex);
         bool result = mRegisteredNotifications.find(event_l) != mRegisteredNotifications.end();
         LOGTRACE("Finding notification = %s result=%s", event_l.c_str(), result ? "true" : "false");
+        LOGERR("Lock exit");
         return result;
     }
 
