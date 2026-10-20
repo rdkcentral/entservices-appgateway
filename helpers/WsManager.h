@@ -246,7 +246,7 @@ public:
 
                     std::string methodName = message->Designator.Value();
                     
-                    LOGTRACE("[ProcessMessage] Method: %s, RequestId: %d, ConnectionId: %d",
+                    LOGINFO("[ProcessMessage] Method: %s, RequestId: %d, ConnectionId: %d",
                             methodName.c_str(), requestId, connectionId);
 
                     // Extract params once for reuse
