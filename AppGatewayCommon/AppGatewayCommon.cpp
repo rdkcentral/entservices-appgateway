@@ -18,6 +18,7 @@
  */
 
 #include "AppGatewayCommon.h"
+#include "RetainedJobQueue.h"
 #include <interfaces/IConfiguration.h>
 #include "StringUtils.h"
 #include "UtilsAppGatewayTelemetry.h"
@@ -78,7 +79,7 @@ namespace Plugin {
 
         // Reset shutdown flag to allow job submissions after initialization
         {
-            std::lock_guard<std::mutex> lk(mJobDrainMutex);
+            std::lock_guard<std::mutex> lk(mDelegateMutex);
             mDelegate = std::move(delegate);
             mShuttingDown.store(false, std::memory_order_release);
         }
@@ -110,20 +111,12 @@ namespace Plugin {
 
         // Set shutdown flag to reject new job submissions
         {
-            std::lock_guard<std::mutex> lk(mJobDrainMutex);
+            std::lock_guard<std::mutex> lk(mDelegateMutex);
             mShuttingDown.store(true, std::memory_order_release);
         }
 
-        // Wait for any in-flight EventRegistrationJobs to complete before
-        // destroying the delegate.  These jobs run on the worker pool and
-        // may be blocked inside Thunder Subscribe() calls (up to the
-        // SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS timeout).  Destroying the
-        // delegate while a job is executing causes use-after-free.
         {
-            std::unique_lock<std::mutex> lk(mJobDrainMutex);
-            mJobDrainCv.wait(lk, [this] { return mActiveJobs.load(std::memory_order_acquire) == 0; });
-            
-            // Now that all jobs are done, safely cleanup the delegate under the same lock
+            std::lock_guard<std::mutex> lk(mDelegateMutex);
             if (mDelegate) {
                 // Clear session guard reference before delegate cleanup to prevent
                 // any in-flight lifecycle callbacks from using a stale guard.
@@ -162,7 +155,7 @@ namespace Plugin {
             LOGTRACE("HandleAppEventNotifier [event=%s listen=%s]",
                     event.c_str(), listen ? "true" : "false");
             
-            status = this->SafeSubmitEventRegistrationJob(cb, event, listen);
+            status = this->SubmitEventRegistration(cb, event, listen);
             if (false == status) {
                 LOGERR("HandleAppEventNotifier: Failed to submit event registration job for event %s", event.c_str());
                 return Core::ERROR_GENERAL;
@@ -643,48 +636,50 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         }
 
         /**
-         * @brief Safely submits EventRegistrationJob with proper error handling
+         * @brief Submits event registration through the retained job queue
          * @param cb Callback interface (must be not-null)
          * @param event Event name
          * @param listen Whether to listen or unlisten
          * @return true if job submitted successfully, false otherwise
          */
-        bool AppGatewayCommon::SafeSubmitEventRegistrationJob(Exchange::IAppNotificationHandler::IEmitter* cb, 
+        bool AppGatewayCommon::SubmitEventRegistration(Exchange::IAppNotificationHandler::IEmitter* cb,
                                                               const std::string& event, bool listen) {
 
             if (nullptr == cb) {
-                LOGERR("SafeSubmitEventRegistrationJob: Callback emitter is null");
+                LOGERR("SubmitEventRegistration: Callback emitter is null");
                 return false;
             }
 
             // Check shutdown flag first to reject submissions during Deinitialize
             if (mShuttingDown.load(std::memory_order_acquire)) {
-                LOGWARN("SafeSubmitEventRegistrationJob: Plugin is shutting down, rejecting job submission");
+                LOGWARN("SubmitEventRegistration: Plugin is shutting down, rejecting job submission");
                 return false;
             }
 
             // Lock to prevent race with Deinitialize resetting mDelegate
-            std::lock_guard<std::mutex> lk(mJobDrainMutex);
+            std::lock_guard<std::mutex> lk(mDelegateMutex);
 
             // Double-check shutdown flag and delegate under lock
             if (mShuttingDown.load(std::memory_order_acquire)) {
-                LOGWARN("SafeSubmitEventRegistrationJob: Plugin is shutting down, rejecting job submission");
+                LOGWARN("SubmitEventRegistration: Plugin is shutting down, rejecting job submission");
                 return false;
             }
             if (nullptr == mDelegate) {
-                LOGERR("SafeSubmitEventRegistrationJob: Delegate is null");
+                LOGERR("SubmitEventRegistration: Delegate is null");
                 return false;
             }
 
-            auto job = EventRegistrationJob::Create(this, cb, event, listen);
-            if (false == job.IsValid()) {
-                LOGERR("SafeSubmitEventRegistrationJob: Failed to create EventRegistrationJob");
-                return false;
-            }
-
-            mActiveJobs.fetch_add(1, std::memory_order_acq_rel);
-            Core::IWorkerPool::Instance().Submit(job);
-            return true;
+            cb->AddRef();
+            std::shared_ptr<Exchange::IAppNotificationHandler::IEmitter> emitter(
+                cb, [](Exchange::IAppNotificationHandler::IEmitter* value) { value->Release(); });
+            return RetainedJobQueue<AppGatewayCommon>::SubmitTimed(
+                this, "EventRegistrationJob[" + std::string(listen ? "sub" : "unsub") + ":" + event + "]",
+                0, 0, "", [emitter, event, listen](AppGatewayCommon& owner) {
+                    auto delegate = owner.GetDelegateSafe();
+                    if (delegate) {
+                        delegate->HandleAppEventNotifier(emitter.get(), event, listen);
+                    }
+                });
         }
 
         // Delegated alias methods

@@ -134,30 +134,6 @@ TEST_F(AppGatewayCommonTest, AGC_L1_001_InitializeAndDeinitialize_Success)
     plugin.Deinitialize(&service);
 }
 
-TEST_F(AppGatewayCommonTest, DISABLED_AGC_L1_002_HandleAppEventNotifier_SubmitsJob)
-{
-    NiceMock<ServiceMock> service;
-    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
-        .Times(AnyNumber())
-        .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(1);
-    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
-
-    const string initResponse = plugin.Initialize(&service);
-    EXPECT_TRUE(initResponse.empty());
-
-    Core::Sink<TestEmitter> emitter;
-
-    bool status = false;
-    const auto rc = plugin.HandleAppEventNotifier(&emitter, "Device.onHdrChanged", true, status);
-
-    EXPECT_EQ(Core::ERROR_NONE, rc);
-    EXPECT_TRUE(status);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(15));
-    plugin.Deinitialize(&service);
-}
-
 TEST_F(AppGatewayCommonTest, AGC_L1_003_UnknownMethod_ReturnsUnknownKey)
 {
     NiceMock<ServiceMock> service;

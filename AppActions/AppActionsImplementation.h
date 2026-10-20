@@ -55,50 +55,6 @@ class AppActionsImplementation :
 
     private:
 
-        class EXTERNAL NotifyJob : public Core::IDispatch,
-                                   public AppGatewayTelemetryHelper::JobTiming
-        {
-        public:
-            NotifyJob(AppActionsImplementation* parent, const string& initiator, const string& intent, const string& handlerAppId)
-                : mParent(parent), mInitiator(initiator), mIntent(intent), mHandlerAppId(handlerAppId)
-            {
-                if (nullptr != mParent) {
-                    mParent->AddRef();
-                }
-            }
-
-            NotifyJob() = delete;
-            NotifyJob(const NotifyJob&) = delete;
-            NotifyJob& operator=(const NotifyJob&) = delete;
-            ~NotifyJob()
-            {
-                if (nullptr != mParent) {
-                    mParent->Release();
-                }
-            }
-
-            static Core::ProxyType<Core::IDispatch> Create(AppActionsImplementation* parent,
-                const string& initiator, const string& intent, const string& handlerAppId)
-            {
-                return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<NotifyJob>::Create(parent, initiator, intent, handlerAppId)));
-            }
-
-            void Dispatch() override
-            {
-                AGW_TIME_JOB(timer, "NotifyJob[" + mIntent + "]",
-                    0, 0, mHandlerAppId);
-                if (nullptr != mParent) {
-                    mParent->DispatchActionStartRequest(mInitiator, mIntent, mHandlerAppId);
-                }
-            }
-
-        private:
-            AppActionsImplementation* mParent;
-            const string mInitiator;
-            const string mIntent;
-            const string mHandlerAppId;
-        };
-
         PluginHost::IShell *mService;
         std::list<Exchange::IAppActions::INotification*> mAppActionsNotifications;
         mutable std::mutex mAdminLock;

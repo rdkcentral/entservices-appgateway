@@ -28,6 +28,7 @@
 #include <utility>
 #include <memory>
 #include "UtilsAppGatewayTelemetry.h"
+#include "OwnedWorkerPool.h"
 
 using namespace WPEFramework;
 using namespace WPEFramework::Plugin;
@@ -78,6 +79,7 @@ public:
 
     virtual ~BaseEventDelegate()
     {
+        mEventJobs.Close();
         // Cleanup registered notifications
         for (auto &entry : mRegisteredNotifications)
         {
@@ -102,9 +104,13 @@ public:
             return false;
         }
 
-        Core::IWorkerPool::Instance().Submit(EventDelegateDispatchJob::Create(shared_from_this(), event, payload, std::move(appId)));
-
-        return true;
+        std::shared_ptr<BaseEventDelegate> owner(shared_from_this());
+        const std::string eventName(event);
+        const std::string eventPayload(payload);
+        return mEventJobs.SubmitTimed(owner, "EventDispatchJob[" + eventName + "]",
+            0, 0, appId, [eventName, eventPayload, appId](BaseEventDelegate& retained) {
+                retained.DispatchToAppNotifications(eventName, eventPayload, appId);
+            });
     }
 
     bool DispatchToAppNotifications(const string &event, const string &payload, const string &appId)
@@ -244,5 +250,6 @@ public:
 private:
     std::map<string, std::unordered_set<Exchange::IAppNotificationHandler::IEmitter *>> mRegisteredNotifications;
     std::mutex mRegisterMutex;
+    OwnedWorkerPool<BaseEventDelegate> mEventJobs;
 };
 #endif

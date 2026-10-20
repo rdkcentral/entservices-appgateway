@@ -39,6 +39,7 @@
 #include "UtilsJsonrpcDirectLink.h"
 #include "UtilsController.h"
 #include "BaseEventDelegate.h"
+#include "OwnedWorkerPool.h"
 #include <algorithm>
 #include "ContextUtils.h"
 #include <mutex>
@@ -132,10 +133,10 @@ private:
     };
 
     // Convenience helper: submit work to the Thunder worker pool.
-    static void PostToWorkerPool(std::function<void()> work)
+    bool PostToWorkerPool(std::function<void(SystemDelegate&)> work)
     {
-        Core::IWorkerPool::Instance().Submit(
-            Core::ProxyType<Core::IDispatch>(Core::ProxyType<WorkerPoolTask>::Create(std::move(work))));
+        std::shared_ptr<SystemDelegate> owner(std::dynamic_pointer_cast<SystemDelegate>(shared_from_this()));
+        return _workerPool.Submit(owner, std::move(work));
     }
 
     class SystemServicesNotification : public Exchange::ISystemServices::INotification
@@ -209,6 +210,7 @@ public:
 
     ~SystemDelegate()
     {
+        _workerPool.Close();
         // Cleanup subscriptions
         try {
             if (_displayRpc) {
@@ -2202,9 +2204,9 @@ private:
         // Re-query state and dispatch debounced events on a worker-pool thread, NOT on this
         // notification thread, to avoid a blocking COM-RPC call back into the same plugin
         // that is currently dispatching this event (circular-wait/timeout risk).
-        PostToWorkerPool([this]() {
-            const bool screenEmitted = EmitOnScreenResolutionChanged();
-            const bool videoEmitted = EmitOnVideoResolutionChanged();
+        PostToWorkerPool([](SystemDelegate& self) {
+            const bool screenEmitted = self.EmitOnScreenResolutionChanged();
+            const bool videoEmitted = self.EmitOnVideoResolutionChanged();
             LOGINFO("[AppGatewayCommon|DisplaySettings.resolutionChanged] Handler responses: onScreenResolutionChanged=%s onVideoResolutionChanged=%s",
                     screenEmitted ? "emitted" : "skipped", videoEmitted ? "emitted" : "skipped");
         });
@@ -2218,9 +2220,9 @@ private:
         // Re-query state and dispatch debounced events on a worker-pool thread, NOT on this
         // notification thread, to avoid a blocking COM-RPC call back into the same plugin
         // that is currently dispatching this event (circular-wait/timeout risk).
-        PostToWorkerPool([this]() {
-            const bool hdcpEmitted = EmitOnHdcpChanged();
-            const bool hdrEmitted = EmitOnHdrChanged();
+        PostToWorkerPool([](SystemDelegate& self) {
+            const bool hdcpEmitted = self.EmitOnHdcpChanged();
+            const bool hdrEmitted = self.EmitOnHdrChanged();
             LOGINFO("[AppGatewayCommon|HdcpProfile.onDisplayConnectionChanged] Handler responses: onHdcpChanged=%s onHdrChanged=%s",
                     hdcpEmitted ? "emitted" : "skipped", hdrEmitted ? "emitted" : "skipped");
         });
@@ -2245,8 +2247,8 @@ private:
         // Re-query state and dispatch event on a worker-pool thread, NOT on this notification
         // thread, to avoid a blocking COM-RPC call back into the same plugin that is currently
         // dispatching this event (circular-wait/timeout risk).
-        PostToWorkerPool([this]() {
-            const bool audioEmitted = EmitOnAudioChanged();
+        PostToWorkerPool([](SystemDelegate& self) {
+            const bool audioEmitted = self.EmitOnAudioChanged();
             LOGINFO("[AppGatewayCommon|DisplaySettings.audioFormatChanged] Handler responses: onAudioChanged=%s",
                     audioEmitted ? "emitted" : "skipped");
         });
@@ -2343,4 +2345,5 @@ private:
     bool _hdcpSubscribed;
     mutable Core::CriticalSection _hdcpSubscriptionLock;
     mutable Core::CriticalSection _systemRegistrationLock;
+    OwnedWorkerPool<SystemDelegate> _workerPool;
 };

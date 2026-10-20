@@ -179,6 +179,16 @@ extern uint32_t Test_HandleRequest_DisplayColorimetry_CaseInsensitive();
 extern uint32_t Test_HandleRequest_DisplayVideoResolutions_NoDisplay();
 extern uint32_t Test_HandleRequest_DisplayVideoResolutions_CaseInsensitive();
 
+extern uint32_t Test_OwnedWorkerPool_ClosedChannelRejectsSubmission();
+extern uint32_t Test_OwnedWorkerPool_ClosedChannelDiscardsQueuedJob();
+extern uint32_t Test_OwnedWorkerPool_ExpiredOwnerDiscardsQueuedJob();
+extern uint32_t Test_OwnedWorkerPool_OpenChannelDispatchesWithRetainedOwner();
+extern uint32_t Test_OwnedWorkerPool_CloseIsIdempotentAndNonblocking();
+extern uint32_t Test_OwnedWorkerPool_RunningJobRetainsOwnerAfterClose();
+extern uint32_t Test_OwnedWorkerPool_OldJobStaysCanceledAfterReopenReplacement();
+extern uint32_t Test_RetainedJobQueue_BalancesOwnerReference();
+extern uint32_t Test_RetainedJobQueue_AllMigratedJobNamesBalanceOwnerReference();
+
 int main()
 {
     // Test-only bootstrap for WorkerPool.
@@ -350,6 +360,15 @@ int main()
         { "DisplayColorimetry_CaseInsensitive",           Test_HandleRequest_DisplayColorimetry_CaseInsensitive },
         { "DisplayVideoResolutions_NoDisplay",            Test_HandleRequest_DisplayVideoResolutions_NoDisplay },
         { "DisplayVideoResolutions_CaseInsensitive",      Test_HandleRequest_DisplayVideoResolutions_CaseInsensitive },
+        { "OwnedWorkerPool_ClosedChannelRejectsSubmission", Test_OwnedWorkerPool_ClosedChannelRejectsSubmission },
+        { "OwnedWorkerPool_ClosedChannelDiscardsQueuedJob", Test_OwnedWorkerPool_ClosedChannelDiscardsQueuedJob },
+        { "OwnedWorkerPool_ExpiredOwnerDiscardsQueuedJob", Test_OwnedWorkerPool_ExpiredOwnerDiscardsQueuedJob },
+        { "OwnedWorkerPool_OpenChannelDispatchesWithRetainedOwner", Test_OwnedWorkerPool_OpenChannelDispatchesWithRetainedOwner },
+        { "OwnedWorkerPool_CloseIsIdempotentAndNonblocking", Test_OwnedWorkerPool_CloseIsIdempotentAndNonblocking },
+        { "OwnedWorkerPool_RunningJobRetainsOwnerAfterClose", Test_OwnedWorkerPool_RunningJobRetainsOwnerAfterClose },
+        { "OwnedWorkerPool_OldJobStaysCanceledAfterReopenReplacement", Test_OwnedWorkerPool_OldJobStaysCanceledAfterReopenReplacement },
+        { "RetainedJobQueue_BalancesOwnerReference", Test_RetainedJobQueue_BalancesOwnerReference },
+        { "RetainedJobQueue_AllMigratedJobNamesBalanceOwnerReference", Test_RetainedJobQueue_AllMigratedJobNamesBalanceOwnerReference },
     };
 
     uint32_t failures = 0;
