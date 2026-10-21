@@ -1,6 +1,6 @@
 ## Context
 
-See `proposal.md`. The repository uses C++11 production targets, Thunder `Core::IDispatch`, shared-pointer delegates, intrusive COM objects, and several custom active-job drains. The current uncommitted `OwnedWorkerPool` implementation blocks delegate destruction and must be replaced. `BaseEventDelegate` already derives from `enable_shared_from_this`, and SettingsDelegate creates domain delegates with `make_shared`.
+See `proposal.md`. The repository uses C++11 production targets, Thunder `Core::IDispatch`, shared-pointer delegates, intrusive COM objects, and several custom active-job drains. The current uncommitted `SharedOwnerChannel` implementation blocks delegate destruction and must be replaced. `BaseEventDelegate` already derives from `enable_shared_from_this`, and SettingsDelegate creates domain delegates with `make_shared`.
 
 ## Goals / Non-Goals
 

@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "OwnedWorkerPool.h"
+#include "SharedOwnerChannel.h"
 #include "RetainedJobQueue.h"
 
 #include <atomic>
@@ -47,9 +47,9 @@ TEST(RetainedJobQueueL1, ExceptionReleasesOwner)
     EXPECT_EQ(1u, owner.releases.load());
 }
 
-TEST(OwnedWorkerPoolL1, QueuedJobDoesNotRetainOwner)
+TEST(SharedOwnerChannelL1, QueuedJobDoesNotRetainOwner)
 {
-    OwnedWorkerPool<L1SharedOwner> channel;
+    SharedOwnerChannel<L1SharedOwner> channel;
     std::shared_ptr<L1SharedOwner> owner(std::make_shared<L1SharedOwner>());
     std::weak_ptr<L1SharedOwner> observer(owner);
     auto job = channel.Create(owner, [](L1SharedOwner& value) { ++value.calls; });
@@ -60,9 +60,9 @@ TEST(OwnedWorkerPoolL1, QueuedJobDoesNotRetainOwner)
     EXPECT_TRUE(observer.expired());
 }
 
-TEST(OwnedWorkerPoolL1, CloseDiscardsPreviouslyQueuedJob)
+TEST(SharedOwnerChannelL1, CloseDiscardsPreviouslyQueuedJob)
 {
-    OwnedWorkerPool<L1SharedOwner> channel;
+    SharedOwnerChannel<L1SharedOwner> channel;
     std::shared_ptr<L1SharedOwner> owner(std::make_shared<L1SharedOwner>());
     auto job = channel.Create(owner, [](L1SharedOwner& value) { ++value.calls; });
     channel.Close();
@@ -70,9 +70,9 @@ TEST(OwnedWorkerPoolL1, CloseDiscardsPreviouslyQueuedJob)
     EXPECT_EQ(0u, owner->calls.load());
 }
 
-TEST(OwnedWorkerPoolL1, RunningCallbackRetainsOwnerWithoutBlockingClose)
+TEST(SharedOwnerChannelL1, RunningCallbackRetainsOwnerWithoutBlockingClose)
 {
-    OwnedWorkerPool<L1SharedOwner> channel;
+    SharedOwnerChannel<L1SharedOwner> channel;
     std::shared_ptr<L1SharedOwner> owner(std::make_shared<L1SharedOwner>());
     std::weak_ptr<L1SharedOwner> observer(owner);
     std::mutex mutex;

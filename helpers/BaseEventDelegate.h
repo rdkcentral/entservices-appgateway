@@ -28,7 +28,7 @@
 #include <utility>
 #include <memory>
 #include "UtilsAppGatewayTelemetry.h"
-#include "OwnedWorkerPool.h"
+#include "SharedOwnerChannel.h"
 
 using namespace WPEFramework;
 using namespace WPEFramework::Plugin;
@@ -250,6 +250,6 @@ public:
 private:
     std::map<string, std::unordered_set<Exchange::IAppNotificationHandler::IEmitter *>> mRegisteredNotifications;
     std::mutex mRegisterMutex;
-    OwnedWorkerPool<BaseEventDelegate> mEventJobs;
+    SharedOwnerChannel<BaseEventDelegate> mEventJobs;
 };
 #endif

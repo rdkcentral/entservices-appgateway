@@ -29,7 +29,7 @@
 #include <interfaces/IDisplayInfo.h>
 
 #include "BaseEventDelegate.h"
-#include "OwnedWorkerPool.h"
+#include "SharedOwnerChannel.h"
 #include "UtilsController.h"
 #include "UtilsJsonrpcDirectLink.h"
 #include "UtilsLogging.h"
@@ -1036,5 +1036,5 @@ private:
     bool _hdmiCecSourceSubscribed;
     bool _displayInfoSubscribed;
     mutable Core::CriticalSection _subscriptionLock;
-    OwnedWorkerPool<VideoOutputDelegate> _workerPool;
+    SharedOwnerChannel<VideoOutputDelegate> _workerPool;
 };

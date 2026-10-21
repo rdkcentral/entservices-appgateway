@@ -8,11 +8,11 @@
 
 ## 1. Job helper overview
 
-### 1.1 `OwnedWorkerPool<Owner>`
+### 1.1 `SharedOwnerChannel<Owner>`
 
 Use for delegates managed by `std::shared_ptr`. A queued envelope stores `std::weak_ptr<Owner>`, so pending work does not keep the delegate alive. At dispatch, the helper locks the weak pointer and invokes the callback only when the channel is open and the owner still exists. `Close()` is nonblocking; queued work dispatched afterward is discarded. Examples include SystemDelegate, VideoOutputDelegate, NetworkDelegate, and BaseEventDelegate notification fan-out.
 
-### 1.2 `IntrusiveJobChannel<Owner>`
+### 1.2 `IntrusiveOwnerChannel<Owner>`
 
 Use for plugin or COM objects that implement `AddRef()`/`Release()` and already have a logical shutdown hook. Queued work stores channel state rather than an owner reference. Dispatch upgrades the owner under the channel mutex by calling `AddRef()`; an RAII guard calls `Release()` after the callback. `Close()` detaches the owner before final release, allowing stale queued jobs to discard without blocking shutdown. LaunchDelegate uses this policy.
 
@@ -22,13 +22,164 @@ Use for intrusive implementation objects that have `AddRef()`/`Release()` but no
 
 | Helper | Owner model | Queued job retains owner? | Work after shutdown |
 |---|---|---:|---|
-| `OwnedWorkerPool` | `shared_ptr` delegate | No | Discard when closed/expired |
-| `IntrusiveJobChannel` | AddRef/Release with close hook | No | Discard when closed/detached |
+| `SharedOwnerChannel` | `shared_ptr` delegate | No | Discard when closed/expired |
+| `IntrusiveOwnerChannel` | AddRef/Release with close hook | No | Discard when closed/detached |
 | `RetainedJobQueue` | AddRef/Release without close hook | Yes | May finish safely; destruction can be deferred |
 
 All callbacks receive `Owner&`; request and event data must be copied into the envelope rather than capturing raw `this`.
 
-## 2. Foundation
+## 2. Job lifecycle by helper
+
+### 2.1 SharedOwnerChannel lifecycle
+
+#### Job creation and submission
+
+1. Caller owns a `std::shared_ptr<Owner>`
+2. Caller submits work with `Submit(shared_ptr, callback)`
+3. Helper creates a `DispatchJob` envelope
+4. Envelope stores `std::weak_ptr<Owner>` (NOT `shared_ptr`)
+5. Envelope is submitted to Thunder WorkerPool
+
+**Key point:** The envelope does NOT hold a strong reference. The owner can be destroyed while the job is queued.
+
+#### Owner lifecycle while pending in queue
+
+- External owner resets its `shared_ptr`
+- Envelope still holds only `weak_ptr`
+- Owner destructor CAN run immediately
+- No blocking: shutdown does not wait for queued jobs
+
+#### Dispatch time
+
+1. WorkerPool calls `DispatchJob::Dispatch()`
+2. Check closed flag → if true, discard
+3. `weak_ptr.lock()` attempts to obtain `shared_ptr`
+   - If owner destroyed → `lock()` returns `nullptr` → discard
+   - If owner alive → `lock()` returns `shared_ptr` → proceed
+4. Invoke callback with `Owner&`
+5. `shared_ptr` released when callback completes
+
+#### Owner shutdown cases
+
+**Case A: Close before dispatch**
+- Owner calls `Close()`
+- Sets closed flag to true
+- Job dispatched later
+- Dispatch sees `closed=true` → discards without callback
+
+**Case B: Owner destroyed before dispatch**
+- External owner resets `shared_ptr`
+- Owner destructor runs
+- Job dispatched later
+- `weak_ptr.lock()` returns `nullptr` → discards
+
+**Case C: Dispatch wins race with Close**
+- Dispatch locks `weak_ptr` successfully
+- Owner calls `Close()` during callback
+- Callback continues (owner still alive via temporary `shared_ptr`)
+- Double-check after lock prevents late dispatch
+
+### 2.2 IntrusiveOwnerChannel lifecycle
+
+#### Job creation and submission
+
+1. Caller has `Owner*` (intrusive reference counting)
+2. Caller submits work with `SubmitTimed(callback)`
+3. Helper creates a `DispatchJob` envelope
+4. Envelope stores raw `Owner*` (NOT `AddRef`'d yet)
+5. Envelope is submitted to Thunder WorkerPool
+
+**Key point:** The envelope does NOT call `AddRef()` at submission. The owner can be destroyed while the job is queued.
+
+#### Owner lifecycle while pending in queue
+
+- External owner releases its reference
+- Envelope still holds only raw `Owner*`
+- Owner destructor CAN run immediately
+- No blocking: shutdown does not wait for queued jobs
+
+#### Dispatch time
+
+1. WorkerPool calls `DispatchJob::Dispatch()`
+2. Acquire mutex, check closed flag and owner pointer
+   - If closed or `owner == nullptr` → discard
+   - If valid → call `owner->AddRef()`
+3. Release mutex before callback
+4. RAII `RetainedOwner` calls `owner->Release()` on destruction
+5. Invoke callback with `Owner&`
+
+#### Owner shutdown cases
+
+**Case A: Close before dispatch**
+- Owner calls `Close()`
+- Under mutex: sets `closed=true`, `owner=nullptr`
+- Job dispatched later
+- Dispatch sees `closed=true` or `owner==nullptr` → discards
+
+**Case B: Owner destroyed before dispatch**
+- External owner releases all references
+- Owner destructor runs
+- Job dispatched later
+- Dispatch sees `owner==nullptr` → discards
+
+**Case C: Dispatch wins race with Close**
+- Dispatch acquires mutex first
+- Calls `AddRef()` successfully
+- `Close()` waits for mutex
+- Callback runs with retained reference
+- `RetainedOwner Release()` after callback
+- `Close()` can then proceed
+
+### 2.3 RetainedJobQueue lifecycle
+
+#### Job creation and submission
+
+1. Caller has `Owner*` (intrusive reference counting)
+2. Caller submits work with `SubmitTimed(owner, callback)`
+3. Helper creates a `DispatchJob` envelope
+4. Envelope calls `owner->AddRef()` IMMEDIATELY at submission
+5. Envelope is submitted to Thunder WorkerPool
+
+**Key point:** The envelope DOES call `AddRef()` at submission. The owner CANNOT be destroyed while the job is queued.
+
+#### Owner lifecycle while pending in queue
+
+- External owner releases its reference
+- Envelope still holds a retained reference (`AddRef` was called)
+- Owner destructor CANNOT run until job dispatches
+- Blocking: shutdown waits for queued jobs to complete
+
+#### Dispatch time
+
+1. WorkerPool calls `DispatchJob::Dispatch()`
+2. Check if owner pointer is non-null
+   - If `nullptr` → discard (should not happen if `AddRef` succeeded)
+   - If valid → invoke callback with `Owner&`
+3. Envelope destructor calls `owner->Release()`
+4. If this was the last reference, owner destructor runs
+
+#### Owner shutdown cases
+
+**Case A: Owner releases reference before dispatch**
+- External owner calls `Release()`
+- Envelope still holds reference from `AddRef()`
+- Owner destructor CANNOT run
+- Job dispatched later
+- Callback runs (owner is still alive)
+- Envelope `Release()` may trigger final destruction
+
+**Case B: Owner releases after dispatch**
+- Job dispatched, callback runs
+- Envelope `Release()` after callback
+- If no other references, owner destructor runs
+
+**Case C: No cancellation**
+- There is NO `Close()` method
+- There is NO closed flag
+- Jobs are NEVER discarded at dispatch time
+- All submitted jobs will run
+
+## 3. Foundation
 
 ### 2.1 Thunder WorkerPool and `Core::IDispatch`
 
@@ -58,7 +209,7 @@ The **job owner** is the object whose methods or state are used asynchronously. 
 For shared-owner jobs, the actual envelope is the private nested class:
 
 ```cpp
-OwnedWorkerPool<Owner>::DispatchJob
+SharedOwnerChannel<Owner>::DispatchJob
 ```
 
 It stores:
@@ -139,9 +290,9 @@ This prevents owner destruction while jobs remain active, but shutdown now depen
 - Deinitialization could block indefinitely.
 - New jobs did not require an explicit ownership choice.
 
-## 4. New helper: `OwnedWorkerPool<Owner>`
+## 4. New helper: `SharedOwnerChannel<Owner>`
 
-The helper is defined in `helpers/OwnedWorkerPool.h`.
+The helper is defined in `helpers/SharedOwnerChannel.h`.
 
 ### 4.1 Internal parts
 
@@ -218,7 +369,7 @@ Assume `SystemDelegate` queues a resolution job, but WorkerPool does not dispatc
 
 - `SystemDelegate` is owned by `shared_ptr`.
 - `PostToWorkerPool()` obtains a shared pointer from `shared_from_this()`.
-- `OwnedWorkerPool::Submit()` converts it to `weak_ptr<SystemDelegate>` inside the envelope.
+- `SharedOwnerChannel::Submit()` converts it to `weak_ptr<SystemDelegate>` inside the envelope.
 - The local shared pointer is released when submission returns.
 - WorkerPool owns the envelope, but the envelope does not keep SystemDelegate alive.
 
@@ -226,7 +377,7 @@ Assume `SystemDelegate` queues a resolution job, but WorkerPool does not dispatc
 @startuml
 participant "Thunder callback" as Producer
 participant "SystemDelegate" as Delegate
-participant "OwnedWorkerPool" as Jobs
+participant "SharedOwnerChannel" as Jobs
 participant "WorkerPool" as Pool
 
 Producer -> Delegate: resolutionChanged
@@ -337,7 +488,7 @@ Unlike intrusive ownership, shared ownership naturally defers the destructor and
 ### 6.1 Channel member
 
 ```cpp
-OwnedWorkerPool<SystemDelegate> mWorkerPool;
+SharedOwnerChannel<SystemDelegate> mWorkerPool;
 ```
 
 ### 6.2 Submission helper
@@ -435,7 +586,7 @@ Reference rules:
 @startuml
 participant "AppNotifications emitter" as App
 participant "SystemDelegate" as Delegate
-participant "OwnedWorkerPool" as Jobs
+participant "SharedOwnerChannel" as Jobs
 participant "WorkerPool" as Pool
 
 App -> Delegate: HandleEvent(listen=true)
@@ -471,11 +622,11 @@ The final migration must ensure:
 
 ## 9. Objects with a different ownership model
 
-`OwnedWorkerPool` is for `shared_ptr` owners. Do not use it for every object automatically.
+`SharedOwnerChannel` is for `shared_ptr` owners. Do not use it for every object automatically.
 
 | Target object | Required policy |
 |---|---|
-| Delegate managed by `shared_ptr` | `OwnedWorkerPool` |
+| Delegate managed by `shared_ptr` | `SharedOwnerChannel` |
 | Plugin/COM object with AddRef/Release | Intrusive dispatch-time upgrade |
 | Object embedded inside a retained plugin | Submit through the outer plugin owner |
 | Raw or stack object without retained outer owner | Do not reference asynchronously |

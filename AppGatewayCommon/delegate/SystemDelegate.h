@@ -39,7 +39,7 @@
 #include "UtilsJsonrpcDirectLink.h"
 #include "UtilsController.h"
 #include "BaseEventDelegate.h"
-#include "OwnedWorkerPool.h"
+#include "SharedOwnerChannel.h"
 #include <algorithm>
 #include "ContextUtils.h"
 #include <mutex>
@@ -2345,5 +2345,5 @@ private:
     bool _hdcpSubscribed;
     mutable Core::CriticalSection _hdcpSubscriptionLock;
     mutable Core::CriticalSection _systemRegistrationLock;
-    OwnedWorkerPool<SystemDelegate> _workerPool;
+    SharedOwnerChannel<SystemDelegate> _workerPool;
 };

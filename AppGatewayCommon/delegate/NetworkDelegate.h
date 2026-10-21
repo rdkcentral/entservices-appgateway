@@ -353,7 +353,7 @@ private:
     std::mutex mLastConnectedMutex;
     // Serializes query-and-dispatch across worker-pool jobs.
     std::mutex mQueryDispatchMutex;
-    OwnedWorkerPool<NetworkDelegate> mWorkerPool;
+    SharedOwnerChannel<NetworkDelegate> mWorkerPool;
 };
 
 #endif // __NETWORKDELEGATE_H__

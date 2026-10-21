@@ -7,6 +7,83 @@
 #include <core/core.h>
 #include "UtilsAppGatewayTelemetry.h"
 
+/**
+ * RetainedJobQueue
+ *
+ * A self-retaining job submission helper for intrusive AddRef()/Release() owners.
+ *
+ * LIFECYCLE OVERVIEW
+ * ==================
+ *
+ * 1. JOB CREATION AND SUBMISSION
+ *    ---------------------------
+ *    - Caller has Owner* (intrusive reference counting)
+ *    - Caller submits work with SubmitTimed(owner, callback)
+ *    - Helper creates a DispatchJob envelope
+ *    - Envelope calls owner->AddRef() IMMEDIATELY at submission
+ *    - Envelope is submitted to Thunder WorkerPool
+ *
+ *    Key point: The envelope DOES call AddRef() at submission.
+ *    The owner CANNOT be destroyed while the job is queued.
+ *
+ * 2. OWNER LIFECYCLE WHILE PENDING IN QUEUE
+ *    --------------------------------------
+ *    - External owner releases its reference
+ *    - Envelope still holds a retained reference (AddRef was called)
+ *    - Owner destructor CANNOT run until job dispatches
+ *    - Blocking: shutdown waits for queued jobs to complete
+ *
+ * 3. DISPATCH TIME
+ *    ------------
+ *    - WorkerPool calls DispatchJob::Dispatch()
+ *    - Check if owner pointer is non-null
+ *      - If nullptr → discard (should not happen if AddRef succeeded)
+ *      - If valid → invoke callback with Owner&
+ *    - Envelope destructor calls owner->Release()
+ *    - If this was the last reference, owner destructor runs
+ *
+ * 4. OWNER SHUTDOWN CASES
+ *    --------------------
+ *    Case A: Owner releases reference before dispatch
+ *    - External owner calls Release()
+ *    - Envelope still holds reference from AddRef()
+ *    - Owner destructor CANNOT run
+ *    - Job dispatched later
+ *    - Callback runs (owner is still alive)
+ *    - Envelope Release() may trigger final destruction
+ *
+ *    Case B: Owner releases after dispatch
+ *    - Job dispatched, callback runs
+ *    - Envelope Release() after callback
+ *    - If no other references, owner destructor runs
+ *
+ *    Case C: No cancellation
+ *    - There is NO Close() method
+ *    - There is NO closed flag
+ *    - Jobs are NEVER discarded at dispatch time
+ *    - All submitted jobs will run
+ *
+ * WHEN TO USE
+ * ===========
+ * Use RetainedJobQueue when:
+ * - Owner has AddRef()/Release() (intrusive reference counting)
+ * - Owner has NO safe Close() hook (cannot add interface method)
+ * - You accept that jobs will run after logical shutdown
+ * - Resources are destructor-bound (released only in ~Owner)
+ * - Callbacks have their own resource-lifecycle checks
+ *
+ * DO NOT USE when:
+ * - Owner is managed by std::shared_ptr → use SharedOwnerChannel
+ * - Owner has a Close() hook and you want cancellation → use IntrusiveOwnerChannel
+ * - You need non-blocking shutdown → use IntrusiveOwnerChannel instead
+ *
+ * IMPORTANT LIMITATIONS
+ * =====================
+ * - Queued jobs WILL run after logical shutdown (no cancellation)
+ * - Callbacks must tolerate resources released during Deinitialize()
+ * - If resources are released before destructor, callbacks need null/state checks
+ * - Owner destruction is BLOCKED until all queued jobs dispatch
+ */
 template <typename Owner>
 class RetainedJobQueue {
 private:

@@ -1,5 +1,5 @@
 #include "AppGatewayCommon_common_test.h"
-#include "OwnedWorkerPool.h"
+#include "SharedOwnerChannel.h"
 #include "RetainedJobQueue.h"
 
 #include <atomic>
@@ -25,10 +25,10 @@ struct TestRetainedOwner {
 
 }
 
-uint32_t Test_OwnedWorkerPool_ClosedChannelRejectsSubmission()
+uint32_t Test_SharedOwnerChannel_ClosedChannelRejectsSubmission()
 {
     TestResult tr;
-    OwnedWorkerPool<TestOwner> pool;
+    SharedOwnerChannel<TestOwner> pool;
     std::shared_ptr<TestOwner> owner(std::make_shared<TestOwner>());
     pool.Close();
     auto job = pool.Create(owner, [](TestOwner& value) { ++value.calls; });
@@ -37,10 +37,10 @@ uint32_t Test_OwnedWorkerPool_ClosedChannelRejectsSubmission()
     return tr.failures;
 }
 
-uint32_t Test_OwnedWorkerPool_ClosedChannelDiscardsQueuedJob()
+uint32_t Test_SharedOwnerChannel_ClosedChannelDiscardsQueuedJob()
 {
     TestResult tr;
-    OwnedWorkerPool<TestOwner> pool;
+    SharedOwnerChannel<TestOwner> pool;
     std::shared_ptr<TestOwner> owner(std::make_shared<TestOwner>());
     auto job = pool.Create(owner, [](TestOwner& value) { ++value.calls; });
     ExpectTrue(tr, job.IsValid(), "open channel creates queued job");
@@ -50,10 +50,10 @@ uint32_t Test_OwnedWorkerPool_ClosedChannelDiscardsQueuedJob()
     return tr.failures;
 }
 
-uint32_t Test_OwnedWorkerPool_ExpiredOwnerDiscardsQueuedJob()
+uint32_t Test_SharedOwnerChannel_ExpiredOwnerDiscardsQueuedJob()
 {
     TestResult tr;
-    OwnedWorkerPool<TestOwner> pool;
+    SharedOwnerChannel<TestOwner> pool;
     std::shared_ptr<TestOwner> owner(std::make_shared<TestOwner>());
     std::weak_ptr<TestOwner> observer(owner);
     auto job = pool.Create(owner, [](TestOwner& value) { ++value.calls; });
@@ -64,10 +64,10 @@ uint32_t Test_OwnedWorkerPool_ExpiredOwnerDiscardsQueuedJob()
     return tr.failures;
 }
 
-uint32_t Test_OwnedWorkerPool_OpenChannelDispatchesWithRetainedOwner()
+uint32_t Test_SharedOwnerChannel_OpenChannelDispatchesWithRetainedOwner()
 {
     TestResult tr;
-    OwnedWorkerPool<TestOwner> pool;
+    SharedOwnerChannel<TestOwner> pool;
     std::shared_ptr<TestOwner> owner(std::make_shared<TestOwner>());
     auto job = pool.Create(owner, [](TestOwner& value) { ++value.calls; });
     job->Dispatch();
@@ -75,20 +75,20 @@ uint32_t Test_OwnedWorkerPool_OpenChannelDispatchesWithRetainedOwner()
     return tr.failures;
 }
 
-uint32_t Test_OwnedWorkerPool_CloseIsIdempotentAndNonblocking()
+uint32_t Test_SharedOwnerChannel_CloseIsIdempotentAndNonblocking()
 {
     TestResult tr;
-    OwnedWorkerPool<TestOwner> pool;
+    SharedOwnerChannel<TestOwner> pool;
     pool.Close();
     pool.Close();
     ExpectTrue(tr, pool.Closed(), "repeated close leaves channel closed");
     return tr.failures;
 }
 
-uint32_t Test_OwnedWorkerPool_RunningJobRetainsOwnerAfterClose()
+uint32_t Test_SharedOwnerChannel_RunningJobRetainsOwnerAfterClose()
 {
     TestResult tr;
-    OwnedWorkerPool<TestOwner> pool;
+    SharedOwnerChannel<TestOwner> pool;
     std::shared_ptr<TestOwner> owner(std::make_shared<TestOwner>());
     std::weak_ptr<TestOwner> observer(owner);
     std::mutex mutex;
@@ -158,15 +158,15 @@ uint32_t Test_RetainedJobQueue_BalancesOwnerReference()
     return tr.failures;
 }
 
-uint32_t Test_OwnedWorkerPool_OldJobStaysCanceledAfterReopenReplacement()
+uint32_t Test_SharedOwnerChannel_OldJobStaysCanceledAfterReopenReplacement()
 {
     TestResult tr;
-    OwnedWorkerPool<TestOwner> oldPool;
+    SharedOwnerChannel<TestOwner> oldPool;
     std::shared_ptr<TestOwner> oldOwner(std::make_shared<TestOwner>());
     auto oldJob = oldPool.Create(oldOwner, [](TestOwner& value) { ++value.calls; });
     oldPool.Close();
 
-    OwnedWorkerPool<TestOwner> newPool;
+    SharedOwnerChannel<TestOwner> newPool;
     std::shared_ptr<TestOwner> newOwner(std::make_shared<TestOwner>());
     auto newJob = newPool.Create(newOwner, [](TestOwner& value) { ++value.calls; });
     oldJob->Dispatch();

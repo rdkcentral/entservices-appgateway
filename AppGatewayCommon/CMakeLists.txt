@@ -36,7 +36,7 @@ message("Setup ${MODULE_NAME} v${MODULE_VERSION}")
 set(ASYNC_JOB_OWNERSHIP_ALLOWLIST
         "PluginHost::IShell::Job - Thunder-owned deactivation notification"
         "UtilsController::activatePlugin - synchronously waited activation job"
-        "OwnedWorkerPool/RetainedJobQueue - framework submission internals")
+        "SharedOwnerChannel/RetainedJobQueue - framework submission internals")
 
 set(OWNED_WORKER_POOL_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/delegate/SystemDelegate.h
@@ -47,7 +47,7 @@ set(OWNED_WORKER_POOL_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../AppGateway/AppGatewayResponderImplementation.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../AppNotifications/AppNotificationsImplementation.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../AppActions/AppActionsImplementation.cpp)
-include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/EnforceOwnedWorkerPool.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/EnforceAsyncJobOwnership.cmake)
 
 find_package(${NAMESPACE}Plugins REQUIRED)
 find_package(${NAMESPACE}Definitions REQUIRED)

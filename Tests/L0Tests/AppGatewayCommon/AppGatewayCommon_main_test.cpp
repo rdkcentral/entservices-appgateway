@@ -179,13 +179,13 @@ extern uint32_t Test_HandleRequest_DisplayColorimetry_CaseInsensitive();
 extern uint32_t Test_HandleRequest_DisplayVideoResolutions_NoDisplay();
 extern uint32_t Test_HandleRequest_DisplayVideoResolutions_CaseInsensitive();
 
-extern uint32_t Test_OwnedWorkerPool_ClosedChannelRejectsSubmission();
-extern uint32_t Test_OwnedWorkerPool_ClosedChannelDiscardsQueuedJob();
-extern uint32_t Test_OwnedWorkerPool_ExpiredOwnerDiscardsQueuedJob();
-extern uint32_t Test_OwnedWorkerPool_OpenChannelDispatchesWithRetainedOwner();
-extern uint32_t Test_OwnedWorkerPool_CloseIsIdempotentAndNonblocking();
-extern uint32_t Test_OwnedWorkerPool_RunningJobRetainsOwnerAfterClose();
-extern uint32_t Test_OwnedWorkerPool_OldJobStaysCanceledAfterReopenReplacement();
+extern uint32_t Test_SharedOwnerChannel_ClosedChannelRejectsSubmission();
+extern uint32_t Test_SharedOwnerChannel_ClosedChannelDiscardsQueuedJob();
+extern uint32_t Test_SharedOwnerChannel_ExpiredOwnerDiscardsQueuedJob();
+extern uint32_t Test_SharedOwnerChannel_OpenChannelDispatchesWithRetainedOwner();
+extern uint32_t Test_SharedOwnerChannel_CloseIsIdempotentAndNonblocking();
+extern uint32_t Test_SharedOwnerChannel_RunningJobRetainsOwnerAfterClose();
+extern uint32_t Test_SharedOwnerChannel_OldJobStaysCanceledAfterReopenReplacement();
 extern uint32_t Test_RetainedJobQueue_BalancesOwnerReference();
 extern uint32_t Test_RetainedJobQueue_AllMigratedJobNamesBalanceOwnerReference();
 
@@ -360,13 +360,13 @@ int main()
         { "DisplayColorimetry_CaseInsensitive",           Test_HandleRequest_DisplayColorimetry_CaseInsensitive },
         { "DisplayVideoResolutions_NoDisplay",            Test_HandleRequest_DisplayVideoResolutions_NoDisplay },
         { "DisplayVideoResolutions_CaseInsensitive",      Test_HandleRequest_DisplayVideoResolutions_CaseInsensitive },
-        { "OwnedWorkerPool_ClosedChannelRejectsSubmission", Test_OwnedWorkerPool_ClosedChannelRejectsSubmission },
-        { "OwnedWorkerPool_ClosedChannelDiscardsQueuedJob", Test_OwnedWorkerPool_ClosedChannelDiscardsQueuedJob },
-        { "OwnedWorkerPool_ExpiredOwnerDiscardsQueuedJob", Test_OwnedWorkerPool_ExpiredOwnerDiscardsQueuedJob },
-        { "OwnedWorkerPool_OpenChannelDispatchesWithRetainedOwner", Test_OwnedWorkerPool_OpenChannelDispatchesWithRetainedOwner },
-        { "OwnedWorkerPool_CloseIsIdempotentAndNonblocking", Test_OwnedWorkerPool_CloseIsIdempotentAndNonblocking },
-        { "OwnedWorkerPool_RunningJobRetainsOwnerAfterClose", Test_OwnedWorkerPool_RunningJobRetainsOwnerAfterClose },
-        { "OwnedWorkerPool_OldJobStaysCanceledAfterReopenReplacement", Test_OwnedWorkerPool_OldJobStaysCanceledAfterReopenReplacement },
+        { "SharedOwnerChannel_ClosedChannelRejectsSubmission", Test_SharedOwnerChannel_ClosedChannelRejectsSubmission },
+        { "SharedOwnerChannel_ClosedChannelDiscardsQueuedJob", Test_SharedOwnerChannel_ClosedChannelDiscardsQueuedJob },
+        { "SharedOwnerChannel_ExpiredOwnerDiscardsQueuedJob", Test_SharedOwnerChannel_ExpiredOwnerDiscardsQueuedJob },
+        { "SharedOwnerChannel_OpenChannelDispatchesWithRetainedOwner", Test_SharedOwnerChannel_OpenChannelDispatchesWithRetainedOwner },
+        { "SharedOwnerChannel_CloseIsIdempotentAndNonblocking", Test_SharedOwnerChannel_CloseIsIdempotentAndNonblocking },
+        { "SharedOwnerChannel_RunningJobRetainsOwnerAfterClose", Test_SharedOwnerChannel_RunningJobRetainsOwnerAfterClose },
+        { "SharedOwnerChannel_OldJobStaysCanceledAfterReopenReplacement", Test_SharedOwnerChannel_OldJobStaysCanceledAfterReopenReplacement },
         { "RetainedJobQueue_BalancesOwnerReference", Test_RetainedJobQueue_BalancesOwnerReference },
         { "RetainedJobQueue_AllMigratedJobNamesBalanceOwnerReference", Test_RetainedJobQueue_AllMigratedJobNamesBalanceOwnerReference },
     };

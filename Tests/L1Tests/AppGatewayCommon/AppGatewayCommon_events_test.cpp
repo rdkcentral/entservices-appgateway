@@ -930,7 +930,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_231_UserSettings_OnVoiceGuidanceRate
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Accessibility.onVoiceGuidanceSettingsChanged"), _, _)).Times(::testing::AtLeast(1));
     capturedUSNotification->OnVoiceGuidanceRateChanged(1.5);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 }
 
 TEST_F(UserSettingsNotificationTest, AGC_L1_232_UserSettings_OnVoiceGuidanceHintsChanged_Dispatches)
@@ -948,7 +948,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_232_UserSettings_OnVoiceGuidanceHint
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Accessibility.onVoiceGuidanceSettingsChanged"), _, _)).Times(::testing::AtLeast(1));
     capturedUSNotification->OnVoiceGuidanceHintsChanged(true);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 }
 
 

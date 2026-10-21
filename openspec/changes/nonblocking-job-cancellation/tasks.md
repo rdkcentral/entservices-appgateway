@@ -1,7 +1,7 @@
 ## 1. Reconcile Existing Work
 
 - [x] 1.1 Re-inventory every production WorkerPool submission, callback setter, job class, and raw owner capture changed by RDKEMW-24834; classify owner-dependent and detached/value-only work.
-- [x] 1.2 Replace the uncommitted blocking `OwnedWorkerPool` design and its drain-based tests rather than retaining active counters, permits, condition variables, or destructor waits.
+- [x] 1.2 Replace the uncommitted blocking `SharedOwnerChannel` design and its drain-based tests rather than retaining active counters, permits, condition variables, or destructor waits.
 - [x] 1.3 Confirm C++11, CMake, L0/L1 workflow, and ownership constraints for every affected plugin before selecting shared and intrusive policies.
 
 ## 2. Nonblocking Job Framework
