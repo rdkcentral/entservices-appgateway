@@ -381,9 +381,14 @@ protected:
     bool WaitForTTSRegistration()
     {
         std::unique_lock<std::mutex> lock(registrationMutex);
-        return registrationCv.wait_for(lock, std::chrono::seconds(10), [this] {
+        bool result = registrationCv.wait_for(lock, std::chrono::seconds(10), [this] {
             return capturedTTSNotification != nullptr;
         });
+        // Small delay to ensure AddNotification() completes after Register() returns
+        if (result) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        return result;
     }
 
     void SetUp() override
@@ -592,9 +597,14 @@ protected:
     bool WaitForUserSettingsRegistration()
     {
         std::unique_lock<std::mutex> lock(registrationMutex);
-        return registrationCv.wait_for(lock, std::chrono::seconds(10), [this] {
+        bool result = registrationCv.wait_for(lock, std::chrono::seconds(10), [this] {
             return capturedUSNotification != nullptr;
         });
+        // Small delay to ensure AddNotification() completes after Register() returns
+        if (result) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        return result;
     }
 
     void SetUp() override
@@ -740,6 +750,12 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_223_UserSettings_OnPresentationLangu
     plugin.HandleAppEventNotifier(languageEmitter, "Localization.onLanguageChanged", true, status);
     std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
+    // Reset captured notification to ensure the next wait actually waits for the new subscription
+    {
+        std::lock_guard<std::mutex> lock(registrationMutex);
+        capturedUSNotification = nullptr;
+    }
+
     plugin.HandleAppEventNotifier(presentationLanguageEmitter, "Localization.onPresentationLanguageChanged", true, status);
     ASSERT_TRUE(WaitForUserSettingsRegistration());
 
@@ -880,6 +896,12 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_229_UserSettings_OnPresentationLangu
 
     plugin.HandleAppEventNotifier(langEmitter, "Localization.onLanguageChanged", true, status);
     std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+    // Reset captured notification to ensure the next wait actually waits for the new subscription
+    {
+        std::lock_guard<std::mutex> lock(registrationMutex);
+        capturedUSNotification = nullptr;
+    }
 
     plugin.HandleAppEventNotifier(presEmitter, "Localization.onPresentationLanguageChanged", true, status);
     std::this_thread::sleep_for(std::chrono::milliseconds(2000));
