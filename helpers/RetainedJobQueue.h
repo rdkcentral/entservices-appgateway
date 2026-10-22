@@ -162,9 +162,9 @@ public:
 
     template <typename Work>
     static bool SubmitTimed(Owner* owner, const std::string& name,
-        uint32_t requestId, uint32_t connectionId, const std::string& appId, Work work)
+        uint32_t requestId, uint32_t connectionId, const std::string& appId, Work&& work)
     {
-        auto job = CreateTimed(owner, name, requestId, connectionId, appId, std::move(work));
+        auto job = CreateTimed(owner, name, requestId, connectionId, appId, std::forward<Work>(work));
         if (!job.IsValid()) {
             return false;
         }
