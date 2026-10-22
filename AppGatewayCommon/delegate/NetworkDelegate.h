@@ -282,8 +282,12 @@ private:
                 return;
             }
 
-            std::shared_ptr<NetworkDelegate> owner(
-                std::dynamic_pointer_cast<NetworkDelegate>(mParent.shared_from_this()));
+            std::shared_ptr<NetworkDelegate> owner;
+            try {
+                owner = std::dynamic_pointer_cast<NetworkDelegate>(mParent.shared_from_this());
+            } catch (const std::bad_weak_ptr&) {
+                return;  // Owner being destroyed, reject submission
+            }
             mParent.mWorkerPool.SubmitTimed(owner, "NetworkWorkerPoolTask", 0, 0, "",
                 [](NetworkDelegate& retained) {
                     std::lock_guard<std::mutex> lock(retained.mQueryDispatchMutex);

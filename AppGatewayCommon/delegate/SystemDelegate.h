@@ -135,7 +135,12 @@ private:
     // Convenience helper: submit work to the Thunder worker pool.
     bool PostToWorkerPool(std::function<void(SystemDelegate&)> work)
     {
-        std::shared_ptr<SystemDelegate> owner(std::dynamic_pointer_cast<SystemDelegate>(shared_from_this()));
+        std::shared_ptr<SystemDelegate> owner;
+        try {
+            owner = std::dynamic_pointer_cast<SystemDelegate>(shared_from_this());
+        } catch (const std::bad_weak_ptr&) {
+            return false;  // Owner being destroyed, reject submission
+        }
         return _workerPool.Submit(owner, std::move(work));
     }
 
