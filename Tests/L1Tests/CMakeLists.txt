@@ -293,6 +293,7 @@ if(PLUGIN_APPGATEWAYCOMMON)
         AppGatewayCommon/AppGatewayCommon_events_test.cpp
         AppGatewayCommon/AppGatewayCommon_display_test.cpp
         AppGatewayCommon/AppGatewayCommon_branding_test.cpp
+        AppGatewayCommon/AppGatewayCommon_asyncjobchannel_test.cpp
     )
 
     list(APPEND APPGATEWAYCOMMON_L1TEST_INC

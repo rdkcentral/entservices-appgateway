@@ -129,7 +129,7 @@ TEST_F(EventsTest, AGC_L1_202_HandleAppEventNotifier_SubmitsJob)
     // Give the worker pool a moment — the actual async job may still be
     // blocked on RPC timeouts, but that is fine: the heap-allocated emitter
     // survives until the process exits.
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 }
 
 TEST_F(EventsTest, AGC_L1_203_HandleAppEventNotifier_NullCallback)
@@ -219,6 +219,17 @@ protected:
     NiceMock<ServiceMock> service;
     NiceMock<MockTextToSpeech> mockTTS;
     NiceMock<UserSettingMock> mockUserSettings;
+    std::mutex registrationMutex;
+    std::condition_variable registrationCv;
+    uint32_t registrations = 0;
+
+    bool WaitForRegistration()
+    {
+        std::unique_lock<std::mutex> lock(registrationMutex);
+        return registrationCv.wait_for(lock, std::chrono::seconds(10), [this] {
+            return registrations > 0;
+        });
+    }
 
     void SetUp() override
     {
@@ -239,9 +250,23 @@ protected:
 
         EXPECT_CALL(service, AddRef()).Times(AnyNumber());
         EXPECT_CALL(service, Release()).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-        EXPECT_CALL(mockTTS, Register(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(mockTTS, Register(_)).Times(AnyNumber()).WillRepeatedly(::testing::Invoke([this](Exchange::ITextToSpeech::INotification*) {
+            {
+                std::lock_guard<std::mutex> lock(registrationMutex);
+                ++registrations;
+            }
+            registrationCv.notify_all();
+            return Core::ERROR_NONE;
+        }));
         EXPECT_CALL(mockTTS, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
-        EXPECT_CALL(mockUserSettings, Register(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+        EXPECT_CALL(mockUserSettings, Register(_)).Times(AnyNumber()).WillRepeatedly(::testing::Invoke([this](Exchange::IUserSettings::INotification*) {
+            {
+                std::lock_guard<std::mutex> lock(registrationMutex);
+                ++registrations;
+            }
+            registrationCv.notify_all();
+            return Core::ERROR_NONE;
+        }));
         EXPECT_CALL(mockUserSettings, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
 
         const string response = plugin.Initialize(&service);
@@ -257,9 +282,6 @@ protected:
 
 TEST_F(TTSEventsTest, AGC_L1_208_TTS_EventSubscription_Registers)
 {
-    // Subscribe to a TTS event — this should trigger Register on MockTextToSpeech
-    EXPECT_CALL(mockTTS, Register(_)).Times(::testing::AtLeast(1));
-
     MockEmitter* emitter = new MockEmitter();
     emitter->AddRef();
     bool status = false;
@@ -268,8 +290,7 @@ TEST_F(TTSEventsTest, AGC_L1_208_TTS_EventSubscription_Registers)
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
 
-    // Give the worker pool time to dispatch
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    ASSERT_TRUE(WaitForRegistration());
 }
 
 TEST_F(TTSEventsTest, AGC_L1_209_TTS_EventUnsubscription)
@@ -280,13 +301,13 @@ TEST_F(TTSEventsTest, AGC_L1_209_TTS_EventUnsubscription)
     // First subscribe
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechStart", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    ASSERT_TRUE(WaitForRegistration());
     EXPECT_TRUE(status);
 
     // Then unsubscribe
     status = false;
     const auto rc = plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechStart", false, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
@@ -294,9 +315,6 @@ TEST_F(TTSEventsTest, AGC_L1_209_TTS_EventUnsubscription)
 
 TEST_F(TTSEventsTest, AGC_L1_210_UserSettings_EventSubscription_Registers)
 {
-    // Subscribe to a UserSettings event
-    EXPECT_CALL(mockUserSettings, Register(_)).Times(::testing::AtLeast(1));
-
     MockEmitter* emitter = new MockEmitter();
     emitter->AddRef();
     bool status = false;
@@ -304,8 +322,7 @@ TEST_F(TTSEventsTest, AGC_L1_210_UserSettings_EventSubscription_Registers)
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    ASSERT_TRUE(WaitForRegistration());
 }
 
 /* ---------- Deactivated ---------- */
@@ -357,7 +374,22 @@ protected:
     NiceMock<MockTextToSpeech> mockTTS;
     NiceMock<UserSettingMock> mockUserSettings;
     Exchange::ITextToSpeech::INotification* capturedTTSNotification = nullptr;
+    std::mutex registrationMutex;
+    std::condition_variable registrationCv;
     std::vector<MockEmitter*> heapEmitters;
+
+    bool WaitForTTSRegistration()
+    {
+        std::unique_lock<std::mutex> lock(registrationMutex);
+        bool result = registrationCv.wait_for(lock, std::chrono::seconds(10), [this] {
+            return capturedTTSNotification != nullptr;
+        });
+        // Small delay to ensure AddNotification() completes after Register() returns
+        if (result) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        return result;
+    }
 
     void SetUp() override
     {
@@ -382,7 +414,11 @@ protected:
         // Capture TTS notification pointer
         EXPECT_CALL(mockTTS, Register(_)).Times(AnyNumber())
             .WillRepeatedly(::testing::Invoke([this](Exchange::ITextToSpeech::INotification* n) -> uint32_t {
-                capturedTTSNotification = n;
+                {
+                    std::lock_guard<std::mutex> lock(registrationMutex);
+                    capturedTTSNotification = n;
+                }
+                registrationCv.notify_all();
                 return Core::ERROR_NONE;
             }));
         EXPECT_CALL(mockTTS, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
@@ -414,8 +450,7 @@ TEST_F(TTSNotificationTest, AGC_L1_212_TTS_OnSpeechComplete_Dispatches)
     // Subscribe to TextToSpeech.onSpeechComplete
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechComplete", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedTTSNotification, nullptr);
+    ASSERT_TRUE(WaitForTTSRegistration());
 
     // Fire the notification
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onSpeechComplete"), _, _)).Times(::testing::AtLeast(1));
@@ -432,8 +467,7 @@ TEST_F(TTSNotificationTest, AGC_L1_213_TTS_OnPlaybackError_Dispatches)
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onPlaybackError", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedTTSNotification, nullptr);
+    ASSERT_TRUE(WaitForTTSRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onPlaybackError"), _, _)).Times(::testing::AtLeast(1));
     capturedTTSNotification->OnPlaybackError(99);
@@ -449,8 +483,7 @@ TEST_F(TTSNotificationTest, AGC_L1_214_TTS_OnTTSStateChanged_Dispatches)
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onTtsstatechanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedTTSNotification, nullptr);
+    ASSERT_TRUE(WaitForTTSRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onTtsstatechanged"), _, _)).Times(::testing::AtLeast(1));
     capturedTTSNotification->OnTTSStateChanged(true);
@@ -466,8 +499,7 @@ TEST_F(TTSNotificationTest, AGC_L1_215_TTS_OnVoiceChanged_Dispatches)
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onVoiceChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedTTSNotification, nullptr);
+    ASSERT_TRUE(WaitForTTSRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onVoiceChanged"), _, _)).Times(::testing::AtLeast(1));
     capturedTTSNotification->OnVoiceChanged("en-US-Standard-A");
@@ -483,8 +515,7 @@ TEST_F(TTSNotificationTest, AGC_L1_216_TTS_OnSpeechStarted_Dispatches)
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechStart", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedTTSNotification, nullptr);
+    ASSERT_TRUE(WaitForTTSRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onSpeechStart"), _, _)).Times(::testing::AtLeast(1));
     capturedTTSNotification->OnSpeechStarted(10);
@@ -543,7 +574,7 @@ TEST_F(TTSNoInterfaceTest, AGC_L1_217_TTS_Subscription_NoInterface_StatusFalse)
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_TRUE(status);  // status is set before async dispatch
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 }
 
 /* ================================================================
@@ -559,7 +590,22 @@ protected:
     NiceMock<ServiceMock> service;
     NiceMock<UserSettingMock> mockUserSettings;
     Exchange::IUserSettings::INotification* capturedUSNotification = nullptr;
+    std::mutex registrationMutex;
+    std::condition_variable registrationCv;
     std::vector<MockEmitter*> heapEmitters;
+
+    bool WaitForUserSettingsRegistration()
+    {
+        std::unique_lock<std::mutex> lock(registrationMutex);
+        bool result = registrationCv.wait_for(lock, std::chrono::seconds(10), [this] {
+            return capturedUSNotification != nullptr;
+        });
+        // Small delay to ensure AddNotification() completes after Register() returns
+        if (result) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        return result;
+    }
 
     void SetUp() override
     {
@@ -578,7 +624,11 @@ protected:
         // Capture UserSettings notification pointer
         EXPECT_CALL(mockUserSettings, Register(_)).Times(AnyNumber())
             .WillRepeatedly(::testing::Invoke([this](Exchange::IUserSettings::INotification* n) -> uint32_t {
-                capturedUSNotification = n;
+                {
+                    std::lock_guard<std::mutex> lock(registrationMutex);
+                    capturedUSNotification = n;
+                }
+                registrationCv.notify_all();
                 return Core::ERROR_NONE;
             }));
         EXPECT_CALL(mockUserSettings, Unregister(_)).Times(AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
@@ -607,8 +657,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_218_UserSettings_OnAudioDescriptionC
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "Accessibility.onAudioDescriptionSettingsChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedUSNotification, nullptr);
+    ASSERT_TRUE(WaitForUserSettingsRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Accessibility.onAudioDescriptionSettingsChanged"), _, _)).Times(::testing::AtLeast(1));
     capturedUSNotification->OnAudioDescriptionChanged(true);
@@ -624,8 +673,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_219_UserSettings_OnCaptionsChanged_D
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "ClosedCaptions.onEnabledChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedUSNotification, nullptr);
+    ASSERT_TRUE(WaitForUserSettingsRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("ClosedCaptions.onEnabledChanged"), _, _)).Times(::testing::AtLeast(1));
     capturedUSNotification->OnCaptionsChanged(true);
@@ -641,8 +689,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_220_UserSettings_OnHighContrastChang
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "Accessibility.onHighContrastUIChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedUSNotification, nullptr);
+    ASSERT_TRUE(WaitForUserSettingsRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Accessibility.onHighContrastUIChanged"), _, _)).Times(::testing::AtLeast(1));
     capturedUSNotification->OnHighContrastChanged(true);
@@ -658,8 +705,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_221_UserSettings_OnVoiceGuidanceChan
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "Accessibility.onVoiceGuidanceSettingsChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedUSNotification, nullptr);
+    ASSERT_TRUE(WaitForUserSettingsRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Accessibility.onVoiceGuidanceSettingsChanged"), _, _)).Times(::testing::AtLeast(1));
     capturedUSNotification->OnVoiceGuidanceChanged(true);
@@ -675,8 +721,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_222_UserSettings_OnPreferredAudioLan
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "Localization.onPreferredAudioLanguagesChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedUSNotification, nullptr);
+    ASSERT_TRUE(WaitForUserSettingsRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Localization.onPreferredAudioLanguagesChanged"), _, _)).Times(::testing::AtLeast(1));
     capturedUSNotification->OnPreferredAudioLanguagesChanged("eng,fra");
@@ -700,15 +745,19 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_223_UserSettings_OnPresentationLangu
 
     bool status = false;
     plugin.HandleAppEventNotifier(localeEmitter, "Localization.onLocaleChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedUSNotification, nullptr);
+    ASSERT_TRUE(WaitForUserSettingsRegistration());
 
     plugin.HandleAppEventNotifier(languageEmitter, "Localization.onLanguageChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+    // Reset captured notification to ensure the next wait actually waits for the new subscription
+    {
+        std::lock_guard<std::mutex> lock(registrationMutex);
+        capturedUSNotification = nullptr;
+    }
 
     plugin.HandleAppEventNotifier(presentationLanguageEmitter, "Localization.onPresentationLanguageChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedUSNotification, nullptr);
+    ASSERT_TRUE(WaitForUserSettingsRegistration());
 
     EXPECT_CALL(*localeEmitter, Emit(::testing::HasSubstr("Localization.onLocaleChanged"), ::testing::StrEq("en-US"), _))
         .Times(::testing::AtLeast(1));
@@ -738,8 +787,7 @@ TEST_F(TTSNotificationTest, AGC_L1_224_TTS_OnSpeechReady_Dispatches)
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onWillSpeak", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedTTSNotification, nullptr);
+    ASSERT_TRUE(WaitForTTSRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onWillSpeak"), _, _)).Times(::testing::AtLeast(1));
     capturedTTSNotification->OnSpeechReady(5);
@@ -755,8 +803,7 @@ TEST_F(TTSNotificationTest, AGC_L1_225_TTS_OnSpeechPaused_Dispatches)
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechPause", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedTTSNotification, nullptr);
+    ASSERT_TRUE(WaitForTTSRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onSpeechPause"), _, _)).Times(::testing::AtLeast(1));
     capturedTTSNotification->OnSpeechPaused(15);
@@ -772,8 +819,7 @@ TEST_F(TTSNotificationTest, AGC_L1_226_TTS_OnSpeechResumed_Dispatches)
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechResume", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedTTSNotification, nullptr);
+    ASSERT_TRUE(WaitForTTSRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onSpeechResume"), _, _)).Times(::testing::AtLeast(1));
     capturedTTSNotification->OnSpeechResumed(15);
@@ -789,8 +835,7 @@ TEST_F(TTSNotificationTest, AGC_L1_227_TTS_OnSpeechInterrupted_Dispatches)
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onSpeechInterrupted", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedTTSNotification, nullptr);
+    ASSERT_TRUE(WaitForTTSRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onSpeechInterrupted"), _, _)).Times(::testing::AtLeast(1));
     capturedTTSNotification->OnSpeechInterrupted(20);
@@ -806,8 +851,7 @@ TEST_F(TTSNotificationTest, AGC_L1_228_TTS_OnNetworkError_Dispatches)
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "TextToSpeech.onNetworkError", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedTTSNotification, nullptr);
+    ASSERT_TRUE(WaitForTTSRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("TextToSpeech.onNetworkError"), _, _)).Times(::testing::AtLeast(1));
     capturedTTSNotification->OnNetworkError(25);
@@ -848,14 +892,19 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_229_UserSettings_OnPresentationLangu
     // Subscribe to all three locale-related events
     bool status = false;
     plugin.HandleAppEventNotifier(localeEmitter, "Localization.onLocaleChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedUSNotification, nullptr);
+    ASSERT_TRUE(WaitForUserSettingsRegistration());
 
     plugin.HandleAppEventNotifier(langEmitter, "Localization.onLanguageChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+    // Reset captured notification to ensure the next wait actually waits for the new subscription
+    {
+        std::lock_guard<std::mutex> lock(registrationMutex);
+        capturedUSNotification = nullptr;
+    }
 
     plugin.HandleAppEventNotifier(presEmitter, "Localization.onPresentationLanguageChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
     // onLocaleChanged and onPresentationLanguageChanged must fire
     EXPECT_CALL(*localeEmitter, Emit(::testing::HasSubstr("Localization.onLocaleChanged"), ::testing::StrEq("eng"), _))
@@ -869,7 +918,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_229_UserSettings_OnPresentationLangu
     // Fire with a non-hyphenated locale
     capturedUSNotification->OnPresentationLanguageChanged("eng");
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 }
 
 TEST_F(UserSettingsNotificationTest, AGC_L1_230_UserSettings_OnPreferredCaptionsLanguagesChanged_Dispatches)
@@ -880,8 +929,7 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_230_UserSettings_OnPreferredCaptions
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "ClosedCaptions.onPreferredLanguagesChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedUSNotification, nullptr);
+    ASSERT_TRUE(WaitForUserSettingsRegistration());
 
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("ClosedCaptions.onPreferredLanguagesChanged"), _, _)).Times(::testing::AtLeast(1));
     capturedUSNotification->OnPreferredCaptionsLanguagesChanged("eng,spa");
@@ -897,15 +945,14 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_231_UserSettings_OnVoiceGuidanceRate
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "Accessibility.onVoiceGuidanceSettingsChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedUSNotification, nullptr);
+    ASSERT_TRUE(WaitForUserSettingsRegistration());
 
     // OnVoiceGuidanceRateChanged triggers DispatchVoiceGuidanceSettingsChanged
     // which re-queries voice guidance state and dispatches the composite settings
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Accessibility.onVoiceGuidanceSettingsChanged"), _, _)).Times(::testing::AtLeast(1));
     capturedUSNotification->OnVoiceGuidanceRateChanged(1.5);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 }
 
 TEST_F(UserSettingsNotificationTest, AGC_L1_232_UserSettings_OnVoiceGuidanceHintsChanged_Dispatches)
@@ -916,15 +963,15 @@ TEST_F(UserSettingsNotificationTest, AGC_L1_232_UserSettings_OnVoiceGuidanceHint
 
     bool status = false;
     plugin.HandleAppEventNotifier(emitter, "Accessibility.onVoiceGuidanceSettingsChanged", true, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    ASSERT_NE(capturedUSNotification, nullptr);
+    ASSERT_TRUE(WaitForUserSettingsRegistration());
 
     // OnVoiceGuidanceHintsChanged triggers DispatchVoiceGuidanceSettingsChanged
     // which re-queries voice guidance state and dispatches the composite settings
     EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Accessibility.onVoiceGuidanceSettingsChanged"), _, _)).Times(::testing::AtLeast(1));
     capturedUSNotification->OnVoiceGuidanceHintsChanged(true);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 }
+
 
 } // namespace

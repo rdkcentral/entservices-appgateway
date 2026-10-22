@@ -29,6 +29,7 @@
 #include <interfaces/IDisplayInfo.h>
 
 #include "BaseEventDelegate.h"
+#include "SharedOwnerChannel.h"
 #include "UtilsController.h"
 #include "UtilsJsonrpcDirectLink.h"
 #include "UtilsLogging.h"
@@ -90,10 +91,15 @@ private:
     };
 
     // Convenience helper: submit work to the Thunder worker pool.
-    static void PostToWorkerPool(std::function<void()> work)
+    bool PostToWorkerPool(std::function<void(VideoOutputDelegate&)> work)
     {
-        Core::IWorkerPool::Instance().Submit(
-            Core::ProxyType<Core::IDispatch>(Core::ProxyType<WorkerPoolTask>::Create(std::move(work))));
+        std::shared_ptr<VideoOutputDelegate> owner;
+        try {
+            owner = std::dynamic_pointer_cast<VideoOutputDelegate>(shared_from_this());
+        } catch (const std::bad_weak_ptr&) {
+            return false;  // Owner being destroyed, reject submission
+        }
+        return _workerPool.Submit(owner, std::move(work));
     }
 
 public:
@@ -121,6 +127,7 @@ public:
 
     ~VideoOutputDelegate()
     {
+        // Unsubscribe BEFORE closing worker pool to prevent race conditions
         try {
             if ((_displaySettingsRpc != nullptr) && isResolutionChangedSubscribed()) {
                 _displaySettingsRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("resolutionChanged"));
@@ -146,6 +153,9 @@ public:
         _hdmiCecSourceRpc.reset();
         _displayInfoRpc.reset();
         _shell = nullptr;
+
+        // Close worker pool AFTER unsubscribing to ensure no new callbacks are posted
+        _workerPool.Close();
     }
 
     bool isTVPanel()
@@ -906,8 +916,8 @@ private:
     {
         (void)params;
         LOGINFO("[AppGatewayCommon|DisplaySettings.resolutionChanged] Incoming, posting to workerpool...");
-        PostToWorkerPool([this]() {
-            (void)EmitOnResolutionChanged();
+        PostToWorkerPool([](VideoOutputDelegate& self) {
+            (void)self.EmitOnResolutionChanged();
         });
     }
 
@@ -915,8 +925,8 @@ private:
     {
         (void)params;
         LOGINFO("[AppGatewayCommon|HdcpProfile.onDisplayConnectionChanged] Incoming, posting to workerpool...");
-        PostToWorkerPool([this]() {
-            (void)EmitOnHdcpChanged();
+        PostToWorkerPool([](VideoOutputDelegate& self) {
+            (void)self.EmitOnHdcpChanged();
         });
     }
 
@@ -924,8 +934,8 @@ private:
     {
         (void)params;
         LOGINFO("[AppGatewayCommon|HdmiCecSource.onActiveSourceStatusUpdated] Incoming, posting to workerpool...");
-        PostToWorkerPool([this]() {
-            (void)EmitOnCecActiveStateChanged();
+        PostToWorkerPool([](VideoOutputDelegate& self) {
+            (void)self.EmitOnCecActiveStateChanged();
         });
     }
 
@@ -933,8 +943,8 @@ private:
     {
         (void)params;
         LOGINFO("[AppGatewayCommon|DisplaySettings.connectedVideoDisplaysUpdated] Incoming, posting to workerpool...");
-        PostToWorkerPool([this]() {
-            (void)EmitOnPortChanged();
+        PostToWorkerPool([](VideoOutputDelegate& self) {
+            (void)self.EmitOnPortChanged();
         });
     }
 
@@ -1034,4 +1044,5 @@ private:
     bool _hdmiCecSourceSubscribed;
     bool _displayInfoSubscribed;
     mutable Core::CriticalSection _subscriptionLock;
+    SharedOwnerChannel<VideoOutputDelegate> _workerPool;
 };

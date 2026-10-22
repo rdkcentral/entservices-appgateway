@@ -18,6 +18,7 @@
  */
 
 #include "AppGatewayCommon.h"
+#include "RetainedJobQueue.h"
 #include <interfaces/IConfiguration.h>
 #include "StringUtils.h"
 #include "UtilsAppGatewayTelemetry.h"
@@ -73,8 +74,15 @@ namespace Plugin {
         AGW_RECORD_BOOTSTRAP_TIME();
 
         // Initialize the settings delegate
-        mDelegate = std::make_shared<SettingsDelegate>();
-        mDelegate->setShell(mShell);
+        auto delegate = std::make_shared<SettingsDelegate>();
+        delegate->setShell(mShell);
+
+        // Reset shutdown flag to allow job submissions after initialization
+        {
+            std::lock_guard<std::mutex> lk(mDelegateMutex);
+            mDelegate = std::move(delegate);
+            mShuttingDown.store(false, std::memory_order_release);
+        }
 
         // Lifecycle 2 only: wire up the WebSocket session guard so the
         // LifecycleDelegate can pause/resume traffic when an app hibernates.
@@ -101,28 +109,27 @@ namespace Plugin {
         ASSERT(service == mShell);
         mConnectionId = 0;
 
-        // Wait for any in-flight EventRegistrationJobs to complete before
-        // destroying the delegate.  These jobs run on the worker pool and
-        // may be blocked inside Thunder Subscribe() calls (up to the
-        // SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS timeout).  Destroying the
-        // delegate while a job is executing causes use-after-free.
+        // Set shutdown flag to reject new job submissions
         {
-            std::unique_lock<std::mutex> lk(mJobDrainMutex);
-            mJobDrainCv.wait(lk, [this] { return mActiveJobs.load(std::memory_order_acquire) == 0; });
+            std::lock_guard<std::mutex> lk(mDelegateMutex);
+            mShuttingDown.store(true, std::memory_order_release);
         }
 
-        // Clear session guard reference before delegate cleanup to prevent
-        // any in-flight lifecycle callbacks from using a stale guard.
-        if (ConfigUtils::useAppManagers() && mDelegate) {
-            auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
-            if (nullptr != lifecycleDelegate) {
-                lifecycleDelegate->SetSessionGuard(nullptr);
+        {
+            std::lock_guard<std::mutex> lk(mDelegateMutex);
+            if (mDelegate) {
+                // Clear session guard reference before delegate cleanup to prevent
+                // any in-flight lifecycle callbacks from using a stale guard.
+                if (ConfigUtils::useAppManagers()) {
+                    auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
+                    if (nullptr != lifecycleDelegate) {
+                        lifecycleDelegate->SetSessionGuard(nullptr);
+                    }
+                }
+                mDelegate->Cleanup();
+                mDelegate.reset();
             }
         }
-
-        mDelegate->Cleanup();
-        // Clean up the delegate
-        mDelegate.reset();
 
         mShell->Release();
         mShell = nullptr;
@@ -148,7 +155,7 @@ namespace Plugin {
             LOGTRACE("HandleAppEventNotifier [event=%s listen=%s]",
                     event.c_str(), listen ? "true" : "false");
             
-            status = this->SafeSubmitEventRegistrationJob(cb, event, listen);
+            status = this->SubmitEventRegistration(cb, event, listen);
             if (false == status) {
                 LOGERR("HandleAppEventNotifier: Failed to submit event registration job for event %s", event.c_str());
                 return Core::ERROR_GENERAL;
@@ -430,7 +437,7 @@ namespace Plugin {
                     method.c_str(), payload.c_str(), context.appId.c_str());
             
             // Check if delegate is properly initialized
-            if (nullptr == mDelegate) {
+            if (!GetDelegateSafe()) {
                 LOGERR("HandleAppGatewayRequest: mDelegate is null, plugin not properly initialized");
                 result = "{\"error\":\"Service unavailable\"}";
                 return Core::ERROR_UNAVAILABLE;
@@ -573,40 +580,45 @@ namespace Plugin {
 Core::hresult AppGatewayCommon::SpeechSynthesisVoices(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
 {
     result = "[]";
-    if (!mDelegate) { ErrorUtils::NotAvailable(result); return Core::ERROR_UNAVAILABLE; }
-    auto ttsDelegate = mDelegate->getTTSDelegate();
+    auto delegate = GetDelegateSafe();
+    if (!delegate) { ErrorUtils::NotAvailable(result); return Core::ERROR_UNAVAILABLE; }
+    auto ttsDelegate = delegate->getTTSDelegate();
     if (!ttsDelegate) { ErrorUtils::NotAvailable(result); return Core::ERROR_UNAVAILABLE; }
     return ttsDelegate->SpeechSynthesisVoices(payload, result);
 }
 
 Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
 {
-    if (!mDelegate) { ErrorUtils::NotAvailable(result); return Core::ERROR_UNAVAILABLE; }
-    auto ttsDelegate = mDelegate->getTTSDelegate();
+    auto delegate = GetDelegateSafe();
+    if (!delegate) { ErrorUtils::NotAvailable(result); return Core::ERROR_UNAVAILABLE; }
+    auto ttsDelegate = delegate->getTTSDelegate();
     if (!ttsDelegate) { ErrorUtils::NotAvailable(result); return Core::ERROR_UNAVAILABLE; }
     return ttsDelegate->SpeechSynthesisSpeak(ctx.appId, payload, result);
 }
 
     Core::hresult AppGatewayCommon::SpeechSynthesisCancel(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
     {
-        if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-        auto ttsDelegate = mDelegate->getTTSDelegate();
+        auto delegate = GetDelegateSafe();
+        if (!delegate) return Core::ERROR_UNAVAILABLE;
+        auto ttsDelegate = delegate->getTTSDelegate();
         if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
         return ttsDelegate->SpeechSynthesisCancel(payload, result);
     }
 
     Core::hresult AppGatewayCommon::SpeechSynthesisPause(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
     {
-        if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-        auto ttsDelegate = mDelegate->getTTSDelegate();
+        auto delegate = GetDelegateSafe();
+        if (!delegate) return Core::ERROR_UNAVAILABLE;
+        auto ttsDelegate = delegate->getTTSDelegate();
         if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
         return ttsDelegate->SpeechSynthesisPause(payload, result);
     }
 
     Core::hresult AppGatewayCommon::SpeechSynthesisResume(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
     {
-        if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-        auto ttsDelegate = mDelegate->getTTSDelegate();
+        auto delegate = GetDelegateSafe();
+        if (!delegate) return Core::ERROR_UNAVAILABLE;
+        auto ttsDelegate = delegate->getTTSDelegate();
         if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
         return ttsDelegate->SpeechSynthesisResume(payload, result);
     }
@@ -624,43 +636,60 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         }
 
         /**
-         * @brief Safely submits EventRegistrationJob with proper error handling
+         * @brief Submits event registration through the retained job queue
          * @param cb Callback interface (must be not-null)
          * @param event Event name
          * @param listen Whether to listen or unlisten
          * @return true if job submitted successfully, false otherwise
          */
-        bool AppGatewayCommon::SafeSubmitEventRegistrationJob(Exchange::IAppNotificationHandler::IEmitter* cb, 
+        bool AppGatewayCommon::SubmitEventRegistration(Exchange::IAppNotificationHandler::IEmitter* cb,
                                                               const std::string& event, bool listen) {
 
             if (nullptr == cb) {
-                LOGERR("SafeSubmitEventRegistrationJob: Callback emitter is null");
+                LOGERR("SubmitEventRegistration: Callback emitter is null");
                 return false;
             }
 
+            // Check shutdown flag first to reject submissions during Deinitialize
+            if (mShuttingDown.load(std::memory_order_acquire)) {
+                LOGWARN("SubmitEventRegistration: Plugin is shutting down, rejecting job submission");
+                return false;
+            }
+
+            // Lock to prevent race with Deinitialize resetting mDelegate
+            std::lock_guard<std::mutex> lk(mDelegateMutex);
+
+            // Double-check shutdown flag and delegate under lock
+            if (mShuttingDown.load(std::memory_order_acquire)) {
+                LOGWARN("SubmitEventRegistration: Plugin is shutting down, rejecting job submission");
+                return false;
+            }
             if (nullptr == mDelegate) {
-                LOGERR("SafeSubmitEventRegistrationJob: Delegate is null");
+                LOGERR("SubmitEventRegistration: Delegate is null");
                 return false;
             }
 
-            auto job = EventRegistrationJob::Create(this, cb, event, listen);
-            if (false == job.IsValid()) {
-                LOGERR("SafeSubmitEventRegistrationJob: Failed to create EventRegistrationJob");
-                return false;
-            }
-
-            mActiveJobs.fetch_add(1, std::memory_order_acq_rel);
-            Core::IWorkerPool::Instance().Submit(job);
-            return true;
+            cb->AddRef();
+            std::shared_ptr<Exchange::IAppNotificationHandler::IEmitter> emitter(
+                cb, [](Exchange::IAppNotificationHandler::IEmitter* value) { value->Release(); });
+            return RetainedJobQueue<AppGatewayCommon>::SubmitTimed(
+                this, "EventRegistrationJob[" + std::string(listen ? "sub" : "unsub") + ":" + event + "]",
+                0, 0, "", [emitter = std::move(emitter), event, listen](AppGatewayCommon& owner) {
+                    auto delegate = owner.GetDelegateSafe();
+                    if (delegate) {
+                        delegate->HandleAppEventNotifier(emitter.get(), event, listen);
+                    }
+                });
         }
 
         // Delegated alias methods
 
         Core::hresult AppGatewayCommon::GetDeviceMake(string &make)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
                 return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate)
                 return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDeviceMake(make);
@@ -668,9 +697,10 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetDeviceName(string &name)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
                 return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate)
                 return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDeviceName(name);
@@ -678,9 +708,10 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::SetDeviceName(const string name)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
                 return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate)
                 return Core::ERROR_UNAVAILABLE;
             return systemDelegate->SetDeviceName(name);
@@ -688,9 +719,10 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetDeviceSku(string &sku)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
                 return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate)
                 return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDeviceSku(sku);
@@ -698,9 +730,10 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetCountryCode(string &countryCode)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
                 return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate)
                 return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetCountryCode(countryCode);
@@ -708,9 +741,10 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::SetCountryCode(const string countryCode)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
                 return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate)
                 return Core::ERROR_UNAVAILABLE;
             return systemDelegate->SetCountryCode(countryCode);
@@ -718,9 +752,10 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetTimeZone(string &timeZone)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
                 return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate)
                 return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetTimeZone(timeZone);
@@ -728,9 +763,10 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::SetTimeZone(const string timeZone)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
                 return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate)
                 return Core::ERROR_UNAVAILABLE;
             return systemDelegate->SetTimeZone(timeZone);
@@ -738,9 +774,10 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetSecondScreenFriendlyName(string &name)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
                 return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate)
                 return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetSecondScreenFriendlyName(name);
@@ -749,13 +786,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         // UserSettings APIs
         Core::hresult AppGatewayCommon::GetVoiceGuidance(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldnt get voiceguidance state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "{\"error\":\"couldnt get voiceguidance state\"}";
@@ -767,13 +805,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetAudioDescription(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldnt get audio description settings\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "{\"error\":\"couldnt get audio description settings\"}";
@@ -785,13 +824,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetAudioDescriptionsEnabled(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldnt get audio descriptions enabled\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "{\"error\":\"couldnt get audio descriptions enabled\"}";
@@ -803,13 +843,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetHighContrast(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldnt get high contrast state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "{\"error\":\"couldnt get high contrast state\"}";
@@ -821,13 +862,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetCaptions(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldnt get captions state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "{\"error\":\"couldnt get captions state\"}";
@@ -839,13 +881,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetPresentationLanguage(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldn't get language\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "{\"error\":\"couldn't get language\"}";
@@ -857,13 +900,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetLocale(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldn't get locale\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "{\"error\":\"couldn't get locale\"}";
@@ -875,12 +919,13 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::SetLocale(const string &locale)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 return Core::ERROR_UNAVAILABLE;
@@ -891,13 +936,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetPreferredAudioLanguages(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "[]";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "[]";
@@ -909,13 +955,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetPreferredCaptionsLanguages(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "[\"eng\"]";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "[\"eng\"]";
@@ -927,12 +974,13 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::SetPreferredAudioLanguages(const string &languages)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 return Core::ERROR_UNAVAILABLE;
@@ -943,12 +991,13 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::SetPreferredCaptionsLanguages(const string &preferredLanguages)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 return Core::ERROR_UNAVAILABLE;
@@ -959,12 +1008,13 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::SetVoiceGuidance(const bool enabled)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 return Core::ERROR_UNAVAILABLE;
@@ -975,12 +1025,13 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::SetAudioDescriptionsEnabled(const bool enabled)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 return Core::ERROR_UNAVAILABLE;
@@ -991,12 +1042,13 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::SetCaptions(const bool enabled)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 return Core::ERROR_UNAVAILABLE;
@@ -1007,12 +1059,13 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::SetSpeed(const double speed)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 return Core::ERROR_UNAVAILABLE;
@@ -1049,12 +1102,13 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetSpeed(double &speed)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 return Core::ERROR_UNAVAILABLE;
@@ -1099,13 +1153,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetVoiceGuidanceHints(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldnt get navigationHints\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "{\"error\":\"couldnt get navigationHints\"}";
@@ -1117,12 +1172,13 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::SetVoiceGuidanceHints(const bool enabled)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 return Core::ERROR_UNAVAILABLE;
@@ -1133,13 +1189,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetVoiceGuidanceSettings(const bool addSpeed, string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldn't get voice guidance settings\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "{\"error\":\"couldn't get voice guidance settings\"}";
@@ -1158,13 +1215,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetClosedCaptionsSettings(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldn't get closed captions settings\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "{\"error\":\"couldn't get closed captions settings\"}";
@@ -1176,13 +1234,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetInternetConnectionStatus(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldn't get internet connection status\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto networkDelegate = mDelegate->getNetworkDelegate();
+            auto networkDelegate = delegate->getNetworkDelegate();
             if (!networkDelegate)
             {
                 result = "{\"error\":\"couldn't get internet connection status\"}";
@@ -1194,13 +1253,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetNetworkConnected(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldn't get network connected status\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto networkDelegate = mDelegate->getNetworkDelegate();
+            auto networkDelegate = delegate->getNetworkDelegate();
             if (!networkDelegate)
             {
                 result = "{\"error\":\"couldn't get network connected status\"}";
@@ -1212,9 +1272,10 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetFirmwareVersion(string &result /* @out */)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
                 return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate)
                 return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetFirmwareVersion(result);
@@ -1233,11 +1294,12 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         Core::hresult AppGatewayCommon::GetScreenResolution(string &result)
         {
             LOGINFO("GetScreenResolution AppGatewayCommon");
-            if (!mDelegate) {
+            auto delegate = GetDelegateSafe();
+            if (!delegate) {
                 result = "[1920,1080]";
                 return Core::ERROR_UNAVAILABLE;
             }
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) {
                 result = "[1920,1080]";
                 return Core::ERROR_UNAVAILABLE;
@@ -1248,11 +1310,12 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         Core::hresult AppGatewayCommon::GetVideoResolution(string &result)
         {
             LOGINFO("GetVideoResolution AppGatewayCommon");
-            if (!mDelegate) {
+            auto delegate = GetDelegateSafe();
+            if (!delegate) {
                 result = "[1920,1080]";
                 return Core::ERROR_UNAVAILABLE;
             }
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) {
                 result = "[1920,1080]";
                 return Core::ERROR_UNAVAILABLE;
@@ -1263,11 +1326,12 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         Core::hresult AppGatewayCommon::GetHdcp(string &result)
         {
             LOGINFO("GetHdcp AppGatewayCommon");
-            if (!mDelegate) {
+            auto delegate = GetDelegateSafe();
+            if (!delegate) {
                 result = "{\"hdcp1.4\":false,\"hdcp2.2\":false}";
                 return Core::ERROR_UNAVAILABLE;
             }
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) {
                 result = "{\"hdcp1.4\":false,\"hdcp2.2\":false}";
                 return Core::ERROR_UNAVAILABLE;
@@ -1278,11 +1342,12 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         Core::hresult AppGatewayCommon::GetHdr(string &result)
         {
             LOGINFO("GetHdr AppGatewayCommon");
-            if (!mDelegate) {
+            auto delegate = GetDelegateSafe();
+            if (!delegate) {
                 result = "{\"hdr10\":false,\"dolbyVision\":false,\"hlg\":false,\"hdr10Plus\":false}";
                 return Core::ERROR_UNAVAILABLE;
             }
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) {
                 result = "{\"hdr10\":false,\"dolbyVision\":false,\"hlg\":false,\"hdr10Plus\":false}";
                 return Core::ERROR_UNAVAILABLE;
@@ -1293,11 +1358,12 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         Core::hresult AppGatewayCommon::GetAudio(string &result)
         {
             LOGINFO("GetAudio AppGatewayCommon");
-            if (!mDelegate) {
+            auto delegate = GetDelegateSafe();
+            if (!delegate) {
                 result = "{\"stereo\":true,\"dolbyDigital5.1\":false,\"dolbyDigital5.1+\":false,\"dolbyAtmos\":false}";
                 return Core::ERROR_UNAVAILABLE;
             }
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) {
                 result = "{\"stereo\":true,\"dolbyDigital5.1\":false,\"dolbyDigital5.1+\":false,\"dolbyAtmos\":false}";
                 return Core::ERROR_UNAVAILABLE;
@@ -1311,8 +1377,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         {
             LOGINFO("GetVideoOutputResolution AppGatewayCommon");
             result = "{\"width\":0,\"height\":0}";
-            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = delegate->getVideoOutputDelegate();
             if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputResolution(result);
         }
@@ -1321,8 +1388,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         {
             LOGINFO("GetVideoOutputHdcp AppGatewayCommon");
             result = "\"none\"";
-            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = delegate->getVideoOutputDelegate();
             if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputHdcp(result);
         }
@@ -1331,8 +1399,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         {
             LOGINFO("GetVideoOutputCecActiveState AppGatewayCommon");
             result = "\"unsupported\"";
-            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = delegate->getVideoOutputDelegate();
             if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputCecActiveState(result);
         }
@@ -1341,8 +1410,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         {
             LOGINFO("GetVideoOutputPort AppGatewayCommon");
             result = "\"none\"";
-            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = delegate->getVideoOutputDelegate();
             if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputPort(result);
         }
@@ -1351,8 +1421,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         {
             LOGINFO("GetVideoOutputRefreshRate AppGatewayCommon");
             result = "0";
-            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = delegate->getVideoOutputDelegate();
             if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputRefreshRate(result);
         }
@@ -1361,8 +1432,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         {
             LOGINFO("GetVideoOutputColorDepth AppGatewayCommon");
             result = "0";
-            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = delegate->getVideoOutputDelegate();
             if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputColorDepth(result);
         }
@@ -1371,8 +1443,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         {
             LOGINFO("GetVideoOutputColorFormat AppGatewayCommon");
             result = "\"none\"";
-            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = delegate->getVideoOutputDelegate();
             if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputColorFormat(result);
         }
@@ -1381,8 +1454,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         {
             LOGINFO("GetVideoOutputColorimetry AppGatewayCommon");
             result = "\"none\"";
-            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = delegate->getVideoOutputDelegate();
             if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputColorimetry(result);
         }
@@ -1391,8 +1465,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         {
             LOGINFO("GetVideoOutputDynamicRange AppGatewayCommon");
             result = "\"none\"";
-            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = delegate->getVideoOutputDelegate();
             if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputDynamicRange(result);
         }
@@ -1401,8 +1476,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         {
             LOGINFO("GetVideoOutputQuantizationRange AppGatewayCommon");
             result = "\"none\"";
-            if (nullptr == mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto videoOutputDelegate = mDelegate->getVideoOutputDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto videoOutputDelegate = delegate->getVideoOutputDelegate();
             if (nullptr == videoOutputDelegate) return Core::ERROR_UNAVAILABLE;
             return videoOutputDelegate->GetVideoOutputQuantizationRange(result);
         }
@@ -1410,12 +1486,13 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         Core::hresult AppGatewayCommon::GetDolbyAtmosExperience(string &result)
         {
             LOGINFO("GetDolbyAtmosExperience AppGatewayCommon");
-            if (!mDelegate) {
+            auto delegate = GetDelegateSafe();
+            if (!delegate) {
                 result = "false";
                 return Core::ERROR_UNAVAILABLE;
             }
 
-            auto avOutputDelegate = mDelegate->getAvOutputDelegate();
+            auto avOutputDelegate = delegate->getAvOutputDelegate();
             if (!avOutputDelegate) {
                 result = "false";
                 return Core::ERROR_UNAVAILABLE;
@@ -1441,22 +1518,22 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::Authenticate(const string &sessionId /* @in */, string &appId /* @out */)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Authenticate, sessionId, appId);
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Authenticate, sessionId, appId);
         }
 
         Core::hresult AppGatewayCommon::GetSessionId(const string &appId /* @in */, string &sessionId /* @out */)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetSessionId, appId, sessionId);
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetSessionId, appId, sessionId);
         }
 
         Core::hresult AppGatewayCommon::LifecycleFinished(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleFinished, ctx, payload, result);
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleFinished, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            Core::hresult hr = InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleReady, ctx, payload, result);
+            Core::hresult hr = InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleReady, ctx, payload, result);
             if (Core::ERROR_NONE == hr) {
                 // Telemetry: emit APP_READY_split marker
                 // CSV format: appId
@@ -1467,52 +1544,52 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::LifecycleClose(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleClose, ctx, payload, result);
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleClose, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::Lifecycle2State(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Lifecycle2State, ctx, payload, result);
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Lifecycle2State, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::LifecycleState(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleState, ctx, payload, result);
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::LifecycleState, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::Lifecycle2Close(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Lifecycle2Close, ctx, payload, result);
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::Lifecycle2Close, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::DispatchLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::DispatchLastIntent, ctx, payload, result);
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::DispatchLastIntent, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::GetLastIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetLastIntent, ctx, payload, result);
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetLastIntent, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::ActionsStart(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::ActionsStart, ctx, payload, result);
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::ActionsStart, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::ActionsIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::ActionsIntent, ctx, payload, result);
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::ActionsIntent, ctx, payload, result);
         }
         
         Core::hresult AppGatewayCommon::GetPresentationFocused(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetPresentationFocused, ctx, payload, result);
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetPresentationFocused, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::SetIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            return InvokeLifecycleDelegate(mDelegate, &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::SetIntent, ctx, payload, result);
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::SetIntent, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::CheckPermissionGroup(const string &appId /* @in */, const string &permissionGroup /* @in */, bool &allowed /* @out */)
@@ -1529,11 +1606,12 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
                                           const string& method ,
                                           const string& payload /*@opaque */,
                                           string& result /*@out @opaque */) {
-            if (!mDelegate) {
+            auto delegate = GetDelegateSafe();
+            if (!delegate) {
                 ErrorUtils::CustomInternal("Settings delegate not available", result);
                 return Core::ERROR_UNAVAILABLE;
             }
-            auto appDelegate = mDelegate->getAppDelegate();
+            auto appDelegate = delegate->getAppDelegate();
             if (!appDelegate) {
                 ErrorUtils::CustomInternal("App delegate not available", result);
                 return Core::ERROR_UNAVAILABLE;
@@ -1545,32 +1623,36 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetDeviceChipsetId(string &result)
         {
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDeviceChipsetId(result);
         }
 
         Core::hresult AppGatewayCommon::GetDeviceClass(string &result)
         {
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDeviceClass(result);
         }
 
         Core::hresult AppGatewayCommon::GetDeviceUptime(string &result)
         {
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDeviceUptime(result);
         }
 
         Core::hresult AppGatewayCommon::GetDeviceTimeInActiveState(string &result)
         {
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDeviceTimeInActiveState(result);
         }
@@ -1578,48 +1660,54 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         // Device Branding APIs (Phase 1)
         Core::hresult AppGatewayCommon::SetDeviceOsName(const string &osName)
         {
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->SetDeviceOsName(osName);
         }
 
         Core::hresult AppGatewayCommon::GetDeviceOsName(string &result)
         {
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDeviceOsName(result);
         }
 
         Core::hresult AppGatewayCommon::SetDeviceOsVersion(const string &osVersion)
         {
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->SetDeviceOsVersion(osVersion);
         }
 
         Core::hresult AppGatewayCommon::GetDeviceOsVersion(string &result)
         {
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDeviceOsVersion(result);
         }
 
         Core::hresult AppGatewayCommon::GetDeviceFirmware(string &result)
         {
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDeviceFirmware(result);
         }
 
         Core::hresult AppGatewayCommon::GetStatsMemoryUsage(const string &appId, string &result)
         {
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto lifecycleDelegate = delegate->getLifecycleDelegate();
             if (!lifecycleDelegate) return Core::ERROR_UNAVAILABLE;
             return lifecycleDelegate->GetStatsMemoryUsage(appId, result);
         }
@@ -1627,8 +1715,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         Core::hresult AppGatewayCommon::GetDisplayEdid(string &result)
         {
             result = "\"\"";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDisplayEdid(result);
         }
@@ -1636,8 +1725,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         Core::hresult AppGatewayCommon::GetDisplaySize(string &result)
         {
             result = "{\"width\":0,\"height\":0}";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDisplaySize(result);
         }
@@ -1645,8 +1735,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         Core::hresult AppGatewayCommon::GetDisplayMaxResolution(string &result)
         {
             result = "{\"width\":0,\"height\":0}";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDisplayMaxResolution(result);
         }
@@ -1654,20 +1745,22 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         Core::hresult AppGatewayCommon::GetDisplayColorimetry(string &result)
         {
             result = "[]";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDisplayColorimetry(result);
         }
 
         Core::hresult AppGatewayCommon::GetPinControl(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldn't get pin control state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "{\"error\":\"couldn't get pin control state\"}";
@@ -1678,12 +1771,13 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetBlockNotRatedContent(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldn't get block not rated content state\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "{\"error\":\"couldn't get block not rated content state\"}";
@@ -1694,12 +1788,13 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetViewingRestrictions(string &result)
         {
-            if (!mDelegate)
+            auto delegate = GetDelegateSafe();
+            if (!delegate)
             {
                 result = "{\"error\":\"couldn't get viewing restrictions\"}";
                 return Core::ERROR_UNAVAILABLE;
             }
-            auto userSettingsDelegate = mDelegate->getUserSettings();
+            auto userSettingsDelegate = delegate->getUserSettings();
             if (!userSettingsDelegate)
             {
                 result = "{\"error\":\"couldn't get viewing restrictions\"}";
@@ -1711,8 +1806,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         Core::hresult AppGatewayCommon::GetDisplayVideoResolutions(string &result)
         {
             result = "[]";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto systemDelegate = mDelegate->getSystemDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = delegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDisplayVideoResolutions(result);
         }
@@ -1720,8 +1816,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         Core::hresult AppGatewayCommon::TextToSpeechSpeak(const Exchange::GatewayContext& ctx, const string& payload, string& result)
         {
             result = "{}";
-            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-            auto ttsDelegate = mDelegate->getTTSDelegate();
+            auto delegate = GetDelegateSafe();
+            if (!delegate) return Core::ERROR_UNAVAILABLE;
+            auto ttsDelegate = delegate->getTTSDelegate();
             if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
             return ttsDelegate->TextToSpeechSpeak(ctx, payload, result);
         }

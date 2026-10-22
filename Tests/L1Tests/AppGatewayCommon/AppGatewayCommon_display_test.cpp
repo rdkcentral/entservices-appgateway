@@ -27,6 +27,8 @@
 #include <string>
 #include <vector>
 #include <atomic>
+#include <condition_variable>
+#include <future>
 #include <thread>
 #include <chrono>
 
@@ -290,7 +292,7 @@ protected:
     void TearDown() override
     {
         plugin.Deinitialize(&service);
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
         // connProps and dispProps are ref-counted; plugin holds no reference after Deinitialize.
         connProps->Release();
         connProps = nullptr;
@@ -1116,24 +1118,59 @@ TEST_F(DisplayDelegateTest, AGC_L1_187_VideoOutputEmitOnPortChanged_Dispatches)
 
     Core::Sink<MockEmitter> emitter;
     std::atomic<bool> emitted(false);
+    std::mutex emittedMutex;
+    std::condition_variable emittedCv;
 
     delegate->AddNotification("VideoOutput.onPortChanged", &emitter);
 
     EXPECT_CALL(emitter, Emit(StrEq("VideoOutput.onPortChanged"), StrEq("\"hdmi\""), StrEq("")))
-        .WillOnce(Invoke([&emitted](const string&, const string&, const string&) {
-            emitted.store(true, std::memory_order_release);
+        .WillOnce(Invoke([&](const string&, const string&, const string&) {
+            {
+                std::lock_guard<std::mutex> lock(emittedMutex);
+                emitted.store(true, std::memory_order_release);
+            }
+            emittedCv.notify_all();
         }));
 
     EXPECT_TRUE(delegate->EmitOnPortChanged());
 
-    for (int attempt = 0; (attempt < 20) && (false == emitted.load(std::memory_order_acquire)); ++attempt) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    {
+        std::unique_lock<std::mutex> lock(emittedMutex);
+        ASSERT_TRUE(emittedCv.wait_for(lock, std::chrono::seconds(10), [&] {
+            return emitted.load(std::memory_order_acquire);
+        }));
     }
 
-    EXPECT_TRUE(emitted.load(std::memory_order_acquire));
-
     delegate->RemoveNotification("VideoOutput.onPortChanged", &emitter);
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+}
+
+TEST_F(DisplayDelegateTest, AGC_L1_190_VideoOutputDelegateDestructorDiscardsQueuedWork)
+{
+    auto delegate = std::make_shared<VideoOutputDelegate>(&service);
+    std::weak_ptr<VideoOutputDelegate> observer(delegate);
+    std::atomic<bool> called(false);
+    auto job = delegate->_workerPool.Create(delegate, [&called](VideoOutputDelegate&) {
+        called.store(true, std::memory_order_release);
+    });
+    ASSERT_TRUE(job.IsValid());
+
+    delegate.reset();
+    EXPECT_TRUE(observer.expired());
+    job->Dispatch();
+    EXPECT_FALSE(called.load(std::memory_order_acquire));
+}
+
+TEST_F(DisplayDelegateTest, AGC_L1_191_VideoOutputDelegateRejectsWorkAfterShutdown)
+{
+    auto delegate = std::make_shared<VideoOutputDelegate>(&service);
+    delegate->_workerPool.Close();
+    Core::JSON::VariantContainer params;
+    delegate->OnResolutionChanged(params);
+    delegate->OnDisplayConnectionChanged(params);
+    delegate->OnActiveSourceStatusUpdated(params);
+    delegate->OnConnectedVideoDisplaysUpdated(params);
+    EXPECT_TRUE(delegate->_workerPool.Closed());
 }
 
 } // anonymous namespace

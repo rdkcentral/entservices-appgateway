@@ -8,6 +8,7 @@
 // and SERVICE_REGISTRATION references Core::System::Interfaces, which is not linked
 // into this shared library → "undefined reference to 'Interfaces'" linker error.
 #include "AppActionsImplementation.h"
+#include "RetainedJobQueue.h"
 #include "UtilsLogging.h"
 #include "UtilsAppGatewayTelemetry.h"
 #include <plugins/IShell.h>
@@ -46,7 +47,11 @@ namespace Plugin {
     {
         LOGDBG("ActionStart called with initiator: %s, intent: %s, handlerAppId: %s", initiator.c_str(), intent.c_str(), handlerAppId.c_str());
         // Dispatch notification asynchronously to avoid blocking the caller
-        Core::IWorkerPool::Instance().Submit(NotifyJob::Create(this, initiator, intent, handlerAppId));
+        RetainedJobQueue<AppActionsImplementation>::SubmitTimed(
+            this, "NotifyJob[" + intent + "]", 0, 0, handlerAppId,
+            [initiator, intent, handlerAppId](AppActionsImplementation& owner) {
+                owner.DispatchActionStartRequest(initiator, intent, handlerAppId);
+            });
         return Core::ERROR_NONE;
     }
     /**

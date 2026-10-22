@@ -21,6 +21,7 @@
 #include <plugins/JSONRPC.h>
 #include <plugins/IShell.h>
 #include "AppGatewayResponderImplementation.h"
+#include "RetainedJobQueue.h"
 #include "AppGatewayTelemetry.h"
 #include "UtilsLogging.h"
 #include "UtilsConnections.h"
@@ -167,7 +168,11 @@ namespace WPEFramework
             mWsManager.SetMessageHandler(
                 [this](const std::string &method, const std::string &params, const int requestId, const uint32_t connectionId)
                 {
-                    Core::IWorkerPool::Instance().Submit(WsMsgJob::Create(this, method, params, requestId, connectionId));
+                    RetainedJobQueue<AppGatewayResponderImplementation>::SubmitTimed(
+                        this, "WsMsgJob[" + method + "]", requestId, connectionId, "",
+                        [method, params, requestId, connectionId](AppGatewayResponderImplementation& owner) {
+                            owner.DispatchWsMsg(method, params, requestId, connectionId);
+                        });
                 });
 
             mWsManager.SetAuthHandler(
@@ -219,7 +224,11 @@ namespace WPEFramework
                         #endif
                         #endif
                         
-                        Core::IWorkerPool::Instance().Submit(ConnectionStatusNotificationJob::Create(this, connectionId, appId, true));
+                        RetainedJobQueue<AppGatewayResponderImplementation>::SubmitTimed(
+                            this, "ConnStatusJob[connect]", 0, connectionId, appId,
+                            [connectionId, appId](AppGatewayResponderImplementation& owner) {
+                                owner.OnConnectionStatusChanged(appId, connectionId, true);
+                            });
 
                         return true;
                     }
@@ -248,7 +257,11 @@ namespace WPEFramework
                     AppGatewayTelemetry::getInstance().DecrementWebSocketConnections(context);
                     
                     if (appId != "UNKNOWN") {
-                        Core::IWorkerPool::Instance().Submit(ConnectionStatusNotificationJob::Create(this, connectionId, appId, false));
+                        RetainedJobQueue<AppGatewayResponderImplementation>::SubmitTimed(
+                            this, "ConnStatusJob[disconnect]", 0, connectionId, appId,
+                            [connectionId, appId](AppGatewayResponderImplementation& owner) {
+                                owner.OnConnectionStatusChanged(appId, connectionId, false);
+                            });
                     }
                     
                     mAppIdRegistry.Remove(connectionId);
@@ -273,7 +286,13 @@ namespace WPEFramework
                 LOGDBG("Respond: dropping outgoing response for hibernated appId=%s", context.appId.c_str());
                 return Core::ERROR_NONE;
             }
-            Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context.connectionId, context.requestId, payload));
+            const uint32_t connectionId = context.connectionId;
+            const uint32_t requestId = context.requestId;
+            RetainedJobQueue<AppGatewayResponderImplementation>::SubmitTimed(
+                this, "RespondJob", requestId, connectionId, context.appId,
+                [connectionId, requestId, payload](AppGatewayResponderImplementation& owner) {
+                    owner.DispatchResponseToConnectionIfNotPaused(connectionId, requestId, payload);
+                });
             return Core::ERROR_NONE;
         }
 
@@ -289,12 +308,22 @@ namespace WPEFramework
                 LOGDBG("Emit: dropping outgoing notification for hibernated appId=%s", context.appId.c_str());
                 return Core::ERROR_NONE;
             }
+            const uint32_t connectionId = context.connectionId;
+            const uint32_t requestId = context.requestId;
             // check if the connection is compliant with JSON RPC
-            if (mCompliantJsonRpcRegistry.IsCompliantJsonRpc(context.connectionId)) {
-                Core::IWorkerPool::Instance().Submit(EmitJob::Create(this, context.connectionId, method, payload));
+            if (mCompliantJsonRpcRegistry.IsCompliantJsonRpc(connectionId)) {
+                RetainedJobQueue<AppGatewayResponderImplementation>::SubmitTimed(
+                    this, "EmitJob[" + method + "]", 0, connectionId, context.appId,
+                    [connectionId, method, payload](AppGatewayResponderImplementation& owner) {
+                        owner.DispatchNotificationToConnectionIfNotPaused(connectionId, method, payload);
+                    });
             }
             else {
-                Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context.connectionId, context.requestId, payload));
+                RetainedJobQueue<AppGatewayResponderImplementation>::SubmitTimed(
+                    this, "RespondJob", requestId, connectionId, context.appId,
+                    [connectionId, requestId, payload](AppGatewayResponderImplementation& owner) {
+                        owner.DispatchResponseToConnectionIfNotPaused(connectionId, requestId, payload);
+                    });
             }
             return Core::ERROR_NONE;
         }
@@ -306,7 +335,11 @@ namespace WPEFramework
                 LOGDBG("Request: dropping outgoing request for hibernated appId=%s", appId.c_str());
                 return Core::ERROR_NONE;
             }
-            Core::IWorkerPool::Instance().Submit(RequestJob::Create(this, connectionId, id, method, params));
+            RetainedJobQueue<AppGatewayResponderImplementation>::SubmitTimed(
+                this, "RequestJob[" + method + "]", id, connectionId, appId,
+                [connectionId, id, method, params](AppGatewayResponderImplementation& owner) {
+                    owner.SendRequestToConnectionIfNotPaused(connectionId, method, id, params);
+                });
             return Core::ERROR_NONE;
         }
 
