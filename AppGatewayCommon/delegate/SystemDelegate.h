@@ -210,8 +210,8 @@ public:
 
     ~SystemDelegate()
     {
-        _workerPool.Close();
-        // Cleanup subscriptions
+        // Cleanup subscriptions BEFORE closing worker pool to prevent race conditions
+        // where notifications arrive after Close() but before Unsubscribe()
         try {
             if (_displayRpc) {
                 if (_displaySubscribed) {
@@ -238,6 +238,9 @@ public:
         _displayRpc.reset();
         _hdcpRpc.reset();
         _shell = nullptr;
+
+        // Close worker pool AFTER unsubscribing to ensure no new callbacks are posted
+        _workerPool.Close();
     }
 
     // PUBLIC_INTERFACE

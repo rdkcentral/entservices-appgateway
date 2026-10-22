@@ -122,7 +122,7 @@ public:
 
     ~VideoOutputDelegate()
     {
-        _workerPool.Close();
+        // Unsubscribe BEFORE closing worker pool to prevent race conditions
         try {
             if ((_displaySettingsRpc != nullptr) && isResolutionChangedSubscribed()) {
                 _displaySettingsRpc->Unsubscribe(VIDEOOUTPUT_SUBSCRIBE_TIMEOUT_MS, _T("resolutionChanged"));
@@ -148,6 +148,9 @@ public:
         _hdmiCecSourceRpc.reset();
         _displayInfoRpc.reset();
         _shell = nullptr;
+
+        // Close worker pool AFTER unsubscribing to ensure no new callbacks are posted
+        _workerPool.Close();
     }
 
     bool isTVPanel()
