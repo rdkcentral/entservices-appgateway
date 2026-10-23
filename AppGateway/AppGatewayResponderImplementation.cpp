@@ -340,7 +340,13 @@ namespace WPEFramework
                                                      const uint32_t requestId,
                                                      const uint32_t connectionId)
         {
+            LOGWARN("DispatchWsMsg lock entry");
+            const auto lockWaitStart = Core::Time::Now();
             Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
+            const auto lockAcquired = Core::Time::Now();
+            LOGWARN("Resolver lock wait: %.3f ms",
+                    (lockAcquired - lockWaitStart).MilliSeconds());
+
             std::string resolution;
             string appId;
 
