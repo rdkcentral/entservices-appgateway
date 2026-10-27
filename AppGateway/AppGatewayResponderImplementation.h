@@ -378,6 +378,36 @@ namespace Plugin {
 
         void ReturnMessageInSocket(const uint32_t connectionId, const int requestId, const string payload);
 
+        bool DispatchResponseToConnectionIfNotPaused(const uint32_t connectionId, const uint32_t requestId, const string& result);
+        bool DispatchNotificationToConnectionIfNotPaused(const uint32_t connectionId, const string& designator, const string& payload);
+        bool SendRequestToConnectionIfNotPaused(const uint32_t connectionId, const string& designator, const uint32_t requestId, const string& params);
+        // Returns an AddRef'd resolver; the caller must Release it after use.
+        Exchange::IAppGatewayResolver* AcquireResolver();
+
+        // Thread-safe registry tracking appIds whose WebSocket traffic is currently paused
+        // (i.e., the application is in the HIBERNATED lifecycle state).
+        class PausedAppsRegistry {
+        public:
+            void Pause(const string& appId) {
+                std::lock_guard<std::mutex> lock(mMutex);
+                mPausedApps.insert(appId);
+            }
+
+            void Resume(const string& appId) {
+                std::lock_guard<std::mutex> lock(mMutex);
+                mPausedApps.erase(appId);
+            }
+
+            bool IsPaused(const string& appId) const {
+                std::lock_guard<std::mutex> lock(mMutex);
+                return mPausedApps.find(appId) != mPausedApps.end();
+            }
+
+        private:
+            mutable std::mutex mMutex;
+            std::unordered_set<string> mPausedApps;
+        };
+
         PluginHost::IShell* mService;
         WebSocketConnectionManager mWsManager;
         mutable Core::CriticalSection mAuthenticatorLock;
