@@ -2,7 +2,7 @@
 
 > **Source files:** `AppNotifications/`
 > **Callsign:** `org.rdk.AppNotifications`
-> **Shared library:** `libWPEFrameworkAppNotifications.so`
+> **Shared library:** `libThunderAppNotifications.so`
 > **Version:** `1.0.0`
 
 ---
@@ -101,7 +101,7 @@ graph TD
 AppNotifications/
 ├── AppNotifications.h / .cpp              # Plugin shell (IPlugin + JSONRPC)
 ├── AppNotificationsImplementation.h / .cpp # Core event routing logic
-├── Module.h / .cpp                        # WPEFramework module declaration
+├── Module.h / .cpp                        # Thunder module declaration
 ├── AppNotifications.conf.in               # Thunder config template
 ├── AppNotifications.config                # CMake config script
 ├── CMakeLists.txt
@@ -114,7 +114,7 @@ AppNotifications/
 |---|---|---|
 | `AppNotifications.h/.cpp` | Plugin entry point; roots `AppNotificationsImplementation` out-of-process | `AppNotifications::Initialize`, `Deinitialize` |
 | `AppNotificationsImplementation.h/.cpp` | All event routing logic | `Subscribe()`, `Emit()`, `Cleanup()`, `SubscriberMap`, `ThunderSubscriptionManager`, `Emitter`, `SubscriberJob`, `EmitJob` |
-| `Module.h/.cpp` | WPEFramework module boilerplate | `MODULE_NAME=Plugin_AppNotifications` |
+| `Module.h/.cpp` | Thunder module boilerplate | `MODULE_NAME=Plugin_AppNotifications` |
 
 ---
 
@@ -291,7 +291,7 @@ The `origin` string distinguishes gateway-routed events from launch-delegate eve
 
 ```
 Sources: AppNotificationsImplementation.cpp  AppNotifications.cpp  Module.cpp
-Output:  libWPEFrameworkAppNotifications.so
+Output:  libThunderAppNotifications.so
 ```
 
 **Key options:**

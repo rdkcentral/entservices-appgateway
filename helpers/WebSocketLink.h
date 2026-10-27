@@ -25,7 +25,7 @@
 #include <interfaces/definitions.h>
 #include "UtilsLogging.h"
 
-namespace WPEFramework {
+namespace Thunder {
 namespace Web {
     namespace WebSocket {
 
@@ -1098,4 +1098,4 @@ POP_WARNING()
     };
 }
 }
-} // namespace WPEFramework.Web
+} // namespace Thunder.Web

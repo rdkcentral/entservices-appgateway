@@ -2,7 +2,7 @@
 // defines MODULE_NAME=Plugin_AppActions. interfaces/Module.h (included transitively
 // by IAppGateway.h inside UtilsAppGatewayTelemetry.h) has the guard:
 //   #ifndef MODULE_NAME
-//   #define MODULE_NAME Interfaces   // ← the C++ symbol in libWPEFrameworkInterfaces
+//   #define MODULE_NAME Interfaces   // ← the C++ symbol in libThunderInterfaces
 //   #endif
 // If UtilsAppGatewayTelemetry.h is included first, MODULE_NAME becomes "Interfaces"
 // and SERVICE_REGISTRATION references Core::System::Interfaces, which is not linked
@@ -20,7 +20,7 @@
 
 AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_APPACTIONS)
 
-namespace WPEFramework {
+namespace Thunder {
 namespace Plugin {
 
     SERVICE_REGISTRATION(AppActionsImplementation, API_VERSION_NUMBER_MAJOR, API_VERSION_NUMBER_MINOR, API_VERSION_NUMBER_PATCH);
@@ -128,7 +128,7 @@ namespace Plugin {
             // TelemetryClient stores mService and lazy-reconnects via IsAvailable()
             // if AppGateway is not yet active at this point.
             AGW_TELEMETRY_INIT(service);
-            // SYSLOG so init status appears in the WPEFramework syslog stream.
+            // SYSLOG so init status appears in the Thunder syslog stream.
             // LOGINFO/LOGWARN inside TelemetryClient go to stderr (fprintf), not syslog.
             // If AppGateway is not yet active the client stores mService and lazy-reconnects
             // via IsAvailable() the first time a telemetry event is reported.
@@ -203,4 +203,4 @@ namespace Plugin {
         }
     }
 } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

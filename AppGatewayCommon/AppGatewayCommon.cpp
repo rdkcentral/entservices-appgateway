@@ -32,7 +32,7 @@
 
 AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_APPGATEWAYCOMMON)
 
-namespace WPEFramework {
+namespace Thunder {
 
 namespace {
     static Plugin::Metadata<Plugin::AppGatewayCommon> metadata(
@@ -1410,4 +1410,4 @@ namespace Plugin {
         }
 
 } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

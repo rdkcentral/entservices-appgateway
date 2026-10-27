@@ -21,7 +21,7 @@
 #include <core/JSON.h>
 #include "UtilsLogging.h"
 
-namespace WPEFramework {
+namespace Thunder {
 
 class JsonValidation {
 public:
@@ -181,4 +181,4 @@ public:
     }
 };
 
-} // namespace WPEFramework
+} // namespace Thunder

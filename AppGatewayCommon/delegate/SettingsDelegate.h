@@ -30,7 +30,7 @@
 #include <interfaces/IAppNotifications.h>
 
 #define APP_NOTIFICATIONS_CALLSIGN "org.rdk.AppNotifications"
-using namespace WPEFramework;
+using namespace Thunder;
 
 class SettingsDelegate {
     public:

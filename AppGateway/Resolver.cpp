@@ -26,7 +26,7 @@
 #include <core/JSON.h>
 
 
-namespace WPEFramework
+namespace Thunder
 {
     namespace Plugin
     {
@@ -58,7 +58,7 @@ namespace WPEFramework
 
             // Use ConfigContainer for direct JSON parsing from file
             ConfigContainer config;
-            WPEFramework::Core::OptionalType<WPEFramework::Core::JSON::Error> error;
+            Thunder::Core::OptionalType<Thunder::Core::JSON::Error> error;
 
             // Read file content efficiently
             std::string jsonContent((std::istreambuf_iterator<char>(file)),
@@ -88,17 +88,17 @@ namespace WPEFramework
             size_t overriddenCount = 0;
 
             // Iterate through all resolution entries with optimized parsing
-            WPEFramework::Core::JSON::VariantContainer::Iterator it = config.Resolutions.Variants();
+            Thunder::Core::JSON::VariantContainer::Iterator it = config.Resolutions.Variants();
             while (it.Next())
             {
                 const std::string &key = StringUtils::toLower(it.Label());
-                WPEFramework::Core::JSON::Variant resolutionVariant = it.Current();
+                Thunder::Core::JSON::Variant resolutionVariant = it.Current();
 
                 if (resolutionVariant.IsSet() && !resolutionVariant.IsNull())
                 {
                     // Create Resolution struct and populate using helper functions
                     Resolution r;
-                    WPEFramework::Core::JSON::VariantContainer resolutionObj = resolutionVariant.Object();
+                    Thunder::Core::JSON::VariantContainer resolutionObj = resolutionVariant.Object();
 
                     // Use helper functions to extract all fields consistently
                     r.alias = ExtractStringField(resolutionObj, "alias");
@@ -106,7 +106,7 @@ namespace WPEFramework
                     r.eventHook = ExtractStringField(resolutionObj, "eventHook");
                     r.permissionGroup = ExtractStringField(resolutionObj, "permissionGroup");
                     r.additionalContext = ExtractAdditionalContext(resolutionObj, "additionalContext");
-                    bool hasAdditionalContext = r.additionalContext.Content() == WPEFramework::Core::JSON::Variant::type::OBJECT;
+                    bool hasAdditionalContext = r.additionalContext.Content() == Thunder::Core::JSON::Variant::type::OBJECT;
                     r.includeContext = ExtractBooleanField(resolutionObj, "includeContext", hasAdditionalContext);
                     r.useComRpc = ExtractBooleanField(resolutionObj, "useComRpc", hasAdditionalContext);
                     // Event which has different payload based on version
@@ -180,20 +180,20 @@ namespace WPEFramework
                     alias.c_str(), callsign.c_str(), pluginMethod.c_str());
         }
 
-        std::string Resolver::ExtractStringField(const WPEFramework::Core::JSON::VariantContainer &obj, const char *fieldName)
+        std::string Resolver::ExtractStringField(const Thunder::Core::JSON::VariantContainer &obj, const char *fieldName)
         {
-            WPEFramework::Core::JSON::Variant field = obj[fieldName];
-            if (field.IsSet() && !field.IsNull() && field.Content() == WPEFramework::Core::JSON::Variant::type::STRING)
+            Thunder::Core::JSON::Variant field = obj[fieldName];
+            if (field.IsSet() && !field.IsNull() && field.Content() == Thunder::Core::JSON::Variant::type::STRING)
             {
                 return field.String();
             }
             return "";
         }
 
-        bool Resolver::ExtractBooleanField(const WPEFramework::Core::JSON::VariantContainer &obj, const char *fieldName, bool defaultValue)
+        bool Resolver::ExtractBooleanField(const Thunder::Core::JSON::VariantContainer &obj, const char *fieldName, bool defaultValue)
         {
-            WPEFramework::Core::JSON::Variant field = obj[fieldName];
-            if (field.IsSet() && !field.IsNull() && field.Content() == WPEFramework::Core::JSON::Variant::type::BOOLEAN)
+            Thunder::Core::JSON::Variant field = obj[fieldName];
+            if (field.IsSet() && !field.IsNull() && field.Content() == Thunder::Core::JSON::Variant::type::BOOLEAN)
             {
                 return field.Boolean();
             }

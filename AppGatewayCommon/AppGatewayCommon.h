@@ -31,7 +31,7 @@
 #include <unordered_map>
 #include <functional>
 
-namespace WPEFramework {
+namespace Thunder {
 
     namespace Plugin {
 
@@ -221,5 +221,5 @@ namespace WPEFramework {
             std::condition_variable mJobDrainCv;
         };
 	} // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder
 

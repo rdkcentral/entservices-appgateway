@@ -26,7 +26,7 @@
 #include <functional>
 #include <unordered_map>
 
-namespace WPEFramework {
+namespace Thunder {
 namespace Plugin {
 
     AppGatewayTelemetry& AppGatewayTelemetry::getInstance()
@@ -2370,4 +2370,4 @@ namespace Plugin {
     }
 
 } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

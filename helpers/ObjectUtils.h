@@ -19,7 +19,7 @@
 
 #ifndef __OBJECTUTILS_H__
 #define __OBJECTUTILS_H__
-using namespace WPEFramework;
+using namespace Thunder;
 using namespace std;
 class ObjectUtils {
     public:

@@ -43,7 +43,7 @@
 #include <interfaces/ISystemServices.h>
 
 
-using namespace WPEFramework;
+using namespace Thunder;
 
 #ifndef CALLSIGN_CALLER_APPGATEWAY
 #define CALLSIGN_CALLER_APPGATEWAY "org.rdk.AppGatewayCommon.SystemDelegate"
@@ -113,7 +113,7 @@ private:
         void OnFriendlyNameChanged(const string& friendlyName) override
         {
             LOGINFO("[AppGatewayCommon|OnFriendlyNameChanged] friendlyName=%s", friendlyName.c_str());
-            WPEFramework::Core::JSON::VariantContainer params;
+            Thunder::Core::JSON::VariantContainer params;
             params[_T("friendlyName")] = friendlyName;
             _parent.OnSystemFriendlyNameChanged(params);
         }
@@ -121,7 +121,7 @@ private:
         void OnTimeZoneDSTChanged(const string& oldTimeZone, const string& newTimeZone, const string& oldAccuracy, const string& newAccuracy) override
         {
             LOGINFO("[AppGatewayCommon|OnTimeZoneDSTChanged] newTimeZone=%s", newTimeZone.c_str());
-            WPEFramework::Core::JSON::VariantContainer params;
+            Thunder::Core::JSON::VariantContainer params;
             params[_T("oldTimeZone")] = oldTimeZone;
             params[_T("newTimeZone")] = newTimeZone;
             params[_T("oldAccuracy")] = oldAccuracy;
@@ -132,7 +132,7 @@ private:
         void OnTerritoryChanged(const string& oldTerritory, const string& newTerritory, const string& oldRegion, const string& newRegion) override
         {
             LOGINFO("[AppGatewayCommon|OnTerritoryChanged] newTerritory=%s", newTerritory.c_str());
-            WPEFramework::Core::JSON::VariantContainer params;
+            Thunder::Core::JSON::VariantContainer params;
             params[_T("oldTerritory")] = oldTerritory;
             params[_T("newTerritory")] = newTerritory;
             params[_T("oldRegion")] = oldRegion;
@@ -504,8 +504,8 @@ public:
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        WPEFramework::Core::JSON::VariantContainer response;
+        Thunder::Core::JSON::VariantContainer params;
+        Thunder::Core::JSON::VariantContainer response;
         const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getCurrentResolution", params, response);
         if (rc != Core::ERROR_NONE) {
             LOGERR("[AppGatewayCommon|GetScreenResolution] getCurrentResolution failed rc=%u, returning default %s", rc, jsonArray.c_str());
@@ -518,26 +518,26 @@ public:
         if (response.HasLabel(_T("w")) && response.HasLabel(_T("h"))) {
             auto wv = response.Get(_T("w"));
             auto hv = response.Get(_T("h"));
-            if (wv.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER &&
-                hv.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER) {
+            if (wv.Content() == Thunder::Core::JSON::Variant::type::NUMBER &&
+                hv.Content() == Thunder::Core::JSON::Variant::type::NUMBER) {
                 w = static_cast<int>(wv.Number());
                 h = static_cast<int>(hv.Number());
             }
         } else if (response.HasLabel(_T("result"))) {
             // Try nested "result"
             auto r = response.Get(_T("result"));
-            if (r.Content() == WPEFramework::Core::JSON::Variant::type::OBJECT) {
+            if (r.Content() == Thunder::Core::JSON::Variant::type::OBJECT) {
                 auto wnv = r.Object().Get(_T("w"));
                 auto hnv = r.Object().Get(_T("h"));
                 auto wdv = r.Object().Get(_T("width"));
                 auto hdv = r.Object().Get(_T("height"));
 
-                if (wnv.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER &&
-                    hnv.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER) {
+                if (wnv.Content() == Thunder::Core::JSON::Variant::type::NUMBER &&
+                    hnv.Content() == Thunder::Core::JSON::Variant::type::NUMBER) {
                     w = static_cast<int>(wnv.Number());
                     h = static_cast<int>(hnv.Number());
-                } else if (wdv.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER &&
-                           hdv.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER) {
+                } else if (wdv.Content() == Thunder::Core::JSON::Variant::type::NUMBER &&
+                           hdv.Content() == Thunder::Core::JSON::Variant::type::NUMBER) {
                     w = static_cast<int>(wdv.Number());
                     h = static_cast<int>(hdv.Number());
                 }
@@ -599,8 +599,8 @@ public:
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        WPEFramework::Core::JSON::VariantContainer response;
+        Thunder::Core::JSON::VariantContainer params;
+        Thunder::Core::JSON::VariantContainer response;
         const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getHDCPStatus", params, response);
         if (rc != Core::ERROR_NONE) {
             LOGERR("[AppGatewayCommon|GetHdcp] getHDCPStatus failed rc=%u, returning default %s", rc, jsonObject.c_str());
@@ -613,16 +613,16 @@ public:
         // Prefer nested "result" if available
         if (response.HasLabel(_T("result"))) {
             auto r = response.Get(_T("result"));
-            if (r.Content() == WPEFramework::Core::JSON::Variant::type::OBJECT) {
+            if (r.Content() == Thunder::Core::JSON::Variant::type::OBJECT) {
                 auto succ = r.Object().Get(_T("success"));
                 auto status = r.Object().Get(_T("HDCPStatus"));
-                if (succ.Content() == WPEFramework::Core::JSON::Variant::type::BOOLEAN && succ.Boolean() &&
-                    status.Content() == WPEFramework::Core::JSON::Variant::type::OBJECT) {
+                if (succ.Content() == Thunder::Core::JSON::Variant::type::BOOLEAN && succ.Boolean() &&
+                    status.Content() == Thunder::Core::JSON::Variant::type::OBJECT) {
                     auto reason = status.Object().Get(_T("hdcpReason"));
                     auto version = status.Object().Get(_T("currentHDCPVersion"));
-                    if (reason.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER &&
+                    if (reason.Content() == Thunder::Core::JSON::Variant::type::NUMBER &&
                         static_cast<int>(reason.Number()) == 2 &&
-                        version.Content() == WPEFramework::Core::JSON::Variant::type::STRING) {
+                        version.Content() == Thunder::Core::JSON::Variant::type::STRING) {
                         const std::string v = version.String();
                         if (v == "1.4") { hdcp14 = true; }
                         else { hdcp22 = true; }
@@ -632,12 +632,12 @@ public:
         } else {
             // Fallback: try top-level fields if present
             auto status = response.Get(_T("HDCPStatus"));
-            if (status.Content() == WPEFramework::Core::JSON::Variant::type::OBJECT) {
+            if (status.Content() == Thunder::Core::JSON::Variant::type::OBJECT) {
                 auto reason = status.Object().Get(_T("hdcpReason"));
                 auto version = status.Object().Get(_T("currentHDCPVersion"));
-                if (reason.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER &&
+                if (reason.Content() == Thunder::Core::JSON::Variant::type::NUMBER &&
                     static_cast<int>(reason.Number()) == 2 &&
-                    version.Content() == WPEFramework::Core::JSON::Variant::type::STRING) {
+                    version.Content() == Thunder::Core::JSON::Variant::type::STRING) {
                     const std::string v = version.String();
                     if (v == "1.4") { hdcp14 = true; }
                     else { hdcp22 = true; }
@@ -667,8 +667,8 @@ public:
             return Core::ERROR_UNAVAILABLE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        WPEFramework::Core::JSON::VariantContainer response;
+        Thunder::Core::JSON::VariantContainer params;
+        Thunder::Core::JSON::VariantContainer response;
         const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getTVHDRCapabilities", params, response);
         if (rc != Core::ERROR_NONE) {
             LOGERR("[AppGatewayCommon|GetHdr] getTVHDRCapabilities failed rc=%u, returning default %s", rc, jsonObject.c_str());
@@ -686,14 +686,14 @@ public:
         // HDRSTANDARD_HDR10PLUS = 0x10
         // HDRSTANDARD_SDR = 0x20
 
-        auto parseCapabilities = [&](const WPEFramework::Core::JSON::Variant& vobj) {
+        auto parseCapabilities = [&](const Thunder::Core::JSON::Variant& vobj) {
             uint32_t capabilities = 0;
 
             // For ex. if DisplaySettings returns: {"capabilities":32,"success":true}
             // extract the "capabilities" field from the object
-            if (vobj.Content() == WPEFramework::Core::JSON::Variant::type::OBJECT) {
+            if (vobj.Content() == Thunder::Core::JSON::Variant::type::OBJECT) {
                 auto caps = vobj.Object().Get(_T("capabilities"));
-                if (caps.Content() == WPEFramework::Core::JSON::Variant::type::NUMBER) {
+                if (caps.Content() == Thunder::Core::JSON::Variant::type::NUMBER) {
                     capabilities = static_cast<uint32_t>(caps.Number());
                     LOGDBG("[AppGatewayCommon|GetHdr] Got capabilities from object: 0x%x (%d)",
                            capabilities, capabilities);
@@ -757,17 +757,17 @@ public:
              return Core::ERROR_GENERAL;
          }
 
-         WPEFramework::Core::JSON::VariantContainer v;
-         WPEFramework::Core::OptionalType<WPEFramework::Core::JSON::Error> error;
+         Thunder::Core::JSON::VariantContainer v;
+         Thunder::Core::OptionalType<Thunder::Core::JSON::Error> error;
          if (v.FromString(response, error)) {
-             WPEFramework::Core::JSON::Variant supported;
+             Thunder::Core::JSON::Variant supported;
              if (v.HasLabel(_T("result"))) {
                  auto r = v.Get(_T("result"));
-                 if (r.Content() == WPEFramework::Core::JSON::Variant::type::OBJECT) {
+                 if (r.Content() == Thunder::Core::JSON::Variant::type::OBJECT) {
                      supported = r.Object().Get(_T("supportedAudioFormat"));
                  }
              }
-             if (supported.Content() != WPEFramework::Core::JSON::Variant::type::ARRAY) {
+             if (supported.Content() != Thunder::Core::JSON::Variant::type::ARRAY) {
                  supported = v.Get(_T("supportedAudioFormat"));
              }
              // Aggregate flags only from supportedAudioFormat
@@ -789,10 +789,10 @@ public:
       * - dolbyDigital5.1+: contains "EAC3" or "DD+" or "DOLBY DIGITAL PLUS" or "AC4"
       * - dolbyAtmos: contains "ATMOS"
       */
-     static bool SetFlagsFromSupported(const WPEFramework::Core::JSON::Variant& supportedNode,
+     static bool SetFlagsFromSupported(const Thunder::Core::JSON::Variant& supportedNode,
                                        bool& stereo, bool& dd51, bool& dd51p, bool& atmos)
      {
-         using Var = WPEFramework::Core::JSON::Variant;
+         using Var = Thunder::Core::JSON::Variant;
          bool anyRecognized = false;
          if (supportedNode.Content() == Var::type::ARRAY) {
              auto arr = supportedNode.Array();
@@ -1056,7 +1056,7 @@ public:
     }
 
     // PUBLIC_INTERFACE
-    bool EmitOnTimezoneChanged(const WPEFramework::Core::JSON::VariantContainer& params)
+    bool EmitOnTimezoneChanged(const Thunder::Core::JSON::VariantContainer& params)
     {
         if (!params.HasLabel(_T("newTimeZone"))) {
             LOGERR("[AppGatewayCommon|TimezoneChanged] missing newTimeZone parameter in event");
@@ -1072,7 +1072,7 @@ public:
         return true;
     }
 
-    bool EmitOnTerritoryChanged(const WPEFramework::Core::JSON::VariantContainer& params)
+    bool EmitOnTerritoryChanged(const Thunder::Core::JSON::VariantContainer& params)
     {
         if (!params.HasLabel(_T("newTerritory"))) {
             LOGERR("[AppGatewayCommon|TerritoryChanged] missing newTerritory parameter in event");
@@ -1368,8 +1368,8 @@ public:
             return Core::ERROR_NONE;
         }
 
-        WPEFramework::Core::JSON::VariantContainer params;
-        WPEFramework::Core::JSON::VariantContainer response;
+        Thunder::Core::JSON::VariantContainer params;
+        Thunder::Core::JSON::VariantContainer response;
         const uint32_t rc = link->Invoke<decltype(params), decltype(response)>("getSupportedResolutions", params, response);
         if (rc != Core::ERROR_NONE || !response.HasLabel(_T("supportedResolutions")))
         {
@@ -1377,8 +1377,8 @@ public:
             return Core::ERROR_NONE;
         }
 
-        const WPEFramework::Core::JSON::Variant& resVar = response.Get(_T("supportedResolutions"));
-        if (resVar.Content() != WPEFramework::Core::JSON::Variant::type::ARRAY)
+        const Thunder::Core::JSON::Variant& resVar = response.Get(_T("supportedResolutions"));
+        if (resVar.Content() != Thunder::Core::JSON::Variant::type::ARRAY)
         {
             LOGWARN("SystemDelegate: DisplaySettings.getSupportedResolutions: unexpected non-array type (%d) for supportedResolutions; treating as unsupported",
                     static_cast<int>(resVar.Content()));
@@ -1805,7 +1805,7 @@ private:
         }
     }
 
-    inline std::shared_ptr<WPEFramework::Utils::JSONRPCDirectLink> AcquireLink(const std::string& callsign) const
+    inline std::shared_ptr<Thunder::Utils::JSONRPCDirectLink> AcquireLink(const std::string& callsign) const
     {
         // Create a direct JSON-RPC link to the specified Thunder plugin using the Supporting_Files helper.
         if (nullptr == _shell)
@@ -1813,7 +1813,7 @@ private:
             LOGERR("SystemDelegate: shell is null");
             return nullptr;
         }
-        return WPEFramework::Utils::GetThunderControllerClient(_shell, callsign);
+        return Thunder::Utils::GetThunderControllerClient(_shell, callsign);
     }
 
     inline Exchange::ISystemServices* AcquireSystemServices() const
@@ -1823,7 +1823,7 @@ private:
         if (_systemServicesPlugin == nullptr && _shell != nullptr)
         {
             _systemServicesPlugin = 
-                _shell->QueryInterfaceByCallsign<WPEFramework::Exchange::ISystemServices>(SYSTEM_CALLSIGN);
+                _shell->QueryInterfaceByCallsign<Thunder::Exchange::ISystemServices>(SYSTEM_CALLSIGN);
             if (_systemServicesPlugin != nullptr)
             {
                 LOGINFO("SystemDelegate: Successfully acquired ISystemServices interface");
@@ -1927,7 +1927,7 @@ private:
                 _displayRpc = ::Utils::getThunderControllerClient(DISPLAYSETTINGS_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
             }
             if (_displayRpc) {
-                const uint32_t status = _displayRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
+                const uint32_t status = _displayRpc->Subscribe<Thunder::Core::JSON::VariantContainer>(
                     SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("resolutionChanged"), &SystemDelegate::OnDisplaySettingsResolutionChanged, this);
                 if (status == Core::ERROR_NONE) {
                     LOGINFO("SystemDelegate: Subscribed to %s.resolutionChanged", DISPLAYSETTINGS_CALLSIGN);
@@ -1949,7 +1949,7 @@ private:
                 _displayRpc = ::Utils::getThunderControllerClient(DISPLAYSETTINGS_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
             }
             if (_displayRpc) {
-                const uint32_t status = _displayRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
+                const uint32_t status = _displayRpc->Subscribe<Thunder::Core::JSON::VariantContainer>(
                     SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("audioFormatChanged"), &SystemDelegate::OnDisplaySettingsAudioFormatChanged, this);
                 if (status == Core::ERROR_NONE) {
                     LOGINFO("SystemDelegate: Subscribed to %s.audioFormatChanged", DISPLAYSETTINGS_CALLSIGN);
@@ -1971,7 +1971,7 @@ private:
                 _hdcpRpc = ::Utils::getThunderControllerClient(HDCPPROFILE_CALLSIGN, CALLSIGN_CALLER_APPGATEWAY);
             }
             if (_hdcpRpc) {
-                const uint32_t status = _hdcpRpc->Subscribe<WPEFramework::Core::JSON::VariantContainer>(
+                const uint32_t status = _hdcpRpc->Subscribe<Thunder::Core::JSON::VariantContainer>(
                     SYSTEM_DELEGATE_SUBSCRIBE_TIMEOUT_MS, _T("onDisplayConnectionChanged"), &SystemDelegate::OnHdcpProfileDisplayConnectionChanged, this);
                 if (status == Core::ERROR_NONE) {
                     LOGINFO("SystemDelegate: Subscribed to %s.onDisplayConnectionChanged", HDCPPROFILE_CALLSIGN);
@@ -2005,7 +2005,7 @@ private:
     }
 
     // Event handlers invoked by Thunder JSON-RPC subscription
-    void OnDisplaySettingsResolutionChanged(const WPEFramework::Core::JSON::VariantContainer& params)
+    void OnDisplaySettingsResolutionChanged(const Thunder::Core::JSON::VariantContainer& params)
     {
         (void)params;
         LOGINFO("[AppGatewayCommon|DisplaySettings.resolutionChanged] Incoming alias=%s.%s, invoking handlers...",
@@ -2017,7 +2017,7 @@ private:
                 screenEmitted ? "emitted" : "skipped", videoEmitted ? "emitted" : "skipped");
     }
 
-    void OnHdcpProfileDisplayConnectionChanged(const WPEFramework::Core::JSON::VariantContainer& params)
+    void OnHdcpProfileDisplayConnectionChanged(const Thunder::Core::JSON::VariantContainer& params)
     {
         (void)params;
         LOGINFO("[AppGatewayCommon|HdcpProfile.onDisplayConnectionChanged] Incoming alias=%s.%s, invoking handlers...",
@@ -2029,7 +2029,7 @@ private:
                 hdcpEmitted ? "emitted" : "skipped", hdrEmitted ? "emitted" : "skipped");
     }
 
-    void OnSystemFriendlyNameChanged(const WPEFramework::Core::JSON::VariantContainer& params)
+    void OnSystemFriendlyNameChanged(const Thunder::Core::JSON::VariantContainer& params)
     {
         (void)params;
         LOGINFO("[AppGatewayCommon|System.onFriendlyNameChanged] Incoming alias=%s.%s, invoking handlers...",
@@ -2040,7 +2040,7 @@ private:
                 nameEmitted ? "emitted" : "skipped");
     }
 
-    void OnDisplaySettingsAudioFormatChanged(const WPEFramework::Core::JSON::VariantContainer& params)
+    void OnDisplaySettingsAudioFormatChanged(const Thunder::Core::JSON::VariantContainer& params)
     {
         (void)params;
         LOGINFO("[AppGatewayCommon|DisplaySettings.audioFormatChanged] Incoming alias=%s.%s, invoking handlers...",
@@ -2051,7 +2051,7 @@ private:
                 audioEmitted ? "emitted" : "skipped");
     }
 
-    void OnSystemTimezoneChanged(const WPEFramework::Core::JSON::VariantContainer& params)
+    void OnSystemTimezoneChanged(const Thunder::Core::JSON::VariantContainer& params)
     {
         LOGINFO("[AppGatewayCommon|System.onTimezoneChanged] Incoming alias=%s.%s, invoking handlers...",
                 SYSTEM_CALLSIGN, "onTimezoneChanged");
@@ -2061,7 +2061,7 @@ private:
                 timezoneEmitted ? "emitted" : "skipped");
     }
 
-    void OnSystemTerritoryChanged(const WPEFramework::Core::JSON::VariantContainer& params)
+    void OnSystemTerritoryChanged(const Thunder::Core::JSON::VariantContainer& params)
     {
         LOGINFO("[AppGatewayCommon|System.onTerritoryChanged] Incoming alias=%s.%s, invoking handlers...",
                 SYSTEM_CALLSIGN, "onTerritoryChanged");
@@ -2127,8 +2127,8 @@ private:
     std::string mVersionResponse;
 
     // JSONRPC clients for event subscriptions
-    std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _displayRpc;
-    std::shared_ptr<WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>> _hdcpRpc;
+    std::shared_ptr<Thunder::JSONRPC::LinkType<Thunder::Core::JSON::IElement>> _displayRpc;
+    std::shared_ptr<Thunder::JSONRPC::LinkType<Thunder::Core::JSON::IElement>> _hdcpRpc;
 
     // COM-RPC interface for SystemServices
     mutable Exchange::ISystemServices* _systemServicesPlugin;

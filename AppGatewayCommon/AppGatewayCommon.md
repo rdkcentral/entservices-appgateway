@@ -2,7 +2,7 @@
 
 > **Source files:** `AppGatewayCommon/`
 > **Callsign:** `org.rdk.AppGatewayCommon`
-> **Shared library:** `libWPEFrameworkAppGatewayCommon.so`
+> **Shared library:** `libThunderAppGatewayCommon.so`
 > **Version:** `1.0.0`
 
 ---
@@ -107,7 +107,7 @@ graph TD
 ```
 AppGatewayCommon/
 ├── AppGatewayCommon.h / .cpp   # Plugin entry point + handler table
-├── Module.h / .cpp             # WPEFramework module declaration
+├── Module.h / .cpp             # Thunder module declaration
 ├── AppGatewayCommon.conf.in    # Thunder config template
 ├── AppGatewayCommon.config     # CMake config script
 ├── CMakeLists.txt
@@ -330,7 +330,7 @@ set(callsign "org.rdk.AppGatewayCommon")
 
 ```
 Sources: AppGatewayCommon.cpp  Module.cpp
-Output:  libWPEFrameworkAppGatewayCommon.so
+Output:  libThunderAppGatewayCommon.so
 ```
 
 **Key CMake options:**
@@ -345,7 +345,7 @@ Output:  libWPEFrameworkAppGatewayCommon.so
 **Key linked libraries:**
 - `${NAMESPACE}Plugins`, `${NAMESPACE}Definitions`
 - `uuid`
-- `${NAMESPACE}NetworkManagerProxy` (optional, path: `${CMAKE_SYSROOT}/usr/lib/wpeframework/proxystubs`)
+- `${NAMESPACE}NetworkManagerProxy` (optional, path: `${CMAKE_SYSROOT}/usr/lib/${STORAGE_DIRECTORY}/proxystubs`)
 
 **Install target:** `lib/${STORAGE_DIRECTORY}/plugins`
 
@@ -564,7 +564,7 @@ stateDiagram-v2
 
 ### Must-Know First
 
-1. Understand COM-RPC in WPEFramework — `AppGatewayCommon` is called cross-process from `AppGateway`.
+1. Understand COM-RPC in Thunder — `AppGatewayCommon` is called cross-process from `AppGateway`.
 2. Read `AppGatewayCommon.h` — focus on the four implemented interfaces and the `handlers` map.
 3. Look at `resolution.base.json` to understand which Firebolt methods map to `org.rdk.AppGatewayCommon`.
 4. Read one delegate file (e.g., `UserSettingsDelegate.h`) to see how Thunder plugins are called.

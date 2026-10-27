@@ -2,7 +2,7 @@
 
 > **Source files:** `AppGateway/`  
 > **Callsign:** `org.rdk.AppGateway`  
-> **Shared library:** `libWPEFrameworkAppGateway.so`  
+> **Shared library:** `libThunderAppGateway.so`  
 > **Version:** `1.0.0`
 
 ---
@@ -11,7 +11,7 @@
 
 ### Role in ENT / RDK Infrastructure
 
-`AppGateway` is the **central Firebolt-compatible API gateway** for all applications running on an RDK device. It is a Thunder (WPEFramework) plugin that acts as the single authenticated entry-point between WebSocket-connected applications and the underlying RDK Thunder plugin ecosystem.
+`AppGateway` is the **central Firebolt-compatible API gateway** for all applications running on an RDK device. It is a Thunder (Thunder) plugin that acts as the single authenticated entry-point between WebSocket-connected applications and the underlying RDK Thunder plugin ecosystem.
 
 It **deprecates the legacy Ripple Gateway** from the RDK Apps Managers Framework. Ripple Gateway support is being phased out and will be removed after the migration period.
 
@@ -107,7 +107,7 @@ AppGateway/
 ├── AppGatewayResponderImplementation.h / .cpp # WebSocket I/O
 ├── AppGatewayTelemetry.h / .cpp               # T2 telemetry aggregator (singleton)
 ├── Resolver.h / .cpp                          # Firebolt-to-Thunder alias map
-├── Module.h / Module.cpp                      # WPEFramework module declaration
+├── Module.h / Module.cpp                      # Thunder module declaration
 ├── AppGateway.conf.in                         # Thunder config template
 ├── AppGateway.config                          # CMake config script
 ├── CMakeLists.txt                             # Build definition
@@ -124,7 +124,7 @@ AppGateway/
 | `AppGatewayResponderImplementation.h/.cpp` | Manages WebSocket connections; sends responses and events | `Respond()`, `Emit()`, `Request()`, `WsMsgJob`, `RespondJob` |
 | `AppGatewayTelemetry.h/.cpp` | Singleton telemetry aggregator; reports to T2 | `RecordTelemetryEvent()`, `RecordTelemetryMetric()`, `getInstance()` |
 | `Resolver.h/.cpp` | Loads `resolution.base.json`; maps Firebolt method names to Thunder aliases | `LoadConfig()`, `ResolveAlias()`, `HasComRpcRequestSupport()`, `CallThunderPlugin()` |
-| `Module.h/.cpp` | WPEFramework boilerplate; defines `MODULE_NAME=Plugin_AppGateway` | — |
+| `Module.h/.cpp` | Thunder boilerplate; defines `MODULE_NAME=Plugin_AppGateway` | — |
 | `resolution.base.json` | Data file: all Firebolt→Thunder method mappings | JSON object keyed by Firebolt method name |
 
 ---
@@ -631,9 +631,9 @@ stateDiagram-v2
 
 ### Must-Know First
 
-1. **Thunder (WPEFramework) basics** — understand `IPlugin`, `JSONRPC`, `IShell`, `Core::hresult`, COM-RPC vs JSON-RPC.
+1. **Thunder (Thunder) basics** — understand `IPlugin`, `JSONRPC`, `IShell`, `Core::hresult`, COM-RPC vs JSON-RPC.
 2. **What is a Firebolt API?** — it is an app-facing JSON-RPC API; AppGateway translates it to internal RDK APIs.
-3. **Read `Module.h`** — establishes the module name used throughout WPEFramework macros.
+3. **Read `Module.h`** — establishes the module name used throughout Thunder macros.
 4. **Read `AppGateway.h` and `AppGateway.cpp`** — the plugin entry point is small and linear; trace `Initialize()` step by step.
 5. **Read `resolution.base.json`** — this is the map from every Firebolt method to its Thunder target; understanding this unlocks the rest.
 

@@ -2,7 +2,7 @@
 
 > **Source files:** `AppActions/`
 > **Callsign:** `org.rdk.AppActions`
-> **Shared libraries:** `libWPEFrameworkAppActions.so` (plugin shell), `libWPEFrameworkAppActionsImplementation.so` (implementation)
+> **Shared libraries:** `libThunderAppActions.so` (plugin shell), `libThunderAppActionsImplementation.so` (implementation)
 > **Version:** `1.0.0`
 
 ---
@@ -57,19 +57,19 @@ Unlike the other plugins in this repository which compile to a single `.so`, `Ap
 
 | Library | Sources | Role |
 |---|---|---|
-| `libWPEFrameworkAppActions.so` | `AppActions.cpp`, `AppActions.h`, `Module.cpp` | Thunder plugin shell; JSON-RPC server; aggregates `IAppActions` |
-| `libWPEFrameworkAppActionsImplementation.so` | `AppActionsImplementation.cpp`, `AppActionsImplementation.h`, `Module.cpp` | Out-of-process implementation; business logic |
+| `libThunderAppActions.so` | `AppActions.cpp`, `AppActions.h`, `Module.cpp` | Thunder plugin shell; JSON-RPC server; aggregates `IAppActions` |
+| `libThunderAppActionsImplementation.so` | `AppActionsImplementation.cpp`, `AppActionsImplementation.h`, `Module.cpp` | Out-of-process implementation; business logic |
 
-This follows the standard WPEFramework out-of-process plugin pattern: the shell runs in the main Thunder process and proxies calls to the implementation which runs in a separate process.
+This follows the standard Thunder out-of-process plugin pattern: the shell runs in the main Thunder process and proxies calls to the implementation which runs in a separate process.
 
 ### Component Diagram
 
 ```mermaid
 graph TD
-    AGC[AppGatewayCommon\nActionsStart / ActionsIntent] -->|IAppActions COM-RPC| IMPL[AppActionsImplementation\nlibWPEFrameworkAppActionsImplementation.so]
+    AGC[AppGatewayCommon\nActionsStart / ActionsIntent] -->|IAppActions COM-RPC| IMPL[AppActionsImplementation\nlibThunderAppActionsImplementation.so]
     IMPL -->|INotification OnActionStartRequest| NOTIF[AppActions Notification\nCore.Sink]
     NOTIF -->|JAppActions Event| RPC[JSON-RPC clients\nsubscribed apps]
-    SHELL[AppActions\nlibWPEFrameworkAppActions.so] -->|service->Root IAppActions| IMPL
+    SHELL[AppActions\nlibThunderAppActions.so] -->|service->Root IAppActions| IMPL
     SHELL -->|INTERFACE_AGGREGATE| IMPL
 ```
 
@@ -81,7 +81,7 @@ graph TD
 AppActions/
 ├── AppActions.h / .cpp                # Plugin shell (IPlugin + JSONRPC)
 ├── AppActionsImplementation.h / .cpp  # Out-of-process implementation
-├── Module.h / .cpp                    # WPEFramework module declaration
+├── Module.h / .cpp                    # Thunder module declaration
 ├── AppActions.conf.in                 # Thunder config template
 ├── AppActions.config                  # CMake config script
 ├── CMakeLists.txt                     # Builds TWO libraries
@@ -95,7 +95,7 @@ AppActions/
 |---|---|---|
 | `AppActions.h/.cpp` | Plugin shell; aggregates `IAppActions` via `INTERFACE_AGGREGATE`; sinks `IAppActions::INotification` and `RPC::IRemoteConnection::INotification` | `AppActions`, `AppActions::Notification` |
 | `AppActionsImplementation.h/.cpp` | Implementation plugin: `IPlugin`, `IAppActions`, `IConfiguration`; manages notification list; dispatches `OnActionStartRequest` | `AppActionsImplementation`, `ActionStart()`, `DispatchActionStartRequest()` |
-| `Module.h/.cpp` | WPEFramework module boilerplate | `MODULE_NAME=Plugin_AppActions` |
+| `Module.h/.cpp` | Thunder module boilerplate | `MODULE_NAME=Plugin_AppActions` |
 
 ---
 
@@ -408,7 +408,7 @@ stateDiagram-v2
 
 ### Must-Know First
 
-1. Understand the WPEFramework out-of-process plugin pattern — two libraries, one shell that proxies via COM-RPC to the implementation.
+1. Understand the Thunder out-of-process plugin pattern — two libraries, one shell that proxies via COM-RPC to the implementation.
 2. Read `AppActions.h` — note the `INTERFACE_AGGREGATE` entry and the `Core::Sink<Notification>` member.
 3. Read `AppActionsImplementation.h` — note the three interfaces it implements and the notification list.
 
@@ -421,7 +421,7 @@ stateDiagram-v2
 ### Advanced
 
 7. **Adding a new action type** — extend `IAppActions` with a new method in the Exchange interface definition; implement it in `AppActionsImplementation`; add the corresponding JSON-RPC handler and event in `JAppActions`.
-8. **Understanding `Core::Sink<T>`** — a WPEFramework pattern for safely implementing notification interfaces as members of another class; study how `mAppActionsNotification` is passed to `mAppActions->Register()` and how it receives callbacks.
+8. **Understanding `Core::Sink<T>`** — a Thunder pattern for safely implementing notification interfaces as members of another class; study how `mAppActionsNotification` is passed to `mAppActions->Register()` and how it receives callbacks.
 
 ---
 

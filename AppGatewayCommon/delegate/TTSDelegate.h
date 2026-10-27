@@ -28,7 +28,7 @@
 #define TTS_CALLSIGN "org.rdk.TextToSpeech"
 #define APP_API_METHOD_PREFIX "TextToSpeech."
 
-using namespace WPEFramework;
+using namespace Thunder;
 
 class TTSDelegate : public BaseEventDelegate
 {

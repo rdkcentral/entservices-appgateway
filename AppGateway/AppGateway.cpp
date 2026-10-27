@@ -34,7 +34,7 @@
 static constexpr uint32_t COMRPC_CONNECT_TIMEOUT_MS = 2000;
 
 
-namespace WPEFramework {
+namespace Thunder {
 
 namespace {
     static Plugin::Metadata<Plugin::AppGateway> metadata(
@@ -92,7 +92,7 @@ namespace Plugin {
                 configConnection->Release();
             }
 
-            //Invoking Plugin API register to wpeframework
+            //Invoking Plugin API register to thunder
             Exchange::JAppGatewayResolver::Register(*this, mAppGateway);
         }
         else
@@ -194,4 +194,4 @@ namespace Plugin {
     }
 
 } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder

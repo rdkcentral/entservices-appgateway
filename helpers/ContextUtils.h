@@ -23,7 +23,7 @@
 #include <interfaces/IAppGateway.h>
 #include <interfaces/IAppNotifications.h>
 #include "UtilsCallsign.h"
-using namespace WPEFramework;
+using namespace Thunder;
 using namespace std;
 
 constexpr const char* const LEGACY_FIREBOLT_VERSION = "0";

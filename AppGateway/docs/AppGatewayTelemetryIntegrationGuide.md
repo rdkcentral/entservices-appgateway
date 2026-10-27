@@ -81,7 +81,7 @@ In your plugin's implementation file (`.cpp`), at the top level **before any nam
 
 AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_YOURPLUGIN)
 
-namespace WPEFramework {
+namespace Thunder {
 namespace Plugin {
     // ... your plugin implementation ...
 }}
@@ -157,7 +157,7 @@ Defines a plugin-specific telemetry client instance. This macro **MUST** be call
 
 AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_YOUR_PLUGIN)
 
-namespace WPEFramework {
+namespace Thunder {
 namespace Plugin {
     // ... implementation
 }}

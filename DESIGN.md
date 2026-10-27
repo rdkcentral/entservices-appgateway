@@ -2,7 +2,7 @@
 
 ## Overview
 
-The App Gateway is a Thunder (WPEFramework) plugin that provides a Firebolt-compatible API gateway for applications running on RDK devices. It acts as an intermediary between applications and Thunder plugins, providing request routing, event handling, authentication, and notification management.
+The App Gateway is a Thunder plugin that provides a Firebolt-compatible API gateway for applications running on RDK devices. It acts as an intermediary between applications and Thunder plugins, providing request routing, event handling, authentication, and notification management.
 
 This implementation deprecates the legacy Ripple Gateway from the RDK Apps Managers Framework; Ripple Gateway support is being phased out and will be removed after the completion of the migration period described in the "Ripple Gateway Migration Guide" in the RDK Apps Managers Framework documentation.
 
@@ -588,7 +588,7 @@ Can be enabled for detailed WebSocket message tracing with connection and reques
 
 ## Glossary
 
-- **Thunder/WPEFramework:** RDK's plugin framework
+- **Thunder:** RDK's plugin framework
 - **Firebolt:** RDK's application API standard
 - **COM-RPC:** Component Object Model Remote Procedure Call
 - **Gateway Context:** Request metadata structure

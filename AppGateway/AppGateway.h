@@ -22,7 +22,7 @@
 #include "AppGatewayTelemetry.h"
 #include <interfaces/IAppGateway.h>
 
-namespace WPEFramework {
+namespace Thunder {
 
     namespace Plugin {
 		// This is a server for a JSONRPC communication channel.
@@ -71,5 +71,5 @@ namespace WPEFramework {
             uint32_t mConnectionId;
         };
 	} // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder
 

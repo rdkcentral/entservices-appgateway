@@ -64,7 +64,7 @@ namespace {
     static const bool logLevelChecked [[maybe_unused]] = CheckLogLevelInitialized();
 }
 
-namespace WPEFramework {
+namespace Thunder {
 namespace Plugin {
 namespace AppGatewayTelemetryHelper {
 
@@ -354,13 +354,13 @@ namespace AppGatewayTelemetryHelper {
 
 } // namespace AppGatewayTelemetryHelper
 } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder
 
 //=============================================================================
 // RAII HELPER CLASSES FOR AUTOMATIC TIMING
 //=============================================================================
 
-namespace WPEFramework {
+namespace Thunder {
 namespace Plugin {
 namespace AppGatewayTelemetryHelper {
 
@@ -543,7 +543,7 @@ namespace AppGatewayTelemetryHelper {
 
 } // namespace AppGatewayTelemetryHelper
 } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder
 
 //=============================================================================
 // TELEMETRY REPORTING MACROS
@@ -597,15 +597,15 @@ namespace AppGatewayTelemetryHelper {
  *   
  *   AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_YOUR_PLUGIN)
  *   
- *   namespace WPEFramework {
+ *   namespace Thunder {
  *   namespace Plugin {
  *       // ... rest of implementation
  *   }}
  */
 #define AGW_DEFINE_TELEMETRY_CLIENT(pluginName) \
     namespace { \
-        WPEFramework::Plugin::AppGatewayTelemetryHelper::TelemetryClient& GetLocalTelemetryClient() { \
-            static WPEFramework::Plugin::AppGatewayTelemetryHelper::TelemetryClient instance; \
+        Thunder::Plugin::AppGatewayTelemetryHelper::TelemetryClient& GetLocalTelemetryClient() { \
+            static Thunder::Plugin::AppGatewayTelemetryHelper::TelemetryClient instance; \
             return instance; \
         } \
         const char* GetLocalPluginName() { \
@@ -675,7 +675,7 @@ namespace AppGatewayTelemetryHelper {
  *   } // Timer automatically records on scope exit
  */
 #define AGW_RECORD_BOOTSTRAP_TIME() \
-    WPEFramework::Plugin::AppGatewayTelemetryHelper::ScopedBootstrapTimer bootstrapTimer(&GetLocalTelemetryClient())
+    Thunder::Plugin::AppGatewayTelemetryHelper::ScopedBootstrapTimer bootstrapTimer(&GetLocalTelemetryClient())
 
 //=============================================================================
 // 3. ERROR REPORTING MACROS (Events via RecordTelemetryEvent)
@@ -767,7 +767,7 @@ namespace AppGatewayTelemetryHelper {
  *   } // Timer automatically reports success/failure with timing
  */
 #define AGW_TRACK_API_CALL(varName, context, apiName) \
-    WPEFramework::Plugin::AppGatewayTelemetryHelper::ScopedApiTimer varName(&GetLocalTelemetryClient(), context, apiName)
+    Thunder::Plugin::AppGatewayTelemetryHelper::ScopedApiTimer varName(&GetLocalTelemetryClient(), context, apiName)
 
 /**
  * @brief Automatic external service call tracking with RAII (RECOMMENDED for service calls)
@@ -790,7 +790,7 @@ namespace AppGatewayTelemetryHelper {
  *   } // Tracker automatically reports success/failure with timing
  */
 #define AGW_TRACK_SERVICE_CALL(varName, context, serviceName) \
-    WPEFramework::Plugin::AppGatewayTelemetryHelper::ScopedServiceTimer varName(&GetLocalTelemetryClient(), context, serviceName)
+    Thunder::Plugin::AppGatewayTelemetryHelper::ScopedServiceTimer varName(&GetLocalTelemetryClient(), context, serviceName)
 
 /**
  * @brief Report an API latency metric to AppGateway telemetry (manual)

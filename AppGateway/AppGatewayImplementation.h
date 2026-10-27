@@ -30,7 +30,7 @@
 #include <map>
 
 
-namespace WPEFramework {
+namespace Thunder {
 namespace Plugin {
     using Context = Exchange::GatewayContext;
     class AppGatewayImplementation : public Exchange::IAppGatewayResolver, public Exchange::IConfiguration
@@ -175,4 +175,4 @@ namespace Plugin {
         std::string ReadCountryFromConfigFile();
     };
 } // namespace Plugin
-} // namespace WPEFramework
+} // namespace Thunder
