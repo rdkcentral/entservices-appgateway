@@ -136,7 +136,7 @@ jobs:
             git clone https://github.com/xmidt-org/trower-base64.git
             fi
             cd trower-base64
-            meson setup --warnlevel 3 --werror build
+            meson setup --warnlevel 3 build
             ninja -C build
             sudo ninja -C build install
 
