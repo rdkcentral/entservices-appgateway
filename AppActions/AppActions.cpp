@@ -10,6 +10,26 @@ namespace Thunder {
 namespace Plugin {
     SERVICE_REGISTRATION(AppActions, API_VERSION_NUMBER_MAJOR, API_VERSION_NUMBER_MINOR, API_VERSION_NUMBER_PATCH);
 
+    namespace {
+        // Thunder 4 exposes IShell::COMLink() (not AddRef'd) but in Thunder 5 it was removed,
+        // so the COM link is queried (AddRef'd) and must be released after use.
+        inline PluginHost::IShell::ICOMLink* AcquireCOMLink(PluginHost::IShell* service) {
+#if defined(THUNDER_VERSION) && (THUNDER_VERSION <= 4)
+            return service->COMLink();
+#else
+            return service->QueryInterface<PluginHost::IShell::ICOMLink>();
+#endif
+        }
+
+        inline void ReleaseCOMLink(PluginHost::IShell::ICOMLink* comLink) {
+#if !(defined(THUNDER_VERSION) && (THUNDER_VERSION <= 4))
+            if (nullptr != comLink) {
+                comLink->Release();
+            }
+#endif
+        }
+    }
+
     AppActions::AppActions() : PluginHost::IPlugin(), PluginHost::JSONRPC(), mService(nullptr), mConnectionId(0), mAppActions(nullptr), mAppActionsConfigure(nullptr), mAppActionsNotification(this) {
     }
 
@@ -32,9 +52,10 @@ namespace Plugin {
         // is called if the AppActionsImplementation host process crashes.
         // COMLink is null in in-process / test environments — warn but continue, as the
         // plugin is still functional; crash-recovery simply won't be available.
-        PluginHost::IShell::ICOMLink* comLink = mService->COMLink();
+        PluginHost::IShell::ICOMLink* comLink = AcquireCOMLink(mService);
         if (nullptr != comLink) {
             comLink->Register(&mAppActionsNotification);
+            ReleaseCOMLink(comLink);
         } else {
             SYSLOG(Logging::Startup, (_T("AppActions::Initialize: COMLink is not available; crash recovery will be unavailable")));
         }
@@ -88,7 +109,7 @@ namespace Plugin {
         // Make sure the Activated and Deactivated are no longer called before we start cleaning up..
         // COMLink may be null in in-process / test environments — skip OOP-specific cleanup
         // in that case but always proceed to release mAppActions and mService below.
-        PluginHost::IShell::ICOMLink* comLink = mService->COMLink();
+        PluginHost::IShell::ICOMLink* comLink = AcquireCOMLink(mService);
         if (nullptr != comLink) {
             comLink->Unregister(&mAppActionsNotification);
 
@@ -110,6 +131,8 @@ namespace Plugin {
             } else {
                 SYSLOG(Logging::Shutdown, (_T("[%s] Deinitialize exit: no-op (no remote connection)"), __FUNCTION__));
             }
+
+            ReleaseCOMLink(comLink);
         } else {
             SYSLOG(Logging::Shutdown, (_T("[%s] Deinitialize exit: no-op (no COMLink)"), __FUNCTION__));
         }
