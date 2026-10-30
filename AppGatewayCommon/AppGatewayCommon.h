@@ -45,59 +45,6 @@ namespace WPEFramework {
             AppGatewayCommon(const AppGatewayCommon&) = delete;
             AppGatewayCommon& operator=(const AppGatewayCommon&) = delete;
 
-            class EXTERNAL EventRegistrationJob : public Core::IDispatch,
-                                                  public AppGatewayTelemetryHelper::JobTiming
-        {
-            protected:
-                EventRegistrationJob(AppGatewayCommon *parent,
-                Exchange::IAppNotificationHandler::IEmitter *cb,
-                const string &event,
-                const bool listen): mParent(*parent), mCallback(cb), mEvent(event), mListen(listen) {
-                    if (mCallback != nullptr) {
-                        mCallback->AddRef();
-                    }
-                }
-            public:
-                EventRegistrationJob() = delete;
-                EventRegistrationJob(const EventRegistrationJob &) = delete;
-                EventRegistrationJob &operator=(const EventRegistrationJob &) = delete;
-                ~EventRegistrationJob()
-                {
-                    if (mCallback != nullptr) {
-                        mCallback->Release();
-                        mCallback = nullptr;
-                    }
-                }
-
-                static Core::ProxyType<Core::IDispatch> Create(AppGatewayCommon *parent,
-                Exchange::IAppNotificationHandler::IEmitter *cb, const string& event, const bool listen)
-                {
-                    return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<EventRegistrationJob>::Create(parent, cb, event, listen)));
-                }
-                virtual void Dispatch()
-                {
-                    AGW_TIME_JOB(timer,
-                        "EventRegJob[" + std::string(mListen?"sub":"unsub") + ":" + mEvent + "]", 0, 0, "");
-                    mParent.mDelegate->HandleAppEventNotifier(mCallback, mEvent, mListen);
-                    // fetch_sub returns the previous value; if it was 1 the
-                    // counter is now 0 (last in-flight job finished). Lock
-                    // the mutex so the notify wakes up Deinitialize's
-                    // wait — this ensures the signal is never missed.
-                    if (1 == mParent.mActiveJobs.fetch_sub(1, std::memory_order_acq_rel)) {
-                        std::lock_guard<std::mutex> lk(mParent.mJobDrainMutex);
-                        mParent.mJobDrainCv.notify_all();
-                    }
-                }
-
-            private:
-            AppGatewayCommon &mParent;
-            Exchange::IAppNotificationHandler::IEmitter *mCallback;
-            const string mEvent;
-            const bool mListen;
-
-        };
-
-
         public:
             AppGatewayCommon();
             virtual ~AppGatewayCommon();
@@ -132,6 +79,14 @@ namespace WPEFramework {
 
         private:
             void Deactivated(RPC::IRemoteConnection* connection);
+            // Helper to get delegate with shutdown check
+            std::shared_ptr<SettingsDelegate> GetDelegateSafe() {
+                std::lock_guard<std::mutex> lk(mDelegateMutex);
+                if (mShuttingDown.load(std::memory_order_acquire)) {
+                    return nullptr;
+                }
+                return mDelegate;
+            }
             // Helper methods for System/Device - called by HandleAppGatewayRequest
             Core::hresult GetDeviceMake(string &make /* @out */);
             Core::hresult GetDeviceName(string &name /* @out */);
@@ -216,8 +171,7 @@ namespace WPEFramework {
             Core::hresult GetPresentationFocused(const Exchange::GatewayContext& ctx, const std::string& payload, std::string &result /* @out */);
             Core::hresult SetIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             
-            // EventRegistrationJob helper method (AppGatewayCommon-specific)
-            bool SafeSubmitEventRegistrationJob(Exchange::IAppNotificationHandler::IEmitter* cb, 
+            bool SubmitEventRegistration(Exchange::IAppNotificationHandler::IEmitter* cb,
                                                const std::string& event, bool listen);
 
             Core::hresult HandleAppDelegateRequest(const Exchange::GatewayContext& context ,
@@ -242,11 +196,10 @@ namespace WPEFramework {
             uint32_t mConnectionId;
             std::shared_ptr<SettingsDelegate> mDelegate;
 
-            // Track in-flight EventRegistrationJobs so Deinitialize() can
-            // wait for them before destroying the delegate.
-            std::atomic<int> mActiveJobs{0};
-            std::mutex mJobDrainMutex;
-            std::condition_variable mJobDrainCv;
+            std::mutex mDelegateMutex;
+
+            // Shutdown flag to reject new job submissions during Deinitialize
+            std::atomic<bool> mShuttingDown{false};
         };
 	} // namespace Plugin
 } // namespace WPEFramework
