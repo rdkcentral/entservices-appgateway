@@ -674,7 +674,7 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
                 cb, [](Exchange::IAppNotificationHandler::IEmitter* value) { value->Release(); });
             return RetainedJobQueue<AppGatewayCommon>::SubmitTimed(
                 this, "EventRegistrationJob[" + std::string(listen ? "sub" : "unsub") + ":" + event + "]",
-                0, 0, "", [emitter = std::move(emitter), event, listen](AppGatewayCommon& owner) {
+                0, 0, "", [emitter, event, listen](AppGatewayCommon& owner) {
                     auto delegate = owner.GetDelegateSafe();
                     if (delegate) {
                         delegate->HandleAppEventNotifier(emitter.get(), event, listen);

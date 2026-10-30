@@ -108,7 +108,7 @@ public:
         const std::string eventName(event);
         const std::string eventPayload(payload);
         return mEventJobs.SubmitTimed(owner, "EventDispatchJob[" + eventName + "]",
-            0, 0, appId, [eventName = std::move(eventName), eventPayload = std::move(eventPayload), appId](BaseEventDelegate& retained) {
+            0, 0, appId, [eventName, eventPayload, appId](BaseEventDelegate& retained) {
                 retained.DispatchToAppNotifications(eventName, eventPayload, appId);
             });
     }
