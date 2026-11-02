@@ -474,7 +474,7 @@ class LifecycleDelegate : public BaseEventDelegate
             if (Exchange::ILifecycleManager::LOADING == newLifecycleState) {
                 mParent.mAppIdInstanceIdMap.AddAppInstanceId(appId, appInstanceId);
                 // also add to lifecycle state registry
-                mParent.mLifecycleStateRegistry.AddLifecycleState(appInstanceId, oldLifecycleState, newLifecycleState);
+                mParent.mLifecycleStateRegistry.AddLifecycleState(appInstanceId, oldLifecycleState, oldLifecycleState);
 
                 // On the AppManagers path, the navigationIntent from the INITIALIZING event
                 // is the authoritative source of truth. Always discard any identity-mapped
