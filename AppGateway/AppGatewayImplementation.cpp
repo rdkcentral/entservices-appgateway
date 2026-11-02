@@ -368,6 +368,10 @@ namespace WPEFramework
         Core::hresult AppGatewayImplementation::InternalResolve(const Context& context, const string& method, const string& params, const string& origin, string& resolution)
         {
             Core::hresult result = FetchResolvedData(context, method, params, origin, resolution);
+            if (-1 == result) {
+                LOGERR("do not send respond now for: %s", method.c_str());
+                return Core::ERROR_NONE;
+            }
             if (!resolution.empty()) {
                 LOGTRACE("Final resolution: %s", resolution.c_str());
                 Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context, resolution, origin));
