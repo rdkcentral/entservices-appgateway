@@ -10,6 +10,26 @@ uint32_t Test_Initialize_Deinitialize_Lifecycle()
     const std::string initResult = ps.plugin->Initialize(ps.service);
     ExpectTrue(tr, initResult.empty(), "Initialize returns empty string");
 
+    {
+        SettingsDelegate settings;
+        settings.setShell(ps.service);
+        auto child = settings.getUserSettings();
+        std::weak_ptr<UserSettingsDelegate> observer(child);
+        settings.Cleanup();
+        ExpectTrue(tr, !settings.getUserSettings(), "Cleanup detaches UserSettings");
+        ExpectTrue(tr, !settings.getSystemDelegate(), "Cleanup detaches System");
+        ExpectTrue(tr, !settings.getNetworkDelegate(), "Cleanup detaches Network");
+        ExpectTrue(tr, !settings.getLifecycleDelegate(), "Cleanup detaches Lifecycle");
+        ExpectTrue(tr, !settings.getAppDelegate(), "Cleanup detaches App");
+        ExpectTrue(tr, !settings.getTTSDelegate(), "Cleanup detaches TTS");
+        ExpectTrue(tr, !settings.getAvOutputDelegate(), "Cleanup detaches AvOutput");
+        ExpectTrue(tr, !settings.getVideoOutputDelegate(), "Cleanup detaches VideoOutput");
+        ExpectTrue(tr, !observer.expired(), "Child snapshot survives cleanup");
+        child.reset();
+        ExpectTrue(tr, observer.expired(), "Child released after snapshot reset");
+        settings.Cleanup();
+    }
+
     ps.plugin->Deinitialize(ps.service);
     return tr.failures;
 }

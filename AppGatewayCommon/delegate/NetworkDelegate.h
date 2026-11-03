@@ -56,6 +56,8 @@ public:
 
     ~NetworkDelegate()
     {
+        mWorkerPool.Close();
+
         // Unregister first so no new jobs get queued, then wait for any already
         // running, then release. Wrong order leaves a window for a use-after-free.
         {
@@ -69,11 +71,6 @@ public:
                     mNotificationHandler.SetRegistered(false);
                 }
             }
-        }
-
-        {
-            std::unique_lock<std::mutex> lk(mJobDrainMutex);
-            mJobDrainCv.wait(lk, [this] { return mActiveWorkerJobs.load(std::memory_order_acquire) == 0; });
         }
 
         Core::SafeSyncType<Core::CriticalSection> lock(mNetworkManagerLock);
@@ -264,58 +261,6 @@ private:
         Dispatch("Network.onConnectedChanged", ObjectUtils::CreateBooleanJsonString("value", connected));
     }
 
-    // Runs work on a worker pool thread. onInterfaceStateChange uses this to get
-    // off the NetworkManager notification thread before calling back into
-    // NetworkManager, same fix as RDKEMW-24422 (see SystemDelegate.h).
-    class EXTERNAL WorkerPoolTask : public Core::IDispatch,
-                                    public AppGatewayTelemetryHelper::JobTiming
-    {
-    public:
-        explicit WorkerPoolTask(std::function<void()> work)
-            : _work(std::move(work))
-        {
-        }
-        WorkerPoolTask() = delete;
-        WorkerPoolTask(const WorkerPoolTask&) = delete;
-        WorkerPoolTask& operator=(const WorkerPoolTask&) = delete;
-        ~WorkerPoolTask() override = default;
-
-        void Dispatch() override
-        {
-            AGW_TIME_JOB(timer, "NetworkWorkerPoolTask", 0, 0, "");
-            _work();
-        }
-
-    private:
-        std::function<void()> _work;
-    };
-
-    static void PostToWorkerPool(std::function<void()> work)
-    {
-        Core::IWorkerPool::Instance().Submit(
-            Core::ProxyType<Core::IDispatch>(Core::ProxyType<WorkerPoolTask>::Create(std::move(work))));
-    }
-
-    // Decrements mActiveWorkerJobs on scope exit and wakes the drain wait. Caller
-    // must increment before posting the job.
-    class JobDrainGuard
-    {
-    public:
-        explicit JobDrainGuard(NetworkDelegate &parent) : mParent(parent) {}
-        JobDrainGuard(const JobDrainGuard&) = delete;
-        JobDrainGuard& operator=(const JobDrainGuard&) = delete;
-        ~JobDrainGuard()
-        {
-            if (1 == mParent.mActiveWorkerJobs.fetch_sub(1, std::memory_order_acq_rel)) {
-                std::lock_guard<std::mutex> lk(mParent.mJobDrainMutex);
-                mParent.mJobDrainCv.notify_all();
-            }
-        }
-
-    private:
-        NetworkDelegate &mParent;
-    };
-
     class NetworkNotificationHandler : public Exchange::INetworkManager::INotification
     {
     public:
@@ -337,26 +282,25 @@ private:
                 return;
             }
 
-            // Query and dispatch on a worker-pool thread, not this notification thread.
-            // Locked so two rapid events can't interleave and dispatch a stale value.
-            // Job is counted so ~NetworkDelegate can wait for it before destructing.
-            mParent.mActiveWorkerJobs.fetch_add(1, std::memory_order_acq_rel);
-            mParent.PostToWorkerPool([this]() {
-                JobDrainGuard drainGuard(mParent);
-                std::lock_guard<std::mutex> lock(mParent.mQueryDispatchMutex);
-
-                Exchange::INetworkManager *networkManager = mParent.GetNetworkManagerInterface();
-                if (networkManager == nullptr) {
-                    return;
-                }
-
-                bool connected = false;
-                if (mParent.IsAnyInterfaceConnected(networkManager, connected) != Core::ERROR_NONE) {
-                    return;
-                }
-
-                mParent.DispatchConnectedChanged(connected);
-            });
+            std::shared_ptr<NetworkDelegate> owner;
+            try {
+                owner = std::dynamic_pointer_cast<NetworkDelegate>(mParent.shared_from_this());
+            } catch (const std::bad_weak_ptr&) {
+                return;  // Owner being destroyed, reject submission
+            }
+            mParent.mWorkerPool.SubmitTimed(owner, "NetworkWorkerPoolTask", 0, 0, "",
+                [](NetworkDelegate& retained) {
+                    std::lock_guard<std::mutex> lock(retained.mQueryDispatchMutex);
+                    Exchange::INetworkManager *networkManager = retained.GetNetworkManagerInterface();
+                    if (networkManager == nullptr) {
+                        return;
+                    }
+                    bool connected = false;
+                    if (retained.IsAnyInterfaceConnected(networkManager, connected) != Core::ERROR_NONE) {
+                        return;
+                    }
+                    retained.DispatchConnectedChanged(connected);
+                });
         }
 
         void onInternetStatusChange(const Exchange::INetworkManager::InternetStatus prevState, const Exchange::INetworkManager::InternetStatus currState, const string interface)
@@ -413,10 +357,7 @@ private:
     std::mutex mLastConnectedMutex;
     // Serializes query-and-dispatch across worker-pool jobs.
     std::mutex mQueryDispatchMutex;
-    // In-flight worker-pool job count. Destructor waits for this to hit 0.
-    std::atomic<int> mActiveWorkerJobs{0};
-    std::mutex mJobDrainMutex;
-    std::condition_variable mJobDrainCv;
+    SharedOwnerChannel<NetworkDelegate> mWorkerPool;
 };
 
 #endif // __NETWORKDELEGATE_H__
