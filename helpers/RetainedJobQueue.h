@@ -150,14 +150,14 @@ public:
     template <typename Work>
     static WPEFramework::Core::ProxyType<WPEFramework::Core::IDispatch> CreateTimed(
         Owner* owner, const std::string& name, uint32_t requestId,
-        uint32_t connectionId, const std::string& appId, Work work)
+        uint32_t connectionId, const std::string& appId, Work&& work)
     {
         if (owner == nullptr) {
             return WPEFramework::Core::ProxyType<WPEFramework::Core::IDispatch>();
         }
         return WPEFramework::Core::ProxyType<WPEFramework::Core::IDispatch>(
             WPEFramework::Core::ProxyType<DispatchJob>::Create(owner, name, requestId,
-                connectionId, appId, std::function<void(Owner&)>(std::move(work))));
+                connectionId, appId, std::function<void(Owner&)>(std::forward<Work>(work))));
     }
 
     template <typename Work>

@@ -12,9 +12,11 @@
 
 Use for delegates managed by `std::shared_ptr`. A queued envelope stores `std::weak_ptr<Owner>`, so pending work does not keep the delegate alive. At dispatch, the helper locks the weak pointer and invokes the callback only when the channel is open and the owner still exists. `Close()` is nonblocking; queued work dispatched afterward is discarded. Examples include SystemDelegate, VideoOutputDelegate, NetworkDelegate, and BaseEventDelegate notification fan-out.
 
-### 1.2 `IntrusiveOwnerChannel<Owner>`
+### 1.2 `IntrusiveOwnerChannel<Owner>` (app-gateway-cpc only)
 
-Use for plugin or COM objects that implement `AddRef()`/`Release()` and already have a logical shutdown hook. Queued work stores channel state rather than an owner reference. Dispatch upgrades the owner under the channel mutex by calling `AddRef()`; an RAII guard calls `Release()` after the callback. `Close()` detaches the owner before final release, allowing stale queued jobs to discard without blocking shutdown. LaunchDelegate uses this policy.
+This helper is implemented in `app-gateway-cpc/helpers/IntrusiveOwnerChannel.h`, not in `entservices-appgateway`. It is described here as a cross-repository policy; its API is not available in this repository.
+
+In app-gateway-cpc, plugin or COM objects with `AddRef()`/`Release()` and a logical shutdown hook can use this policy. Queued work stores channel state rather than an owner reference. Dispatch upgrades the owner under the channel mutex by calling `AddRef()`; an RAII guard calls `Release()` after the callback. `Close()` detaches the owner before final release, allowing stale queued jobs to discard without blocking shutdown. LaunchDelegate in app-gateway-cpc uses this policy.
 
 ### 1.3 `RetainedJobQueue<Owner>`
 
@@ -23,7 +25,7 @@ Use for intrusive implementation objects that have `AddRef()`/`Release()` but no
 | Helper | Owner model | Queued job retains owner? | Work after shutdown |
 |---|---|---:|---|
 | `SharedOwnerChannel` | `shared_ptr` delegate | No | Discard when closed/expired |
-| `IntrusiveOwnerChannel` | AddRef/Release with close hook | No | Discard when closed/detached |
+| `IntrusiveOwnerChannel` (app-gateway-cpc only; unavailable here) | AddRef/Release with close hook | No | Discard when closed/detached |
 | `RetainedJobQueue` | AddRef/Release without close hook | Yes | May finish safely; destruction can be deferred |
 
 All callbacks receive `Owner&`; request and event data must be copied into the envelope rather than capturing raw `this`.
@@ -79,7 +81,9 @@ All callbacks receive `Owner&`; request and event data must be copied into the e
 - Callback continues (owner still alive via temporary `shared_ptr`)
 - Double-check after lock prevents late dispatch
 
-### 2.2 IntrusiveOwnerChannel lifecycle
+### 2.2 IntrusiveOwnerChannel lifecycle (app-gateway-cpc only)
+
+The following lifecycle describes the helper implemented in app-gateway-cpc. This repository does not provide this helper or its API.
 
 #### Job creation and submission
 
@@ -257,7 +261,7 @@ The lambda retained only the pointer value. If SettingsDelegate destroyed the de
 
 ### 3.2 Job-specific raw parent
 
-Other plugin jobs use a job-specific parent pointer:
+Before migration, plugin jobs such as the former `RespondJob` used a job-specific parent pointer:
 
 ```cpp
 Core::IWorkerPool::Instance().Submit(
@@ -535,28 +539,19 @@ The same pattern is used by `VideoOutputDelegate` for resolution, HDCP, CEC, and
 
 ## 7. AppGateway response job
 
-`AppGatewayResponderImplementation::Respond()` is not yet migrated. The current path submits `RespondJob::Create(this, ...)` directly.
+`AppGatewayResponderImplementation::Respond()` submits responses through `RetainedJobQueue<AppGatewayResponderImplementation>`. The former `RespondJob` class has been removed; `"RespondJob"` remains the telemetry job name.
 
-The migration must introduce an ownership policy appropriate for `AppGatewayResponderImplementation`, then copy:
-
-- `connectionId`;
-- `requestId`;
-- `payload`;
-- any app ID needed for telemetry or hibernation checks.
-
-The callback must receive a retained `AppGatewayResponderImplementation&`; it must not capture `this`.
-
-Target behavior:
+The callback copies `connectionId`, `requestId`, and `payload`, and receives a retained `AppGatewayResponderImplementation&` without capturing `this`. The submission passes `context.appId` to the timing helper. The dispatch-time hibernation check resolves the app ID from the connection registry.
 
 | State | Result |
 |---|---|
-| Application paused | Preserve existing hibernation drop behavior |
-| Channel open and owner retained | Call `ReturnMessageInSocket()` |
-| Submission after close | Reject |
-| Queued dispatch after close | Discard without socket access |
-| Callback already running | Retained ownership permits completion; close does not wait |
+| Application paused at submission | Drop the response and return `Core::ERROR_NONE` without queuing work |
+| Queued response dispatched | Call `DispatchResponseToConnectionIfNotPaused()` |
+| Connection resolves to a paused application at dispatch | Drop without calling `ReturnMessageInSocket()` |
+| Dispatch-time check allows response | Call `ReturnMessageInSocket()` |
+| Logical shutdown with pending work | No helper-level cancellation or rejection gate; pending jobs retain the owner |
 
-This section describes the required migration contract. It does not claim that responder migration is already implemented.
+The helper acquires an intrusive owner reference when creating the job and releases it when the job envelope is destroyed. It has no `Close()` operation: queued responses are not canceled on logical shutdown, and pending jobs can defer final responder destruction. Owner retention alone does not guarantee socket availability or successful delivery.
 
 ## 8. Event subscription and notification
 

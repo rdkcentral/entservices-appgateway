@@ -23,6 +23,16 @@ struct TestRetainedOwner {
     std::atomic<uint32_t> calls{0};
 };
 
+struct CountedWork {
+    CountedWork(int& copies, int& moves) : copies(copies), moves(moves) {}
+    CountedWork(const CountedWork& other) : copies(other.copies), moves(other.moves) { ++copies; }
+    CountedWork(CountedWork&& other) : copies(other.copies), moves(other.moves) { ++moves; }
+    void operator()(TestRetainedOwner&) const {}
+    int& copies;
+    int& moves;
+    char payload[136]{};
+};
+
 }
 
 uint32_t Test_SharedOwnerChannel_ClosedChannelRejectsSubmission()
@@ -155,6 +165,18 @@ uint32_t Test_RetainedJobQueue_BalancesOwnerReference()
     job = WPEFramework::Core::ProxyType<WPEFramework::Core::IDispatch>();
     ExpectEqU32(tr, owner.calls.load(), 1, "retained job invokes callback");
     ExpectEqU32(tr, owner.releases.load(), 1, "job destruction releases owner reference");
+    int copies = 0;
+    int moves = 0;
+    CountedWork work(copies, moves);
+    auto copied = RetainedJobQueue<TestRetainedOwner>::CreateTimed(&owner, "Lvalue", 1, 2, "app", work);
+    ExpectTrue(tr, copied.IsValid(), "lvalue callable creates job");
+    ExpectEqU32(tr, copies, 1, "lvalue callable copied once into storage");
+    ExpectEqU32(tr, moves, 0, "lvalue callable has no intermediate move");
+    copies = moves = 0;
+    auto moved = RetainedJobQueue<TestRetainedOwner>::CreateTimed(&owner, "Rvalue", 1, 2, "app", std::move(work));
+    ExpectTrue(tr, moved.IsValid(), "rvalue callable creates job");
+    ExpectEqU32(tr, copies, 0, "rvalue callable is not copied");
+    ExpectEqU32(tr, moves, 1, "rvalue callable moved once into storage");
     return tr.failures;
 }
 

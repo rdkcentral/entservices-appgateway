@@ -24,6 +24,35 @@ struct L1RetainedOwner {
     mutable std::atomic<uint32_t> releases{0};
 };
 
+struct CountedWork {
+    CountedWork(int& copies, int& moves) : copies(copies), moves(moves) {}
+    CountedWork(const CountedWork& other) : copies(other.copies), moves(other.moves) { ++copies; }
+    CountedWork(CountedWork&& other) : copies(other.copies), moves(other.moves) { ++moves; }
+    void operator()(L1RetainedOwner&) const {}
+    int& copies;
+    int& moves;
+    char payload[136]{};
+};
+
+TEST(RetainedJobQueueL1, CreateTimedForwardsLargeCallable)
+{
+    L1RetainedOwner owner;
+    int copies = 0;
+    int moves = 0;
+    CountedWork work(copies, moves);
+    auto copied = RetainedJobQueue<L1RetainedOwner>::CreateTimed(&owner, "Lvalue", 1, 2, "app", work);
+    ASSERT_TRUE(copied.IsValid());
+    EXPECT_EQ(1, copies);
+    EXPECT_EQ(0, moves);
+    copies = moves = 0;
+    auto moved = RetainedJobQueue<L1RetainedOwner>::CreateTimed(&owner, "Rvalue", 1, 2, "app", std::move(work));
+    ASSERT_TRUE(moved.IsValid());
+    EXPECT_EQ(0, copies);
+    EXPECT_EQ(1, moves);
+    copied->Dispatch();
+    moved->Dispatch();
+}
+
 TEST(RetainedJobQueueL1, EarlyReturnReleasesOwner)
 {
     L1RetainedOwner owner;

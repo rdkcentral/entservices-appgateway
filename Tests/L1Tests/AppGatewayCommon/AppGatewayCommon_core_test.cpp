@@ -134,6 +134,59 @@ TEST_F(AppGatewayCommonTest, AGC_L1_001_InitializeAndDeinitialize_Success)
     plugin.Deinitialize(&service);
 }
 
+TEST_F(AppGatewayCommonTest, SettingsCleanupRetainsChildSnapshots)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    plugin.Initialize(&service);
+    {
+        auto settings = plugin.GetDelegateSafe();
+        auto child = settings->getUserSettings();
+        std::weak_ptr<UserSettingsDelegate> observer(child);
+        settings->Cleanup();
+        EXPECT_EQ(nullptr, settings->getUserSettings());
+        EXPECT_EQ(nullptr, settings->getSystemDelegate());
+        EXPECT_EQ(nullptr, settings->getNetworkDelegate());
+        EXPECT_EQ(nullptr, settings->getLifecycleDelegate());
+        EXPECT_EQ(nullptr, settings->getAppDelegate());
+        EXPECT_EQ(nullptr, settings->getTTSDelegate());
+        EXPECT_EQ(nullptr, settings->getAvOutputDelegate());
+        EXPECT_EQ(nullptr, settings->getVideoOutputDelegate());
+        EXPECT_FALSE(observer.expired());
+        child.reset();
+        EXPECT_TRUE(observer.expired());
+        settings->Cleanup();
+    }
+    plugin.Deinitialize(&service);
+}
+
+TEST_F(AppGatewayCommonTest, SettingsCleanupConcurrentWithChildSnapshots)
+{
+    NiceMock<ServiceMock> service;
+    EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).WillRepeatedly(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    plugin.Initialize(&service);
+    auto settings = plugin.GetDelegateSafe();
+    std::thread reader([settings] {
+        for (unsigned i = 0; i < 1000; ++i) {
+            settings->getUserSettings();
+            settings->getSystemDelegate();
+            settings->getNetworkDelegate();
+            settings->getLifecycleDelegate();
+            settings->getAppDelegate();
+            settings->getTTSDelegate();
+            settings->getAvOutputDelegate();
+            settings->getVideoOutputDelegate();
+        }
+    });
+    settings->Cleanup();
+    reader.join();
+    plugin.Deinitialize(&service);
+}
+
 TEST_F(AppGatewayCommonTest, AGC_L1_003_UnknownMethod_ReturnsUnknownKey)
 {
     NiceMock<ServiceMock> service;

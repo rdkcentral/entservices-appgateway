@@ -109,25 +109,26 @@ namespace Plugin {
         ASSERT(service == mShell);
         mConnectionId = 0;
 
+        std::shared_ptr<SettingsDelegate> delegate;
         // Set shutdown flag to reject new job submissions
         {
             std::lock_guard<std::mutex> lk(mDelegateMutex);
             mShuttingDown.store(true, std::memory_order_release);
+            delegate = std::move(mDelegate);
         }
 
         {
-            std::lock_guard<std::mutex> lk(mDelegateMutex);
-            if (mDelegate) {
+            if (delegate) {
                 // Clear session guard reference before delegate cleanup to prevent
                 // any in-flight lifecycle callbacks from using a stale guard.
                 if (ConfigUtils::useAppManagers()) {
-                    auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
+                    auto lifecycleDelegate = delegate->getLifecycleDelegate();
                     if (nullptr != lifecycleDelegate) {
                         lifecycleDelegate->SetSessionGuard(nullptr);
                     }
                 }
-                mDelegate->Cleanup();
-                mDelegate.reset();
+                delegate->Cleanup();
+                delegate.reset();
             }
         }
 
