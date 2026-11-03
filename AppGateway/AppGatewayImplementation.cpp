@@ -502,10 +502,9 @@ namespace WPEFramework
                 result = requestHandler->HandleAppGatewayRequest(context, method, finalParams, resolution);
                 if (-1 == result)
                 {
+                    //Explicit return for capture the async requests
                     return result;
                 }
-                if (Core::ERROR_NONE != result) {
-
                 if (Core::ERROR_NONE != result) {
                     LOGERR("HandleAppGatewayRequest failed for callsign: %s", alias.c_str());
                     
@@ -515,8 +514,6 @@ namespace WPEFramework
                     if (resolution.empty()){
                         ErrorUtils::CustomInternal("HandleAppGatewayRequest failed", resolution);
                     }
-                } else {
-                    result = Core::ERROR_NONE;
                 }
                 requestHandler->Release();
             } else {
