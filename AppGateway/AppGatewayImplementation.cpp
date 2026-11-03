@@ -499,7 +499,8 @@ namespace WPEFramework
             if (requestHandler != nullptr) {
                 std::string finalParams = UpdateContext(context, method, params, origin, true);
 
-                if (Core::ERROR_NONE != requestHandler->HandleAppGatewayRequest(context, method, finalParams, resolution)) {
+                result = requestHandler->HandleAppGatewayRequest(context, method, finalParams, resolution);
+                if ((Core::ERROR_NONE != result) && (-1 != result)) {
                     LOGERR("HandleAppGatewayRequest failed for callsign: %s", alias.c_str());
                     
                     // Record API error for telemetry
