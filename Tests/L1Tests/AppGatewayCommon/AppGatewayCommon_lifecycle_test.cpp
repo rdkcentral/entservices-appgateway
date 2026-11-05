@@ -1289,7 +1289,9 @@ TEST_F(LifecycleDelegateTest, AGC_L1_207b_ActionsOnIntent_EmittedOnHibernationRe
     emitter->AddRef();
     lifecycleDelegate->AddNotification("Actions.onIntent", emitter);
 
-    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Actions.onIntent"), _, _))
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Actions.onIntent"),
+                               ::testing::HasSubstr("\"intent\":{\"action\":\"search\"}"),
+                               ::testing::StrEq("test.app")))
         .Times(::testing::AtLeast(1));
 
     // Recovery from hibernation: HIBERNATED -> SUSPENDED
