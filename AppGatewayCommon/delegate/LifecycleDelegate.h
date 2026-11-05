@@ -1035,9 +1035,13 @@ class LifecycleDelegate : public BaseEventDelegate
         }
 
         // DispatchLastKnownIntent reads the app-specific intent from
-        // mNavigationIntentRegistry and emits Actions.onIntent. Do this only when
-        // the current lifecycle callback stored a new navigation intent.
-        if (bIntentUpdated) {
+        // mNavigationIntentRegistry and emits Actions.onIntent. Do this when:
+        // 1. The current lifecycle callback stored a new navigation intent, OR
+        // 2. The app is recovering from hibernation (HIBERNATED -> SUSPENDED)
+        //    This ensures apps receive their intent early during recovery to
+        //    prepare for rendering and focus operations before entering PAUSED.
+        if (bIntentUpdated || (Exchange::ILifecycleManager::HIBERNATED == oldLifecycleState &&
+                               Exchange::ILifecycleManager::SUSPENDED == newLifecycleState)) {
             DispatchLastKnownIntent(appId);
         }
     }
