@@ -922,6 +922,9 @@ TEST_F(LifecycleDelegateTest, AGC_L1_198_OnFocus_DispatchesFocusedChanged_And_Fo
         Exchange::ILifecycleManager::LOADING,
         ""
     );
+    string sessionId;
+    EXPECT_EQ(Core::ERROR_NONE, plugin.GetSessionId("test.app", sessionId));
+    EXPECT_EQ("instance-focus-001", sessionId);
     capturedNotification->OnAppLifecycleStateChanged(
         "test.app", "instance-focus-001",
         Exchange::ILifecycleManager::LOADING,
