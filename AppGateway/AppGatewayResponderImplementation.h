@@ -378,6 +378,9 @@ namespace Plugin {
 
         void ReturnMessageInSocket(const uint32_t connectionId, const int requestId, const string payload);
 
+        // Returns an AddRef'd resolver; the caller must Release it after use.
+        Exchange::IAppGatewayResolver* AcquireResolver();
+
         PluginHost::IShell* mService;
         WebSocketConnectionManager mWsManager;
         mutable Core::CriticalSection mAuthenticatorLock;
