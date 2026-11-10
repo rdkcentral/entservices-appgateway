@@ -1431,9 +1431,7 @@ namespace Plugin {
                 continue;
             }
 
-            const JsonObject payload = (TelemetryFormat::COMPACT == GetTelemetryFormat())
-                ? BuildServiceMethodStatsPayloadLegacyCompact(stats, reportingIntervalSec)
-                : BuildServiceMethodStatsPayloadDetailed(stats, reportingIntervalSec);
+            const JsonObject payload = BuildServiceMethodStatsPayloadDetailed(stats, reportingIntervalSec);
             Exchange::GatewayContext sysContext = CreateSystemContext();
             SendT2Event(AGW_MARKER_SERVICE_METHOD_STAT, payload, sysContext);
         }
