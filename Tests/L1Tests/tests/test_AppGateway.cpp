@@ -488,6 +488,32 @@ TEST(AppGatewayPluginTest, Telemetry_FormatTelemetryPayload_JsonAndCompact)
     EXPECT_NE(std::string::npos, compactOut.find("Badger"));
 }
 
+TEST(AppGatewayPluginTest, Telemetry_BuildServiceMethodStatsPayload_CompactMaintainsLegacyFieldOrder)
+{
+    TestAppGatewayTelemetry telemetry;
+    telemetry.SetTelemetryFormat(TelemetryFormat::COMPACT);
+
+    AppGatewayTelemetry::ServiceMethodStats stats;
+    stats.pluginName = "OttServices";
+    stats.serviceName = "ThorService";
+    stats.successCount = 2;
+    stats.totalSuccessLatencyMs = 500.0;
+    stats.minSuccessLatencyMs = 100.0;
+    stats.maxSuccessLatencyMs = 400.0;
+    stats.errorCount = 1;
+    stats.totalErrorLatencyMs = 330.0;
+    stats.minErrorLatencyMs = 30.0;
+    stats.maxErrorLatencyMs = 300.0;
+
+    const JsonObject legacyPayload = TestAppGatewayTelemetry::BuildServiceMethodStatsPayloadLegacyCompact(stats, 3600);
+    const std::string legacyCompactOut = telemetry.FormatTelemetryPayload(legacyPayload);
+    EXPECT_EQ("OttServices,ThorService,3600,2,100,400,250,1,30,300,330", legacyCompactOut);
+
+    const JsonObject detailedPayload = TestAppGatewayTelemetry::BuildServiceMethodStatsPayloadDetailed(stats, 3600);
+    const std::string detailedCompactOut = telemetry.FormatTelemetryPayload(detailedPayload);
+    EXPECT_EQ("OttServices,ThorService,3600,2,250,100,400,1,330,30,300,3", detailedCompactOut);
+}
+
 TEST(AppGatewayPluginTest, Telemetry_RecordApiAndServiceError_UpdatesCounters)
 {
     TestAppGatewayTelemetry telemetry;

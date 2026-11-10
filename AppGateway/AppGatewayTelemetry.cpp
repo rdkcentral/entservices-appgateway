@@ -1423,65 +1423,17 @@ namespace Plugin {
             reportingIntervalSec = mReportingIntervalSec;
         }
 
-        // Send each plugin/service combination as a separate T2 marker
+        // Preserve the legacy compact payload layout for positional consumers.
         for (const auto& item : serviceMethodStats) {
             const ServiceMethodStats& stats = item.second;
-            
+
             if (stats.successCount == 0 && stats.errorCount == 0) {
                 continue;
             }
 
-            // Build detailed payload with plugin name, service name, counters, and latency stats
-            JsonObject payload;
-            payload["plugin_name"] = stats.pluginName;
-            payload["service_name"] = stats.serviceName;
-            payload["reporting_interval_sec"] = reportingIntervalSec;
-            
-            // Success metrics
-            if (stats.successCount > 0) {
-                double avgSuccessLatency = stats.totalSuccessLatencyMs / stats.successCount;
-                double minSuccess = (stats.minSuccessLatencyMs == std::numeric_limits<double>::max()) 
-                                    ? 0.0 : stats.minSuccessLatencyMs;
-                double maxSuccess = (stats.maxSuccessLatencyMs == std::numeric_limits<double>::lowest()) 
-                                    ? 0.0 : stats.maxSuccessLatencyMs;
-                
-                payload["success_count"] = stats.successCount;
-                payload["success_latency_avg_ms"] = avgSuccessLatency;
-                payload["success_latency_min_ms"] = minSuccess;
-                payload["success_latency_max_ms"] = maxSuccess;
-            } else {
-                payload["success_count"] = 0;
-            }
-            
-            // Error metrics
-            if (stats.errorCount > 0) {
-                double avgErrorLatency = stats.totalErrorLatencyMs / stats.errorCount;
-                double minError = (stats.minErrorLatencyMs == std::numeric_limits<double>::max()) 
-                                    ? 0.0 : stats.minErrorLatencyMs;
-                double maxError = (stats.maxErrorLatencyMs == std::numeric_limits<double>::lowest()) 
-                                    ? 0.0 : stats.maxErrorLatencyMs;
-                
-                payload["error_count"] = stats.errorCount;
-                payload["error_latency_avg_ms"] = avgErrorLatency;
-                payload["error_latency_min_ms"] = minError;
-                payload["error_latency_max_ms"] = maxError;
-            } else {
-                payload["error_count"] = 0;
-            }
-            
-            // Total counts
-            uint32_t totalCalls = stats.successCount + stats.errorCount;
-            payload["total_count"] = totalCalls;
-            
-            // T2 marker: Use AGW_MARKER_SERVICE_METHOD_STAT since plugin_name and service_name are in payload
-            LOGTRACE("Sending service method stats to T2");
+            const JsonObject payload = BuildServiceMethodStatsPayloadLegacyCompact(stats, reportingIntervalSec);
             Exchange::GatewayContext sysContext = CreateSystemContext();
             SendT2Event(AGW_MARKER_SERVICE_METHOD_STAT, payload, sysContext);
-            
-            LOGTRACE("Service method stats sent: %s::%s (total=%u, success=%u, error=%u, avg_success_latency=%.2f ms)",
-                    stats.pluginName.c_str(), stats.serviceName.c_str(),
-                    totalCalls, stats.successCount, stats.errorCount,
-                    stats.successCount > 0 ? stats.totalSuccessLatencyMs / stats.successCount : 0.0);
         }
 
         LOGTRACE("Service method stats sent: %zu plugin/service combinations", serviceMethodStats.size());
@@ -1879,15 +1831,15 @@ namespace Plugin {
             return;
         }
 
-        // Send each plugin/service combination
+        // Preserve the legacy compact payload ordering for downstream positional parsers.
         for (const auto& item : serviceMethodStats) {
             const ServiceMethodStats& stats = item.second;
-            
+
             if (stats.successCount == 0 && stats.errorCount == 0) {
                 continue;
             }
 
-            const JsonObject payload = BuildServiceMethodStatsPayload(stats, reportingIntervalSec);
+            const JsonObject payload = BuildServiceMethodStatsPayloadLegacyCompact(stats, reportingIntervalSec);
             Exchange::GatewayContext sysContext = parent->CreateSystemContext();
             parent->SendT2Event(AGW_MARKER_SERVICE_METHOD_STAT, payload, sysContext);
         }
@@ -2096,7 +2048,8 @@ namespace Plugin {
                 continue;
             }
 
-            const JsonObject payload = AppGatewayTelemetry::BuildServiceMethodStatsPayload(stats, mSnapshot->reportingIntervalSec);
+            const JsonObject payload = AppGatewayTelemetry::BuildServiceMethodStatsPayloadLegacyCompact(
+                stats, mSnapshot->reportingIntervalSec);
             LOGINFO("FlushJob: Sending service method stats");
             Exchange::GatewayContext sysContext = AppGatewayTelemetry::CreateSystemContext();
             mSnapshot->parent->SendT2Event(AGW_MARKER_SERVICE_METHOD_STAT, payload, sysContext);

@@ -650,8 +650,49 @@ namespace Plugin {
             return payload;
         }
 
-        static JsonObject BuildServiceMethodStatsPayload(const ServiceMethodStats& stats,
-                                                        const uint32_t reportingIntervalSec)
+        static JsonObject BuildServiceMethodStatsPayloadLegacyCompact(const ServiceMethodStats& stats,
+                                                                      const uint32_t reportingIntervalSec)
+        {
+            JsonObject payload;
+            payload["plugin_name"] = stats.pluginName;
+            payload["service_name"] = stats.serviceName;
+            payload["reporting_interval_sec"] = reportingIntervalSec;
+
+            if (stats.successCount > 0) {
+                const double avgSuccessLatency = stats.totalSuccessLatencyMs / stats.successCount;
+                const double minSuccess = (stats.minSuccessLatencyMs == std::numeric_limits<double>::max())
+                    ? 0.0 : stats.minSuccessLatencyMs;
+                const double maxSuccess = (stats.maxSuccessLatencyMs == std::numeric_limits<double>::lowest())
+                    ? 0.0 : stats.maxSuccessLatencyMs;
+
+                payload["success_count"] = stats.successCount;
+                payload["success_latency_min_ms"] = minSuccess;
+                payload["success_latency_max_ms"] = maxSuccess;
+                payload["success_latency_avg_ms"] = avgSuccessLatency;
+            } else {
+                payload["success_count"] = 0;
+            }
+
+            if (stats.errorCount > 0) {
+                const double avgErrorLatency = stats.totalErrorLatencyMs / stats.errorCount;
+                const double minError = (stats.minErrorLatencyMs == std::numeric_limits<double>::max())
+                    ? 0.0 : stats.minErrorLatencyMs;
+                const double maxError = (stats.maxErrorLatencyMs == std::numeric_limits<double>::lowest())
+                    ? 0.0 : stats.maxErrorLatencyMs;
+
+                payload["error_count"] = stats.errorCount;
+                payload["error_latency_min_ms"] = minError;
+                payload["error_latency_max_ms"] = maxError;
+                payload["error_latency_avg_ms"] = avgErrorLatency;
+            } else {
+                payload["error_count"] = 0;
+            }
+
+            return payload;
+        }
+
+        static JsonObject BuildServiceMethodStatsPayloadDetailed(const ServiceMethodStats& stats,
+                                                                const uint32_t reportingIntervalSec)
         {
             JsonObject payload;
             payload["plugin_name"] = stats.pluginName;
