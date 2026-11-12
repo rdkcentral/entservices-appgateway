@@ -402,6 +402,8 @@ namespace Plugin {
         bool DispatchResponseToConnectionIfNotPaused(const uint32_t connectionId, const uint32_t requestId, const string& result);
         bool DispatchNotificationToConnectionIfNotPaused(const uint32_t connectionId, const string& designator, const string& payload);
         bool SendRequestToConnectionIfNotPaused(const uint32_t connectionId, const string& designator, const uint32_t requestId, const string& params);
+        // Returns an AddRef'd resolver; the caller must Release it after use.
+        Exchange::IAppGatewayResolver* AcquireResolver();
 
         // Thread-safe registry tracking appIds whose WebSocket traffic is currently paused
         // (i.e., the application is in the HIBERNATED lifecycle state).
