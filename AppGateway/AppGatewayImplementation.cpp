@@ -369,7 +369,7 @@ namespace WPEFramework
         {
             Core::hresult result = FetchResolvedData(context, method, params, origin, resolution);
             if (-1 == result) {
-                LOGERR("do not send respond now for: %s", method.c_str());
+LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_str());
                 return Core::ERROR_NONE;
             }
             if (!resolution.empty()) {
