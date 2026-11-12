@@ -144,6 +144,7 @@ namespace WPEFramework {
             Core::hresult GetSecondScreenFriendlyName(string &name /* @out */);
             Core::hresult SetName(const string &value /* @in */, string &result /* @out */);
             Core::hresult AddAdditionalInfo(const string &value /* @in */, string &result /* @out */);
+            Core::hresult RemoveAdditionalInfo(const string &value /* @in */, string &result /* @out */);
 
             // Helper methods for network status - called by HandleAppGatewayRequest
             Core::hresult GetInternetConnectionStatus(string &result /* @out */);

@@ -184,6 +184,9 @@ namespace Plugin {
         { "localization.addadditionalinfo", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string& payload, std::string& result) {
             return ResponseUtils::SetNullResponseForSuccess(self->AddAdditionalInfo(payload, result), result);
         }},
+        { "localization.removeadditionalinfo", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string& payload, std::string& result) {
+            return ResponseUtils::SetNullResponseForSuccess(self->RemoveAdditionalInfo(payload, result), result);
+        }},
         { "device.network", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetInternetConnectionStatus(result);
         }},
@@ -618,6 +621,12 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         }
 
         Core::hresult AppGatewayCommon::AddAdditionalInfo(const string &value /* @in @opaque */, string &result)
+        {
+            result = "null"; // TBA
+            return Core::ERROR_NONE;
+        }
+
+        Core::hresult AppGatewayCommon::RemoveAdditionalInfo(const string &value /* @in @opaque */, string &result)
         {
             result = "null"; // TBA
             return Core::ERROR_NONE;
