@@ -25,6 +25,7 @@
 #include <condition_variable>
 #include <cstdio>
 #include <fstream>
+#include <future>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -2273,4 +2274,186 @@ TEST(AppGatewayPluginTest, AppGateway_QueryInterface_CoversInterfaceMap)
     // QueryInterface for IPlugin covers the INTERFACE_MAP lines 55-61 in AppGateway.h
     auto* iface = plugin.QueryInterface(PluginHost::IPlugin::ID);
     EXPECT_NE(nullptr, iface);
+}
+
+// -----------------------------------------------------------------------------
+// Section: AppGatewayResponderImplementation::DispatchWsMsg regression tests
+// -----------------------------------------------------------------------------
+
+namespace {
+
+// Gated resolver fake. The call with method "block" parks inside Resolve until
+// Unblock() is called; every other method returns immediately. Tracks the
+// reference count so per-call AddRef/Release balance can be verified.
+class GatedResolverFake final : public Exchange::IAppGatewayResolver {
+public:
+    GatedResolverFake()
+        : mRefCount(1)
+        , mReleased(false)
+        , mBlockedEntries(0)
+        , mResolveCount(0)
+    {
+    }
+
+    uint32_t AddRef() const override
+    {
+        return mRefCount.fetch_add(1, std::memory_order_relaxed) + 1;
+    }
+
+    uint32_t Release() const override
+    {
+        // Stack-owned: never delete.
+        return mRefCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
+    }
+
+    void* QueryInterface(const uint32_t id) override
+    {
+        if (id == Exchange::IAppGatewayResolver::ID) {
+            AddRef();
+            return static_cast<Exchange::IAppGatewayResolver*>(this);
+        }
+        return nullptr;
+    }
+
+    Core::hresult Configure(Exchange::IAppGatewayResolver::IStringIterator* const& /*paths*/) override
+    {
+        return Core::ERROR_NONE;
+    }
+
+    Core::hresult Resolve(const Exchange::GatewayContext& /*context*/,
+                          const string& /*origin*/,
+                          const string& method,
+                          const string& /*params*/,
+                          string& result) override
+    {
+        if (method == "block") {
+            std::unique_lock<std::mutex> lock(mMutex);
+            ++mBlockedEntries;
+            mCondition.notify_all();
+            mCondition.wait(lock, [this] { return mReleased; });
+        }
+
+        mResolveCount.fetch_add(1);
+
+        if (method == "fail") {
+            result = "{\"error\":\"Forced\"}";
+            return Core::ERROR_GENERAL;
+        }
+
+        result = "null";
+        return Core::ERROR_NONE;
+    }
+
+    bool WaitUntilBlocked(const std::chrono::milliseconds timeout)
+    {
+        std::unique_lock<std::mutex> lock(mMutex);
+        return mCondition.wait_for(lock, timeout, [this] { return mBlockedEntries > 0; });
+    }
+
+    void Unblock()
+    {
+        std::unique_lock<std::mutex> lock(mMutex);
+        mReleased = true;
+        mCondition.notify_all();
+    }
+
+    uint32_t RefCount() const { return mRefCount.load(); }
+    uint32_t ResolveCount() const { return mResolveCount.load(); }
+
+private:
+    mutable std::atomic<uint32_t> mRefCount;
+    std::mutex mMutex;
+    std::condition_variable mCondition;
+    bool mReleased;
+    uint32_t mBlockedEntries;
+    std::atomic<uint32_t> mResolveCount;
+};
+
+// Installs a fake as the responder's cached resolver for one test. The guard clears
+// the pointer on scope exit so the responder's destructor never Releases a stack object.
+class ResolverInstallGuard final {
+public:
+    ResolverInstallGuard(TestAppGatewayResponderImplementation& responder, Exchange::IAppGatewayResolver* resolver)
+        : mResponder(responder)
+    {
+        mResponder.mResolver = resolver;
+    }
+
+    ~ResolverInstallGuard()
+    {
+        mResponder.mResolver = nullptr;
+    }
+
+    ResolverInstallGuard(const ResolverInstallGuard&) = delete;
+    ResolverInstallGuard& operator=(const ResolverInstallGuard&) = delete;
+
+private:
+    TestAppGatewayResponderImplementation& mResponder;
+};
+
+} // namespace
+
+// A second request must complete while the first is still parked inside Resolve.
+// Regression guard: the resolver lock must not be held across the blocking Resolve call.
+TEST(AppGatewayPluginTest, DispatchWsMsg_SecondRequestCompletesWhileFirstResolveIsBlocked)
+{
+    TestAppGatewayResponderImplementation& responder = StableAsyncResponder();
+    GatedResolverFake resolver;
+    ResolverInstallGuard install(responder, &resolver);
+
+    const uint32_t blockedConnectionId = 9101;
+    const uint32_t fastConnectionId = 9102;
+    responder.mAppIdRegistry.Add(blockedConnectionId, "test.blocked");
+    responder.mAppIdRegistry.Add(fastConnectionId, "test.fast");
+
+    std::thread blockedThread([&responder, blockedConnectionId] {
+        responder.DispatchWsMsg("block", "{}", 1, blockedConnectionId);
+    });
+
+    const bool blocked = resolver.WaitUntilBlocked(std::chrono::seconds(5));
+    EXPECT_TRUE(blocked);
+
+    bool fastCompleted = false;
+    auto fastDone = std::async(std::launch::async, [&responder, fastConnectionId] {
+        responder.DispatchWsMsg("fast", "{}", 2, fastConnectionId);
+    });
+    if (blocked) {
+        fastCompleted = (fastDone.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+    }
+
+    // Always release the gate so the blocked thread can finish, even on failure.
+    resolver.Unblock();
+    blockedThread.join();
+    fastDone.get();
+
+    EXPECT_TRUE(fastCompleted);
+    EXPECT_EQ(2u, resolver.ResolveCount());
+    EXPECT_EQ(1u, resolver.RefCount());
+
+    responder.mAppIdRegistry.Remove(blockedConnectionId);
+    responder.mAppIdRegistry.Remove(fastConnectionId);
+}
+
+// Each DispatchWsMsg call takes one resolver reference and must release it on both
+// the success path and the failure path.
+TEST(AppGatewayPluginTest, DispatchWsMsg_ReleasesPerCallResolverReference_OnSuccessAndFailure)
+{
+    TestAppGatewayResponderImplementation& responder = StableAsyncResponder();
+    GatedResolverFake resolver;
+    ResolverInstallGuard install(responder, &resolver);
+
+    const uint32_t connectionId = 9201;
+    responder.mAppIdRegistry.Add(connectionId, "test.refs");
+
+    EXPECT_EQ(1u, resolver.RefCount());
+
+    responder.DispatchWsMsg("ok", "{}", 10, connectionId);
+    EXPECT_EQ(1u, resolver.ResolveCount());
+    EXPECT_EQ(1u, resolver.RefCount());
+
+    responder.DispatchWsMsg("fail", "{}", 11, connectionId);
+    EXPECT_EQ(2u, resolver.ResolveCount());
+    EXPECT_EQ(1u, resolver.RefCount());
+
+    responder.mAppIdRegistry.Remove(connectionId);
 }
