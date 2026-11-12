@@ -368,7 +368,7 @@ namespace WPEFramework
         Core::hresult AppGatewayImplementation::InternalResolve(const Context& context, const string& method, const string& params, const string& origin, string& resolution)
         {
             Core::hresult result = FetchResolvedData(context, method, params, origin, resolution);
-            if (-1 == result) {
+            if (static_cast<uint32_t>(-1) == result) {
 LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_str());
                 return Core::ERROR_NONE;
             }
@@ -500,7 +500,7 @@ LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_
                 std::string finalParams = UpdateContext(context, method, params, origin, true);
 
                 result = requestHandler->HandleAppGatewayRequest(context, method, finalParams, resolution);
-                if (-1 == result) {
+                if (static_cast<uint32_t>(-1) == result) {
                     //Explicit return for capture the async requests
                     requestHandler->Release();
                     return result;
