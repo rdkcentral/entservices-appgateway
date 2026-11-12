@@ -651,9 +651,11 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
             }
 
             std::lock_guard<std::mutex> lock(mAdditionalInfoLock);
+            JsonObject currentInfo = mAdditionalInfo;
             const std::string key = params["key"].String();
             const char* keyLabel = key.c_str();
-            mAdditionalInfo[keyLabel] = params["value"];
+            currentInfo[keyLabel] = params["value"];
+            mAdditionalInfo = currentInfo;
             result = "null";
             return Core::ERROR_NONE;
         }
@@ -672,11 +674,13 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
             }
 
             std::lock_guard<std::mutex> lock(mAdditionalInfoLock);
+            JsonObject currentInfo = mAdditionalInfo;
             const std::string key = params["key"].String();
             const char* keyLabel = key.c_str();
-            if (mAdditionalInfo.HasLabel(keyLabel)) {
-                mAdditionalInfo.Remove(keyLabel);
+            if (currentInfo.HasLabel(keyLabel)) {
+                currentInfo.Remove(keyLabel);
             }
+            mAdditionalInfo = currentInfo;
             result = "null";
             return Core::ERROR_NONE;
         }
