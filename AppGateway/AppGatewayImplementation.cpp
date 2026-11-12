@@ -500,9 +500,10 @@ LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_
                 std::string finalParams = UpdateContext(context, method, params, origin, true);
 
                 result = requestHandler->HandleAppGatewayRequest(context, method, finalParams, resolution);
-                if (-1 == result)
+if (-1 == result)
                 {
                     //Explicit return for capture the async requests
+                    requestHandler->Release();
                     return result;
                 }
                 if (Core::ERROR_NONE != result) {
