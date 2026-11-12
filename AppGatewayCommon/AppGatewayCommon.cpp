@@ -181,6 +181,9 @@ namespace Plugin {
         { "secondscreen.friendlyname", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetSecondScreenFriendlyName(result);
         }},
+        { "localization.additionalinfo", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetAdditionalInfo(result);
+        }},
         { "localization.addadditionalinfo", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string& payload, std::string& result) {
             return ResponseUtils::SetNullResponseForSuccess(self->AddAdditionalInfo(payload, result), result);
         }},
@@ -620,15 +623,61 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
             return Core::ERROR_NONE;
         }
 
+        Core::hresult AppGatewayCommon::GetAdditionalInfo(string &result)
+        {
+            std::lock_guard<std::mutex> lock(mAdditionalInfoLock);
+            std::string additionalInfo;
+            mAdditionalInfo.ToString(additionalInfo);
+            result = additionalInfo.empty() ? "{}" : additionalInfo;
+            return Core::ERROR_NONE;
+        }
+
         Core::hresult AppGatewayCommon::AddAdditionalInfo(const string &value /* @in @opaque */, string &result)
         {
-            result = "null"; // TBA
+            JsonObject params;
+            if (!params.FromString(value)) {
+                result = "{\"error\":\"Invalid JSON payload\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            if (!params.HasLabel("key")) {
+                result = "{\"error\":\"Missing parameter: key\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            if (!params.HasLabel("value")) {
+                result = "{\"error\":\"Missing parameter: value\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            std::lock_guard<std::mutex> lock(mAdditionalInfoLock);
+            const std::string key = params["key"].String();
+            const char* keyLabel = key.c_str();
+            mAdditionalInfo[keyLabel] = params["value"];
+            result = "null";
             return Core::ERROR_NONE;
         }
 
         Core::hresult AppGatewayCommon::RemoveAdditionalInfo(const string &value /* @in @opaque */, string &result)
         {
-            result = "null"; // TBA
+            JsonObject params;
+            if (!params.FromString(value)) {
+                result = "{\"error\":\"Invalid JSON payload\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            if (!params.HasLabel("key")) {
+                result = "{\"error\":\"Missing parameter: key\"}";
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            std::lock_guard<std::mutex> lock(mAdditionalInfoLock);
+            const std::string key = params["key"].String();
+            const char* keyLabel = key.c_str();
+            if (mAdditionalInfo.HasLabel(keyLabel)) {
+                mAdditionalInfo.Remove(keyLabel);
+            }
+            result = "null";
             return Core::ERROR_NONE;
         }
 

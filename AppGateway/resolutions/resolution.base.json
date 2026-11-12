@@ -1,6 +1,14 @@
 {
     "resolutions": {
+        "Localization.additionalInfo": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
         "Localization.addAdditionalInfo": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
+        "Localization.removeAdditionalInfo": {
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
         },

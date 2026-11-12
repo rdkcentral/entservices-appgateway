@@ -143,6 +143,7 @@ namespace WPEFramework {
             Core::hresult SetTimeZone(const string timeZone /* @in */);
             Core::hresult GetSecondScreenFriendlyName(string &name /* @out */);
             Core::hresult SetName(const string &value /* @in */, string &result /* @out */);
+            Core::hresult GetAdditionalInfo(string &result /* @out */);
             Core::hresult AddAdditionalInfo(const string &value /* @in */, string &result /* @out */);
             Core::hresult RemoveAdditionalInfo(const string &value /* @in */, string &result /* @out */);
 
@@ -242,6 +243,8 @@ namespace WPEFramework {
             PluginHost::IShell* mShell;
             uint32_t mConnectionId;
             std::shared_ptr<SettingsDelegate> mDelegate;
+            std::mutex mAdditionalInfoLock;
+            JsonObject mAdditionalInfo;
 
             // Track in-flight EventRegistrationJobs so Deinitialize() can
             // wait for them before destroying the delegate.

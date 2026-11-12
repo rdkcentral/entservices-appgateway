@@ -369,7 +369,7 @@ TEST_F(AppGatewayCommonTest, AGC_L1_015_DeviceSetName_ValidPayload_NoDelegate)
     EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
 }
 
-TEST_F(AppGatewayCommonTest, AGC_L1_016_AddAdditionalInfo_RouteSuccess)
+TEST_F(AppGatewayCommonTest, AGC_L1_016_LocalizationAdditionalInfo_UpdatesStoredMap)
 {
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
@@ -380,10 +380,24 @@ TEST_F(AppGatewayCommonTest, AGC_L1_016_AddAdditionalInfo_RouteSuccess)
     const auto ctx = MakeContext();
     string result;
 
-    const auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.addadditionalinfo", "{}", result);
-
+    auto rc = plugin.HandleAppGatewayRequest(ctx, "localization.addadditionalinfo", R"({"key":"subBouquet","value":"3"})", result);
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_EQ("null", result);
+
+    result.clear();
+    rc = plugin.HandleAppGatewayRequest(ctx, "localization.additionalinfo", "", result);
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("{\"subBouquet\":\"3\"}", result);
+
+    result.clear();
+    rc = plugin.HandleAppGatewayRequest(ctx, "localization.removeadditionalinfo", R"({"key":"subBouquet"})", result);
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("null", result);
+
+    result.clear();
+    rc = plugin.HandleAppGatewayRequest(ctx, "localization.additionalinfo", "", result);
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("{}", result);
 
     plugin.Deinitialize(&service);
 }
