@@ -1245,6 +1245,68 @@ TEST_F(LifecycleDelegateTest, AGC_L1_207a_ActionsOnIntent_NotEmittedWhenIntentNo
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
+TEST_F(LifecycleDelegateTest, AGC_L1_207b_ActionsOnIntent_EmittedOnHibernationRecovery)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+
+    // Store an intent during initialization
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-001",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        "{\"action\":\"search\"}"
+    );
+
+    // Transition to ACTIVE
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-001",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+
+    // Transition to SUSPENDED
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-001",
+        Exchange::ILifecycleManager::ACTIVE,
+        Exchange::ILifecycleManager::SUSPENDED,
+        ""
+    );
+
+    // Transition to HIBERNATED
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-001",
+        Exchange::ILifecycleManager::SUSPENDED,
+        Exchange::ILifecycleManager::HIBERNATED,
+        ""
+    );
+
+    // Subscribe an emitter for Actions.onIntent
+    auto lifecycleDelegate = plugin.mDelegate->getLifecycleDelegate();
+    ASSERT_NE(lifecycleDelegate, nullptr);
+    MockEmitter* emitter = new MockEmitter();
+    heapEmitters.push_back(emitter);
+    emitter->AddRef();
+    lifecycleDelegate->AddNotification("Actions.onIntent", emitter);
+
+    EXPECT_CALL(*emitter, Emit(::testing::HasSubstr("Actions.onIntent"),
+                               ::testing::HasSubstr("\"intent\":{\"action\":\"search\"}"),
+                               ::testing::StrEq("test.app")))
+        .Times(::testing::AtLeast(1));
+
+    // Recovery from hibernation: HIBERNATED -> SUSPENDED
+    // Even though no new intent is provided, Actions.onIntent should be emitted
+    // with the last known intent to allow the app to prepare for rendering/focus
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-001",
+        Exchange::ILifecycleManager::HIBERNATED,
+        Exchange::ILifecycleManager::SUSPENDED,
+        ""
+    );
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+}
+
 TEST_F(LifecycleDelegateTest, AGC_L1_208_LifecycleDeliveredBeforeDiscoveryNavigateTo)
 {
     ASSERT_NE(capturedNotification, nullptr);
