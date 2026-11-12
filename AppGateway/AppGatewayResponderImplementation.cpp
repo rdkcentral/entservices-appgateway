@@ -105,28 +105,22 @@ namespace WPEFramework
             mWsManager.SetDisconnectHandler(nullptr);
             // Note: WebSocketConnectionManager destructor will handle channel cleanup
             
-            Exchange::IAppGatewayResolver* resolver = nullptr;
+            if (nullptr != mService)
             {
-                Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
-                resolver = mResolver;
-                mResolver = nullptr;
+                mService->Release();
+                mService = nullptr;
             }
 
-            if (nullptr != resolver)
+            if (nullptr != mResolver)
             {
-                resolver->Release();
+                mResolver->Release();
+                mResolver = nullptr;
             }
 
             if (nullptr != mAuthenticator)
             {
                 mAuthenticator->Release();
                 mAuthenticator = nullptr;
-            }
-
-            if (nullptr != mService)
-            {
-                mService->Release();
-                mService = nullptr;
             }
 
         }
@@ -342,6 +336,7 @@ namespace WPEFramework
                                                      const uint32_t requestId,
                                                      const uint32_t connectionId)
         {
+            Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
             std::string resolution;
             string appId;
 
@@ -390,20 +385,20 @@ namespace WPEFramework
                     }
                 }
 
-                Exchange::IAppGatewayResolver* resolver = AcquireResolver();
-                if (nullptr == resolver) {
-                    LOGERR("Resolver acquire failed, cannot process request: %s", method.c_str());
-                    // Track failed call and specific API error
-                    AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
-                    AppGatewayTelemetry::getInstance().RecordApiError(context, method);
-                    return;
+                if (nullptr == mResolver) {
+                    mResolver = mService->QueryInterface<Exchange::IAppGatewayResolver>();
+                    if (nullptr == mResolver) {
+                        LOGERR("Resolver interface not available");
+                        // Track failed call
+                        AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
+                        AppGatewayTelemetry::getInstance().RecordApiError(context, method);
+                        return;
+                    } else {
+                        LOGINFO("Resolver interface acquired");
+                    }
                 }
 
-                const Core::hresult resolveResult = resolver->Resolve(
-                    context, APP_GATEWAY_CALLSIGN, method, params, resolution);
-                resolver->Release();
-
-                if (Core::ERROR_NONE != resolveResult) {
+                if (Core::ERROR_NONE != mResolver->Resolve(context, APP_GATEWAY_CALLSIGN, method, params, resolution)) {
                     LOGERR("Resolver Failure");
                     // Track failed call and specific API error
                     AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
@@ -419,22 +414,6 @@ namespace WPEFramework
                 // Track failed call due to missing appId
                 AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
             }
-        }
-
-        Exchange::IAppGatewayResolver* AppGatewayResponderImplementation::AcquireResolver() {
-            Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
-            if (nullptr == mResolver) {
-                if (nullptr != mService) {
-                    mResolver = mService->QueryInterface<Exchange::IAppGatewayResolver>();
-                }
-                if (nullptr != mResolver) {
-                    LOGINFO("Resolver interface acquired");
-                }
-            }
-            if (nullptr != mResolver) {
-                mResolver->AddRef();
-            }
-            return mResolver;
         }
 
         void AppGatewayResponderImplementation::ReturnMessageInSocket(const uint32_t connectionId, 
