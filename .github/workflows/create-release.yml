@@ -1,0 +1,171 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "New tag name"
+        required: true
+        type: string
+
+      target_branch:
+        description: "Target branch for the release"
+        required: true
+        type: string
+
+      release_title:
+        description: "Release title"
+        required: true
+        type: string
+
+      release_label:
+        description: "Release label"
+        required: true
+        type: choice
+        options:
+          - pre-release
+          - latest
+          - none
+        default: pre-release
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: comcast-ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate target branch
+        env:
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+        run: |
+          echo "Checking target branch: $TARGET_BRANCH"
+
+          if ! git ls-remote --exit-code --heads origin \
+            "refs/heads/$TARGET_BRANCH" >/dev/null 2>&1; then
+            echo "ERROR: Target branch '$TARGET_BRANCH' does not exist."
+            exit 1
+          fi
+
+          echo "Target branch '$TARGET_BRANCH' exists."
+
+      - name: Validate new tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          echo "Checking tag: $TAG"
+
+          git fetch origin --tags
+
+          if git ls-remote --exit-code --tags origin \
+            "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "ERROR: Tag '$TAG' already exists."
+            exit 1
+          fi
+
+          echo "Tag '$TAG' is new."
+
+      - name: Get target commit
+        env:
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+        run: |
+          git fetch origin \
+            "refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH"
+
+          TARGET_COMMIT=$(git rev-parse "origin/$TARGET_BRANCH")
+
+          echo "TARGET_COMMIT=$TARGET_COMMIT" >> "$GITHUB_ENV"
+
+          echo "Target branch: $TARGET_BRANCH"
+          echo "Target commit: $TARGET_COMMIT"
+
+      - name: Display release details
+        env:
+          TAG: ${{ inputs.tag }}
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+          RELEASE_TITLE: ${{ inputs.release_title }}
+          RELEASE_LABEL: ${{ inputs.release_label }}
+        run: |
+          echo "======================================"
+          echo "Release Details"
+          echo "======================================"
+          echo "Repository    : $GITHUB_REPOSITORY"
+          echo "Tag           : $TAG"
+          echo "Target Branch : $TARGET_BRANCH"
+          echo "Target Commit : $TARGET_COMMIT"
+          echo "Release Title : $RELEASE_TITLE"
+          echo "Release Label : $RELEASE_LABEL"
+          echo "======================================"
+
+      - name: Check GitHub CLI
+        run: |
+          gh --version
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+          RELEASE_TITLE: ${{ inputs.release_title }}
+          RELEASE_LABEL: ${{ inputs.release_label }}
+        run: |
+          echo "Creating GitHub release..."
+
+          if [ "$RELEASE_LABEL" = "pre-release" ]; then
+            gh release create "$TAG" \
+              --target "$TARGET_BRANCH" \
+              --title "$RELEASE_TITLE" \
+              --generate-notes \
+              --prerelease
+
+          elif [ "$RELEASE_LABEL" = "latest" ]; then
+            gh release create "$TAG" \
+              --target "$TARGET_BRANCH" \
+              --title "$RELEASE_TITLE" \
+              --generate-notes \
+              --latest
+
+          else
+            gh release create "$TAG" \
+              --target "$TARGET_BRANCH" \
+              --title "$RELEASE_TITLE" \
+              --generate-notes \
+              --latest=false
+          fi
+
+      - name: Verify release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          echo "Verifying release..."
+
+          gh release view "$TAG" \
+            --json tagName,name,isPrerelease,isDraft,targetCommitish,url
+
+      - name: Release summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+          RELEASE_TITLE: ${{ inputs.release_title }}
+          RELEASE_LABEL: ${{ inputs.release_label }}
+        run: |
+          RELEASE_URL=$(gh release view "$TAG" --json url --jq '.url')
+
+          echo "### GitHub Release Created Successfully" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Repository: \`$GITHUB_REPOSITORY\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tag: \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Target Branch: \`$TARGET_BRANCH\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Target Commit: \`$TARGET_COMMIT\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release Title: \`$RELEASE_TITLE\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release Label: \`$RELEASE_LABEL\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release URL: $RELEASE_URL" >> "$GITHUB_STEP_SUMMARY"
