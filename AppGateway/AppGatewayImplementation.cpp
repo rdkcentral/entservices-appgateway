@@ -18,8 +18,7 @@
  **/
 
 #include <string>
-#include <plugins/JSONRPC.h>
-#include <plugins/IShell.h>
+#include <plugins/plugins.h>
 #include "AppGatewayImplementation.h"
 #include "AppGatewayTelemetry.h"
 #include "UtilsLogging.h"
