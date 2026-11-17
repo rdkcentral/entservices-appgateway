@@ -33,6 +33,9 @@
 #include "StringUtils.h"
 
 #define DEFAULT_CONFIG_PATH "/etc/app-gateway/resolution.base.json"
+
+// Telemetry client definition for job timing macros
+AGW_DEFINE_TELEMETRY_CLIENT(AGW_PLUGIN_APPGATEWAY)
 #define RESOLUTIONS_PATH_CFG "/etc/app-gateway/resolutions.json"
 
 // Build and vendor config paths are defined via CMake
@@ -365,6 +368,10 @@ namespace WPEFramework
         Core::hresult AppGatewayImplementation::InternalResolve(const Context& context, const string& method, const string& params, const string& origin, string& resolution)
         {
             Core::hresult result = FetchResolvedData(context, method, params, origin, resolution);
+            if (static_cast<uint32_t>(-1) == result) {
+LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_str());
+                return Core::ERROR_NONE;
+            }
             if (!resolution.empty()) {
                 LOGTRACE("Final resolution: %s", resolution.c_str());
                 Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context, resolution, origin));
@@ -492,7 +499,13 @@ namespace WPEFramework
             if (requestHandler != nullptr) {
                 std::string finalParams = UpdateContext(context, method, params, origin, true);
 
-                if (Core::ERROR_NONE != requestHandler->HandleAppGatewayRequest(context, method, finalParams, resolution)) {
+                result = requestHandler->HandleAppGatewayRequest(context, method, finalParams, resolution);
+                if (static_cast<uint32_t>(-1) == result) {
+                    //Explicit return for capture the async requests
+                    requestHandler->Release();
+                    return result;
+                }
+                if (Core::ERROR_NONE != result) {
                     LOGERR("HandleAppGatewayRequest failed for callsign: %s", alias.c_str());
                     
                     // Record API error for telemetry
@@ -501,8 +514,6 @@ namespace WPEFramework
                     if (resolution.empty()){
                         ErrorUtils::CustomInternal("HandleAppGatewayRequest failed", resolution);
                     }
-                } else {
-                    result = Core::ERROR_NONE;
                 }
                 requestHandler->Release();
             } else {
@@ -556,6 +567,8 @@ namespace WPEFramework
 
         void AppGatewayImplementation::EventHookJob::Dispatch()
         {
+            AGW_TIME_JOB(timer, "EventHookJob[" + mHookMethod + "]",
+                mContext.requestId, mContext.connectionId, mContext.appId);
             LOGINFO("EventHookJob: triggering hook method=%s for appId=%s",
                      mHookMethod.c_str(), mContext.appId.c_str());
             std::string resolution;

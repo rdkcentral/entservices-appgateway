@@ -77,6 +77,17 @@ extern uint32_t Test_AppGatewayResponderImplementation_GetGatewayConnectionConte
 extern uint32_t Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps();
 extern uint32_t Test_AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash();
 
+// Hibernation / traffic-gate coverage tests (RDKEMW-19304)
+extern uint32_t Test_Responder_QueryInterface_SessionGuard();
+extern uint32_t Test_Responder_SuspendTraffic_And_ResumeTraffic_ReturnNone();
+extern uint32_t Test_Responder_Respond_DropsWhilePaused_ResumesAfterResume();
+extern uint32_t Test_Responder_Emit_DropsWhilePaused_ResumesAfterResume();
+extern uint32_t Test_Responder_Request_ReturnsNone_WhilePaused();
+extern uint32_t Test_Responder_SuspendResume_MultipleApps_Independent();
+extern uint32_t Test_Responder_SessionGuard_Via_Interface_Pointer();
+extern uint32_t Test_Responder_HibernatedEventBypass_PassesWhilePaused();
+extern uint32_t Test_Responder_HibernatedEvent_JSONArrayParsing();
+
 // AppGatewayTelemetry coverage tests
 extern uint32_t Test_Telemetry_SettersAndConfig();
 extern uint32_t Test_Telemetry_HealthStatCounters_And_RecordResponse();
@@ -111,6 +122,9 @@ extern uint32_t Test_AppGatewayImplementation_Resolve_NotConfigured();
 extern uint32_t Test_AppGatewayImplementation_RegionalConfig();
 
 // Direct-access coverage tests (use #define private public to reach private Send* and FlushJob methods)
+extern uint32_t Test_Telemetry_JobTimingThresholds_Defaults();
+extern uint32_t Test_Telemetry_JobTimingThresholds_Configured();
+extern uint32_t Test_Telemetry_JobTimingThresholds_InvalidConfig();
 extern uint32_t Test_Telemetry_DirectAccess_AlreadyInitialized();
 extern uint32_t Test_Telemetry_DirectAccess_SendHealthStats_Empty();
 extern uint32_t Test_Telemetry_DirectAccess_SendHealthStats_WithData();
@@ -495,6 +509,17 @@ int main()
         { "AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps", Test_AppGatewayResponderImplementation_RecordGatewayConnectionContext_DebugOps },
         { "AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash", Test_AppGatewayResponderImplementation_Configure_And_Public_Methods_NoCrash },
 
+        // Hibernation / traffic-gate coverage tests (RDKEMW-19304)
+        { "Responder_QueryInterface_SessionGuard", Test_Responder_QueryInterface_SessionGuard },
+        { "Responder_SuspendTraffic_And_ResumeTraffic_ReturnNone", Test_Responder_SuspendTraffic_And_ResumeTraffic_ReturnNone },
+        { "Responder_Respond_DropsWhilePaused_ResumesAfterResume", Test_Responder_Respond_DropsWhilePaused_ResumesAfterResume },
+        { "Responder_Emit_DropsWhilePaused_ResumesAfterResume", Test_Responder_Emit_DropsWhilePaused_ResumesAfterResume },
+        { "Responder_Request_ReturnsNone_WhilePaused", Test_Responder_Request_ReturnsNone_WhilePaused },
+        { "Responder_SuspendResume_MultipleApps_Independent", Test_Responder_SuspendResume_MultipleApps_Independent },
+        { "Responder_SessionGuard_Via_Interface_Pointer", Test_Responder_SessionGuard_Via_Interface_Pointer },
+        { "Responder_HibernatedEventBypass_PassesWhilePaused", Test_Responder_HibernatedEventBypass_PassesWhilePaused },
+        { "Responder_HibernatedEvent_JSONArrayParsing", Test_Responder_HibernatedEvent_JSONArrayParsing },
+
         // AppGatewayTelemetry coverage tests
         { "Telemetry_SettersAndConfig", Test_Telemetry_SettersAndConfig },
         { "Telemetry_HealthStatCounters_And_RecordResponse", Test_Telemetry_HealthStatCounters_And_RecordResponse },
@@ -529,6 +554,9 @@ int main()
         { "AppGatewayImplementation_RegionalConfig", Test_AppGatewayImplementation_RegionalConfig },
 
         // Direct-access coverage tests (private Send* and FlushJob methods)
+        { "Telemetry_JobTimingThresholds_Defaults", Test_Telemetry_JobTimingThresholds_Defaults },
+        { "Telemetry_JobTimingThresholds_Configured", Test_Telemetry_JobTimingThresholds_Configured },
+        { "Telemetry_JobTimingThresholds_InvalidConfig", Test_Telemetry_JobTimingThresholds_InvalidConfig },
         { "Telemetry_DirectAccess_AlreadyInitialized", Test_Telemetry_DirectAccess_AlreadyInitialized },
         { "Telemetry_DirectAccess_SendHealthStats_Empty", Test_Telemetry_DirectAccess_SendHealthStats_Empty },
         { "Telemetry_DirectAccess_SendHealthStats_WithData", Test_Telemetry_DirectAccess_SendHealthStats_WithData },

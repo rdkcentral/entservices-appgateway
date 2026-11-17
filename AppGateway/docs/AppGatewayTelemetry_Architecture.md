@@ -161,6 +161,21 @@ The core telemetry aggregator class that serves as the central hub for all telem
 |-----------|---------|-------------|
 | `TELEMETRY_DEFAULT_REPORTING_INTERVAL_SEC` | 3600 (1 hour) | Interval between telemetry reports |
 | `TELEMETRY_DEFAULT_CACHE_THRESHOLD` | 1000 | Max records before forced flush |
+| `queueWaitThresholdMs` | 250 ms | Worker-pool queue wait above which JobTiming emits a warning |
+| `totalThresholdMs` | 1000 ms | Total worker-pool latency above which JobTiming emits a warning |
+
+The JobTiming thresholds belong to the `org.rdk.AppGateway` plugin configuration because `AppGatewayTelemetry` is aggregated by AppGateway rather than activated as a separate plugin:
+
+```json
+{
+  "configuration": {
+    "queueWaitThresholdMs": 250.0,
+    "totalThresholdMs": 1000.0
+  }
+}
+```
+
+AppGateway passes the contents of `configuration` through `IShell::ConfigLine()`. Each threshold is optional. A missing threshold uses its predefined default independently of the other threshold. A negative value is rejected and uses that threshold's default. Malformed configuration JSON uses both defaults. A JobTiming warning is logged when `queue_wait_ms` is greater than `queueWaitThresholdMs` or `total_ms` is greater than `totalThresholdMs`; equality does not trigger a warning.
 
 ## Thread Safety
 

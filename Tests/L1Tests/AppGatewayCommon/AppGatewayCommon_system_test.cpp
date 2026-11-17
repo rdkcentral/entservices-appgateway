@@ -128,9 +128,25 @@ public:
 
     Core::hresult GetDeviceInfo(IStringIterator* const& params, DeviceInfo& deviceInfo /* @out */) override
     {
-        (void)params;
+        JsonArray deviceInfoParams;
+        if (nullptr != params) {
+            string requestedKey;
+            while (params->Next(requestedKey)) {
+                deviceInfoParams.Add(requestedKey);
+            }
+        }
+        if (deviceInfoParams.Length() == 0) {
+            deviceInfoParams.Add(_T("make"));
+        }
+
+        Core::JSON::VariantContainer requestParams;
+        requestParams[_T("params")] = std::move(deviceInfoParams);
+
+        std::string paramsJson;
+        requestParams.ToString(paramsJson);
+
         Core::JSON::VariantContainer response;
-        const auto rc = ParseResponse("getDeviceInfo", "{}", response);
+        const auto rc = ParseResponse("getDeviceInfo", paramsJson, response);
         if (rc != Core::ERROR_NONE) {
             return rc;
         }
@@ -407,7 +423,9 @@ Core::Sink<MockJSONRPC::MockLocalDispatcher>* SystemDelegateTest::sHdcpDisp = nu
 
 TEST_F(SystemDelegateTest, AGC_L1_090_GetDeviceMake_Success)
 {
-    systemDispatcher.SetHandler("getDeviceInfo", [](const std::string&, const std::string&, std::string& resp) {
+    systemDispatcher.SetHandler("getDeviceInfo", [](const std::string&, const std::string& params, std::string& resp) {
+        EXPECT_NE(params.find("\"params\""), std::string::npos);
+        EXPECT_NE(params.find("\"make\""), std::string::npos);
         resp = R"({"make":"Arris"})";
         return Core::ERROR_NONE;
     });

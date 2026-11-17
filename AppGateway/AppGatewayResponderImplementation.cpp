@@ -26,16 +26,55 @@
 #include "UtilsConnections.h"
 #include "UtilsCallsign.h"
 #include <interfaces/IAppNotifications.h>
+#include <core/JSON.h>
 
 // App Gateway is only available via local connections,
 // so we can use a simple in-memory registry to track connection IDs and their associated app IDs.
 #define APPGATEWAY_SOCKET_ADDRESS "127.0.0.1:3473"
+
 #define DEFAULT_CONFIG_PATH "/etc/app-gateway/resolution.base.json"
 
 namespace WPEFramework
 {
     namespace Plugin
     {
+        // Lifecycle state string constants
+        // These must match the output of LifecycleStateToString() in AppGatewayCommon/delegate/LifecycleDelegate.h
+        namespace LifecycleStateStrings {
+            constexpr const char* ON_STATE_CHANGED = "Lifecycle2.onStateChanged";
+            constexpr const char* NEW_STATE_FIELD = "newState";
+            constexpr const char* HIBERNATED = "hibernated";
+        }
+
+        // Helper function to check if an event is a HIBERNATED lifecycle transition.
+        // This is used to bypass the paused-state check for HIBERNATED state-change events
+        // so they are delivered even when queued after SuspendTraffic() completes.
+        static bool IsHibernatedLifecycleEvent(const string& method, const string& payload) {
+            if (LifecycleStateStrings::ON_STATE_CHANGED != method) {
+                return false;
+            }
+
+            // Parse the JSON payload as an array (GetLifecycle2StateJson produces an array)
+            // Format: [{"oldState":"...","newState":"..."}]
+            JsonArray jsonArray;
+            if (!jsonArray.FromString(payload)) {
+                return false;
+            }
+
+            // Get the first (and only) object from the array
+            if (jsonArray.Length() == 0) {
+                return false;
+            }
+
+            JsonObject json = jsonArray[0].Object();
+            Core::JSON::Variant newState = json.Get(LifecycleStateStrings::NEW_STATE_FIELD);
+            string newStateStr = newState.String();
+
+            // Compare against the canonical string representation of HIBERNATED state
+            // This matches the output of LifecycleStateToString(Exchange::ILifecycleManager::HIBERNATED)
+            return (LifecycleStateStrings::HIBERNATED == newStateStr);
+        }
+
         SERVICE_REGISTRATION(AppGatewayResponderImplementation, 1, 0, 0);
 
         AppGatewayResponderImplementation::AppGatewayResponderImplementation()
@@ -66,22 +105,28 @@ namespace WPEFramework
             mWsManager.SetDisconnectHandler(nullptr);
             // Note: WebSocketConnectionManager destructor will handle channel cleanup
             
-            if (nullptr != mService)
+            Exchange::IAppGatewayResolver* resolver = nullptr;
             {
-                mService->Release();
-                mService = nullptr;
+                Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
+                resolver = mResolver;
+                mResolver = nullptr;
             }
 
-            if (nullptr != mResolver)
+            if (nullptr != resolver)
             {
-                mResolver->Release();
-                mResolver = nullptr;
+                resolver->Release();
             }
 
             if (nullptr != mAuthenticator)
             {
                 mAuthenticator->Release();
                 mAuthenticator = nullptr;
+            }
+
+            if (nullptr != mService)
+            {
+                mService->Release();
+                mService = nullptr;
             }
 
         }
@@ -230,12 +275,26 @@ namespace WPEFramework
 
         Core::hresult AppGatewayResponderImplementation::Respond(const Context& context, const string& payload)
         {
+            if (mPausedAppsRegistry.IsPaused(context.appId)) {
+                LOGDBG("Respond: dropping outgoing response for hibernated appId=%s", context.appId.c_str());
+                return Core::ERROR_NONE;
+            }
             Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context.connectionId, context.requestId, payload));
             return Core::ERROR_NONE;
         }
 
-        Core::hresult AppGatewayResponderImplementation::Emit(const Context& context /* @in */, 
+        Core::hresult AppGatewayResponderImplementation::Emit(const Context& context /* @in */,
                 const string& method /* @in */, const string& payload /* @in @opaque */) {
+            // Bypass the paused-state check for the HIBERNATED lifecycle transition event.
+            // This ensures the event passes through the entry-point gate even when queued
+            // after SuspendTraffic() completes. The wrapper also has this bypass to handle
+            // the socket-write boundary check.
+            const bool isHibernatedTransition = IsHibernatedLifecycleEvent(method, payload);
+
+            if (!isHibernatedTransition && mPausedAppsRegistry.IsPaused(context.appId)) {
+                LOGDBG("Emit: dropping outgoing notification for hibernated appId=%s", context.appId.c_str());
+                return Core::ERROR_NONE;
+            }
             // check if the connection is compliant with JSON RPC
             if (mCompliantJsonRpcRegistry.IsCompliantJsonRpc(context.connectionId)) {
                 Core::IWorkerPool::Instance().Submit(EmitJob::Create(this, context.connectionId, method, payload));
@@ -248,6 +307,11 @@ namespace WPEFramework
 
         Core::hresult AppGatewayResponderImplementation::Request(const uint32_t connectionId /* @in */, 
                 const uint32_t id /* @in */, const string& method /* @in */, const string& params /* @in @opaque */) {
+            string appId;
+            if (mAppIdRegistry.Get(connectionId, appId) && mPausedAppsRegistry.IsPaused(appId)) {
+                LOGDBG("Request: dropping outgoing request for hibernated appId=%s", appId.c_str());
+                return Core::ERROR_NONE;
+            }
             Core::IWorkerPool::Instance().Submit(RequestJob::Create(this, connectionId, id, method, params));
             return Core::ERROR_NONE;
         }
@@ -278,7 +342,6 @@ namespace WPEFramework
                                                      const uint32_t requestId,
                                                      const uint32_t connectionId)
         {
-            Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
             std::string resolution;
             string appId;
 
@@ -305,6 +368,11 @@ namespace WPEFramework
 
             if (hasAppId) {
 
+                if (mPausedAppsRegistry.IsPaused(appId)) {
+                    LOGDBG("DispatchWsMsg: dropping incoming message for hibernated appId=%s", appId.c_str());
+                    return;
+                }
+
                 if (mEnhancedLoggingEnabled || !mDebugDisabledConnectionsRegistry.IsDebugDisabled(connectionId)) {
                     if (mEnhancedLoggingEnabled) {
                         LOGDBG("%s-->[[a-%d-%d]] method=%s, params=%s",
@@ -322,20 +390,20 @@ namespace WPEFramework
                     }
                 }
 
-                if (nullptr == mResolver) {
-                    mResolver = mService->QueryInterface<Exchange::IAppGatewayResolver>();
-                    if (nullptr == mResolver) {
-                        LOGERR("Resolver interface not available");
-                        // Track failed call
-                        AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
-                        AppGatewayTelemetry::getInstance().RecordApiError(context, method);
-                        return;
-                    } else {
-                        LOGINFO("Resolver interface acquired");
-                    }
+                Exchange::IAppGatewayResolver* resolver = AcquireResolver();
+                if (nullptr == resolver) {
+                    LOGERR("Resolver acquire failed, cannot process request: %s", method.c_str());
+                    // Track failed call and specific API error
+                    AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
+                    AppGatewayTelemetry::getInstance().RecordApiError(context, method);
+                    return;
                 }
 
-                if (Core::ERROR_NONE != mResolver->Resolve(context, APP_GATEWAY_CALLSIGN, method, params, resolution)) {
+                const Core::hresult resolveResult = resolver->Resolve(
+                    context, APP_GATEWAY_CALLSIGN, method, params, resolution);
+                resolver->Release();
+
+                if (Core::ERROR_NONE != resolveResult) {
                     LOGERR("Resolver Failure");
                     // Track failed call and specific API error
                     AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
@@ -351,6 +419,22 @@ namespace WPEFramework
                 // Track failed call due to missing appId
                 AppGatewayTelemetry::getInstance().IncrementFailedCalls(context);
             }
+        }
+
+        Exchange::IAppGatewayResolver* AppGatewayResponderImplementation::AcquireResolver() {
+            Core::SafeSyncType<Core::CriticalSection> lock(mResolverLock);
+            if (nullptr == mResolver) {
+                if (nullptr != mService) {
+                    mResolver = mService->QueryInterface<Exchange::IAppGatewayResolver>();
+                }
+                if (nullptr != mResolver) {
+                    LOGINFO("Resolver interface acquired");
+                }
+            }
+            if (nullptr != mResolver) {
+                mResolver->AddRef();
+            }
+            return mResolver;
         }
 
         void AppGatewayResponderImplementation::ReturnMessageInSocket(const uint32_t connectionId, 
@@ -385,6 +469,58 @@ namespace WPEFramework
             
             // Send response back to client
             mWsManager.SendMessageToConnection(connectionId, payload, requestId);
+        }
+
+        bool AppGatewayResponderImplementation::DispatchResponseToConnectionIfNotPaused(
+            const uint32_t connectionId,
+            const uint32_t requestId,
+            const string& result)
+        {
+            string appId;
+            if (mAppIdRegistry.Get(connectionId, appId) &&
+                mPausedAppsRegistry.IsPaused(appId)) {
+                LOGDBG("DispatchResponseToConnectionIfNotPaused: dropping response for hibernated appId=%s", appId.c_str());
+                return false;
+            }
+            ReturnMessageInSocket(connectionId, requestId, result);
+            return true;
+        }
+
+        bool AppGatewayResponderImplementation::DispatchNotificationToConnectionIfNotPaused(
+            const uint32_t connectionId,
+            const string& designator,
+            const string& payload)
+        {
+            string appId;
+            bool isPaused = false;
+            if (mAppIdRegistry.Get(connectionId, appId)) {
+                isPaused = mPausedAppsRegistry.IsPaused(appId);
+            }
+
+            // Bypass the paused-state check for the HIBERNATED lifecycle transition event.
+            // This ensures the event reaches the WebSocket even if queued after SuspendTraffic().
+            const bool isHibernatedTransition = IsHibernatedLifecycleEvent(designator, payload);
+
+            if (!isHibernatedTransition && isPaused) {
+                LOGDBG("DispatchNotificationToConnectionIfNotPaused: dropping notification for hibernated appId=%s", appId.c_str());
+                return false;
+            }
+            return mWsManager.DispatchNotificationToConnection(connectionId, designator, payload);
+        }
+
+        bool AppGatewayResponderImplementation::SendRequestToConnectionIfNotPaused(
+            const uint32_t connectionId,
+            const string& designator,
+            const uint32_t requestId,
+            const string& params)
+        {
+            string appId;
+            if (mAppIdRegistry.Get(connectionId, appId) &&
+                mPausedAppsRegistry.IsPaused(appId)) {
+                LOGDBG("SendRequestToConnectionIfNotPaused: dropping request for hibernated appId=%s", appId.c_str());
+                return false;
+            }
+            return mWsManager.SendRequestToConnection(connectionId, designator, requestId, params);
         }
 
         Core::hresult AppGatewayResponderImplementation::Register(Exchange::IAppGatewayResponder::INotification *notification)
@@ -441,6 +577,28 @@ namespace WPEFramework
             // Notify automation server of connection status change
             mWsManager.UpdateConnection(connectionId, appId, connected);
             #endif
+        }
+
+        Core::hresult AppGatewayResponderImplementation::SuspendTraffic(const string& appId)
+        {
+            if (appId.empty()) {
+                LOGWARN("SuspendTraffic: appId is empty");
+                return Core::ERROR_BAD_REQUEST;
+            }
+            LOGINFO("SuspendTraffic: suspending traffic for appId=%s", appId.c_str());
+            mPausedAppsRegistry.Pause(appId);
+            return Core::ERROR_NONE;
+        }
+
+        Core::hresult AppGatewayResponderImplementation::ResumeTraffic(const string& appId)
+        {
+            if (appId.empty()) {
+                LOGWARN("ResumeTraffic: appId is empty");
+                return Core::ERROR_BAD_REQUEST;
+            }
+            LOGINFO("ResumeTraffic: resuming traffic for appId=%s", appId.c_str());
+            mPausedAppsRegistry.Resume(appId);
+            return Core::ERROR_NONE;
         }
 
     } // namespace Plugin
