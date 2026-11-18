@@ -51,8 +51,8 @@ Before generating mocks, complete this verification checklist:
             1. **Level 1: Direct API calls** - Identify the interface/manager being called
             2. **Level 2: Returned object usage** - When APIs return objects, trace what methods are called ON those objects
         - **Common Return-Object Patterns with Concrete Examples**:
-            - **Getter Pattern**: `Api::getHandle(...)` writes a handle that is passed to `Api::getState(handle, ...)`; mock both API calls and their output values
-            - **List/Collection Pattern**: `Api::getItems(...)` fills a collection whose elements are then used; mock the API call and provide representative items
+            - **Getter Pattern**: `Api::getObject(...)` returns an `Object`, then `object.getStatus()` is called; mock both `Api` and `Object`
+            - **List/Collection Pattern**: `Api::getItems(...)` returns a collection of `Item` objects, then `item.getStatus()` is called; mock both `Api` and `Item`
             - **Factory Pattern**: `Factory.create()` → returns `Product` → `product.operation()` is called
             - **Constructor Pattern**: `Connection(params)` → creates `Connection` object → `connection.open()` / `connection.sendTo()` is called
         - **BOTH the getter interface AND the returned object types must be mocked**
@@ -141,9 +141,7 @@ Understanding when to group multiple mock classes in one file:
 - When a main class has `Register()` methods for event listeners, include ALL related event interface mocks in the same file
 - Example: `ManagerMock.h` contains:
   - `ManagerImplMock` (main interface)
-  - `IManagerEventsImplMock` (because Host has `Register(IManagerEvents*)`)
-  - `IManagerEventsImplMock` (because Host has `Register(IManagerEvents*)`)
-  - `IManagerEventsImplMock`, `IManagerEventsImplMock`, etc. (all event interfaces Manager can register)
+  - Every distinct `I*EventsImplMock` corresponding to a `ManagerImpl::Register(...)` overload
 
 **Pattern 2: Related Helper Classes**
 - Multiple classes from the same wrapper file that work together
@@ -269,7 +267,7 @@ target_link_libraries(${PLUGIN_IMPLEMENTATION}
 - **Verify two-level dependency coverage** (see "Execution Path Tracing" section for detailed examples):
   - For each external API call, verify the API interface mock exists
   - **For each returned object type, verify the object type mock exists**
-  - Example: If code calls `object.getResult()`, verify mocks exist for BOTH: `ReturnedObjectMock` AND `RelatedObjectMock`
+  - Example: If code calls `object.getRelatedObject().getResult()`, verify mocks exist for BOTH: `ReturnedObjectMock` AND `RelatedObjectMock`
 - **Verify grouping**: If main class has `Register()` methods for events, ensure ALL event interface mocks are in the same file
 - Verify all mock methods have correct signatures matching the original interface (return types, parameters, const qualifiers)
 - Ensure proper const-correctness and override specifications
