@@ -14,7 +14,7 @@ env:
   THUNDER_TOOLS_REF: "R4_4-RDK"
   THUNDER_TOOLS_COMMIT_SHA: "d5dd83c7c19c49c7f25c558c126500bd2d64f7a4"
   THUNDER_COMMIT_SHA: "2c0fcc5529e7da734be558ca6efa05d934dcce31"
-  INTERFACES_REF: "topic/RDKEMW-20993"
+  INTERFACES_REF: "develop"
   NETWORKMANAGER_REF: "cea0da05b03de770e4ce967f0446f28885fc6219"
   AUTOMATICS_UNAME: ${{ secrets.AUTOMATICS_UNAME}}
   AUTOMATICS_PASSCODE: ${{ secrets. AUTOMATICS_PASSCODE}}
@@ -129,7 +129,7 @@ jobs:
         with:
           repository: rdkcentral/entservices-testframework
           path: entservices-testframework
-          ref: 2.0.10
+          ref: develop
 
       - name: Checkout googletest
         if: steps.cache.outputs.cache-hit != 'true'
@@ -223,7 +223,6 @@ jobs:
           &&
           mkdir -p
           headers
-          headers/rdk/ds
           headers/rdk/iarmbus
           headers/rdk/iarmmgrs-hal
           headers/systemservices
@@ -236,28 +235,6 @@ jobs:
           cd headers
           &&
           touch
-          rdk/ds/host.hpp
-          rdk/ds/videoOutputPort.hpp
-          rdk/ds/videoOutputPortType.hpp
-          rdk/ds/videoOutputPortConfig.hpp
-          rdk/ds/videoResolution.hpp
-          rdk/ds/audioOutputPort.hpp
-          rdk/ds/audioOutputPortType.hpp
-          rdk/ds/sleepMode.hpp
-          rdk/ds/frontPanelConfig.hpp
-          rdk/ds/frontPanelTextDisplay.hpp
-          rdk/ds/hdmiIn.hpp
-          rdk/ds/compositeIn.hpp
-          rdk/ds/audioOutputPortConfig.hpp
-          rdk/ds/exception.hpp
-          rdk/ds/dsError.h
-          rdk/ds/dsMgr.h
-          rdk/ds/manager.hpp
-          rdk/ds/dsTypes.h
-          rdk/ds/dsUtl.h
-          rdk/ds/audioOutputPortType.hpp
-          rdk/ds/audioOutputPortConfig.hpp
-          rdk/ds/pixelResolution.hpp
           rdk/iarmbus/libIARM.h
           rdk/iarmbus/libIBus.h
           rdk/iarmbus/libIBusDaemon.h
@@ -284,11 +261,6 @@ jobs:
           tvSettingsODM.h
           tvTypesODM.h
           tr181api.h
-          list.hpp
-          dsDisplay.h
-          rdk/ds/AudioStereoMode.hpp
-          rdk/ds/VideoDFC.hpp
-          dsRpc.h
           Dobby/DobbyProtocol.h
           Dobby/DobbyProxy.h
           Dobby/Public/Dobby/IDobbyProxy.h
@@ -360,14 +332,12 @@ jobs:
           -DPLUGIN_PERSISTENTSTORE_PATH="/tmp/secure/persistent/rdkservicestore"
           -DPLUGIN_PERSISTENTSTORE_LEGACYPATH="/tmp/persistent/rdkservicestore"
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers
-          -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/rdk/ds
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/rdk/iarmbus
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/rdk/iarmmgrs-hal
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/systemservices
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/systemservices/proc
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks
           -I $GITHUB_WORKSPACE/install/usr/include
-          -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/devicesettings.h
           -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/Iarm.h
           -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/Rfc.h
           -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/RBus.h
@@ -398,7 +368,6 @@ jobs:
           -DPLUGIN_PERSISTENTSTORE_PATH="/tmp/secure/persistent/rdkservicestore"
           -DPLUGIN_PERSISTENTSTORE_LEGACYPATH="/tmp/persistent/rdkservicestore"
           -DCOMCAST_CONFIG=OFF
-          -DCMAKE_DISABLE_FIND_PACKAGE_DS=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_IARMBus=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_Udev=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_RFC=ON
@@ -412,7 +381,6 @@ jobs:
           -DUSE_THUNDER_R4=ON
           -DPLUGIN_L2Tests=ON
           -DRDK_SERVICE_L2_TEST=ON
-          -DDS_FOUND=ON
           -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
           &&
           cmake --build build/entservices-deviceanddisplay -j8
@@ -454,7 +422,6 @@ jobs:
           -DPLUGIN_PERSISTENTSTORE_PATH="/tmp/secure/persistent/rdkservicestore"
           -DPLUGIN_PERSISTENTSTORE_LEGACYPATH="/tmp/persistent/rdkservicestore"
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers
-          -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/rdk/ds
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/rdk/iarmbus
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/rdk/iarmmgrs-hal
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/systemservices
@@ -466,7 +433,6 @@ jobs:
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/Dobby
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/Dobby/Public/Dobby
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/Dobby/IpcService
-          -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/devicesettings.h
           -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/Iarm.h
           -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/Rfc.h
           -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/RBus.h
@@ -503,7 +469,6 @@ jobs:
           -DPLUGIN_PERSISTENTSTORE_LEGACYPATH="/tmp/persistent/rdkservicestore"
           -DPLUGIN_STORAGE_MANAGER_PATH="/tmp/persistent/storageManager"
           -DCOMCAST_CONFIG=OFF
-          -DCMAKE_DISABLE_FIND_PACKAGE_DS=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_IARMBus=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_Udev=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_RFC=ON
@@ -533,7 +498,6 @@ jobs:
           -DPLUGIN_IMPLEMENTATION=WPEFrameworkAppGateway
           -DPLUGIN_APPGATEWAY_MODE=Off
           -DPLUGIN_APPGATEWAYCOMMON_MODE=Off
-          -DDS_FOUND=ON
           -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
           &&
           cmake --build build/entservices-appgateway -j6
@@ -564,7 +528,6 @@ jobs:
           -DPLUGIN_PERSISTENTSTORE_PATH="/tmp/secure/persistent/rdkservicestore"
           -DPLUGIN_PERSISTENTSTORE_LEGACYPATH="/tmp/persistent/rdkservicestore"
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers
-          -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/rdk/ds
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/rdk/iarmbus
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/rdk/iarmmgrs-hal
           -I $GITHUB_WORKSPACE/entservices-testframework/Tests/headers/systemservices
@@ -573,7 +536,6 @@ jobs:
           -I $GITHUB_WORKSPACE/entservices-appgateway/helpers
           -I $GITHUB_WORKSPACE/install/usr/include
           -I ./usr/include/libdrm
-          -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/devicesettings.h
           -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/Iarm.h
           -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/Rfc.h
           -include $GITHUB_WORKSPACE/entservices-testframework/Tests/mocks/RBus.h
@@ -600,7 +562,6 @@ jobs:
           -DPLUGIN_PERSISTENTSTORE_PATH="/tmp/secure/persistent/rdkservicestore"
           -DPLUGIN_PERSISTENTSTORE_LEGACYPATH="/tmp/persistent/rdkservicestore"
           -DCOMCAST_CONFIG=OFF
-          -DCMAKE_DISABLE_FIND_PACKAGE_DS=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_IARMBus=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_Udev=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_RFC=ON
@@ -625,7 +586,6 @@ jobs:
           -DUSE_THUNDER_R4=ON
           -DPLUGIN_L2Tests=ON
           -DRDK_SERVICE_L2_TEST=ON
-          -DDS_FOUND=ON
           -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
           &&
           cmake --build build/entservices-testframework -j8
