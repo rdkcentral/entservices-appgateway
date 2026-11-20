@@ -1,686 +1,180 @@
 # Asynchronous Job Lifecycle
 
-> **Repository:** `entservices-appgateway`
+> **Repository:** entservices-appgateway
 >
-> **Scope:** WorkerPool jobs that access plugin, delegate, event-emitter, or other owner state.
+> **Scope:** Owner-dependent Thunder WorkerPool jobs, delegate cleanup, event emitters, and shutdown boundaries.
 >
-> **Thunder changes:** None.
+> **Compatibility:** Repository-owned C++11-compatible helpers; no Thunder changes.
 
-## 1. Job helper overview
+## 1. Ownership policies implemented here
 
-### 1.1 `SharedOwnerChannel<Owner>`
+WorkerPool retains a `Core::ProxyType<Core::IDispatch>` envelope. It does not automatically retain the plugin or delegate used by that envelope.
 
-Use for delegates managed by `std::shared_ptr`. A queued envelope stores `std::weak_ptr<Owner>`, so pending work does not keep the delegate alive. At dispatch, the helper locks the weak pointer and invokes the callback only when the channel is open and the owner still exists. `Close()` is nonblocking; queued work dispatched afterward is discarded. Examples include SystemDelegate, VideoOutputDelegate, NetworkDelegate, and BaseEventDelegate notification fan-out.
+| Helper | Queued owner retention | Dispatch and release | Shutdown behavior |
+|---|---|---|---|
+| SharedOwnerChannel | Weak owner handle; shared channel state | Upgrade weak pointer; release dispatch-local shared ownership on exit | Discard if closed or expired; no drain |
+| RetainedJobQueue | AddRef during envelope construction | Invoke with retained owner; Release at envelope destruction | No helper-level close/cancellation; final destruction may be deferred |
 
-### 1.2 `IntrusiveOwnerChannel<Owner>` (app-gateway-cpc only)
+Sources: [SharedOwnerChannel](../helpers/SharedOwnerChannel.h), [RetainedJobQueue](../helpers/RetainedJobQueue.h).
 
-This helper is implemented in `app-gateway-cpc/helpers/IntrusiveOwnerChannel.h`, not in `entservices-appgateway`. It is described here as a cross-repository policy; its API is not available in this repository.
+`IntrusiveOwnerChannel` is implemented only in app-gateway-cpc. It is not an available API in this repository. Its cross-repository contract requires channel closure while a known strong owner reference still exists, before final external Release; first closure in a destructor is insufficient.
 
-In app-gateway-cpc, plugin or COM objects with `AddRef()`/`Release()` and a logical shutdown hook can use this policy. Queued work stores channel state rather than an owner reference. Dispatch upgrades the owner under the channel mutex by calling `AddRef()`; an RAII guard calls `Release()` after the callback. `Close()` detaches the owner before final release, allowing stale queued jobs to discard without blocking shutdown. LaunchDelegate in app-gateway-cpc uses this policy.
+All helpers pass `Owner&` to callbacks. Copy request/event inputs and use that supplied reference instead of capturing raw `this`. The callable signature does not itself reject unsafe captures.
 
-### 1.3 `RetainedJobQueue<Owner>`
+## 2. SharedOwnerChannel behavior
 
-Use for intrusive implementation objects that have `AddRef()`/`Release()` but no existing shutdown method that can close a weak channel safely. The queue acquires `AddRef()` at submission and releases it when the envelope is destroyed. This prevents use-after-free and does not make deinitialization wait, but queued work can defer final object destruction and is not canceled as broken-pipe work. AppGateway implementation, AppNotifications, AppActions, and comparable remote implementation jobs use this policy.
+### Submission
 
-| Helper | Owner model | Queued job retains owner? | Work after shutdown |
-|---|---|---:|---|
-| `SharedOwnerChannel` | `shared_ptr` delegate | No | Discard when closed/expired |
-| `IntrusiveOwnerChannel` (app-gateway-cpc only; unavailable here) | AddRef/Release with close hook | No | Discard when closed/detached |
-| `RetainedJobQueue` | AddRef/Release without close hook | Yes | May finish safely; destruction can be deferred |
+The helper accepts a valid `const std::shared_ptr<Owner>&` and a by-value callable. `Create()` creates without submitting; `Submit()` submits to WorkerPool. `CreateTimed()` and `SubmitTimed()` add timing metadata. Creation rejects null owner or observed closure.
 
-All callbacks receive `Owner&`; request and event data must be copied into the envelope rather than capturing raw `this`.
+Envelopes contain a shared channel-state handle, weak owner handle, and `std::function<void(Owner&)>`. Pending work does not retain the owner through that handle. Capturing an extra strong owner reference in the callable can defeat this property.
 
-## 2. Job lifecycle by helper
-
-### 2.1 SharedOwnerChannel lifecycle
-
-#### Job creation and submission
-
-1. Caller owns a `std::shared_ptr<Owner>`
-2. Caller submits work with `Submit(shared_ptr, callback)`
-3. Helper creates a `DispatchJob` envelope
-4. Envelope stores `std::weak_ptr<Owner>` (NOT `shared_ptr`)
-5. Envelope is submitted to Thunder WorkerPool
-
-**Key point:** The envelope does NOT hold a strong reference. The owner can be destroyed while the job is queued.
-
-#### Owner lifecycle while pending in queue
-
-- External owner resets its `shared_ptr`
-- Envelope still holds only `weak_ptr`
-- Owner destructor CAN run immediately
-- No blocking: shutdown does not wait for queued jobs
-
-#### Dispatch time
-
-1. WorkerPool calls `DispatchJob::Dispatch()`
-2. Check closed flag → if true, discard
-3. `weak_ptr.lock()` attempts to obtain `shared_ptr`
-   - If owner destroyed → `lock()` returns `nullptr` → discard
-   - If owner alive → `lock()` returns `shared_ptr` → proceed
-4. Invoke callback with `Owner&`
-5. `shared_ptr` released when callback completes
-
-#### Owner shutdown cases
-
-**Case A: Close before dispatch**
-- Owner calls `Close()`
-- Sets closed flag to true
-- Job dispatched later
-- Dispatch sees `closed=true` → discards without callback
-
-**Case B: Owner destroyed before dispatch**
-- External owner resets `shared_ptr`
-- Owner destructor runs
-- Job dispatched later
-- `weak_ptr.lock()` returns `nullptr` → discards
-
-**Case C: Dispatch wins race with Close**
-- Dispatch locks `weak_ptr` successfully
-- Owner calls `Close()` during callback
-- Callback continues (owner still alive via temporary `shared_ptr`)
-- Double-check after lock prevents late dispatch
-
-### 2.2 IntrusiveOwnerChannel lifecycle (app-gateway-cpc only)
-
-The following lifecycle describes the helper implemented in app-gateway-cpc. This repository does not provide this helper or its API.
-
-#### Job creation and submission
-
-1. Caller has `Owner*` (intrusive reference counting)
-2. Caller submits work with `SubmitTimed(callback)`
-3. Helper creates a `DispatchJob` envelope
-4. Envelope stores raw `Owner*` (NOT `AddRef`'d yet)
-5. Envelope is submitted to Thunder WorkerPool
-
-**Key point:** The envelope does NOT call `AddRef()` at submission. The owner can be destroyed while the job is queued.
-
-#### Owner lifecycle while pending in queue
-
-- External owner releases its reference
-- Envelope still holds only raw `Owner*`
-- Owner destructor CAN run immediately
-- No blocking: shutdown does not wait for queued jobs
-
-#### Dispatch time
-
-1. WorkerPool calls `DispatchJob::Dispatch()`
-2. Acquire mutex, check closed flag and owner pointer
-   - If closed or `owner == nullptr` → discard
-   - If valid → call `owner->AddRef()`
-3. Release mutex before callback
-4. RAII `RetainedOwner` calls `owner->Release()` on destruction
-5. Invoke callback with `Owner&`
-
-#### Owner shutdown cases
-
-**Case A: Close before dispatch**
-- Owner calls `Close()`
-- Under mutex: sets `closed=true`, `owner=nullptr`
-- Job dispatched later
-- Dispatch sees `closed=true` or `owner==nullptr` → discards
-
-**Case B: Owner destroyed before dispatch**
-- External owner releases all references
-- Owner destructor runs
-- Job dispatched later
-- Dispatch sees `owner==nullptr` → discards
-
-**Case C: Dispatch wins race with Close**
-- Dispatch acquires mutex first
-- Calls `AddRef()` successfully
-- `Close()` waits for mutex
-- Callback runs with retained reference
-- `RetainedOwner Release()` after callback
-- `Close()` can then proceed
-
-### 2.3 RetainedJobQueue lifecycle
-
-#### Job creation and submission
-
-1. Caller has `Owner*` (intrusive reference counting)
-2. Caller submits work with `SubmitTimed(owner, callback)`
-3. Helper creates a `DispatchJob` envelope
-4. Envelope calls `owner->AddRef()` IMMEDIATELY at submission
-5. Envelope is submitted to Thunder WorkerPool
-
-**Key point:** The envelope DOES call `AddRef()` at submission. The owner CANNOT be destroyed while the job is queued.
-
-#### Owner lifecycle while pending in queue
-
-- External owner releases its reference
-- Envelope still holds a retained reference (`AddRef` was called)
-- Owner destructor CANNOT run until job dispatches
-- Blocking: shutdown waits for queued jobs to complete
-
-#### Dispatch time
-
-1. WorkerPool calls `DispatchJob::Dispatch()`
-2. Check if owner pointer is non-null
-   - If `nullptr` → discard (should not happen if `AddRef` succeeded)
-   - If valid → invoke callback with `Owner&`
-3. Envelope destructor calls `owner->Release()`
-4. If this was the last reference, owner destructor runs
-
-#### Owner shutdown cases
-
-**Case A: Owner releases reference before dispatch**
-- External owner calls `Release()`
-- Envelope still holds reference from `AddRef()`
-- Owner destructor CANNOT run
-- Job dispatched later
-- Callback runs (owner is still alive)
-- Envelope `Release()` may trigger final destruction
-
-**Case B: Owner releases after dispatch**
-- Job dispatched, callback runs
-- Envelope `Release()` after callback
-- If no other references, owner destructor runs
-
-**Case C: No cancellation**
-- There is NO `Close()` method
-- There is NO closed flag
-- Jobs are NEVER discarded at dispatch time
-- All submitted jobs will run
-
-## 3. Foundation
-
-### 2.1 Thunder WorkerPool and `Core::IDispatch`
-
-Thunder's global `Core::IWorkerPool` queues a `Core::ProxyType<Core::IDispatch>` and invokes `Dispatch()` later on a worker thread.
-
-WorkerPool retains the `Core::IDispatch` job object. It does not automatically retain the plugin or delegate used by that job.
-
-| Lifetime | Managed by |
-|---|---|
-| Job object implementing `Core::IDispatch` | Thunder WorkerPool and `Core::ProxyType` |
-| Delegate/plugin accessed by `Dispatch()` | Repository ownership policy |
-
-### 2.2 Job owner
-
-The **job owner** is the object whose methods or state are used asynchronously. Examples include:
-
-- `SystemDelegate`
-- `VideoOutputDelegate`
-- `NetworkDelegate`
-- `AppGatewayCommon`
-- `AppGatewayResponderImplementation`
-
-### 2.3 Job envelope
-
-“Job envelope” is a design term for the actual `Core::IDispatch` object submitted to WorkerPool. It is not a class named `ResolveEnvelope` or `ExampleOwner`.
-
-For shared-owner jobs, the actual envelope is the private nested class:
-
-```cpp
-SharedOwnerChannel<Owner>::DispatchJob
-```
-
-It stores:
-
-- shared channel state;
-- a `weak_ptr<Owner>`;
-- copied request/event data inside the callback;
-- a typed callback receiving `Owner&`.
-
-It does not store a raw owner pointer.
-
-### 2.4 Shared ownership
-
-AppGatewayCommon domain delegates are created by `SettingsDelegate` with `make_shared`:
-
-```cpp
-systemDelegate = std::make_shared<SystemDelegate>(shell);
-videoOutputDelegate = std::make_shared<VideoOutputDelegate>(shell);
-```
-
-The correct dispatch-time lifetime operation is therefore:
-
-```cpp
-std::shared_ptr<Owner> owner = weakOwner.lock();
-```
-
-This is equivalent to Rust `Weak::upgrade()`.
-
-A queued job stores only the weak pointer. It does not prevent delegate destruction.
-
-## 3. Previous usage
-
-### 3.1 Lambda capturing raw `this`
-
-System and VideoOutput notification callbacks previously submitted zero-argument lambdas:
-
-```cpp
-PostToWorkerPool([this]() {
-    EmitOnScreenResolutionChanged();
-    EmitOnVideoResolutionChanged();
-});
-```
-
-The lambda retained only the pointer value. If SettingsDelegate destroyed the delegate before WorkerPool ran the lambda, `this` referred to a destroyed object.
-
-### 3.2 Job-specific raw parent
-
-Before migration, plugin jobs such as the former `RespondJob` used a job-specific parent pointer:
-
-```cpp
-Core::IWorkerPool::Instance().Submit(
-    RespondJob::Create(
-        this,
-        context.connectionId,
-        context.requestId,
-        payload));
-```
-
-Such jobs require a separate ownership protocol. Merely deriving the job from `Core::IDispatch` protects the job object, not `this`.
-
-### 3.3 Blocking drain
-
-Several paths added counters and condition variables:
-
-```cpp
-mJobDrainCv.wait(lock, [this] {
-    return mActiveJobs.load() == 0;
-});
-```
-
-This prevents owner destruction while jobs remain active, but shutdown now depends on WorkerPool progress and downstream service latency.
-
-### 3.4 Problems with the previous patterns
-
-- Raw `this` could be stale at dispatch.
-- Job-specific parent handling was duplicated.
-- Queued jobs could retain owners longer than needed.
-- Deinitialization could block indefinitely.
-- New jobs did not require an explicit ownership choice.
-
-## 4. New helper: `SharedOwnerChannel<Owner>`
-
-The helper is defined in `helpers/SharedOwnerChannel.h`.
-
-### 4.1 Internal parts
-
-| Part | Responsibility |
-|---|---|
-| `ChannelState` | Heap-owned state containing an atomic closed flag |
-| `DispatchJob` | Actual `Core::IDispatch` envelope |
-| `weak_ptr<Owner>` | Non-owning owner capability stored while queued |
-| `Create()` | Creates an envelope without submitting it; primarily for tests |
-| `Submit()` | Creates and submits an envelope to WorkerPool |
-| `Close()` | Closes the channel without waiting |
-| `Closed()` | Reports whether the channel is closed |
-
-### 4.2 Submission
-
-```cpp
-template <typename Work>
-bool Submit(const std::shared_ptr<Owner>& owner, Work work);
-```
-
-`Submit()` rejects when:
-
-- `owner` is null; or
-- the channel is already closed.
-
-Otherwise it creates a `DispatchJob` holding `weak_ptr<Owner>` and submits the envelope to WorkerPool.
-
-### 4.3 Dispatch
-
-`DispatchJob::Dispatch()` performs:
-
-1. Check the channel closed flag.
-2. Call `weak_ptr::lock()`.
-3. Return if the owner expired.
-4. Check the closed flag again.
-5. Invoke the callback with retained `Owner&`.
-
-```plantuml
-@startuml
-participant "Thunder WorkerPool" as Pool
-participant "DispatchJob" as Job
-participant "ChannelState" as State
-participant "shared_ptr delegate" as Owner
-
-Pool -> Job: Dispatch()
-Job -> State: check closed
-alt channel closed
-    Job --> Pool: return
-else channel open
-    Job -> Owner: weak_ptr.lock()
-    alt owner expired
-        Job --> Pool: return
-    else owner retained
-        Job -> State: check closed again
-        alt channel closed
-            Job --> Pool: return
-        else still open
-            Job -> Owner: invoke callback(Owner&)
-        end
-    end
-end
-@enduml
-```
-
-The temporary shared pointer protects the owner until callback return. No condition-variable wait is needed.
-
-## 5. SettingsDelegate cleanup and delayed dispatch
-
-This is the main lifecycle scenario.
-
-Assume `SystemDelegate` queues a resolution job, but WorkerPool does not dispatch it until after `SettingsDelegate::Cleanup()` resets the delegate.
-
-### 5.1 State at submission
-
-- `SystemDelegate` is owned by `shared_ptr`.
-- `PostToWorkerPool()` obtains a shared pointer from `shared_from_this()`.
-- `SharedOwnerChannel::Submit()` converts it to `weak_ptr<SystemDelegate>` inside the envelope.
-- The local shared pointer is released when submission returns.
-- WorkerPool owns the envelope, but the envelope does not keep SystemDelegate alive.
-
-```plantuml
-@startuml
-participant "Thunder callback" as Producer
-participant "SystemDelegate" as Delegate
-participant "SharedOwnerChannel" as Jobs
-participant "WorkerPool" as Pool
-
-Producer -> Delegate: resolutionChanged
-Delegate -> Delegate: shared_from_this()
-Delegate -> Jobs: Submit(shared owner, callback)
-Jobs -> Jobs: create DispatchJob\nstore weak_ptr only
-Jobs -> Pool: Submit(DispatchJob)
-Jobs --> Delegate: accepted
-note over Delegate,Pool
-Queued job does not retain SystemDelegate.
-end note
-@enduml
-```
-
-### 5.2 SettingsDelegate releases the delegate
-
-```cpp
-void SettingsDelegate::Cleanup()
-{
-    systemDelegate.reset();
-    videoOutputDelegate.reset();
-    // reset remaining delegates
-}
-```
-
-If no callback is already running, resetting the final shared pointer starts the delegate destructor. The destructor closes the job channel before releasing subscription resources:
-
-```cpp
-SystemDelegate::~SystemDelegate()
-{
-    mWorkerPool.Close();
-    // unsubscribe and release resources
-}
-```
-
-### 5.3 WorkerPool dispatches later
-
-The envelope still has a safe `shared_ptr<ChannelState>`, but its weak owner has expired.
+### Dispatch and closure
 
 Dispatch:
 
-1. Checks the closed state.
-2. Calls `weak_ptr::lock()` if needed.
-3. Gets an empty shared pointer.
-4. Returns without calling SystemDelegate.
-5. Does not query DisplaySettings.
-6. Does not dispatch an app event.
-7. Is eventually destroyed by WorkerPool.
+1. Checks closure.
+2. Locks weak ownership; discards if expired.
+3. Checks closure again.
+4. Invokes the callback with dispatch-local shared ownership.
+
+Close stores the atomic flag and does not wait for queued/running work. A submission racing with Close may still queue an envelope that later discards. A callback admitted by the final closure check may begin or continue after Close returns.
+
+The temporary shared pointer prevents final destruction during the callback. It does not serialize explicit Cleanup of members, stop producers, or guarantee socket/service availability.
+
+The channel has no Open operation. A reusable activation needs a new channel or another explicit generation policy. `shared_from_this()` is a way of obtaining an existing shared owner, not a replacement for already-established lifetime.
 
 ```plantuml
 @startuml
-participant "SettingsDelegate" as Settings
-participant "SystemDelegate" as Delegate
-participant "ChannelState" as State
-participant "WorkerPool" as Pool
-participant "DispatchJob" as Job
-
-Settings -> Settings: systemDelegate.reset()
-Settings -> Delegate: final shared_ptr released
-Delegate -> State: Close()
-Delegate -> Delegate: unsubscribe and destroy
-
-... WorkerPool dispatches later ...
-
-Pool -> Job: Dispatch()
-Job -> State: check closed
-State --> Job: closed
-Job --> Pool: discard without delegate access
+participant "Envelope" as Job
+participant "Owner" as Owner
+participant "Lifecycle caller" as Life
+Job -> Owner: weak_ptr.lock()
+Owner --> Job: retained shared_ptr
+Job -> Job: final closure check permits callback
+Life -> Life: close channel / drop own shared_ptr
+note over Owner: Destructor cannot run while Job retains owner.
+Job -> Owner: callback(Owner&)
+Job -> Job: release dispatch-local shared_ptr
+note over Owner: Final destruction may run now.
 @enduml
 ```
 
-This is the broken-pipe behavior: queued work arrives after shutdown and is consumed without business processing.
+## 3. SettingsDelegate and domain delegate cleanup
 
-### 5.4 Callback started before cleanup
+[SettingsDelegate](../AppGatewayCommon/delegate/SettingsDelegate.h) creates domain delegates with shared ownership. Its child-pointer initialization, getters, and registration snapshots use `mChildrenMutex`.
 
-If dispatch successfully locks the weak pointer before cleanup:
+`HandleAppEventNotifier()` takes strong snapshots under that mutex and invokes child handlers outside it. Cleanup swaps the child pointers into detached local storage under the same mutex, then destroys the detached storage outside the lock. Existing snapshots retain their children safely.
 
-- the callback owns a temporary `shared_ptr<SystemDelegate>`;
-- `SettingsDelegate::Cleanup()` resets its own pointer and returns;
-- final delegate destruction is deferred until the callback releases its temporary shared pointer;
-- the destructor and resource cleanup do not run concurrently with that callback.
+[AppGatewayCommon::Deinitialize](../AppGatewayCommon/AppGatewayCommon.cpp) sets shutdown and detaches its SettingsDelegate under `mDelegateMutex`, then performs cleanup outside the outer mutex. This avoids destroying children while holding that outer lock.
 
-```plantuml
-@startuml
-participant "WorkerPool" as Pool
-participant "DispatchJob" as Job
-participant "SystemDelegate" as Delegate
-participant "SettingsDelegate" as Settings
+Cleanup is not a global cancellation barrier. A child retained by another snapshot or callback can survive detachment; its event/worker channels are not automatically closed merely because SettingsDelegate dropped its own copies.
 
-Pool -> Job: Dispatch()
-Job -> Delegate: weak_ptr.lock()
-Delegate --> Job: retained shared_ptr
-Settings -> Settings: systemDelegate.reset()
-note over Settings
-Cleanup does not wait.
-The running job still owns the delegate.
-end note
-Job -> Delegate: invoke callback
-Job -> Job: release temporary shared_ptr
-Job -> Delegate: final destructor may run here
-@enduml
-```
+### Actual destructor ordering
 
-Unlike intrusive ownership, shared ownership naturally defers the destructor and its resources while a callback runs.
-
-## 6. Actual SystemDelegate usage
-
-### 6.1 Channel member
-
-```cpp
-SharedOwnerChannel<SystemDelegate> mWorkerPool;
-```
-
-### 6.2 Submission helper
-
-```cpp
-bool PostToWorkerPool(std::function<void(SystemDelegate&)> work)
-{
-    std::shared_ptr<SystemDelegate> owner(
-        std::dynamic_pointer_cast<SystemDelegate>(
-            shared_from_this()));
-
-    return mWorkerPool.Submit(owner, std::move(work));
-}
-```
-
-### 6.3 Resolution callback
-
-```cpp
-void OnDisplaySettingsResolutionChanged(const VariantContainer&)
-{
-    PostToWorkerPool([](SystemDelegate& owner) {
-        const bool screenEmitted =
-            owner.EmitOnScreenResolutionChanged();
-        const bool videoEmitted =
-            owner.EmitOnVideoResolutionChanged();
-    });
-}
-```
-
-The lambda captures no owner. It receives a valid owner only after dispatch-time upgrade.
-
-### 6.4 Shutdown
-
-```cpp
-SystemDelegate::~SystemDelegate()
-{
-    mWorkerPool.Close();
-    // unsubscribe from DisplaySettings and SystemServices
-    // release interfaces and links
-}
-```
-
-The same pattern is used by `VideoOutputDelegate` for resolution, HDCP, CEC, and port-change jobs.
-
-## 7. AppGateway response job
-
-`AppGatewayResponderImplementation::Respond()` submits responses through `RetainedJobQueue<AppGatewayResponderImplementation>`. The former `RespondJob` class has been removed; `"RespondJob"` remains the telemetry job name.
-
-The callback copies `connectionId`, `requestId`, and `payload`, and receives a retained `AppGatewayResponderImplementation&` without capturing `this`. The submission passes `context.appId` to the timing helper. The dispatch-time hibernation check resolves the app ID from the connection registry.
-
-| State | Result |
+| Delegate | Current worker-channel/resource order |
 |---|---|
-| Application paused at submission | Drop the response and return `Core::ERROR_NONE` without queuing work |
-| Queued response dispatched | Call `DispatchResponseToConnectionIfNotPaused()` |
-| Connection resolves to a paused application at dispatch | Drop without calling `ReturnMessageInSocket()` |
-| Dispatch-time check allows response | Call `ReturnMessageInSocket()` |
-| Logical shutdown with pending work | No helper-level cancellation or rejection gate; pending jobs retain the owner |
+| SystemDelegate | Unsubscribe/unregister producers, reset links/resources, then `_workerPool.Close()` |
+| VideoOutputDelegate | Unsubscribe producers, reset links/resources, then `_workerPool.Close()` |
+| NetworkDelegate | `mWorkerPool.Close()`, unregister notification handler, release network manager |
+| BaseEventDelegate | Close event channel, release map-owned emitter references |
 
-The helper acquires an intrusive owner reference when creating the job and releases it when the job envelope is destroyed. It has no `Close()` operation: queued responses are not canceled on logical shutdown, and pending jobs can defer final responder destruction. Owner retention alone does not guarantee socket availability or successful delivery.
+System/VideoOutput `PostToWorkerPool()` obtain derived shared ownership, catch `std::bad_weak_ptr`, and submit callbacks receiving the typed delegate. A successful dispatch upgrade defers final destruction; the catch alone does not prove raw producer entry is safe.
 
-## 8. Event subscription and notification
+Do not describe these destructors as implementing a uniform close-unregister-drain-release protocol. There is no helper job drain. Unsubscribe calls can have their own waits/timeouts.
 
-### 8.1 Registration ownership
+## 4. AppGatewayCommon registration: retained, not generation-canceled
 
-`BaseEventDelegate` stores emitter registrations under `mRegisterMutex`.
+`SubmitEventRegistration()`:
+
+1. Checks shutdown and the delegate under `mDelegateMutex`.
+2. AddRefs the emitter and wraps it with a releasing shared pointer.
+3. Submits through `RetainedJobQueue<AppGatewayCommon>`.
+4. At execution, calls `GetDelegateSafe()` and dispatches only if a current delegate is available.
+
+This retains the plugin while queued; it does not use a weak-owner registration channel. Shutdown checks prevent queued work from using a detached delegate while shutdown remains active.
+
+**Unresolved activation gap:** Initialize installs a new delegate and clears the shared shutdown flag. An old queued registration captures no generation and looks up the current delegate at dispatch. After same-instance Deinitialize/Initialize, that old job can reach the new activation. Do not claim old-generation cancellation for this path. A targeted regression test and an activation-policy fix remain follow-up work.
+
+## 5. Retained implementation jobs and responder
+
+RetainedJobQueue is used by AppGateway implementation/responder, AppActions, AppNotifications, and AppGatewayCommon registration. It centralizes submission-time AddRef and envelope-destruction Release.
+
+The caller must already guarantee owner lifetime before acquisition. Owner retention does not protect explicitly released resources, solve raw producer ingress, or distinguish activations. The helper does not drain the queue or promise every accepted job will execute; disposing an envelope without dispatch still releases its owner reference.
+
+### Responder behavior
+
+[AppGatewayResponderImplementation::Respond](../AppGateway/AppGatewayResponderImplementation.cpp) uses `RetainedJobQueue<AppGatewayResponderImplementation>`:
 
 ```cpp
-if (listen) {
-    AddNotification(event, emitter);
-} else {
-    RemoveNotification(event, emitter);
-}
+RetainedJobQueue<AppGatewayResponderImplementation>::SubmitTimed(
+    this, "RespondJob", requestId, connectionId, context.appId,
+    [connectionId, requestId, payload](AppGatewayResponderImplementation& owner) {
+        owner.DispatchResponseToConnectionIfNotPaused(connectionId, requestId, payload);
+    });
 ```
+
+| State | Behavior |
+|---|---|
+| App paused at submission | Drop response and return ERROR_NONE without queuing |
+| Envelope dispatches | Invoke dispatch-time hibernation check |
+| Connection's registered app is paused | Drop without socket response |
+| Dispatch-time check permits | Attempt ReturnMessageInSocket |
+| Logical shutdown | No helper-level close/reject/discard gate; pending jobs retain owner |
+
+The old responder RespondJob class was removed; the string `RespondJob` remains a telemetry identity. Retention does not guarantee socket availability or delivery.
+
+The local retained helper forwards `Work&&` using `std::forward`; CPC's copy still takes callable parameters by value. Both store `std::function<void(Owner&)>`, not a general move-only callable wrapper.
+
+## 6. Event dispatch and emitter ownership
+
+[BaseEventDelegate](../helpers/BaseEventDelegate.h) production Dispatch uses SharedOwnerChannel and copies event name, payload, and app ID. The public nested `EventDelegateDispatchJob` remains and strongly retains its delegate; AppGateway L1 legacy-job tests still instantiate it. It is not the normal production submission path.
+
+The event channel closes in BaseEventDelegate's destructor. AddNotification uses the registration mutex but does not check channel closure, and the class does not expose a separate public logical event-close gate.
 
 Reference rules:
 
-- `AddNotification()` takes the map-owned emitter reference.
-- `RemoveNotification()` releases the map-owned reference.
-- Dispatch snapshots emitters under the mutex.
-- Every snapshot takes a temporary AddRef.
-- Every emit attempt releases its snapshot reference.
+- A newly registered emitter gets one map-owned AddRef; duplicates do not add another map reference.
+- RemoveNotification releases map-owned references.
+- GetEmittersForNotification snapshots and AddRefs emitters under `mRegisterMutex`.
+- The normal Emit loop runs outside the map lock and releases snapshot references afterward.
+- Destructor cleanup releases remaining map-owned references.
 
-### 8.2 Resolution event flow
+The current loop has no per-emitter RAII release guard around Emit; normal-return balancing is not a general exception-safety guarantee for throwing emitters.
 
-```plantuml
-@startuml
-participant "AppNotifications emitter" as App
-participant "SystemDelegate" as Delegate
-participant "SharedOwnerChannel" as Jobs
-participant "WorkerPool" as Pool
+## 7. Timing telemetry
 
-App -> Delegate: HandleEvent(listen=true)
-Delegate -> Delegate: AddNotification()\nemitter AddRef
-App -> Delegate: resolutionChanged callback
-Delegate -> Jobs: Submit weak-owner re-query
-Jobs -> Pool: queue DispatchJob
-Pool -> Jobs: Dispatch()
-alt channel open and owner retained
-    Jobs -> Delegate: invoke callback
-    Delegate -> Delegate: re-query resolution
-    Delegate -> Delegate: Dispatch(event, payload, appId)
-    Delegate -> Delegate: snapshot emitters\nAddRef each emitter
-    Delegate -> App: Emit(event, payload, appId)
-    Delegate -> Delegate: Release snapshot emitters
-else channel closed or owner expired
-    Jobs --> Pool: discard
-end
-@enduml
-```
+Timed envelopes inherit `AppGatewayTelemetryHelper::JobTiming` and invoke `AGW_TIME_JOB` in Dispatch because the macro reads the envelope's submit time. Shared timed envelopes construct the timing scope before checking closure, so canceled business work may still have timing activity.
 
-### 8.3 Remaining EventDelegate migration
+Preserve job names and request/connection/app identifiers. System/VideoOutput re-query submissions use the untimed shared Submit path; do not invent timing identities during migration without an explicit telemetry decision.
 
-The producer job is weak-owner safe, but `BaseEventDelegate::EventDelegateDispatchJob` currently stores a strong `shared_ptr<BaseEventDelegate>`.
+## 8. Actual enforcement and reviewed boundaries
 
-The final migration must ensure:
+[EnforceAsyncJobOwnership.cmake](../cmake/EnforceAsyncJobOwnership.cmake) uses regex guardrails. [AppGatewayCommon/CMakeLists.txt](../AppGatewayCommon/CMakeLists.txt) supplies an explicit source list, not a recursive all-production scan.
 
-- event registration is rejected after event-channel closure;
-- event name, payload, and app ID are copied;
-- queued notification holds only weak delegate ownership;
-- closed or expired dispatch does not call `Emit()`;
-- running notification retains the delegate and emitter snapshot until completion.
+The checks detect:
 
-## 9. Objects with a different ownership model
+- direct `IWorkerPool::Instance().Submit` syntax, except the matched Thunder shell-job form;
+- a limited pointer member pattern named mParent/mOwner in a Job class;
+- raw-this/equals capture syntax passed specifically to PostToWorkerPool.
 
-`SharedOwnerChannel` is for `shared_ptr` owners. Do not use it for every object automatically.
+They do not prove the absence of arbitrary unsafe captures through other APIs, raw owner references, aliases, or lifecycle-ordering violations. Existing fixtures test the patterns present in the script, not every negative case listed in planning tasks. Shared Submit deletes raw owner overloads, but `std::function` compatibility does not inspect captures.
 
-| Target object | Required policy |
-|---|---|
-| Delegate managed by `shared_ptr` | `SharedOwnerChannel` |
-| Plugin/COM object with AddRef/Release | Intrusive dispatch-time upgrade |
-| Object embedded inside a retained plugin | Submit through the outer plugin owner |
-| Raw or stack object without retained outer owner | Do not reference asynchronously |
-| Value-only work | Approved detached job |
+Reviewed boundaries include Thunder-owned shell deactivation jobs, synchronously waited activation work in UtilsController, and helper internals. The allowlist descriptions are not general executable permission rules for arbitrary new patterns.
 
-## 10. Job timing telemetry
+## 9. Design status and unresolved gaps
 
-Migration must preserve existing timing instrumentation.
+- The single current [OpenSpec change](../openspec/changes/nonblocking-job-cancellation/proposal.md) consolidates specification, design, and tasks. Its spec distinguishes channel cancellation from retained-envelope ownership; activation isolation and comprehensive enforcement remain unmet target requirements.
+- IntrusiveOwnerChannel is documented as a cross-repository policy only; it is not implemented here.
+- The superseded `drain-lambda-worker-jobs` plan has been moved outside OpenSpec into workspace documentation history. Only `nonblocking-job-cancellation` remains active; historical drain tasks and requirements are not the current contract.
+- AppGatewayCommon activation isolation and broader ownership enforcement remain unresolved as described above.
+- Weak/retained ownership does not independently prove producer quiescence, resource synchronization, or absence of cycles.
+- Some source-header comments still use blocking/destructor-only terminology. The method bodies implement the contracts documented here; comments are not extra lifecycle guarantees.
 
-`AGW_TIME_JOB` requires a `JobTiming` object because it reads `this->JobSubmitTime()`. Timed framework envelopes must therefore inherit `JobTiming` and own the timing macro.
+## 10. Verification and review checklist
 
-System/VideoOutput re-query jobs did not previously carry `AGW_TIME_JOB`; do not invent a new timing identity without a deliberate telemetry decision.
+For channel work, verify normal dispatch, null/expired owner, observed-closed rejection, queued discard, both admission/closure outcomes, and admitted-owner retention. For retained work, verify null rejection, envelope-lifetime retention, balanced references, exception/early-return followed by envelope disposal, and destruction without dispatch. Test generation isolation only where the integration supplies it; do not infer it from reference counting.
 
-## 11. Self-retaining policy and reviewed exceptions
+Also verify emitter balance, business payloads, producer and resource lifetime, and timing identities. Prefer barriers or controlled dispatch over fixed sleeps. Tests of the legacy strong job are not evidence of weak production-envelope behavior.
 
-`RetainedJobQueue<Owner>` is used for intrusive implementation objects that have `AddRef()`/`Release()` but no existing logical shutdown interface. It centralizes submission-time retention and RAII release without introducing an interface change.
-
-Reviewed direct-submission exceptions are limited to:
-
-- `PluginHost::IShell::Job`, owned by Thunder for plugin deactivation;
-- `UtilsController::activatePlugin`, which synchronously waits on its local event before referenced stack values leave scope;
-- direct WorkerPool calls inside the approved job helpers.
-
-## 12. Enforcement
-
-Repository checks must reject:
-
-- direct owner-dependent WorkerPool submissions outside approved helpers or reviewed allowlist;
-- asynchronous `[this]`, implicit `[=]`, or mixed raw-owner captures unless a reviewed self-retaining implementation job balances AddRef/Release;
-- unprotected raw parent members in dispatch jobs;
-- owners without a close-before-release lifecycle path.
-
-Detached jobs require a narrow reviewed allowlist and copied data only.
-
-## 13. Tests required for a new job or event
-
-- normal dispatch;
-- submission after close;
-- queued dispatch after close;
-- expired owner;
-- close-before-upgrade;
-- upgrade-before-close;
-- running-owner retention;
-- old generation remains canceled;
-- no stale event, response, or emitter callback;
-- balanced references;
-- telemetry identity where applicable.
-
-Use barriers or controlled dispatch rather than fixed sleeps for race tests.
-
-## 14. Review checklist
-
-- What object does the job access?
-- Is it shared, intrusive, embedded, or value-only?
-- Does the selected helper match that ownership model?
-- Does the queued envelope avoid retaining the owner?
-- Are inputs copied by value?
-- Is the channel closed before resource release?
-- Are emitter references balanced?
-- Is timing telemetry preserved where applicable?
-- Are raw owner captures absent?
-- Are both close/dispatch race outcomes tested?
+For code changes, run the plugin build and applicable L0/L1 executions using the workspace Docker workflow. L1 must actually configure, compile, and execute; an unsupported/no-op build-script l1 invocation is not evidence. Record revision, exact commands, counts, and blockers separately. This documentation update does not establish a new build/test pass.

@@ -1,22 +1,23 @@
 ## Why
 
-Owner-dependent WorkerPool jobs can outlive plugin teardown, but waiting for every queued job makes deinitialization vulnerable to slow or stuck downstream calls. The repository needs a nonblocking, Rust-inspired weak-owner channel that discards pending work after closure without changing Thunder.
+Owner-dependent WorkerPool jobs can outlive plugin teardown, while draining every queued job can make shutdown depend indefinitely on WorkerPool progress or downstream calls. RDKEMW-24834 introduces explicit owner-lifetime policies without changing Thunder; this proposal records the implemented policy split and the remaining gaps rather than claiming universal cancellation.
 
 ## What Changes
 
-- Add a repository-local nonblocking job framework using closed-channel state, weak owner handles, and typed callbacks.
-- Make queued jobs behave like writes delivered after a broken pipe: dispatch observes closure or an expired owner and returns without touching plugin state.
-- Allow work that already upgraded its weak owner to finish under retained ownership without blocking the shutdown caller.
-- Migrate owner-dependent asynchronous work with an existing close-before-release lifecycle hook, including AppGatewayCommon registration/event jobs and System/VideoOutput/Network delegate jobs; retain remote implementation jobs without such a hook as narrow self-retaining exceptions.
-- Enforce approved owner policies and callback signatures through C++11 type constraints, and reject direct owner-dependent WorkerPool submissions and raw asynchronous owner captures through repository configure/static checks.
-- Preserve detached Thunder-owned jobs through narrow reviewed allowlists.
-- Add deterministic L0 and L1 coverage for closure, weak-owner expiry, queued discard, race outcomes, running-owner retention, and nonblocking teardown.
+- Use SharedOwnerChannel for shared-owned domain delegates and normal BaseEventDelegate event dispatch: pending envelopes hold weak owner handles, and dispatch retains an owner only after a successful upgrade and closure checks.
+- Allow admitted channel callbacks to finish without a helper job drain. Retaining an object does not automatically protect members explicitly cleaned during logical shutdown.
+- Use RetainedJobQueue for AppGateway implementation/responder, AppNotifications, AppActions, and AppGatewayCommon registration. These reviewed paths retain their owners from envelope construction to destruction and have no helper-level close/cancellation gate.
+- Protect SettingsDelegate child-pointer snapshots and detachment with one mutex, then release detached children outside it and outside AppGatewayCommon's outer delegate lock.
+- Preserve WebSocket/hibernation behavior, event payloads, emitter ownership, and existing timing identities.
+- Apply the existing CMake regex guardrails to their explicit source list. Broader capture/reference detection and negative coverage remain incomplete; callable compatibility is not capture safety.
+- Keep AppGatewayCommon registration activation isolation open: its jobs look up the current delegate at execution and can reach a new activation after same-instance reinitialization.
+- Preserve reviewed Thunder-owned/synchronously waited work without treating allowlist descriptions as a general ownership proof.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `async-job-cancellation`: Defines repository-wide nonblocking lifecycle and compile-time ownership rules for owner-dependent asynchronous jobs.
+- `async-job-cancellation`: Channel-based queued-work discard and dispatch-time owner retention, with the implementation limitations and retained-job exceptions recorded in the design.
 
 ### Modified Capabilities
 
@@ -24,7 +25,11 @@ None.
 
 ## Impact
 
-- Affected production areas include AppGateway, AppGatewayCommon and its delegates, AppNotifications, AppActions, shared event helpers, and their job classes.
-- Affected tests include the corresponding L0 and L1 lifecycle suites.
-- The implementation is repository-local and compatible with the pinned Thunder/WPEFramework and C++ standard; Thunder, dependency sources, Yocto metadata, and public wire APIs are unchanged.
-- The completed `drain-lambda-worker-jobs` planning change is superseded by this broader nonblocking design; its uncommitted blocking implementation must be replaced rather than layered on top.
+- Affected production areas include AppGateway, AppGatewayCommon and its delegates, AppNotifications, AppActions, shared event helpers, and their tests.
+- The helpers remain repository-local and C++11-compatible. They do not require changes to Thunder, dependencies, public wire APIs, or Yocto metadata. Separate build-support/recipe work is not part of this helper contract.
+- IntrusiveOwnerChannel is available only in app-gateway-cpc, not as an API in this repository.
+- The earlier drain-lambda-worker-jobs plan has been moved out of OpenSpec into workspace-only `async-job-lifecycle-docs/drain-lambda-worker-jobs-history/`. Its original requirements and checked tasks are historical, not another active change or a dependency of this repository.
+
+## Consolidated change status
+
+This is the single authoritative unmerged change for RDKEMW-24834 in this repository. Its [specification](specs/async-job-cancellation/spec.md), [design](design.md), and [tasks](tasks.md) consolidate the prior drain-based and nonblocking plans. Pending-work cancellation is scoped to channels; reviewed retained paths have an explicit envelope-lifetime contract. Activation isolation and comprehensive enforcement remain target requirements with open implementation/test tasks, not claims of completed behavior. The older drain artifacts are historical only. No new build/test pass is claimed by this revision.
