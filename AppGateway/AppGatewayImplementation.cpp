@@ -369,6 +369,10 @@ namespace WPEFramework
         Core::hresult AppGatewayImplementation::InternalResolve(const Context& context, const string& method, const string& params, const string& origin, string& resolution)
         {
             Core::hresult result = FetchResolvedData(context, method, params, origin, resolution);
+            if (static_cast<uint32_t>(-1) == result) {
+LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_str());
+                return Core::ERROR_NONE;
+            }
             if (!resolution.empty()) {
                 LOGTRACE("Final resolution: %s", resolution.c_str());
                 RetainedJobQueue<AppGatewayImplementation>::SubmitTimed(
@@ -504,7 +508,13 @@ namespace WPEFramework
             if (requestHandler != nullptr) {
                 std::string finalParams = UpdateContext(context, method, params, origin, true);
 
-                if (Core::ERROR_NONE != requestHandler->HandleAppGatewayRequest(context, method, finalParams, resolution)) {
+                result = requestHandler->HandleAppGatewayRequest(context, method, finalParams, resolution);
+                if (static_cast<uint32_t>(-1) == result) {
+                    //Explicit return for capture the async requests
+                    requestHandler->Release();
+                    return result;
+                }
+                if (Core::ERROR_NONE != result) {
                     LOGERR("HandleAppGatewayRequest failed for callsign: %s", alias.c_str());
                     
                     // Record API error for telemetry
@@ -513,8 +523,6 @@ namespace WPEFramework
                     if (resolution.empty()){
                         ErrorUtils::CustomInternal("HandleAppGatewayRequest failed", resolution);
                     }
-                } else {
-                    result = Core::ERROR_NONE;
                 }
                 requestHandler->Release();
             } else {
