@@ -16,6 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include "AppNotificationsImplementation.h"
+#include "RetainedJobQueue.h"
 #include "UtilsLogging.h"
 #include "StringUtils.h"
 
@@ -63,7 +64,11 @@ namespace WPEFramework
             if (listen) {
                 if (!mSubMap.Exists(event)) {
                     // Thunder subscription
-                    Core::IWorkerPool::Instance().Submit(SubscriberJob::Create(this, module, event, listen));
+                    RetainedJobQueue<AppNotificationsImplementation>::SubmitTimed(
+                        this, "SubscriberJob[sub:" + event + "]", 0, 0, "",
+                        [module, event](AppNotificationsImplementation& owner) {
+                            owner.mThunderManager.Subscribe(module, event);
+                        });
                 }
                 mSubMap.Add(event, context);
             } else {
@@ -72,7 +77,11 @@ namespace WPEFramework
                 // This can be used to measure unsubscribe
                 if (!mSubMap.Exists(event)) {
                     // Thunder unsubscription
-                    Core::IWorkerPool::Instance().Submit(SubscriberJob::Create(this, module, event, listen));
+                    RetainedJobQueue<AppNotificationsImplementation>::SubmitTimed(
+                        this, "SubscriberJob[unsub:" + event + "]", 0, 0, "",
+                        [module, event](AppNotificationsImplementation& owner) {
+                            owner.mThunderManager.Unsubscribe(module, event);
+                        });
                 }
             }
             return Core::ERROR_NONE;
@@ -83,7 +92,11 @@ namespace WPEFramework
                                     const string &appId /* @in */) {
             LOGTRACE("Emit [event= %s payload=%s appId=%s]",
                     event.c_str(), payload.c_str(), appId.c_str());
-            Core::IWorkerPool::Instance().Submit(EmitJob::Create(this, event, payload, appId));
+            RetainedJobQueue<AppNotificationsImplementation>::SubmitTimed(
+                this, "NotifEmitJob[" + event + "]", 0, 0, appId,
+                [event, payload, appId](AppNotificationsImplementation& owner) {
+                    owner.mSubMap.EventUpdate(event, payload, appId);
+                });
             return Core::ERROR_NONE;
         }
 

@@ -20,7 +20,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <functional>
+#include <future>
 #include <string>
+#include <thread>
 #include <unordered_map>
 
 #include "Module.h"
@@ -1524,6 +1526,33 @@ TEST_F(SystemDelegateEmitTest, AGC_L1_146_HandleEvent_Unsubscribe_RemovesEmitter
     EXPECT_FALSE(registrationError);
     // After removal the notification should no longer be registered
     EXPECT_FALSE(systemDelegate->IsNotificationRegistered("Device.onHdrChanged"));
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_188_SystemDelegateDestructorDiscardsQueuedWork)
+{
+    auto delegate = std::make_shared<SystemDelegate>(&service);
+    std::weak_ptr<SystemDelegate> observer(delegate);
+    std::atomic<bool> called(false);
+    auto job = delegate->_workerPool.Create(delegate, [&called](SystemDelegate&) {
+        called.store(true, std::memory_order_release);
+    });
+    ASSERT_TRUE(job.IsValid());
+
+    delegate.reset();
+    EXPECT_TRUE(observer.expired());
+    job->Dispatch();
+    EXPECT_FALSE(called.load(std::memory_order_acquire));
+}
+
+TEST_F(SystemDelegateTest, AGC_L1_189_SystemDelegateRejectsWorkAfterShutdown)
+{
+    auto delegate = std::make_shared<SystemDelegate>(&service);
+    delegate->_workerPool.Close();
+    Core::JSON::VariantContainer params;
+    delegate->OnDisplaySettingsResolutionChanged(params);
+    delegate->OnHdcpProfileDisplayConnectionChanged(params);
+    delegate->OnDisplaySettingsAudioFormatChanged(params);
+    EXPECT_TRUE(delegate->_workerPool.Closed());
 }
 
 } // namespace

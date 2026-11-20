@@ -156,78 +156,6 @@ namespace Plugin {
         // IConfiguration interface
         uint32_t Configure(PluginHost::IShell* shell);
 
-        class EXTERNAL SubscriberJob : public Core::IDispatch,
-                                       public AppGatewayTelemetryHelper::JobTiming
-        {
-            public:
-                SubscriberJob(AppNotificationsImplementation* delegate, const string& module, const string& event, const bool subscribe)
-                    : mParent(*delegate), mEvent(event), mModule(module), mSubscribe(subscribe) {}
-
-                SubscriberJob() = delete;
-                SubscriberJob(const SubscriberJob &) = delete;
-                SubscriberJob &operator=(const SubscriberJob &) = delete;
-                ~SubscriberJob()
-                {
-                }
-
-                static Core::ProxyType<Core::IDispatch> Create(AppNotificationsImplementation *parent,
-                const string& module, const string& event, const bool subscribe)
-                {
-                    return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<SubscriberJob>::Create(parent, module, event, subscribe)));
-                }
-                
-                virtual void Dispatch()
-                {
-                    AGW_TIME_JOB(timer, "SubscriberJob[" + std::string(mSubscribe?"sub":"unsub") + ":" + mEvent + "]",
-                        0, 0, "");
-                    if (mSubscribe) {
-                        mParent.mThunderManager.Subscribe(mModule, mEvent);
-                    } else {
-                        mParent.mThunderManager.Unsubscribe(mModule, mEvent);
-                    }
-                }
-
-            private:
-                AppNotificationsImplementation &mParent;
-                string mEvent;
-                string mModule;
-                bool mSubscribe;
-        };
-
-        class EXTERNAL EmitJob : public Core::IDispatch,
-                                 public AppGatewayTelemetryHelper::JobTiming
-        {
-            public:
-                EmitJob(AppNotificationsImplementation* delegate, const string& event, const string& payload, const string& appId)
-                    : mParent(*delegate), mEvent(event), mPayload(payload), mAppId(appId) {}
-
-                EmitJob() = delete;
-                EmitJob(const EmitJob &) = delete;
-                EmitJob &operator=(const EmitJob &) = delete;
-                ~EmitJob()
-                {
-                }
-
-                static Core::ProxyType<Core::IDispatch> Create(AppNotificationsImplementation *parent,
-                const string& event, const string& payload, const string& appId)
-                {
-                    return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<EmitJob>::Create(parent, event, payload, appId)));
-                }
-                
-                virtual void Dispatch()
-                {
-                    AGW_TIME_JOB(timer, "NotifEmitJob[" + mEvent + "]",
-                        0, 0, mAppId);
-                    mParent.mSubMap.EventUpdate(mEvent, mPayload, mAppId);
-                }
-
-            private:
-                AppNotificationsImplementation &mParent;
-                string mEvent;
-                string mPayload;
-                string mAppId;
-        };
-
         class Emitter: public Exchange::IAppNotificationHandler::IEmitter {
         private:
             Emitter(const Emitter&) = delete;
@@ -241,7 +169,7 @@ namespace Plugin {
             {
                 LOGINFO("Emit [event= %s payload=%s appId=%s]",
                     event.c_str(), payload.c_str(), appId.c_str());
-                Core::IWorkerPool::Instance().Submit(EmitJob::Create(&mParent, event, payload, appId));
+                mParent.Emit(event, payload, appId);
             }
 
             BEGIN_INTERFACE_MAP(Emitter)

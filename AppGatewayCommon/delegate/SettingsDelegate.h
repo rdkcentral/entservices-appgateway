@@ -30,6 +30,7 @@
 #include "VideoOutputDelegate.h"
 #include "AvOutputDelegate.h"
 #include <interfaces/IAppNotifications.h>
+#include <mutex>
 
 #define APP_NOTIFICATIONS_CALLSIGN "org.rdk.AppNotifications"
 using namespace WPEFramework;
@@ -52,12 +53,15 @@ class SettingsDelegate {
         void HandleAppEventNotifier(Exchange::IAppNotificationHandler::IEmitter *cb, const string event,
                                     const bool listen) {
             bool registrationError = false;
-            if (userSettings==nullptr || systemDelegate==nullptr || networkDelegate==nullptr || lifecycleDelegate==nullptr || ttsDelegate==nullptr || avOutputDelegate==nullptr || nullptr == videoOutputDelegate) {
-                LOGERR("Services not available");
-                return;
+            std::vector<std::shared_ptr<BaseEventDelegate>> delegates;
+            {
+                std::lock_guard<std::mutex> lock(mChildrenMutex);
+                if (!userSettings || !systemDelegate || !networkDelegate || !lifecycleDelegate || !ttsDelegate || !avOutputDelegate || !videoOutputDelegate) {
+                    LOGERR("Services not available");
+                    return;
+                }
+                delegates = {userSettings, systemDelegate, networkDelegate, lifecycleDelegate, ttsDelegate, avOutputDelegate, videoOutputDelegate};
             }
-
-            std::vector<std::shared_ptr<BaseEventDelegate>> delegates = {userSettings, systemDelegate, networkDelegate, lifecycleDelegate, ttsDelegate, avOutputDelegate, videoOutputDelegate};
             bool handled = false;
 
             for (const auto& delegate : delegates) {
@@ -83,6 +87,7 @@ class SettingsDelegate {
 
             ASSERT(shell != nullptr);
             LOGDBG("SettingsDelegate::setShell");
+            std::lock_guard<std::mutex> lock(mChildrenMutex);
 
             if (userSettings == nullptr) {
                 userSettings = std::make_shared<UserSettingsDelegate>(shell);
@@ -118,49 +123,62 @@ class SettingsDelegate {
         }
 
         void Cleanup() {
-            systemDelegate.reset();
-            userSettings.reset();
-            networkDelegate.reset();
-            lifecycleDelegate.reset();
-            appDelegate.reset();
-            ttsDelegate.reset();
-            avOutputDelegate.reset();
-            videoOutputDelegate.reset();
+            SettingsDelegate detached;
+            {
+                std::lock_guard<std::mutex> lock(mChildrenMutex);
+                systemDelegate.swap(detached.systemDelegate);
+                userSettings.swap(detached.userSettings);
+                networkDelegate.swap(detached.networkDelegate);
+                lifecycleDelegate.swap(detached.lifecycleDelegate);
+                appDelegate.swap(detached.appDelegate);
+                ttsDelegate.swap(detached.ttsDelegate);
+                avOutputDelegate.swap(detached.avOutputDelegate);
+                videoOutputDelegate.swap(detached.videoOutputDelegate);
+            }
         }
 
         std::shared_ptr<SystemDelegate> getSystemDelegate() const {
+            std::lock_guard<std::mutex> lock(mChildrenMutex);
             return systemDelegate;
         }
 
         std::shared_ptr<UserSettingsDelegate> getUserSettings() const {
+            std::lock_guard<std::mutex> lock(mChildrenMutex);
             return userSettings;
         }
 
         std::shared_ptr<NetworkDelegate> getNetworkDelegate() const {
+            std::lock_guard<std::mutex> lock(mChildrenMutex);
             return networkDelegate;
         }
 
         std::shared_ptr<LifecycleDelegate> getLifecycleDelegate() const {
+            std::lock_guard<std::mutex> lock(mChildrenMutex);
             return lifecycleDelegate;
         }
 
         std::shared_ptr<AppDelegate> getAppDelegate() const {
+            std::lock_guard<std::mutex> lock(mChildrenMutex);
             return appDelegate;
         }
 
         std::shared_ptr<AvOutputDelegate> getAvOutputDelegate() const {
+            std::lock_guard<std::mutex> lock(mChildrenMutex);
             return avOutputDelegate;
         }
 
         std::shared_ptr<VideoOutputDelegate> getVideoOutputDelegate() const {
+            std::lock_guard<std::mutex> lock(mChildrenMutex);
             return videoOutputDelegate;
         }
 
         std::shared_ptr<TTSDelegate> getTTSDelegate() const {
+            std::lock_guard<std::mutex> lock(mChildrenMutex);
             return ttsDelegate;
         }
 
     private:
+        mutable std::mutex mChildrenMutex;
         std::shared_ptr<UserSettingsDelegate> userSettings;
         std::shared_ptr<SystemDelegate> systemDelegate;
         std::shared_ptr<NetworkDelegate> networkDelegate;

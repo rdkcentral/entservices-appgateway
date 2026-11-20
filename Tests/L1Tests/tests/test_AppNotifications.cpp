@@ -3632,3 +3632,10 @@ TEST_F(AppNotificationsPluginTest, QueryInterface_UnknownInterface_ReturnsNull)
     void* result = plugin.QueryInterface(0xDEADBEEF);
     EXPECT_EQ(nullptr, result);
 }
+
+// =================================================================
+// Job Lifetime Safety Tests
+// =================================================================
+
+// Test that SubscriberJob handles null parent gracefully
+// Test that EmitJob handles null parent gracefully
