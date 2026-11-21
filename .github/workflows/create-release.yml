@@ -1,25 +1,26 @@
-name: Create Release
+name: Create Release and Update Recipe
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "New tag name"
+        description: "New release tag and recipe PV value"
         required: true
         type: string
 
       target_branch:
-        description: "Target branch for the release"
+        description: "Source branch from which the release will be created"
         required: true
         type: string
+        default: develop
 
       release_title:
-        description: "Release title"
+        description: "GitHub release title"
         required: true
         type: string
 
       release_label:
-        description: "Release label"
+        description: "GitHub release label"
         required: true
         type: choice
         options:
@@ -33,49 +34,124 @@ permissions:
 
 jobs:
   create-release:
-    name: Create GitHub Release
+    name: Create Release and Update Downstream Recipe
     runs-on: comcast-ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      # ============================================================
+      # Checkout source repository
+      # ============================================================
+
+      - name: Checkout source repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # ============================================================
+      # Identify source repository and downstream recipe
+      # ============================================================
+
+      - name: Configure repository mapping
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Workflow repository: $GITHUB_REPOSITORY"
+
+          case "$GITHUB_REPOSITORY" in
+            "rdk-e/app-gateway-cpc")
+              META_REPO="rdk-e/meta-rdk-comcast-video"
+              META_BRANCH="develop"
+              RECIPE_FILE="recipes-extended/entservices-cpc/app-gateway-cpc_git.bb"
+              COMPONENT_NAME="app-gateway-cpc"
+              ;;
+
+            "rdkcentral/entservices-appgateway")
+              META_REPO="rdkcentral/meta-rdk-video"
+              META_BRANCH="develop"
+              RECIPE_FILE="recipes-extended/entservices/entservices-appgateway.bb"
+              COMPONENT_NAME="entservices-appgateway"
+              ;;
+
+            *)
+              echo "ERROR: Unsupported source repository: $GITHUB_REPOSITORY"
+              exit 1
+              ;;
+          esac
+
+          echo "META_REPO=$META_REPO" >> "$GITHUB_ENV"
+          echo "META_BRANCH=$META_BRANCH" >> "$GITHUB_ENV"
+          echo "RECIPE_FILE=$RECIPE_FILE" >> "$GITHUB_ENV"
+          echo "COMPONENT_NAME=$COMPONENT_NAME" >> "$GITHUB_ENV"
+
+          echo "Selected downstream mapping:"
+          echo "Source repository : $GITHUB_REPOSITORY"
+          echo "Meta repository   : $META_REPO"
+          echo "Meta branch       : $META_BRANCH"
+          echo "Recipe file       : $RECIPE_FILE"
+          echo "Component         : $COMPONENT_NAME"
+
+      # ============================================================
+      # Validate source branch
+      # ============================================================
+
       - name: Validate target branch
         env:
           TARGET_BRANCH: ${{ inputs.target_branch }}
+        shell: bash
         run: |
+          set -euo pipefail
+
           echo "Checking target branch: $TARGET_BRANCH"
 
-          if ! git ls-remote --exit-code --heads origin \
+          if ! git ls-remote \
+            --exit-code \
+            --heads origin \
             "refs/heads/$TARGET_BRANCH" >/dev/null 2>&1; then
+
             echo "ERROR: Target branch '$TARGET_BRANCH' does not exist."
             exit 1
           fi
 
           echo "Target branch '$TARGET_BRANCH' exists."
 
+      # ============================================================
+      # Validate release tag
+      # ============================================================
+
       - name: Validate new tag
         env:
           TAG: ${{ inputs.tag }}
+        shell: bash
         run: |
+          set -euo pipefail
+
           echo "Checking tag: $TAG"
 
           git fetch origin --tags
 
-          if git ls-remote --exit-code --tags origin \
+          if git ls-remote \
+            --exit-code \
+            --tags origin \
             "refs/tags/$TAG" >/dev/null 2>&1; then
+
             echo "ERROR: Tag '$TAG' already exists."
             exit 1
           fi
 
-          echo "Tag '$TAG' is new."
+          echo "Tag '$TAG' is available."
+
+      # ============================================================
+      # Get target branch commit SHA
+      # ============================================================
 
       - name: Get target commit
         env:
           TARGET_BRANCH: ${{ inputs.target_branch }}
+        shell: bash
         run: |
+          set -euo pipefail
+
           git fetch origin \
             "refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH"
 
@@ -86,39 +162,60 @@ jobs:
           echo "Target branch: $TARGET_BRANCH"
           echo "Target commit: $TARGET_COMMIT"
 
+      # ============================================================
+      # Display release details
+      # ============================================================
+
       - name: Display release details
         env:
           TAG: ${{ inputs.tag }}
           TARGET_BRANCH: ${{ inputs.target_branch }}
           RELEASE_TITLE: ${{ inputs.release_title }}
           RELEASE_LABEL: ${{ inputs.release_label }}
+        shell: bash
         run: |
+          set -euo pipefail
+
           echo "======================================"
           echo "Release Details"
           echo "======================================"
-          echo "Repository    : $GITHUB_REPOSITORY"
-          echo "Tag           : $TAG"
-          echo "Target Branch : $TARGET_BRANCH"
-          echo "Target Commit : $TARGET_COMMIT"
-          echo "Release Title : $RELEASE_TITLE"
-          echo "Release Label : $RELEASE_LABEL"
+          echo "Source Repository : $GITHUB_REPOSITORY"
+          echo "Tag/PV            : $TAG"
+          echo "Target Branch     : $TARGET_BRANCH"
+          echo "Target Commit     : $TARGET_COMMIT"
+          echo "Release Title     : $RELEASE_TITLE"
+          echo "Release Label     : $RELEASE_LABEL"
+          echo "Meta Repository   : $META_REPO"
+          echo "Meta Branch       : $META_BRANCH"
+          echo "Recipe File       : $RECIPE_FILE"
           echo "======================================"
 
-      - name: Check GitHub CLI
-        run: |
-          gh --version
+      # ============================================================
+      # Check GitHub CLI
+      # ============================================================
 
-      - name: Create GitHub Release
+      - name: Check GitHub CLI
+        run: gh --version
+
+      # ============================================================
+      # Create GitHub release
+      # ============================================================
+
+      - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
           TARGET_BRANCH: ${{ inputs.target_branch }}
           RELEASE_TITLE: ${{ inputs.release_title }}
           RELEASE_LABEL: ${{ inputs.release_label }}
+        shell: bash
         run: |
-          echo "Creating GitHub release..."
+          set -euo pipefail
+
+          echo "Creating release '$TAG' from '$TARGET_BRANCH'..."
 
           if [ "$RELEASE_LABEL" = "pre-release" ]; then
+
             gh release create "$TAG" \
               --target "$TARGET_BRANCH" \
               --title "$RELEASE_TITLE" \
@@ -126,6 +223,7 @@ jobs:
               --prerelease
 
           elif [ "$RELEASE_LABEL" = "latest" ]; then
+
             gh release create "$TAG" \
               --target "$TARGET_BRANCH" \
               --title "$RELEASE_TITLE" \
@@ -133,39 +231,282 @@ jobs:
               --latest
 
           else
+
             gh release create "$TAG" \
               --target "$TARGET_BRANCH" \
               --title "$RELEASE_TITLE" \
               --generate-notes \
               --latest=false
+
           fi
+
+          echo "Release '$TAG' created successfully."
+
+      # ============================================================
+      # Verify created release
+      # ============================================================
 
       - name: Verify release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
+        shell: bash
         run: |
+          set -euo pipefail
+
           echo "Verifying release..."
 
           gh release view "$TAG" \
             --json tagName,name,isPrerelease,isDraft,targetCommitish,url
 
-      - name: Release summary
+      # ============================================================
+      # Clone correct downstream meta repository
+      # CROSS_REPO_TOKEN must have access to the downstream repo
+      # ============================================================
+
+      - name: Clone downstream meta repository
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "ERROR: CROSS_REPO_TOKEN secret is not configured."
+            exit 1
+          fi
+
+          echo "Cloning $META_REPO..."
+
+          gh repo clone "$META_REPO" meta-repo
+
+          cd meta-repo
+
+          git fetch origin "$META_BRANCH"
+          git checkout -B "$META_BRANCH" "origin/$META_BRANCH"
+
+          echo "Meta repository cloned successfully."
+
+      # ============================================================
+      # Validate and update PV/SRCREV
+      # ============================================================
+
+      - name: Update recipe PV and SRCREV
+        env:
+          TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd meta-repo
+
+          if [ ! -f "$RECIPE_FILE" ]; then
+            echo "ERROR: Recipe file does not exist:"
+            echo "$RECIPE_FILE"
+            exit 1
+          fi
+
+          echo "Current values:"
+          grep -nE '^[[:space:]]*PV[[:space:]]*=|^[[:space:]]*SRCREV[[:space:]]*=' \
+            "$RECIPE_FILE" || true
+
+          PV_COUNT=$(grep -cE '^[[:space:]]*PV[[:space:]]*=' \
+            "$RECIPE_FILE" || true)
+
+          SRCREV_COUNT=$(grep -cE '^[[:space:]]*SRCREV[[:space:]]*=' \
+            "$RECIPE_FILE" || true)
+
+          if [ "$PV_COUNT" -ne 1 ]; then
+            echo "ERROR: Expected exactly one PV assignment."
+            echo "Found: $PV_COUNT"
+            exit 1
+          fi
+
+          if [ "$SRCREV_COUNT" -ne 1 ]; then
+            echo "ERROR: Expected exactly one SRCREV assignment."
+            echo "Found: $SRCREV_COUNT"
+            exit 1
+          fi
+
+          sed -i -E \
+            's|^[[:space:]]*PV[[:space:]]*=.*$|PV = "'"$TAG"'"|' \
+            "$RECIPE_FILE"
+
+          sed -i -E \
+            's|^[[:space:]]*SRCREV[[:space:]]*=.*$|SRCREV = "'"$TARGET_COMMIT"'"|' \
+            "$RECIPE_FILE"
+
+          echo "Updated values:"
+          grep -nE '^[[:space:]]*PV[[:space:]]*=|^[[:space:]]*SRCREV[[:space:]]*=' \
+            "$RECIPE_FILE"
+
+          if ! grep -qFx "PV = \"$TAG\"" "$RECIPE_FILE"; then
+            echo "ERROR: PV update validation failed."
+            exit 1
+          fi
+
+          if ! grep -qFx "SRCREV = \"$TARGET_COMMIT\"" "$RECIPE_FILE"; then
+            echo "ERROR: SRCREV update validation failed."
+            exit 1
+          fi
+
+          echo "Recipe updated successfully."
+
+      # ============================================================
+      # Check whether recipe actually changed
+      # ============================================================
+
+      - name: Validate recipe changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd meta-repo
+
+          echo "Recipe changes:"
+          git diff -- "$RECIPE_FILE"
+
+          if git diff --quiet -- "$RECIPE_FILE"; then
+            echo "ERROR: No changes were made to $RECIPE_FILE."
+            echo "The recipe may already contain the requested PV and SRCREV."
+            exit 1
+          fi
+
+      # ============================================================
+      # Create downstream branch and commit
+      # ============================================================
+
+      - name: Commit recipe update
+        env:
+          TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd meta-repo
+
+          SAFE_TAG=$(printf '%s' "$TAG" | sed 's|[^A-Za-z0-9._-]|-|g')
+          META_PR_BRANCH="release/${COMPONENT_NAME}-${SAFE_TAG}-${GITHUB_RUN_ID}"
+
+          echo "META_PR_BRANCH=$META_PR_BRANCH" >> "$GITHUB_ENV"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$META_PR_BRANCH"
+
+          git add "$RECIPE_FILE"
+
+          git commit \
+            -m "${COMPONENT_NAME}: update to ${TAG}"
+
+          echo "Created commit:"
+          git log -1 --oneline
+
+      # ============================================================
+      # Push downstream branch
+      # ============================================================
+
+      - name: Push recipe update branch
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd meta-repo
+
+          AUTH_HEADER=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
+
+          git \
+            -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH_HEADER" \
+            push origin "$META_PR_BRANCH"
+
+          echo "Branch '$META_PR_BRANCH' pushed successfully."
+
+      # ============================================================
+      # Create downstream PR
+      # ============================================================
+
+      - name: Create downstream pull request
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          RELEASE_TITLE: ${{ inputs.release_title }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd meta-repo
+
+          PR_TITLE="${COMPONENT_NAME}: update to ${TAG}"
+
+          PR_BODY=$(cat <<EOF
+          ## Release recipe update
+
+          This PR was automatically created by the release workflow.
+
+          - Source repository: \`${GITHUB_REPOSITORY}\`
+          - Source branch: \`${{ inputs.target_branch }}\`
+          - Release tag / PV: \`${TAG}\`
+          - Source commit / SRCREV: \`${TARGET_COMMIT}\`
+          - Release title: \`${RELEASE_TITLE}\`
+          - Recipe file: \`${RECIPE_FILE}\`
+
+          ## Recipe changes
+
+          \`\`\`bitbake
+          PV = "${TAG}"
+          SRCREV = "${TARGET_COMMIT}"
+          \`\`\`
+
+          Workflow run:
+          ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          EOF
+          )
+
+          PR_URL=$(gh pr create \
+            --repo "$META_REPO" \
+            --base "$META_BRANCH" \
+            --head "$META_PR_BRANCH" \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY")
+
+          echo "META_PR_URL=$PR_URL" >> "$GITHUB_ENV"
+
+          echo "Downstream PR created:"
+          echo "$PR_URL"
+
+      # ============================================================
+      # Workflow summary
+      # ============================================================
+
+      - name: Release and recipe update summary
+        if: success()
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
           TARGET_BRANCH: ${{ inputs.target_branch }}
           RELEASE_TITLE: ${{ inputs.release_title }}
           RELEASE_LABEL: ${{ inputs.release_label }}
+        shell: bash
         run: |
+          set -euo pipefail
+
           RELEASE_URL=$(gh release view "$TAG" --json url --jq '.url')
 
-          echo "### GitHub Release Created Successfully" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Repository: \`$GITHUB_REPOSITORY\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Tag: \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Target Branch: \`$TARGET_BRANCH\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Target Commit: \`$TARGET_COMMIT\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Release Title: \`$RELEASE_TITLE\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Release Label: \`$RELEASE_LABEL\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Release URL: $RELEASE_URL" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Release and Recipe Update Completed"
+            echo ""
+            echo "- Source Repository: \`$GITHUB_REPOSITORY\`"
+            echo "- Tag / PV: \`$TAG\`"
+            echo "- Target Branch: \`$TARGET_BRANCH\`"
+            echo "- Target Commit / SRCREV: \`$TARGET_COMMIT\`"
+            echo "- Release Title: \`$RELEASE_TITLE\`"
+            echo "- Release Label: \`$RELEASE_LABEL\`"
+            echo "- Release URL: $RELEASE_URL"
+            echo "- Meta Repository: \`$META_REPO\`"
+            echo "- Meta Branch: \`$META_BRANCH\`"
+            echo "- Recipe File: \`$RECIPE_FILE\`"
+            echo "- Meta PR: $META_PR_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
