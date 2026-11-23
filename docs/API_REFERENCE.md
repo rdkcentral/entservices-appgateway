@@ -74,6 +74,7 @@ ws://gateway-host:port/appgateway?session=<session-token>&RPCV2=true
 - `device.setName` - Set device name
 - `device.make` - Get manufacturer
 - `device.sku` - Get SKU
+- `device.brandName` - Get display brand name
 
 ### Localization
 - `localization.countryCode` - Get/set country code

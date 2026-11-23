@@ -202,6 +202,7 @@ namespace WPEFramework {
             Core::hresult SetDeviceOsVersion(const string &osVersion /* @in */);
             Core::hresult GetDeviceOsVersion(string &result /* @out */);
             Core::hresult GetDeviceFirmware(string &result /* @out */);
+            Core::hresult GetDeviceBrandName(string &result /* @out */);
             Core::hresult GetStatsMemoryUsage(const string &appId /* @in */, string &result /* @out */);
             Core::hresult LifecycleFinished(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult LifecycleReady(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);

@@ -386,6 +386,9 @@ namespace Plugin {
         { "device.firmware", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDeviceFirmware(result);
         }},
+        { "device.brandname", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+            return self->GetDeviceBrandName(result);
+        }},
         { "stats.memoryusage", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string&, std::string& result) {
             return self->GetStatsMemoryUsage(ctx.appId, result);
         }},
@@ -1614,6 +1617,14 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
             auto systemDelegate = mDelegate->getSystemDelegate();
             if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
             return systemDelegate->GetDeviceFirmware(result);
+        }
+
+        Core::hresult AppGatewayCommon::GetDeviceBrandName(string &result)
+        {
+            if (!mDelegate) return Core::ERROR_UNAVAILABLE;
+            auto systemDelegate = mDelegate->getSystemDelegate();
+            if (!systemDelegate) return Core::ERROR_UNAVAILABLE;
+            return systemDelegate->GetDeviceBrandName(result);
         }
 
         Core::hresult AppGatewayCommon::GetStatsMemoryUsage(const string &appId, string &result)

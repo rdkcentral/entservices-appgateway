@@ -21,6 +21,7 @@
 //   Device.setOsName / Device.osName   — via IDeviceInfo::OsName()
 //   Device.setOsVersion / Device.osVersion — via IDeviceInfo::OsVersion()
 //   Device.firmware                     — via IDeviceInfo::FirmwareVersion().imagename
+//   Device.brandName                    — via IDeviceInfo::DisplayBrandName().displayBrandName
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -120,6 +121,8 @@ public:
     MOCK_METHOD(Core::hresult, OsVersion, (Exchange::IDeviceInfo::DeviceOsVersion&), (const, override));
     MOCK_METHOD(Core::hresult, OsVersion, (const string&),                           (override));
     MOCK_METHOD(Core::hresult, FirmwareVersion, (Exchange::IDeviceInfo::FirmwareversionInfo&), (const, override));
+    MOCK_METHOD(Core::hresult, DisplayBrandName, (Exchange::IDeviceInfo::DeviceDisplayBrandName&), (const, override));
+    MOCK_METHOD(Core::hresult, DisplayBrandName, (const string&), (override));
 
     // No-op stubs for remaining pure virtuals
     Core::hresult SerialNumber(Exchange::IDeviceInfo::DeviceSerialNo&)  const override { return Core::ERROR_UNAVAILABLE; }
@@ -546,6 +549,90 @@ TEST(BrandingApiNullDelegateTest, AGC_L1_255_GetFirmware_NullDelegate)
 }
 
 // ============================================================================
+// Device.brandName tests
+// ============================================================================
+
+/* AGC_L1_257 - Device.brandName: IDeviceInfo::DisplayBrandName().displayBrandName succeeds */
+TEST_F(BrandingApiTest, AGC_L1_257_GetBrandName_Success)
+{
+    ON_CALL(*mockDi, DisplayBrandName(testing::An<Exchange::IDeviceInfo::DeviceDisplayBrandName&>()))
+        .WillByDefault(Invoke([](Exchange::IDeviceInfo::DeviceDisplayBrandName& out) {
+            out.displayBrandName = "Example Brand";
+            return Core::ERROR_NONE;
+        }));
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "Device.brandName", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("\"Example Brand\"", result);
+}
+
+/* AGC_L1_258 - Device.brandName: empty display brand name returns quoted empty string */
+TEST_F(BrandingApiTest, AGC_L1_258_GetBrandName_EmptyValue)
+{
+    ON_CALL(*mockDi, DisplayBrandName(testing::An<Exchange::IDeviceInfo::DeviceDisplayBrandName&>()))
+        .WillByDefault(Invoke([](Exchange::IDeviceInfo::DeviceDisplayBrandName& out) {
+            out.displayBrandName = "";
+            return Core::ERROR_NONE;
+        }));
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "Device.brandName", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("\"\"", result);
+}
+
+/* AGC_L1_259 - Device.brandName: IDeviceInfo::DisplayBrandName(get) returns ERROR_GENERAL */
+TEST_F(BrandingApiTest, AGC_L1_259_GetBrandName_InterfaceFailure)
+{
+    ON_CALL(*mockDi, DisplayBrandName(testing::An<Exchange::IDeviceInfo::DeviceDisplayBrandName&>()))
+        .WillByDefault(Return(Core::ERROR_GENERAL));
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "Device.brandName", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+}
+
+/* AGC_L1_260 - Device.brandName: DeviceInfo plugin unavailable */
+TEST(BrandingApiUnavailableTest, AGC_L1_260_GetBrandName_DeviceInfoUnavailable)
+{
+    NiceMock<ServiceMock> service;
+    Core::Sink<AppGatewayCommon> plugin;
+
+    ON_CALL(service, QueryInterfaceByCallsign(_, _)).WillByDefault(Return(nullptr));
+    EXPECT_CALL(service, AddRef()).Times(1);
+    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    plugin.Initialize(&service);
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "Device.brandName", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+
+    plugin.Deinitialize(&service);
+}
+
+/* AGC_L1_261 - Device.brandName: null delegate returns UNAVAILABLE */
+TEST(BrandingApiNullDelegateTest, AGC_L1_261_GetBrandName_NullDelegate)
+{
+    Core::Sink<AppGatewayCommon> plugin;
+    plugin.mDelegate.reset();
+
+    const auto ctx = MakeCtx();
+    string result;
+    const auto rc = plugin.HandleAppGatewayRequest(ctx, "Device.brandName", "{}", result);
+
+    EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc);
+}
+
+// ============================================================================
 // Case-insensitivity routing checks
 // ============================================================================
 
@@ -555,6 +642,11 @@ TEST_F(BrandingApiTest, AGC_L1_256_CaseInsensitiveRouting)
     ON_CALL(*mockDi, OsName(testing::An<Exchange::IDeviceInfo::DeviceOsName&>()))
         .WillByDefault(Invoke([](Exchange::IDeviceInfo::DeviceOsName& out) {
             out.osName = "RDK-E";
+            return Core::ERROR_NONE;
+        }));
+    ON_CALL(*mockDi, DisplayBrandName(testing::An<Exchange::IDeviceInfo::DeviceDisplayBrandName&>()))
+        .WillByDefault(Invoke([](Exchange::IDeviceInfo::DeviceDisplayBrandName& out) {
+            out.displayBrandName = "Example Brand";
             return Core::ERROR_NONE;
         }));
 
@@ -569,6 +661,16 @@ TEST_F(BrandingApiTest, AGC_L1_256_CaseInsensitiveRouting)
     EXPECT_EQ(Core::ERROR_NONE,
               plugin.HandleAppGatewayRequest(ctx, "device.osname", "{}", result));
     EXPECT_EQ("\"RDK-E\"", result);
+
+    result.clear();
+    EXPECT_EQ(Core::ERROR_NONE,
+              plugin.HandleAppGatewayRequest(ctx, "DEVICE.BRANDNAME", "{}", result));
+    EXPECT_EQ("\"Example Brand\"", result);
+
+    result.clear();
+    EXPECT_EQ(Core::ERROR_NONE,
+              plugin.HandleAppGatewayRequest(ctx, "device.brandname", "{}", result));
+    EXPECT_EQ("\"Example Brand\"", result);
 }
 
 } // namespace
