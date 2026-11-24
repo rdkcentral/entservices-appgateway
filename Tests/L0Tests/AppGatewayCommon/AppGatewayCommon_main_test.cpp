@@ -189,6 +189,8 @@ extern uint32_t Test_SharedOwnerChannel_OldJobStaysCanceledAfterReopenReplacemen
 extern uint32_t Test_RetainedJobQueue_BalancesOwnerReference();
 extern uint32_t Test_RetainedJobQueue_AllMigratedJobNamesBalanceOwnerReference();
 
+extern uint32_t Test_SettingsCleanup_RetainedChildrenOwnShellAndCloseEvents();
+
 int main()
 {
     // Test-only bootstrap for WorkerPool.
@@ -369,6 +371,7 @@ int main()
         { "SharedOwnerChannel_OldJobStaysCanceledAfterReopenReplacement", Test_SharedOwnerChannel_OldJobStaysCanceledAfterReopenReplacement },
         { "RetainedJobQueue_BalancesOwnerReference", Test_RetainedJobQueue_BalancesOwnerReference },
         { "RetainedJobQueue_AllMigratedJobNamesBalanceOwnerReference", Test_RetainedJobQueue_AllMigratedJobNamesBalanceOwnerReference },
+        { "SettingsCleanup_RetainedChildrenOwnShellAndCloseEvents", Test_SettingsCleanup_RetainedChildrenOwnShellAndCloseEvents },
     };
 
     uint32_t failures = 0;

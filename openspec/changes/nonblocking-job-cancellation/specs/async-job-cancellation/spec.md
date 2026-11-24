@@ -125,6 +125,43 @@ Production work SHALL use approved ownership policies or documented framework-ow
 - **WHEN** verification is reported for a code revision
 - **THEN** the report SHALL identify actual plugin builds and applicable L0/L1 executions, counts, and blockers without treating skipped or no-op invocations as passes
 
+### Requirement: Logical child shutdown preserves admitted dependencies
+
+SettingsDelegate cleanup SHALL close every detached child's notification channel and each available worker channel before releasing its detached ownership, outside parent lifecycle locks. Closure SHALL reject late emitter registration without immediately releasing resources needed by admitted callbacks. Each shell-dependent child SHALL own a balanced shell reference until final resource cleanup and destruction, independently of AppGatewayCommon's shell reference.
+
+#### Scenario: Retained child survives cleanup
+
+- **WHEN** a snapshot or admitted callback retains a child while SettingsDelegate cleanup detaches and closes it
+- **THEN** queued worker and event delivery observing closure SHALL be discarded, including legacy delivery snapshots, while already-admitted callbacks may finish safely
+
+#### Scenario: Admitted lookup resumes after plugin deinitialization
+
+- **WHEN** an admitted child callback resumes a lazy shell lookup after AppGatewayCommon releases mShell
+- **THEN** the child's owning shell reference SHALL keep that shell alive through lookup and final child destruction, with balanced release
+
+### Requirement: Live subscription teardown preserves callback lifetime
+
+AppNotificationsImplementation SHALL close incoming shared subscriber-state delivery and explicitly clean live subscriptions while shell and emitter dependencies remain valid. Subscription manager cleanup SHALL be idempotent. External callback emitters and their delivery state SHALL have independent reference-counted lifetime without borrowing or retaining a destroyed implementation. Accepted unsubscribe SHALL NOT be treated as synchronous completion.
+
+#### Scenario: Final subscription job releases implementation ownership
+
+- **WHEN** the final retained subscription envelope registers a callback and then releases the implementation's last reference
+- **THEN** destruction SHALL unsubscribe using live dependencies before clearing its shell alias or releasing its emitter ownership
+
+#### Scenario: Provider retains emitter after implementation destruction
+
+- **WHEN** a provider or pending unregister retains the emitter past implementation destruction
+- **THEN** the emitter SHALL remain valid, delivery observing closed state SHALL be discarded, and final emitter/state release SHALL balance retained dependencies
+
+### Requirement: Event-hook failures remain fire-and-forget
+
+EventHookJob SHALL inspect FetchResolvedData's result, log genuine failures with hook identity and result, and preserve successful subscription responses. ERROR_NONE and the existing asynchronous-pending sentinel SHALL NOT be reported as failures. Hook failure handling SHALL NOT send an unsolicited response.
+
+#### Scenario: Hook returns failure or asynchronous pending
+
+- **WHEN** a successful subscription schedules an event hook that returns a failure or the existing asynchronous-pending sentinel
+- **THEN** only genuine failure SHALL produce a hook-failure log, and neither outcome SHALL replace the subscription result or send an additional response
+
 ### Requirement: Repository-local compatibility
 
 The helpers SHALL use the pinned Thunder WorkerPool and supported C++ standard without requiring changes to Thunder, dependencies, or public wire APIs. The implementation SHALL NOT require a workspace-only design document at build or runtime.

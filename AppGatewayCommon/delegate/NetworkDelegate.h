@@ -50,8 +50,14 @@ class NetworkDelegate : public BaseEventDelegate
 {
 public:
     NetworkDelegate(PluginHost::IShell *shell)
-        : BaseEventDelegate(), mNetworkManager(nullptr), mShell(shell), mNotificationHandler(*this)
+        : BaseEventDelegate(shell), mNetworkManager(nullptr), mShell(shell), mNotificationHandler(*this)
     {
+    }
+
+    void CloseChannels()
+    {
+        CloseNotificationChannel();
+        mWorkerPool.Close();
     }
 
     ~NetworkDelegate()

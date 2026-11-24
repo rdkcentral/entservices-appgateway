@@ -125,8 +125,8 @@ TEST_F(AppGatewayCommonTest, AGC_L1_001_InitializeAndDeinitialize_Success)
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _))
         .Times(AnyNumber())
         .WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(1);
-    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, AddRef()).Times(9);
+    EXPECT_CALL(service, Release()).Times(9).WillRepeatedly(Return(Core::ERROR_NONE));
 
     const string response = plugin.Initialize(&service);
     EXPECT_TRUE(response.empty());
@@ -138,8 +138,8 @@ TEST_F(AppGatewayCommonTest, SettingsCleanupRetainsChildSnapshots)
 {
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(1);
-    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, AddRef()).Times(9);
+    EXPECT_CALL(service, Release()).Times(9).WillRepeatedly(Return(Core::ERROR_NONE));
     plugin.Initialize(&service);
     {
         auto settings = plugin.GetDelegateSafe();
@@ -166,8 +166,8 @@ TEST_F(AppGatewayCommonTest, SettingsCleanupConcurrentWithChildSnapshots)
 {
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(1);
-    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, AddRef()).Times(9);
+    EXPECT_CALL(service, Release()).Times(9).WillRepeatedly(Return(Core::ERROR_NONE));
     plugin.Initialize(&service);
     auto settings = plugin.GetDelegateSafe();
     std::thread reader([settings] {
@@ -191,8 +191,8 @@ TEST_F(AppGatewayCommonTest, AGC_L1_003_UnknownMethod_ReturnsUnknownKey)
 {
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(1);
-    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, AddRef()).Times(9);
+    EXPECT_CALL(service, Release()).Times(9).WillRepeatedly(Return(Core::ERROR_NONE));
     plugin.Initialize(&service);
 
     const auto ctx = MakeContext();
@@ -210,8 +210,8 @@ TEST_F(AppGatewayCommonTest, AGC_L1_004_DeviceSetName_InvalidPayload)
 {
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(1);
-    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, AddRef()).Times(9);
+    EXPECT_CALL(service, Release()).Times(9).WillRepeatedly(Return(Core::ERROR_NONE));
     plugin.Initialize(&service);
 
     const auto ctx = MakeContext();
@@ -229,8 +229,8 @@ TEST_F(AppGatewayCommonTest, AGC_L1_005_InvalidPayloads)
 {
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(1);
-    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, AddRef()).Times(9);
+    EXPECT_CALL(service, Release()).Times(9).WillRepeatedly(Return(Core::ERROR_NONE));
     plugin.Initialize(&service);
 
     const auto ctx = MakeContext();
@@ -402,8 +402,8 @@ TEST_F(AppGatewayCommonTest, AGC_L1_016_AddAdditionalInfo_RouteSuccess)
 {
     NiceMock<ServiceMock> service;
     EXPECT_CALL(service, QueryInterfaceByCallsign(_, _)).Times(AnyNumber()).WillRepeatedly(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(1);
-    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, AddRef()).Times(9);
+    EXPECT_CALL(service, Release()).Times(9).WillRepeatedly(Return(Core::ERROR_NONE));
     plugin.Initialize(&service);
 
     const auto ctx = MakeContext();

@@ -23,6 +23,9 @@
 #include <interfaces/IConfiguration.h>
 #include <mutex>
 #include <map>
+#include <atomic>
+#include <memory>
+#include "RetainedJobQueue.h"
 #include "UtilsLogging.h"
 #include "UtilsController.h"
 #include "ContextUtils.h"
@@ -35,11 +38,24 @@ namespace Plugin {
     private:
         class SubscriberMap {
         public:
-            SubscriberMap(AppNotificationsImplementation& parent) : mParent(parent),
+            SubscriberMap(AppNotificationsImplementation& parent) : mShell(), mClosed(false),
             mSubscriberMutex(),
             mSubscribers(),
             mAppGateway(nullptr),
-            mInternalGatewayNotifier(nullptr){}
+            mInternalGatewayNotifier(nullptr) { SetShell(parent.mShell); }
+
+            void SetShell(PluginHost::IShell* shell) {
+                std::shared_ptr<PluginHost::IShell> retained;
+                if (shell) {
+                    shell->AddRef();
+                    retained = std::shared_ptr<PluginHost::IShell>(shell,
+                        [](PluginHost::IShell* value) { value->Release(); });
+                }
+                mShell = std::move(retained);
+            }
+
+            void Close() { mClosed.store(true, std::memory_order_release); }
+            bool Closed() const { return mClosed.load(std::memory_order_acquire); }
 
             ~SubscriberMap() {
                 // cleanup mutex and map
@@ -77,7 +93,8 @@ namespace Plugin {
             void DispatchToLaunchDelegate(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload);
             void CleanupNotifications(const uint32_t &connectionId, const string& origin);
         private:
-            AppNotificationsImplementation& mParent;
+            std::shared_ptr<PluginHost::IShell> mShell;
+            std::atomic<bool> mClosed;
             mutable std::mutex mSubscriberMutex;
             mutable Core::CriticalSection mAppGatewayLock;
             mutable Core::CriticalSection mInternalGatewayNotifierLock;
@@ -97,6 +114,8 @@ namespace Plugin {
                 }
 
                 ~ThunderSubscriptionManager();
+
+                void Cleanup();
 
                 void Subscribe(const string& module, const string& event);
 
@@ -161,7 +180,8 @@ namespace Plugin {
             Emitter(const Emitter&) = delete;
             Emitter& operator=(const Emitter&) = delete;
         public:
-            Emitter(AppNotificationsImplementation& parent) : mParent(parent) {}
+            Emitter(AppNotificationsImplementation& parent) : Emitter(parent.mSubscribers) {}
+            explicit Emitter(const std::shared_ptr<SubscriberMap>& subscribers) : mSubscribers(subscribers) {}
 
             virtual void Emit(const string &event /* @in */,
                               const string &payload /* @in @opaque */,
@@ -169,7 +189,11 @@ namespace Plugin {
             {
                 LOGINFO("Emit [event= %s payload=%s appId=%s]",
                     event.c_str(), payload.c_str(), appId.c_str());
-                mParent.Emit(event, payload, appId);
+                if (mSubscribers->Closed()) return;
+                RetainedJobQueue<Emitter>::SubmitTimed(this, "NotifEmitJob[" + event + "]", 0, 0, appId,
+                    [event, payload, appId](Emitter& owner) {
+                        owner.mSubscribers->EventUpdate(event, payload, appId);
+                    });
             }
 
             BEGIN_INTERFACE_MAP(Emitter)
@@ -177,14 +201,16 @@ namespace Plugin {
             END_INTERFACE_MAP
 
         private:
-            AppNotificationsImplementation& mParent;
+            std::shared_ptr<SubscriberMap> mSubscribers;
         };
 
     private:
         PluginHost::IShell* mShell;
-        SubscriberMap mSubMap;
+        std::shared_ptr<SubscriberMap> mSubscribers;
+        SubscriberMap& mSubMap;
         ThunderSubscriptionManager mThunderManager;
-        Core::Sink<Emitter> mEmitter;
+        Exchange::IAppNotificationHandler::IEmitter* mEmitterOwner;
+        Exchange::IAppNotificationHandler::IEmitter& mEmitter;
     };
 }
 }

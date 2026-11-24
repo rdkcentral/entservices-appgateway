@@ -431,6 +431,8 @@ static uint32_t Test_ContextUtils_Conversions()
     return tr.failures;
 }
 
+extern uint32_t Test_AppGatewayImplementation_EventHookFailureIsReported();
+
 int main()
 {
     // Shared L0 bootstrap for WorkerPool lifecycle.
@@ -446,6 +448,7 @@ int main()
     };
 
     const Case cases[] = {
+        { "EventHookFailureIsReported", Test_AppGatewayImplementation_EventHookFailureIsReported },
         // New Init/Deinit lifecycle tests
         { "Initialize_WithValidConfig_Succeeds", Test_Initialize_WithValidConfig_Succeeds },
         { "Initialize_Twice_Idempotent", Test_Initialize_Twice_Idempotent },

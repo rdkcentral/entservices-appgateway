@@ -2,7 +2,7 @@
 
 See [proposal.md](proposal.md) for motivation and scope. Current production uses C++11, Thunder IDispatch, shared-owned delegates, and intrusive plugin/implementation objects. SharedOwnerChannel and RetainedJobQueue are separate repository helpers; IntrusiveOwnerChannel exists only in app-gateway-cpc.
 
-This is the consolidated design for the repository's unmerged RDKEMW-24834 change, alongside its [specification](specs/async-job-cancellation/spec.md) and tasks. It supersedes the drain-based design. The spec distinguishes channel cancellation from retained-envelope ownership; its activation-isolation and comprehensive enforcement requirements remain targets not fully implemented. Current behavior and those outstanding obligations are separated below. This documentation revision changes no implementation.
+This is the consolidated design for the repository's unmerged RDKEMW-24834 change, alongside its [specification](specs/async-job-cancellation/spec.md) and tasks. It supersedes the drain-based design. The spec distinguishes channel cancellation from retained-envelope ownership; its activation-isolation and comprehensive enforcement requirements remain targets not fully implemented. Current behavior and those outstanding obligations are separated below. Section 8 of tasks.md records the current implementation follow-ups for surviving dependencies, logical channel shutdown, subscription teardown, and event-hook error handling.
 
 ## Goals / Non-Goals
 
@@ -45,11 +45,11 @@ This repository's retained helper uses Work&& and std::forward into std::functio
 
 ### Snapshot and detach children under one lock
 
-SettingsDelegate initialization, getters, and registration snapshots use mChildrenMutex. Cleanup swaps child pointers into detached storage under that mutex and releases detached storage outside it. Snapshots can retain children while cleanup drops the parent's copies.
+SettingsDelegate initialization, getters, and registration snapshots use mChildrenMutex. Cleanup swaps child pointers into detached storage under that mutex, closes all seven children's notification channels plus System/Network/VideoOutput worker channels, and releases detached storage outside it. Snapshots and admitted callbacks can retain children after logical cleanup, but queued channel work observing closure is discarded and late emitter registrations are rejected.
 
-AppGatewayCommon detaches its SettingsDelegate under mDelegateMutex and cleans it outside that lock. These steps address pointer races and lock/reentrancy boundaries; they do not close every surviving child's event channel at logical cleanup.
+AppGatewayCommon detaches its SettingsDelegate under mDelegateMutex and cleans it outside that lock. Each shell-dependent child owns a balanced shell reference independently of the plugin: BaseEventDelegate retains the shell for event-producing children, and AppDelegate retains its shell directly. Shell release follows child resource cleanup and final destruction, so an admitted lazy lookup remains safe after the plugin releases mShell. Logical closure does not reset links, interfaces, or existing emitter references needed by admitted callbacks.
 
-Actual destructor order differs by delegate: System/VideoOutput unsubscribe and reset resources before closing worker channels; Network closes its worker channel first. BaseEventDelegate closes its event channel before map-owned emitter cleanup. There is no uniform close-unregister-drain-release implementation.
+Destructor fallback order still differs by delegate: System/VideoOutput unsubscribe and reset resources before their worker-channel fallback close; Network closes its worker channel first. Normal SettingsDelegate cleanup has already closed both channel types before those destructors. BaseEventDelegate also closes its event channel before map-owned emitter cleanup. No helper queue drain is introduced.
 
 ### Keep AppGatewayCommon's current registration policy explicit
 
@@ -59,11 +59,21 @@ Deinitialize sets shutdown and detaches the delegate; Initialize installs a new 
 
 ### Preserve production event and response behavior
 
-Normal BaseEventDelegate Dispatch uses the weak event channel, but the legacy public strong-owner EventDelegateDispatchJob remains and AppGateway L1 tests still instantiate it. AddNotification is mutex-protected, not gated by an independent public logical event Close operation.
+Normal BaseEventDelegate Dispatch uses the weak event channel, but the legacy public strong-owner EventDelegateDispatchJob remains and AppGateway L1 tests still instantiate it. The non-virtual CloseNotificationChannel synchronizes with AddNotification and emitter snapshots under mRegisterMutex. Closed delegates reject new emitter registrations and return empty delivery snapshots, so legacy queued dispatch also observes logical closure without adding a base vtable entry.
 
 Emitter snapshots acquire temporary references under mRegisterMutex; the normal emission loop Releases outside that lock. It has no per-emitter RAII guard for throwing Emit calls.
 
 Respond uses RetainedJobQueue, copies response inputs, and performs submission-time and dispatch-time hibernation checks. It has no channel close/rejection/discard contract. Timed envelopes inherit JobTiming; timed shared dispatch constructs telemetry before cancellation checks.
+
+### Detach AppNotifications callback lifetime from implementation lifetime
+
+Public subscription and Emit jobs still retain AppNotificationsImplementation. Its final destructor closes shared subscriber-state event admission, explicitly cleans the subscription manager while mShell and the callback emitter are valid, then releases its emitter reference and clears the borrowed shell alias. The manager cleanup is idempotent; its later member destructor has no remaining registrations to process.
+
+The incoming emitter is a heap-allocated Core::Service<Emitter>, not an embedded sink borrowing the implementation. It owns shared SubscriberMap state, and incoming delivery jobs retain the emitter with RetainedJobQueue<Emitter> using the existing NotifEmitJob timing identity. SubscriberMap owns a balanced shell reference and cached responder interfaces without referencing the implementation. An external provider or asynchronous unregister envelope may therefore retain the emitter after implementation destruction without a parent-reference cycle or dangling callback target. New delivery observing closed state is discarded; admitted delivery can finish against retained state. Unsubscribe acceptance is not treated as synchronous completion or producer quiescence.
+
+### Check asynchronous event-hook outcomes without replying
+
+EventHookJob checks FetchResolvedData's return value. ERROR_NONE and the existing uint32_t(-1) asynchronous-pending sentinel are not failures. Other outcomes are logged with hook identity and result, without sending an additional response or replacing the successful subscription result.
 
 ### Treat configure checks as limited guardrails
 
@@ -87,7 +97,7 @@ There is no comprehensive SFINAE/AST ownership analysis, capture checking for ev
 
 The shared/retained migrations are present. The earlier drain plan is preserved only in workspace `async-job-lifecycle-docs/drain-lambda-worker-jobs-history/`, outside this repository's OpenSpec changes. This change is the only current plan; do not reintroduce a drain to match historical text.
 
-The consolidated specification replaces the earlier universal cancellation text with policy-specific contracts and carries forward emitter ownership, business/timing preservation, compatibility, and testable shutdown outcomes from the earlier effort. Blocking-drain requirements are superseded, not implemented by another name. Remaining implementation work in tasks.md covers activation isolation and enforcement/coverage; this planning revision implements none of those fixes.
+The consolidated specification replaces the earlier universal cancellation text with policy-specific contracts and carries forward emitter ownership, business/timing preservation, compatibility, and testable shutdown outcomes from the earlier effort. Blocking-drain requirements are superseded, not implemented by another name. The review follow-up implements dependency ownership, logical child closure, safe AppNotifications callback teardown, and event-hook error handling. Remaining implementation work in tasks.md still covers activation isolation and comprehensive enforcement/coverage.
 
 Use controlled jobs/barriers for closed/expired dispatch, both admission race outcomes, admitted-owner retention, and envelope disposal. Test retained jobs at envelope destruction, not callback return; test resources and generations independently. Code changes require plugin builds and applicable L0/L1 execution in CI-parity Docker. Existing checked verification entries are historical evidence, not tests rerun for this documentation update.
 

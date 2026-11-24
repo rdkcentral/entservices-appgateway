@@ -68,7 +68,9 @@ note over Owner: Final destruction may run now.
 
 [AppGatewayCommon::Deinitialize](../AppGatewayCommon/AppGatewayCommon.cpp) sets shutdown and detaches its SettingsDelegate under `mDelegateMutex`, then performs cleanup outside the outer mutex. This avoids destroying children while holding that outer lock.
 
-Cleanup is not a global cancellation barrier. A child retained by another snapshot or callback can survive detachment; its event/worker channels are not automatically closed merely because SettingsDelegate dropped its own copies.
+Cleanup explicitly closes all seven children's event channels and System/Network/VideoOutput worker channels before releasing the detached storage. Close does not drain or wait for admitted callbacks, and it does not reset their resources. A retained child therefore survives safely while queued channel work that observes closure is discarded.
+
+Each child independently owns a balanced shell reference through final destruction. Event-producing children retain it in BaseEventDelegate; AppDelegate retains it directly. A callback that resumes a lazy interface lookup after AppGatewayCommon releases its own mShell still has a live shell. Closure rejects late notification registrations under the same mutex that guards the registration map.
 
 ### Actual destructor ordering
 
@@ -102,6 +104,16 @@ RetainedJobQueue is used by AppGateway implementation/responder, AppActions, App
 
 The caller must already guarantee owner lifetime before acquisition. Owner retention does not protect explicitly released resources, solve raw producer ingress, or distinguish activations. The helper does not drain the queue or promise every accepted job will execute; disposing an envelope without dispatch still releases its owner reference.
 
+### AppNotifications subscription teardown
+
+Public subscription and Emit envelopes retain the implementation as before. Its final destructor closes shared subscriber-state delivery, explicitly cleans the subscription manager while shell and emitter are alive, then releases its emitter reference and clears the shell alias. Later manager destruction is harmless because cleanup has emptied its registration list.
+
+The incoming emitter is independently reference-counted with Core::Service<Emitter>. It owns shared SubscriberMap state, including a balanced shell reference and cached responder interfaces, without retaining or borrowing the implementation. Incoming NotifEmitJob envelopes retain this emitter. A provider or asynchronously accepted unregister may keep that emitter alive after implementation destruction; deliveries observing closed state are discarded, and admitted state callbacks may finish safely. This does not claim synchronous unsubscribe completion or general producer quiescence.
+
+### Event-hook result handling
+
+EventHookJob checks FetchResolvedData. ERROR_NONE and the existing uint32_t(-1) asynchronous-pending sentinel preserve fire-and-forget behavior. Other results are logged with the hook identity and error code; they do not replace the primary subscription response or trigger an unsolicited response.
+
 ### Responder behavior
 
 [AppGatewayResponderImplementation::Respond](../AppGateway/AppGatewayResponderImplementation.cpp) uses `RetainedJobQueue<AppGatewayResponderImplementation>`:
@@ -130,7 +142,7 @@ The local retained helper forwards `Work&&` using `std::forward`; CPC's copy sti
 
 [BaseEventDelegate](../helpers/BaseEventDelegate.h) production Dispatch uses SharedOwnerChannel and copies event name, payload, and app ID. The public nested `EventDelegateDispatchJob` remains and strongly retains its delegate; AppGateway L1 legacy-job tests still instantiate it. It is not the normal production submission path.
 
-The event channel closes in BaseEventDelegate's destructor. AddNotification uses the registration mutex but does not check channel closure, and the class does not expose a separate public logical event-close gate.
+The non-virtual CloseNotificationChannel closes event admission during logical cleanup and again as a destructor fallback. It synchronizes with AddNotification and emitter snapshots under mRegisterMutex. Closed delegates reject late registrations and return empty delivery snapshots, including for legacy queued jobs. Map-owned emitter references remain intact until removal or final destruction so already-admitted callbacks retain their dependencies.
 
 Reference rules:
 
@@ -177,4 +189,4 @@ For channel work, verify normal dispatch, null/expired owner, observed-closed re
 
 Also verify emitter balance, business payloads, producer and resource lifetime, and timing identities. Prefer barriers or controlled dispatch over fixed sleeps. Tests of the legacy strong job are not evidence of weak production-envelope behavior.
 
-For code changes, run the plugin build and applicable L0/L1 executions using the workspace Docker workflow. L1 must actually configure, compile, and execute; an unsupported/no-op build-script l1 invocation is not evidence. Record revision, exact commands, counts, and blockers separately. This documentation update does not establish a new build/test pass.
+For code changes, run the plugin build and applicable L0/L1 executions using the workspace Docker workflow. L1 must actually configure, compile, and execute; an unsupported/no-op build-script l1 invocation is not evidence. Record revision, exact commands, counts, and blockers separately. Current review-fix verification is recorded in section 8 of the change's tasks.md; earlier checked verification records remain historical.

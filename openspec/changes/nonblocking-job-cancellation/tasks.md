@@ -51,4 +51,64 @@ These checked command entries are preserved historical records, not a fresh exec
 - [ ] 7.2 Implement and verify activation isolation for AppGatewayCommon registration so old pending work cannot target the new delegate, without restoring a WorkerPool drain.
 - [x] 7.3 Consolidate specification, design, proposal, and tasks in this repository's nonblocking-job-cancellation change; scope cancellation to channels, define retained-envelope lifetime separately, and retain unmet activation/enforcement requirements as open tasks.
 
-Resource/producer lifetime, throwing emitter behavior, and legacy-job removal decisions remain explicit review boundaries in design.md and the lifecycle guide. This documentation revision does not implement those changes.
+## 8. Review Follow-up: Surviving Dependencies and Logical Shutdown
+
+- [x] 8.1 Reproduce missing child shell ownership and post-cleanup event delivery in L0; reproduce AppNotifications destruction with a live subscription before fixing production code.
+- [x] 8.2 Give each shell-dependent child balanced shell ownership through final destruction, and close all child notification channels plus System/Network/VideoOutput worker channels during SettingsDelegate cleanup without draining or prematurely releasing callback resources.
+- [x] 8.3 Clean up AppNotifications subscriptions while shell and emitter are alive; use an independently reference-counted emitter with closed shared subscriber state so accepted asynchronous unregisters cannot leave callbacks pointing into a destroyed implementation.
+- [x] 8.4 Check event-hook FetchResolvedData results, log genuine failures, preserve ERROR_NONE and asynchronous-pending semantics, and avoid unsolicited responses.
+- [x] 8.5 Add and register L0/L1 regressions for retained-child shutdown, admitted post-deinitialize lookup, final subscription-job destruction, late emitter callbacks, and event-hook result handling.
+- [x] 8.6 Build all four AppGateway plugins and run the full clean L0 suite against unchanged repository-specific dependencies.
+- [x] 8.7 Configure and compile the CI L1 targets directly in Docker, execute all four test binaries, repeat focused lifecycle regressions, and record actual results.
+- [x] 8.8 Reconcile the lifecycle guide and OpenSpec artifacts with these fixes, validate the change strictly, and review the final diff.
+
+Broader producer-lifetime audits, throwing emitter behavior, and legacy-job removal decisions remain explicit review boundaries in design.md and the lifecycle guide. The activation-isolation and enforcement tasks above remain open.
+
+### Review-fix verification
+
+Revision: uncommitted working tree against 106eeec. Strict OpenSpec validation and git diff --check passed after final review. No dependency, build-support, or public interface changes were required.
+
+All four plugins built: AppGateway, AppGatewayCommon, AppNotifications, and AppActions. The clean full L0 run executed 361 tests, all passing. The four L1 executables passed with exit status zero: AppGatewayL1Test 99, AppGatewayCommonL1Test 355, AppNotificationsL1Test 156, and AppActionsL1Test 35 (645 total, none skipped). Three new L0 cases and four new L1 cases cover the review fixes. Existing shell-reference expectations now require nine balanced references (plugin plus eight children), not unrestricted calls. All four focused L1 cases passed 50 repetitions each (200 additional executions).
+
+Before the fixes, the retained-child L0 regression failed 17 assertions and AppNotifications final release with a live subscription exited with SIGSEGV (139). Both now pass. The unsupported build.sh entservices-appgateway l1 invocation returned 2 and is not test evidence; L1 was configured, compiled, and executed directly as below.
+
+Verification used Ubuntu linux/amd64 Docker and unchanged repository-specific dependencies. Non-fatal CMake/compiler and mock-service/socket diagnostics remain. Recompiling the two shell-expectation test files produced stale gcov timestamp warnings on the next full run; test execution passed, and no coverage percentage is claimed. Valgrind was unavailable in the image. Coverity itself and hardware/L2 integration were not run.
+
+Commands from local-build/ (paths factored into variables for readability):
+
+```bash
+NO_TTY=1 ./docker-run.sh env BUILD_JOBS=4 bash /workspace/local-build/build.sh entservices-appgateway plugins
+NO_TTY=1 ./docker-run.sh env BUILD_JOBS=4 bash /workspace/local-build/build.sh entservices-appgateway l0 run --clean
+P=/workspace/local-build/deps/entservices-appgateway/install/usr
+B=/workspace/local-build/builds/entservices-appgateway/l1-review-fixes
+NO_TTY=1 ./docker-run.sh cmake -G Ninja \
+  -S /workspace/entservices-appgateway/Tests/L1Tests -B "$B" \
+  -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX="$P" -DCMAKE_PREFIX_PATH="$P" \
+  -DCMAKE_MODULE_PATH="${P%/usr}/tools/cmake" -DGENERIC_CMAKE_MODULE_PATH="${P%/usr}/tools/cmake" \
+  -DHIDE_NON_EXTERNAL_SYMBOLS=OFF -DDISABLE_SECURITY_TOKEN=ON -DUSE_THUNDER_R4=ON \
+  -DPLUGIN_APPGATEWAY=ON -DPLUGIN_APPGATEWAYCOMMON=ON -DPLUGIN_APPNOTIFICATIONS=ON -DPLUGIN_APPACTIONS=ON \
+  '-DCMAKE_C_FLAGS=-O0 -g --coverage -fprofile-arcs -ftest-coverage' \
+  '-DCMAKE_CXX_FLAGS=-O0 -g --coverage -fprofile-arcs -ftest-coverage' \
+  -DCMAKE_EXE_LINKER_FLAGS=--coverage -DCMAKE_SHARED_LINKER_FLAGS=--coverage
+NO_TTY=1 ./docker-run.sh cmake --build "$B" \
+  --target AppGatewayL1Test AppGatewayCommonL1Test AppNotificationsL1Test AppActionsL1Test -j4
+NO_TTY=1 ./docker-run.sh bash -c '
+  set -e
+  B=/workspace/local-build/builds/entservices-appgateway/l1-review-fixes
+  P=/workspace/local-build/deps/entservices-appgateway/install/usr
+  mkdir -p /tmp/app-gateway
+  cp /workspace/entservices-appgateway/AppGateway/resolutions/resolution.base.json /tmp/app-gateway/resolution.base.json
+  touch /etc/rdkappmanagers
+  chmod 666 /etc/rdkappmanagers
+  export APPGATEWAY_CONFIG_PATH=/tmp/app-gateway
+  export LD_LIBRARY_PATH="$B/AppGateway:$B/AppGatewayCommon:$B/AppNotifications:$B/AppActions:$P/lib:$P/lib/wpeframework:$P/lib/wpeframework/plugins:$P/lib/wpeframework/proxystubs"
+  status=0
+  for target in AppGatewayL1Test AppGatewayCommonL1Test AppNotificationsL1Test AppActionsL1Test; do
+    test -x "$B/$target"
+    "$B/$target" || status=1
+  done
+  exit "$status"
+'
+```
+
+Focused repeats used the same runtime library paths and `--gtest_repeat=50 --gtest_break_on_failure`, with filters `SettingsDelegateShutdown.*`, `AppNotificationsTest.FinalSubscriptionJobCleansUpBeforeReleasingDependencies`, and `AppGatewayPluginTest.EventHookReportsOnlyRealFailuresAndPreservesSubscriptionResponse` on their respective executables.

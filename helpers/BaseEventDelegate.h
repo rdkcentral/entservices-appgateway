@@ -72,14 +72,25 @@ public:
         string mAppId;
     };
 
-    BaseEventDelegate() : mRegisteredNotifications(),
-                          mRegisterMutex()
+    explicit BaseEventDelegate(PluginHost::IShell* shell = nullptr)
+        : mShellLifetime(), mRegisteredNotifications(), mRegisterMutex()
     {
+        if (shell) {
+            shell->AddRef();
+            mShellLifetime = std::shared_ptr<PluginHost::IShell>(shell,
+                [](PluginHost::IShell* value) { value->Release(); });
+        }
+    }
+
+    void CloseNotificationChannel()
+    {
+        std::lock_guard<std::mutex> lock(mRegisterMutex);
+        mEventJobs.Close();
     }
 
     virtual ~BaseEventDelegate()
     {
-        mEventJobs.Close();
+        CloseNotificationChannel();
         // Cleanup registered notifications
         for (auto &entry : mRegisteredNotifications)
         {
@@ -139,6 +150,9 @@ public:
         ASSERT(cb != nullptr);
         string event_l = StringUtils::toLower(event);
         std::lock_guard<std::mutex> lock(mRegisterMutex);
+        if (mEventJobs.Closed()) {
+            return;
+        }
         auto it = mRegisteredNotifications.find(event_l);
         // add to the existing one
         if (it != mRegisteredNotifications.end())
@@ -180,6 +194,9 @@ public:
         string event_l = StringUtils::toLower(event);
         std::unordered_set<Exchange::IAppNotificationHandler::IEmitter *> emitters;
         std::lock_guard<std::mutex> lock(mRegisterMutex);
+        if (mEventJobs.Closed()) {
+            return emitters;
+        }
         auto it = mRegisteredNotifications.find(event_l);
         if (it != mRegisteredNotifications.end())
         {
@@ -248,6 +265,7 @@ public:
     }
 
 private:
+    std::shared_ptr<PluginHost::IShell> mShellLifetime;
     std::map<string, std::unordered_set<Exchange::IAppNotificationHandler::IEmitter *>> mRegisteredNotifications;
     std::mutex mRegisterMutex;
     SharedOwnerChannel<BaseEventDelegate> mEventJobs;

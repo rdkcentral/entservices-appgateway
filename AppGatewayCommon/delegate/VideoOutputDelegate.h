@@ -111,7 +111,7 @@ public:
     static constexpr const char* EVENT_ON_VO_REFRESH_RATE_CHANGED     = "VideoOutput.onRefreshRateChanged";
 
     explicit VideoOutputDelegate(PluginHost::IShell* shell)
-        : BaseEventDelegate()
+        : BaseEventDelegate(shell)
         , _shell(shell)
         , _displaySettingsRpc(nullptr)
         , _hdcpProfileRpc(nullptr)
@@ -123,6 +123,12 @@ public:
         , _hdmiCecSourceSubscribed(false)
         , _displayInfoSubscribed(false)
     {
+    }
+
+    void CloseChannels()
+    {
+        CloseNotificationChannel();
+        _workerPool.Close();
     }
 
     ~VideoOutputDelegate()

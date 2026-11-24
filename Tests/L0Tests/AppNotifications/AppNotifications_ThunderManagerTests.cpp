@@ -809,6 +809,43 @@ uint32_t Test_AN_SubscriberJob_Dispatch_Subscribe()
 // ---------------------------------------------------------------------------
 // AN-L0-096: SubscriberJob::Dispatch subscribe=false branch (explicit verify)
 // ---------------------------------------------------------------------------
+uint32_t Test_AN_FinalReleaseWithLiveSubscription()
+{
+    L0Test::TestResult tr;
+    L0Test::AppNotificationsServiceMock::Config cfg;
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
+    cfg.provideNotificationHandler = true;
+    cfg.handlerStatusResult = true;
+    L0Test::AppNotificationsServiceMock shell(cfg);
+    auto* impl = CreateConfiguredImpl(&shell);
+    if (!impl) {
+        L0Test::ExpectTrue(tr, false, "configured implementation exists");
+        return tr.failures;
+    }
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onFinalRelease");
+    YieldToWorkerPool();
+    auto* handler = shell.GetHandlerFake();
+    WPEFramework::Exchange::IAppNotificationHandler::IEmitter* retained = nullptr;
+    if (handler) {
+        std::lock_guard<std::mutex> lock(handler->_mutex);
+        retained = handler->lastEmitter;
+        if (retained) retained->AddRef();
+    }
+    impl->Release();
+    L0Test::ExpectTrue(tr, retained != nullptr, "provider retains callback emitter independently");
+    if (handler) {
+        std::lock_guard<std::mutex> lock(handler->_mutex);
+        L0Test::ExpectEqU32(tr, handler->handleCount, 2, "destruction unsubscribes live registration once");
+        L0Test::ExpectTrue(tr, !handler->lastListen, "destruction unregisters before releasing shell");
+    }
+    if (retained) {
+        retained->Emit("onFinalRelease", "{}", "com.app");
+        retained->Release();
+    }
+    return tr.failures;
+}
+
 uint32_t Test_AN_SubscriberJob_Dispatch_Unsubscribe()
 {
     /** SubscriberJob::Dispatch with subscribe=false calls

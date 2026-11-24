@@ -38,20 +38,22 @@ namespace WPEFramework
 
         AppNotificationsImplementation::AppNotificationsImplementation() : 
         mShell(nullptr),
-        mSubMap(*this),
+        mSubscribers(std::make_shared<SubscriberMap>(*this)),
+        mSubMap(*mSubscribers),
         mThunderManager(*this),
-        mEmitter(*this)
+        mEmitterOwner(Core::Service<Emitter>::Create<Exchange::IAppNotificationHandler::IEmitter>(mSubscribers)),
+        mEmitter(*mEmitterOwner)
         {
         }
 
         AppNotificationsImplementation::~AppNotificationsImplementation()
         {
             // Cleanup resources if needed
-            if (mShell != nullptr)
-            {
-                mShell->Release();
-                mShell = nullptr;
-            }
+            mSubMap.Close();
+            mThunderManager.Cleanup();
+            mEmitterOwner->Release();
+            mEmitterOwner = nullptr;
+            mShell = nullptr;
         }
 
         Core::hresult AppNotificationsImplementation::Subscribe(const Exchange::IAppNotifications::AppNotificationContext &context /* @in */,
@@ -127,8 +129,8 @@ namespace WPEFramework
             LOGINFO("Configuring AppNotifications");
             uint32_t result = Core::ERROR_NONE;
             ASSERT(shell != nullptr);
+            mSubMap.SetShell(shell);
             mShell = shell;
-            mShell->AddRef();
             return result;
         }
 
@@ -168,7 +170,8 @@ namespace WPEFramework
             return it != mSubscribers.end();
         }
 
-        void AppNotificationsImplementation::SubscriberMap::EventUpdate(const string& key, const string& payloadStr, const string& appId ) {                
+        void AppNotificationsImplementation::SubscriberMap::EventUpdate(const string& key, const string& payloadStr, const string& appId ) {
+            if (Closed()) return;
 
             std::lock_guard<std::mutex> lock(mSubscriberMutex);
             string lowerKey = StringUtils::toLower(key);
@@ -207,7 +210,7 @@ namespace WPEFramework
         void AppNotificationsImplementation::SubscriberMap::DispatchToGateway(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload) {
             Core::SafeSyncType<Core::CriticalSection> lock(mAppGatewayLock);
             if (nullptr == mAppGateway) {
-                mAppGateway = mParent.mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(APP_GATEWAY_CALLSIGN);
+                mAppGateway = mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(APP_GATEWAY_CALLSIGN);
                 if (nullptr == mAppGateway) {
                     LOGERR("Failed to get AppGateway Responder interface");
                     return;
@@ -222,7 +225,7 @@ namespace WPEFramework
         void AppNotificationsImplementation::SubscriberMap::DispatchToLaunchDelegate(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload) {
             Core::SafeSyncType<Core::CriticalSection> lock(mInternalGatewayNotifierLock);
             if (nullptr == mInternalGatewayNotifier) {
-                mInternalGatewayNotifier = mParent.mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
+                mInternalGatewayNotifier = mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
                 if (nullptr == mInternalGatewayNotifier) {
                     LOGERR("Failed to get InternalGatewayNotifier interface");
                     return;
@@ -235,6 +238,10 @@ namespace WPEFramework
         }
 
         AppNotificationsImplementation::ThunderSubscriptionManager::~ThunderSubscriptionManager() {
+            Cleanup();
+        }
+
+        void AppNotificationsImplementation::ThunderSubscriptionManager::Cleanup() {
             // Copy notifications to avoid holding the lock during external calls
             std::vector<NotificationKey> notificationsCopy;
             {

@@ -558,7 +558,10 @@ LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_
                                     context.requestId, context.connectionId, context.appId,
                                     [context, hookMethod](AppGatewayImplementation& owner) {
                                         std::string hookResolution;
-                                        owner.FetchResolvedData(context, hookMethod, "{}", "", hookResolution);
+                                        const auto hookResult = owner.FetchResolvedData(context, hookMethod, "{}", "", hookResolution);
+                                        if (hookResult != Core::ERROR_NONE && hookResult != static_cast<uint32_t>(-1)) {
+                                            LOGERR("EventHookJob failed: hook=%s result=%u", hookMethod.c_str(), static_cast<uint32_t>(hookResult));
+                                        }
                                     });
                             }
                         }

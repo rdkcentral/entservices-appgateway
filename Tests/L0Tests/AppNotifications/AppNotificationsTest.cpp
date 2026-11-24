@@ -130,6 +130,8 @@ extern uint32_t Test_AN_Impl_Destructor_NonNullShell();
 extern uint32_t Test_AN_Subscribe_EmptyModule();
 
 
+extern uint32_t Test_AN_FinalReleaseWithLiveSubscription();
+
 int main()
 {
     // Bootstrap the Thunder Core WorkerPool for this test process.
@@ -218,6 +220,7 @@ int main()
         { "AN_IsNotificationRegistered_NotExists",           Test_AN_IsNotificationRegistered_NotExists            },
         { "AN_IsNotificationRegistered_CaseInsensitive",     Test_AN_IsNotificationRegistered_CaseInsensitive      },
         { "AN_ThunderMgr_Destructor_UnsubscribesAll",        Test_AN_ThunderMgr_Destructor_UnsubscribesAll         },
+        { "AN_FinalReleaseWithLiveSubscription",             Test_AN_FinalReleaseWithLiveSubscription              },
         { "AN_Emitter_Emit_Callback",                        Test_AN_Emitter_Emit_Callback                         },
         { "AN_SubscriberJob_Dispatch_Subscribe",             Test_AN_SubscriberJob_Dispatch_Subscribe              },
         { "AN_SubscriberJob_Dispatch_Unsubscribe",           Test_AN_SubscriberJob_Dispatch_Unsubscribe            },

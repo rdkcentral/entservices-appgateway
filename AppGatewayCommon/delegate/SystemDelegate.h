@@ -197,7 +197,7 @@ private:
 
 public:
     SystemDelegate(PluginHost::IShell *shell)
-        : BaseEventDelegate()
+        : BaseEventDelegate(shell)
         , _shell(shell)
         , _subscriptions()
         , _displayRpc(nullptr)
@@ -211,6 +211,12 @@ public:
     {
             SetupSystemSub();
             LOGINFO("SystemDelegate initialized");
+    }
+
+    void CloseChannels()
+    {
+        CloseNotificationChannel();
+        _workerPool.Close();
     }
 
     ~SystemDelegate()

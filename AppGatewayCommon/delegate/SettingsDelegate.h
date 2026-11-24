@@ -135,6 +135,14 @@ class SettingsDelegate {
                 avOutputDelegate.swap(detached.avOutputDelegate);
                 videoOutputDelegate.swap(detached.videoOutputDelegate);
             }
+            if (detached.systemDelegate) detached.systemDelegate->CloseChannels();
+            if (detached.networkDelegate) detached.networkDelegate->CloseChannels();
+            if (detached.videoOutputDelegate) detached.videoOutputDelegate->CloseChannels();
+            std::shared_ptr<BaseEventDelegate> children[] = {
+                detached.userSettings, detached.lifecycleDelegate, detached.ttsDelegate, detached.avOutputDelegate};
+            for (const auto& child : children) {
+                if (child) child->CloseNotificationChannel();
+            }
         }
 
         std::shared_ptr<SystemDelegate> getSystemDelegate() const {

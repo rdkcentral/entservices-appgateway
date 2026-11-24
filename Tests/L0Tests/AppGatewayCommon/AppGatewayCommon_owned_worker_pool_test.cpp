@@ -198,3 +198,49 @@ uint32_t Test_SharedOwnerChannel_OldJobStaysCanceledAfterReopenReplacement()
     ExpectEqU32(tr, newOwner->calls, 1, "replacement open channel dispatches new work");
     return tr.failures;
 }
+
+uint32_t Test_SettingsCleanup_RetainedChildrenOwnShellAndCloseEvents()
+{
+    L0Test::ServiceMock shell;
+    auto references = [&]() -> uint32_t {
+        const auto count = shell.AddRef();
+        shell.Release();
+        return count - 1;
+    };
+    struct Emitter : Exchange::IAppNotificationHandler::IEmitter {
+        uint32_t AddRef() const override { return ++references; }
+        uint32_t Release() const override { return --references; }
+        void* QueryInterface(uint32_t) override { return nullptr; }
+        void Emit(const std::string&, const std::string&, const std::string&) override { ++calls; }
+        mutable uint32_t references{1};
+        uint32_t calls{0};
+    } emitter;
+    TestResult tr;
+    {
+        SettingsDelegate settings;
+        settings.setShell(&shell);
+        std::vector<std::shared_ptr<BaseEventDelegate>> children = {
+            settings.getSystemDelegate(), settings.getNetworkDelegate(), settings.getUserSettings(),
+            settings.getLifecycleDelegate(), settings.getTTSDelegate(), settings.getAvOutputDelegate(),
+            settings.getVideoOutputDelegate()};
+        std::vector<WPEFramework::Core::ProxyType<WPEFramework::Core::IDispatch>> jobs;
+        for (const auto& child : children) {
+            child->AddNotification("lifetime", &emitter);
+            jobs.push_back(BaseEventDelegate::EventDelegateDispatchJob::Create(child, "lifetime", "old", "app"));
+        }
+        settings.Cleanup();
+        settings.Cleanup();
+        ExpectEqU32(tr, references(), 8, "retained children each retain the shell");
+        for (size_t i = 0; i < children.size(); ++i) {
+            jobs[i]->Dispatch();
+            children[i]->AddNotification("late", &emitter);
+            ExpectTrue(tr, !children[i]->IsNotificationRegistered("late"), "closed child rejects late registration");
+            ExpectTrue(tr, !children[i]->Dispatch("lifetime", "new"), "closed child rejects event submission");
+        }
+        ExpectEqU32(tr, emitter.calls, 0, "old notification jobs are discarded while children survive");
+        ExpectEqU32(tr, emitter.references, 8, "cleanup preserves existing references for admitted callbacks");
+    }
+    ExpectEqU32(tr, emitter.references, 1, "final destruction balances emitter references");
+    ExpectEqU32(tr, references(), 1, "final child release balances shell references");
+    return tr.failures;
+}

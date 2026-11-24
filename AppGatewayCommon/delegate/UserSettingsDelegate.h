@@ -252,7 +252,7 @@ static string BuildClosedCaptionsSettingsResponse(const bool enabled, const stri
 class UserSettingsDelegate : public BaseEventDelegate{
     public:
         UserSettingsDelegate(PluginHost::IShell* shell):
-            BaseEventDelegate(), mUserSettings(nullptr), mTextTrack(nullptr), mShell(shell),
+            BaseEventDelegate(shell), mUserSettings(nullptr), mTextTrack(nullptr), mShell(shell),
             mNotificationHandler(*this), mTextTrackNotificationHandler(*this) {}
 
         ~UserSettingsDelegate() {

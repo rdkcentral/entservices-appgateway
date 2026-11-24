@@ -23,6 +23,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <future>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -224,6 +225,60 @@ protected:
 // ===========================================================================
 // Configure tests
 // ===========================================================================
+
+TEST_F(AppNotificationsTest, FinalSubscriptionJobCleansUpBeforeReleasingDependencies)
+{
+    NiceMock<AppNotificationHandlerMock> handler;
+    std::promise<void> entered;
+    auto started = entered.get_future();
+    std::promise<void> release;
+    auto released = release.get_future();
+    std::promise<void> unsubscribed;
+    auto cleaned = unsubscribed.get_future();
+    Exchange::IAppNotificationHandler::IEmitter* retained = nullptr;
+    ON_CALL(service, QueryInterfaceByCallsign(Exchange::IAppNotificationHandler::ID, StrEq("final.module")))
+        .WillByDefault(::testing::Invoke([&](uint32_t, const string&) -> void* {
+            handler.AddRef();
+            return static_cast<Exchange::IAppNotificationHandler*>(&handler);
+        }));
+    EXPECT_CALL(handler, HandleAppEventNotifier(_, _, true, _))
+        .WillOnce(::testing::Invoke([&](Exchange::IAppNotificationHandler::IEmitter* emitter,
+            const string&, bool, bool& status) -> Core::hresult {
+            retained = emitter;
+            retained->AddRef();
+            entered.set_value();
+            released.wait();
+            status = true;
+            return Core::ERROR_NONE;
+        }));
+    EXPECT_CALL(handler, HandleAppEventNotifier(_, _, false, _))
+        .WillOnce(::testing::Invoke([&](Exchange::IAppNotificationHandler::IEmitter*,
+            const string&, bool, bool& status) -> Core::hresult {
+            status = true;
+            unsubscribed.set_value();
+            return Core::ERROR_NONE;
+        }));
+    auto* owner = Core::Service<AppNotificationsImplementation>::Create<Exchange::IAppNotifications>();
+    auto* configuration = owner->QueryInterface<Exchange::IConfiguration>();
+    EXPECT_EQ(Core::ERROR_NONE, configuration->Configure(&service));
+    configuration->Release();
+    auto* concrete = static_cast<AppNotificationsImplementation*>(owner);
+    std::weak_ptr<AppNotificationsImplementation::SubscriberMap> state = concrete->mSubscribers;
+    EXPECT_EQ(Core::ERROR_NONE, owner->Subscribe(MakeContext(), true, "final.module", "final.event"));
+    const bool admitted = started.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+    owner->Release();
+    release.set_value();
+    const bool cleanupRan = cleaned.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+    workerPool->Stop();
+    EXPECT_TRUE(admitted);
+    EXPECT_TRUE(cleanupRan);
+    EXPECT_FALSE(state.expired());
+    if (retained) {
+        retained->Emit("final.event", "{}", "test.app");
+        retained->Release();
+    }
+    EXPECT_TRUE(state.expired());
+}
 
 TEST_F(AppNotificationsTest, Configure_StoresShellAndAddsRef)
 {
