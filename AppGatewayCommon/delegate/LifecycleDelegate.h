@@ -470,8 +470,8 @@ class LifecycleDelegate : public BaseEventDelegate
                 bIntentUpdated = true;
             }
 
-            // if new Lifecycle state is INITIALIZING then add to app instance map
-            if (Exchange::ILifecycleManager::INITIALIZING == newLifecycleState) {
+            // if new Lifecycle state is LOADING then add to app instance map
+            if (Exchange::ILifecycleManager::LOADING == newLifecycleState) {
                 mParent.mAppIdInstanceIdMap.AddAppInstanceId(appId, appInstanceId);
                 // also add to lifecycle state registry
                 mParent.mLifecycleStateRegistry.AddLifecycleState(appInstanceId, oldLifecycleState, newLifecycleState);
