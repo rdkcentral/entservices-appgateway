@@ -20,6 +20,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <chrono>
+#include <future>
 #include <string>
 #include <thread>
 
@@ -759,6 +760,110 @@ TEST_F(NetworkNotificationTest, AGC_L1_166_NetworkNotification_DuplicateValue_Di
     capturedNotification->onInterfaceStateChange(Exchange::INetworkManager::INTERFACE_LINK_DOWN, "wlan0");
 
     std::this_thread::sleep_for(std::chrono::milliseconds(25));
+}
+
+TEST(SettingsDelegateShutdown, CleanupClosesRetainedChildrenAndAllWorkerChannels)
+{
+    struct Shell : NiceMock<ServiceMock> {
+        uint32_t AddRef() const override { return ++references; }
+        uint32_t Release() const override { return --references; }
+        mutable std::atomic<uint32_t> references{1};
+    } shell;
+    struct Emitter : Exchange::IAppNotificationHandler::IEmitter {
+        uint32_t AddRef() const override { return 1; }
+        uint32_t Release() const override { return 1; }
+        void* QueryInterface(uint32_t) override { return nullptr; }
+        void Emit(const string&, const string&, const string&) override { ++calls; }
+        uint32_t calls{0};
+    } emitter;
+    SettingsDelegate settings;
+    settings.setShell(&shell);
+    auto system = settings.getSystemDelegate();
+    auto network = settings.getNetworkDelegate();
+    auto video = settings.getVideoOutputDelegate();
+    unsigned workerCalls = 0;
+    auto systemJob = system->_workerPool.Create(system, [&](SystemDelegate&) { ++workerCalls; });
+    auto networkJob = network->mWorkerPool.Create(network, [&](NetworkDelegate&) { ++workerCalls; });
+    auto videoJob = video->_workerPool.Create(video, [&](VideoOutputDelegate&) { ++workerCalls; });
+    std::vector<std::shared_ptr<BaseEventDelegate>> children = {
+        system, network, video, settings.getUserSettings(), settings.getLifecycleDelegate(),
+        settings.getTTSDelegate(), settings.getAvOutputDelegate()};
+    std::vector<Core::ProxyType<Core::IDispatch>> events;
+    for (const auto& child : children) {
+        child->AddNotification("shutdown", &emitter);
+        events.push_back(BaseEventDelegate::EventDelegateDispatchJob::Create(child, "shutdown", "{}", "app"));
+    }
+    settings.Cleanup();
+    settings.Cleanup();
+    EXPECT_EQ(8u, shell.references.load());
+    EXPECT_EQ(nullptr, settings.getNetworkDelegate());
+    systemJob->Dispatch();
+    networkJob->Dispatch();
+    videoJob->Dispatch();
+    EXPECT_EQ(0u, workerCalls);
+    EXPECT_FALSE(system->_workerPool.Create(system, [](SystemDelegate&) {}).IsValid());
+    EXPECT_FALSE(network->mWorkerPool.Create(network, [](NetworkDelegate&) {}).IsValid());
+    EXPECT_FALSE(video->_workerPool.Create(video, [](VideoOutputDelegate&) {}).IsValid());
+    for (size_t i = 0; i < children.size(); ++i) {
+        events[i]->Dispatch();
+        children[i]->AddNotification("late", &emitter);
+        EXPECT_FALSE(children[i]->IsNotificationRegistered("late"));
+        EXPECT_FALSE(children[i]->Dispatch("shutdown", "{}"));
+    }
+    EXPECT_EQ(0u, emitter.calls);
+    events.clear();
+    children.clear();
+    system.reset();
+    network.reset();
+    video.reset();
+    EXPECT_EQ(1u, shell.references.load());
+    settings.setShell(&shell);
+    auto fresh = settings.getNetworkDelegate();
+    fresh->AddNotification("fresh", &emitter);
+    EXPECT_TRUE(fresh->DispatchToAppNotifications("fresh", "{}", "app"));
+    EXPECT_EQ(1u, emitter.calls);
+    settings.Cleanup();
+    fresh.reset();
+    EXPECT_EQ(1u, shell.references.load());
+}
+
+TEST(SettingsDelegateShutdown, AdmittedLookupRetainsShellAfterPluginDeinitialize)
+{
+    WorkerPoolGuard pool;
+    struct Shell : NiceMock<ServiceMock> {
+        uint32_t AddRef() const override { return ++references; }
+        uint32_t Release() const override { return --references; }
+        mutable std::atomic<uint32_t> references{1};
+    } shell;
+    Core::Sink<AppGatewayCommon> plugin;
+    EXPECT_TRUE(plugin.Initialize(&shell).empty());
+    auto network = plugin.mDelegate->getNetworkDelegate();
+    std::promise<void> entered;
+    auto started = entered.get_future();
+    std::promise<void> release;
+    auto released = release.get_future();
+    bool lookupHeldShell = false;
+    ON_CALL(shell, QueryInterfaceByCallsign(Exchange::INetworkManager::ID, _))
+        .WillByDefault(::testing::Invoke([&](uint32_t, const string&) -> void* {
+            lookupHeldShell = shell.references.load() > 1;
+            return nullptr;
+        }));
+    auto work = network->mWorkerPool.Create(network, [&](NetworkDelegate& child) {
+        entered.set_value();
+        released.wait();
+        child.GetNetworkManagerInterface();
+    });
+    std::thread callback([&] { work->Dispatch(); });
+    const bool admitted = started.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+    plugin.Deinitialize(&shell);
+    network.reset();
+    const auto survivingReferences = shell.references.load();
+    release.set_value();
+    callback.join();
+    EXPECT_TRUE(admitted);
+    EXPECT_EQ(2u, survivingReferences);
+    EXPECT_TRUE(lookupHeldShell);
+    EXPECT_EQ(1u, shell.references.load());
 }
 
 } // namespace

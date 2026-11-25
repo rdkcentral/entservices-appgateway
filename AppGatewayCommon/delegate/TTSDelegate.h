@@ -38,7 +38,7 @@ using namespace WPEFramework;
 class TTSDelegate : public BaseEventDelegate
 {
 public:
-    TTSDelegate(PluginHost::IShell *shell) : BaseEventDelegate(), mTextToSpeech(nullptr), mShell(shell), mNotificationHandler(*this) {}
+    TTSDelegate(PluginHost::IShell *shell) : BaseEventDelegate(shell), mTextToSpeech(nullptr), mShell(shell), mNotificationHandler(*this) {}
 
     ~TTSDelegate()
     {

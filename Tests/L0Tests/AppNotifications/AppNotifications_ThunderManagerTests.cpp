@@ -682,7 +682,7 @@ uint32_t Test_AN_ThunderMgr_Destructor_UnsubscribesAll()
     // Register multiple events
     impl->Subscribe(ctx1, true, FB_SETTINGS_CALLSIGN, "onDestrEvent1");
     impl->Subscribe(ctx2, true, FB_SETTINGS_CALLSIGN, "onDestrEvent2");
-    YieldToWorkerPool();
+    YieldToWorkerPool(500);
 
     L0Test::ANNotificationHandlerFake* handler = shell.GetHandlerFake();
     uint32_t handleCountAfterSub = handler ? handler->handleCount : 0u;
@@ -695,9 +695,9 @@ uint32_t Test_AN_ThunderMgr_Destructor_UnsubscribesAll()
     // Note: impl->Release() with a non-empty list is also safe because the fixed
     // destructor keeps mShell valid during ~ThunderSubscriptionManager execution.
     impl->Subscribe(ctx1, false, FB_SETTINGS_CALLSIGN, "onDestrEvent1");
-    YieldToWorkerPool();
+    YieldToWorkerPool(500);
     impl->Subscribe(ctx2, false, FB_SETTINGS_CALLSIGN, "onDestrEvent2");
-    YieldToWorkerPool();
+    YieldToWorkerPool(500);
 
     if (handler != nullptr) {
         L0Test::ExpectTrue(tr, handler->handleCount >= 4u,
@@ -809,6 +809,43 @@ uint32_t Test_AN_SubscriberJob_Dispatch_Subscribe()
 // ---------------------------------------------------------------------------
 // AN-L0-096: SubscriberJob::Dispatch subscribe=false branch (explicit verify)
 // ---------------------------------------------------------------------------
+uint32_t Test_AN_FinalReleaseWithLiveSubscription()
+{
+    L0Test::TestResult tr;
+    L0Test::AppNotificationsServiceMock::Config cfg;
+    cfg.notificationHandlerCallsign = FB_SETTINGS_CALLSIGN;
+    cfg.provideNotificationHandler = true;
+    cfg.handlerStatusResult = true;
+    L0Test::AppNotificationsServiceMock shell(cfg);
+    auto* impl = CreateConfiguredImpl(&shell);
+    if (!impl) {
+        L0Test::ExpectTrue(tr, false, "configured implementation exists");
+        return tr.failures;
+    }
+    auto ctx = MakeContext(1, 100, "com.app", APP_GATEWAY_CALLSIGN);
+    impl->Subscribe(ctx, true, FB_SETTINGS_CALLSIGN, "onFinalRelease");
+    YieldToWorkerPool();
+    auto* handler = shell.GetHandlerFake();
+    WPEFramework::Exchange::IAppNotificationHandler::IEmitter* retained = nullptr;
+    if (handler) {
+        std::lock_guard<std::mutex> lock(handler->_mutex);
+        retained = handler->lastEmitter;
+        if (retained) retained->AddRef();
+    }
+    impl->Release();
+    L0Test::ExpectTrue(tr, retained != nullptr, "provider retains callback emitter independently");
+    if (handler) {
+        std::lock_guard<std::mutex> lock(handler->_mutex);
+        L0Test::ExpectEqU32(tr, handler->handleCount, 2, "destruction unsubscribes live registration once");
+        L0Test::ExpectTrue(tr, !handler->lastListen, "destruction unregisters before releasing shell");
+    }
+    if (retained) {
+        retained->Emit("onFinalRelease", "{}", "com.app");
+        retained->Release();
+    }
+    return tr.failures;
+}
+
 uint32_t Test_AN_SubscriberJob_Dispatch_Unsubscribe()
 {
     /** SubscriberJob::Dispatch with subscribe=false calls

@@ -40,7 +40,7 @@ public:
     static constexpr const char* EVENT_ON_DOLBY_ATMOS_EXPERIENCE_AVAILABLE_CHANGED = "Device.onDolbyAtmosExperienceAvailableChanged";
 
     explicit AvOutputDelegate(PluginHost::IShell* shell)
-        : BaseEventDelegate()
+        : BaseEventDelegate(shell)
         , _shell(shell)
         , _audioOutput(nullptr)
         , _audioOutputSubscribed(false)

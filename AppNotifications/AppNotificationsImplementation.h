@@ -23,6 +23,9 @@
 #include <interfaces/IConfiguration.h>
 #include <mutex>
 #include <map>
+#include <atomic>
+#include <memory>
+#include "RetainedJobQueue.h"
 #include "UtilsLogging.h"
 #include "UtilsController.h"
 #include "ContextUtils.h"
@@ -35,11 +38,24 @@ namespace Plugin {
     private:
         class SubscriberMap {
         public:
-            SubscriberMap(AppNotificationsImplementation& parent) : mParent(parent),
+            SubscriberMap(AppNotificationsImplementation& parent) : mShell(), mClosed(false),
             mSubscriberMutex(),
             mSubscribers(),
             mAppGateway(nullptr),
-            mInternalGatewayNotifier(nullptr){}
+            mInternalGatewayNotifier(nullptr) { SetShell(parent.mShell); }
+
+            void SetShell(PluginHost::IShell* shell) {
+                std::shared_ptr<PluginHost::IShell> retained;
+                if (shell) {
+                    shell->AddRef();
+                    retained = std::shared_ptr<PluginHost::IShell>(shell,
+                        [](PluginHost::IShell* value) { value->Release(); });
+                }
+                mShell = std::move(retained);
+            }
+
+            void Close() { mClosed.store(true, std::memory_order_release); }
+            bool Closed() const { return mClosed.load(std::memory_order_acquire); }
 
             ~SubscriberMap() {
                 // cleanup mutex and map
@@ -77,7 +93,8 @@ namespace Plugin {
             void DispatchToLaunchDelegate(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload);
             void CleanupNotifications(const uint32_t &connectionId, const string& origin);
         private:
-            AppNotificationsImplementation& mParent;
+            std::shared_ptr<PluginHost::IShell> mShell;
+            std::atomic<bool> mClosed;
             mutable std::mutex mSubscriberMutex;
             mutable Core::CriticalSection mAppGatewayLock;
             mutable Core::CriticalSection mInternalGatewayNotifierLock;
@@ -97,6 +114,8 @@ namespace Plugin {
                 }
 
                 ~ThunderSubscriptionManager();
+
+                void Cleanup();
 
                 void Subscribe(const string& module, const string& event);
 
@@ -156,84 +175,13 @@ namespace Plugin {
         // IConfiguration interface
         uint32_t Configure(PluginHost::IShell* shell);
 
-        class EXTERNAL SubscriberJob : public Core::IDispatch,
-                                       public AppGatewayTelemetryHelper::JobTiming
-        {
-            public:
-                SubscriberJob(AppNotificationsImplementation* delegate, const string& module, const string& event, const bool subscribe)
-                    : mParent(*delegate), mEvent(event), mModule(module), mSubscribe(subscribe) {}
-
-                SubscriberJob() = delete;
-                SubscriberJob(const SubscriberJob &) = delete;
-                SubscriberJob &operator=(const SubscriberJob &) = delete;
-                ~SubscriberJob()
-                {
-                }
-
-                static Core::ProxyType<Core::IDispatch> Create(AppNotificationsImplementation *parent,
-                const string& module, const string& event, const bool subscribe)
-                {
-                    return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<SubscriberJob>::Create(parent, module, event, subscribe)));
-                }
-                
-                virtual void Dispatch()
-                {
-                    AGW_TIME_JOB(timer, "SubscriberJob[" + std::string(mSubscribe?"sub":"unsub") + ":" + mEvent + "]",
-                        0, 0, "");
-                    if (mSubscribe) {
-                        mParent.mThunderManager.Subscribe(mModule, mEvent);
-                    } else {
-                        mParent.mThunderManager.Unsubscribe(mModule, mEvent);
-                    }
-                }
-
-            private:
-                AppNotificationsImplementation &mParent;
-                string mEvent;
-                string mModule;
-                bool mSubscribe;
-        };
-
-        class EXTERNAL EmitJob : public Core::IDispatch,
-                                 public AppGatewayTelemetryHelper::JobTiming
-        {
-            public:
-                EmitJob(AppNotificationsImplementation* delegate, const string& event, const string& payload, const string& appId)
-                    : mParent(*delegate), mEvent(event), mPayload(payload), mAppId(appId) {}
-
-                EmitJob() = delete;
-                EmitJob(const EmitJob &) = delete;
-                EmitJob &operator=(const EmitJob &) = delete;
-                ~EmitJob()
-                {
-                }
-
-                static Core::ProxyType<Core::IDispatch> Create(AppNotificationsImplementation *parent,
-                const string& event, const string& payload, const string& appId)
-                {
-                    return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<EmitJob>::Create(parent, event, payload, appId)));
-                }
-                
-                virtual void Dispatch()
-                {
-                    AGW_TIME_JOB(timer, "NotifEmitJob[" + mEvent + "]",
-                        0, 0, mAppId);
-                    mParent.mSubMap.EventUpdate(mEvent, mPayload, mAppId);
-                }
-
-            private:
-                AppNotificationsImplementation &mParent;
-                string mEvent;
-                string mPayload;
-                string mAppId;
-        };
-
         class Emitter: public Exchange::IAppNotificationHandler::IEmitter {
         private:
             Emitter(const Emitter&) = delete;
             Emitter& operator=(const Emitter&) = delete;
         public:
-            Emitter(AppNotificationsImplementation& parent) : mParent(parent) {}
+            Emitter(AppNotificationsImplementation& parent) : Emitter(parent.mSubscribers) {}
+            explicit Emitter(const std::shared_ptr<SubscriberMap>& subscribers) : mSubscribers(subscribers) {}
 
             virtual void Emit(const string &event /* @in */,
                               const string &payload /* @in @opaque */,
@@ -241,7 +189,11 @@ namespace Plugin {
             {
                 LOGINFO("Emit [event= %s payload=%s appId=%s]",
                     event.c_str(), payload.c_str(), appId.c_str());
-                Core::IWorkerPool::Instance().Submit(EmitJob::Create(&mParent, event, payload, appId));
+                if (mSubscribers->Closed()) return;
+                RetainedJobQueue<Emitter>::SubmitTimed(this, "NotifEmitJob[" + event + "]", 0, 0, appId,
+                    [event, payload, appId](Emitter& owner) {
+                        owner.mSubscribers->EventUpdate(event, payload, appId);
+                    });
             }
 
             BEGIN_INTERFACE_MAP(Emitter)
@@ -249,14 +201,16 @@ namespace Plugin {
             END_INTERFACE_MAP
 
         private:
-            AppNotificationsImplementation& mParent;
+            std::shared_ptr<SubscriberMap> mSubscribers;
         };
 
     private:
         PluginHost::IShell* mShell;
-        SubscriberMap mSubMap;
+        std::shared_ptr<SubscriberMap> mSubscribers;
+        SubscriberMap& mSubMap;
         ThunderSubscriptionManager mThunderManager;
-        Core::Sink<Emitter> mEmitter;
+        Exchange::IAppNotificationHandler::IEmitter* mEmitterOwner;
+        Exchange::IAppNotificationHandler::IEmitter& mEmitter;
     };
 }
 }

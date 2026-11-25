@@ -21,6 +21,7 @@
 #include <plugins/JSONRPC.h>
 #include <plugins/IShell.h>
 #include "AppGatewayImplementation.h"
+#include "RetainedJobQueue.h"
 #include "AppGatewayTelemetry.h"
 #include "UtilsLogging.h"
 #include "ContextUtils.h"
@@ -374,7 +375,15 @@ LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_
             }
             if (!resolution.empty()) {
                 LOGTRACE("Final resolution: %s", resolution.c_str());
-                Core::IWorkerPool::Instance().Submit(RespondJob::Create(this, context, resolution, origin));
+                RetainedJobQueue<AppGatewayImplementation>::SubmitTimed(
+                    this, "ImplRespondJob", context.requestId, context.connectionId, context.appId,
+                    [context, resolution, origin](AppGatewayImplementation& owner) {
+                        if (ContextUtils::IsOriginGateway(origin)) {
+                            owner.ReturnMessageInSocket(context, resolution);
+                        } else {
+                            owner.SendToLaunchDelegate(context, resolution);
+                        }
+                    });
             }
             return result;
         }
@@ -544,8 +553,16 @@ LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_
                             if (mResolverPtr->HasEventHook(method, hookMethod)) {
                                 LOGINFO("PreProcessEvent: eventHook detected for method=%s hook=%s appId=%s",
                                          method.c_str(), hookMethod.c_str(), context.appId.c_str());
-                                Core::IWorkerPool::Instance().Submit(
-                                    EventHookJob::Create(this, context, hookMethod));
+                                RetainedJobQueue<AppGatewayImplementation>::SubmitTimed(
+                                    this, "EventHookJob[" + hookMethod + "]",
+                                    context.requestId, context.connectionId, context.appId,
+                                    [context, hookMethod](AppGatewayImplementation& owner) {
+                                        std::string hookResolution;
+                                        const auto hookResult = owner.FetchResolvedData(context, hookMethod, "{}", "", hookResolution);
+                                        if (hookResult != Core::ERROR_NONE && hookResult != static_cast<uint32_t>(-1)) {
+                                            LOGERR("EventHookJob failed: hook=%s result=%u", hookMethod.c_str(), static_cast<uint32_t>(hookResult));
+                                        }
+                                    });
                             }
                         }
                         JsonObject returnResult;
@@ -562,19 +579,6 @@ LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_
                     LOGERR("Event method '%s' called without parameters", method.c_str());
                     ErrorUtils::CustomBadRequest("Event methods require parameters", resolution);
                     return Core::ERROR_BAD_REQUEST;
-            }
-        }
-
-        void AppGatewayImplementation::EventHookJob::Dispatch()
-        {
-            AGW_TIME_JOB(timer, "EventHookJob[" + mHookMethod + "]",
-                mContext.requestId, mContext.connectionId, mContext.appId);
-            LOGINFO("EventHookJob: triggering hook method=%s for appId=%s",
-                     mHookMethod.c_str(), mContext.appId.c_str());
-            std::string resolution;
-            const auto rc = mParent.FetchResolvedData(mContext, mHookMethod, "{}", "", resolution);
-            if (rc != Core::ERROR_NONE) {
-                LOGERR("EventHookJob: hook method=%s failed rc=%u", mHookMethod.c_str(), rc);
             }
         }
 

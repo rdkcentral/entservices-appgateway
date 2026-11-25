@@ -619,6 +619,59 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_ResolveWithoutResolver_Retur
     impl.mService = nullptr;
 }
 
+TEST(AppGatewayPluginTest, EventHookReportsOnlyRealFailuresAndPreservesSubscriptionResponse)
+{
+    struct Notifications : Exchange::IAppNotifications {
+        uint32_t AddRef() const override { return 1; }
+        uint32_t Release() const override { return 1; }
+        void* QueryInterface(uint32_t) override { return nullptr; }
+        Core::hresult Subscribe(const AppNotificationContext&, bool, const string&, const string&) override { return Core::ERROR_NONE; }
+        Core::hresult Emit(const string&, const string&, const string&) override { return Core::ERROR_NONE; }
+        Core::hresult Cleanup(uint32_t, const string&) override { return Core::ERROR_NONE; }
+    } notifications;
+    struct Handler : Exchange::IAppGatewayRequestHandler {
+        uint32_t AddRef() const override { return 1; }
+        uint32_t Release() const override { return 1; }
+        void* QueryInterface(uint32_t) override { return nullptr; }
+        Core::hresult HandleAppGatewayRequest(const Exchange::GatewayContext&, const string&, const string&, string&) override { return result; }
+        Core::hresult result{Core::ERROR_NONE};
+    } handler;
+    struct Fence : Core::IDispatch {
+        void Dispatch() override { complete.set_value(); }
+        std::promise<void> complete;
+    };
+    NiceMock<ServiceMock> shell;
+    ON_CALL(shell, QueryInterfaceByCallsign(Exchange::IAppGatewayRequestHandler::ID, _))
+        .WillByDefault(Return(static_cast<void*>(&handler)));
+    TestAppGatewayImplementation impl;
+    impl.mService = &shell;
+    impl.mAppNotifications = &notifications;
+    impl.mResolverPtr = std::make_shared<Resolver>(&shell);
+    const auto path = WriteResolverTempConfig("event_hook_results.json", R"({"resolutions":{"test.event":{"alias":"test.module","event":"test.event","eventHook":"hook.run"},"hook.run":{"alias":"test.target","useComRpc":true}}})");
+    EXPECT_EQ(Core::ERROR_NONE, impl.InternalResolutionConfigure({path}));
+    Exchange::GatewayContext context{};
+    context.appId = "test.app";
+    for (const auto result : {uint32_t(Core::ERROR_NONE), uint32_t(Core::ERROR_GENERAL), uint32_t(-1)}) {
+        handler.result = result;
+        ::testing::internal::CaptureStderr();
+        string resolution;
+        const auto status = impl.PreProcessEvent(context, "test.module", "test.event", "org.rdk.AppGateway", "{\"listen\":true}", resolution);
+        auto fence = Core::ProxyType<Fence>::Create();
+        auto finished = fence->complete.get_future();
+        Core::IWorkerPool::Instance().Submit(Core::ProxyType<Core::IDispatch>(fence));
+        const bool processed = finished.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+        const auto output = ::testing::internal::GetCapturedStderr();
+        EXPECT_TRUE(processed);
+        EXPECT_EQ(Core::ERROR_NONE, status);
+        EXPECT_NE(string::npos, resolution.find("\"listening\":true"));
+        EXPECT_EQ(result == Core::ERROR_GENERAL, output.find("EventHookJob failed: hook=hook.run") != string::npos);
+        EXPECT_EQ(nullptr, impl.mAppGatewayResponder);
+        EXPECT_EQ(nullptr, impl.mInternalGatewayResponder);
+    }
+    impl.mService = nullptr;
+    std::remove(path.c_str());
+}
+
 TEST(AppGatewayPluginTest, AppGatewayImplementation_InternalResolutionConfigure_ReturnsGeneralWhenAllPathsInvalid)
 {
         TestAppGatewayImplementation impl;

@@ -26,29 +26,31 @@
 #include <map>
 #include <unordered_set>
 #include <utility>
+#include <memory>
 #include "UtilsAppGatewayTelemetry.h"
+#include "SharedOwnerChannel.h"
 
 using namespace WPEFramework;
 using namespace WPEFramework::Plugin;
 
-class BaseEventDelegate
+class BaseEventDelegate : public std::enable_shared_from_this<BaseEventDelegate>
 {
 public:
     class EXTERNAL EventDelegateDispatchJob : public Core::IDispatch,
                                               public AppGatewayTelemetryHelper::JobTiming
     {
     public:
-        EventDelegateDispatchJob(BaseEventDelegate *delegate, const string &event, const string &payload, string appId = "")
-            : mDelegate(*delegate), mEvent(event), mPayload(payload), mAppId(std::move(appId)) {}
+        EventDelegateDispatchJob(std::shared_ptr<BaseEventDelegate> delegate, const string &event, const string &payload, string appId = "")
+            : mDelegate(std::move(delegate)), mEvent(event), mPayload(payload), mAppId(std::move(appId))
+        {
+        }
 
         EventDelegateDispatchJob() = delete;
         EventDelegateDispatchJob(const EventDelegateDispatchJob &) = delete;
         EventDelegateDispatchJob &operator=(const EventDelegateDispatchJob &) = delete;
-        ~EventDelegateDispatchJob()
-        {
-        }
+        ~EventDelegateDispatchJob() = default;
 
-        static Core::ProxyType<Core::IDispatch> Create(BaseEventDelegate *parent,
+        static Core::ProxyType<Core::IDispatch> Create(std::shared_ptr<BaseEventDelegate> parent,
                                                        const string &event, const string &payload, string appId = "")
         {
             return (Core::ProxyType<Core::IDispatch>(Core::ProxyType<EventDelegateDispatchJob>::Create(parent, event, payload, std::move(appId))));
@@ -58,23 +60,37 @@ public:
         {
             AGW_TIME_JOB(timer, "EventDispatchJob[" + mEvent + "]",
                 0, 0, mAppId);
-            mDelegate.DispatchToAppNotifications(mEvent, mPayload, mAppId);
+            if (nullptr != mDelegate) {
+                mDelegate->DispatchToAppNotifications(mEvent, mPayload, mAppId);
+            }
         }
 
     private:
-        BaseEventDelegate &mDelegate;
+        std::shared_ptr<BaseEventDelegate> mDelegate;
         string mEvent;
         string mPayload;
         string mAppId;
     };
 
-    BaseEventDelegate() : mRegisteredNotifications(),
-                          mRegisterMutex()
+    explicit BaseEventDelegate(PluginHost::IShell* shell = nullptr)
+        : mShellLifetime(), mRegisteredNotifications(), mRegisterMutex()
     {
+        if (shell) {
+            shell->AddRef();
+            mShellLifetime = std::shared_ptr<PluginHost::IShell>(shell,
+                [](PluginHost::IShell* value) { value->Release(); });
+        }
     }
 
-    ~BaseEventDelegate()
+    void CloseNotificationChannel()
     {
+        std::lock_guard<std::mutex> lock(mRegisterMutex);
+        mEventJobs.Close();
+    }
+
+    virtual ~BaseEventDelegate()
+    {
+        CloseNotificationChannel();
         // Cleanup registered notifications
         for (auto &entry : mRegisteredNotifications)
         {
@@ -99,9 +115,13 @@ public:
             return false;
         }
 
-        Core::IWorkerPool::Instance().Submit(EventDelegateDispatchJob::Create(this, event, payload, std::move(appId)));
-
-        return true;
+        std::shared_ptr<BaseEventDelegate> owner(shared_from_this());
+        const std::string eventName(event);
+        const std::string eventPayload(payload);
+        return mEventJobs.SubmitTimed(owner, "EventDispatchJob[" + eventName + "]",
+            0, 0, appId, [eventName, eventPayload, appId](BaseEventDelegate& retained) {
+                retained.DispatchToAppNotifications(eventName, eventPayload, appId);
+            });
     }
 
     bool DispatchToAppNotifications(const string &event, const string &payload, const string &appId)
@@ -130,6 +150,9 @@ public:
         ASSERT(cb != nullptr);
         string event_l = StringUtils::toLower(event);
         std::lock_guard<std::mutex> lock(mRegisterMutex);
+        if (mEventJobs.Closed()) {
+            return;
+        }
         auto it = mRegisteredNotifications.find(event_l);
         // add to the existing one
         if (it != mRegisteredNotifications.end())
@@ -171,6 +194,9 @@ public:
         string event_l = StringUtils::toLower(event);
         std::unordered_set<Exchange::IAppNotificationHandler::IEmitter *> emitters;
         std::lock_guard<std::mutex> lock(mRegisterMutex);
+        if (mEventJobs.Closed()) {
+            return emitters;
+        }
         auto it = mRegisteredNotifications.find(event_l);
         if (it != mRegisteredNotifications.end())
         {
@@ -239,7 +265,9 @@ public:
     }
 
 private:
+    std::shared_ptr<PluginHost::IShell> mShellLifetime;
     std::map<string, std::unordered_set<Exchange::IAppNotificationHandler::IEmitter *>> mRegisteredNotifications;
     std::mutex mRegisterMutex;
+    SharedOwnerChannel<BaseEventDelegate> mEventJobs;
 };
 #endif
