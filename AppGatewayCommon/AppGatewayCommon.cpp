@@ -348,6 +348,9 @@ namespace Plugin {
         { "speechsynthesis.resume", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->SpeechSynthesisResume(ctx, payload, result);
         }},
+        { "texttospeech.resume", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->TextToSpeechResume(ctx, payload, result);
+        }},
         { "device.chipsetid", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDeviceChipsetId(result);
         }},
@@ -357,7 +360,11 @@ namespace Plugin {
         { "device.uptime", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetDeviceUptime(result);
         }},
-        { "device.timeinactivestate", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
+        { "device.timeinactivestate", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string&, std::string& result) {
+            const auto focusRc = self->ValidateFocusedActiveState(ctx, result);
+            if (focusRc != Core::ERROR_NONE) {
+                return focusRc;
+            }
             return self->GetDeviceTimeInActiveState(result);
         }},
         // Device Branding APIs (Phase 1)
@@ -570,6 +577,44 @@ namespace Plugin {
             return Core::ERROR_UNKNOWN_KEY;
         }
 
+void AppGatewayCommon::SetAppStateInvalidResponse(string& result)
+{
+    Core::JSONRPC::Message::Info info;
+    info.Code = -50110;
+    info.Text = "App state invalid";
+    info.ToString(result);
+}
+
+Core::hresult AppGatewayCommon::ValidateFocusedActiveState(const Exchange::GatewayContext& ctx, string& result) const
+{
+    if (!mDelegate) {
+        SetAppStateInvalidResponse(result);
+        return Core::ERROR_GENERAL;
+    }
+
+    auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
+    if (!lifecycleDelegate) {
+        SetAppStateInvalidResponse(result);
+        return Core::ERROR_GENERAL;
+    }
+
+    string focusedResult;
+    const auto focusedRc = lifecycleDelegate->GetPresentationFocused(ctx, "{}", focusedResult);
+
+    string lifecycleState;
+    const auto stateRc = lifecycleDelegate->Lifecycle2State(ctx, "{}", lifecycleState);
+
+    if ((focusedRc == Core::ERROR_NONE) &&
+        (stateRc == Core::ERROR_NONE) &&
+        (focusedResult == "true") &&
+        (lifecycleState == "\"active\"")) {
+        return Core::ERROR_NONE;
+    }
+
+    SetAppStateInvalidResponse(result);
+    return Core::ERROR_GENERAL;
+}
+
 Core::hresult AppGatewayCommon::SpeechSynthesisVoices(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
 {
     result = "[]";
@@ -581,6 +626,10 @@ Core::hresult AppGatewayCommon::SpeechSynthesisVoices(const Exchange::GatewayCon
 
 Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
 {
+    const auto focusRc = ValidateFocusedActiveState(ctx, result);
+    if (focusRc != Core::ERROR_NONE) {
+        return focusRc;
+    }
     if (!mDelegate) { ErrorUtils::NotAvailable(result); return Core::ERROR_UNAVAILABLE; }
     auto ttsDelegate = mDelegate->getTTSDelegate();
     if (!ttsDelegate) { ErrorUtils::NotAvailable(result); return Core::ERROR_UNAVAILABLE; }
@@ -603,8 +652,12 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         return ttsDelegate->SpeechSynthesisPause(payload, result);
     }
 
-    Core::hresult AppGatewayCommon::SpeechSynthesisResume(const Exchange::GatewayContext&, const std::string& payload, std::string& result)
+    Core::hresult AppGatewayCommon::SpeechSynthesisResume(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
     {
+        const auto focusRc = ValidateFocusedActiveState(ctx, result);
+        if (focusRc != Core::ERROR_NONE) {
+            return focusRc;
+        }
         if (!mDelegate) return Core::ERROR_UNAVAILABLE;
         auto ttsDelegate = mDelegate->getTTSDelegate();
         if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
@@ -1719,11 +1772,20 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::TextToSpeechSpeak(const Exchange::GatewayContext& ctx, const string& payload, string& result)
         {
+            const auto focusRc = ValidateFocusedActiveState(ctx, result);
+            if (focusRc != Core::ERROR_NONE) {
+                return focusRc;
+            }
             result = "{}";
             if (!mDelegate) return Core::ERROR_UNAVAILABLE;
             auto ttsDelegate = mDelegate->getTTSDelegate();
             if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
             return ttsDelegate->TextToSpeechSpeak(ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::TextToSpeechResume(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return SpeechSynthesisResume(ctx, payload, result);
         }
 
 } // namespace Plugin

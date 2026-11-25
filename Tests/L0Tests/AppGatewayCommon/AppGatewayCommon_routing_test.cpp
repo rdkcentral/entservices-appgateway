@@ -909,7 +909,9 @@ uint32_t Test_HandleRequest_TextToSpeechSpeak_ValidPayload()
     Exchange::GatewayContext ctx = DefaultContext();
 
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "texttospeech.speak", R"({"text":"Hello world"})", result);
-    ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "texttospeech.speak returns ERROR_UNAVAILABLE when TTS plugin unavailable");
+    ExpectEqU32(tr, rc, ERROR_GENERAL, "texttospeech.speak returns app-state-invalid when caller is unfocused/non-active");
+    ExpectTrue(tr, result.find("\"code\":-50110") != std::string::npos, "texttospeech.speak deny result includes code -50110");
+    ExpectTrue(tr, result.find("App state invalid") != std::string::npos, "texttospeech.speak deny result includes App state invalid");
     return tr.failures;
 }
 
@@ -1001,6 +1003,68 @@ uint32_t Test_HandleRequest_TextToSpeechSpeak_CaseInsensitive()
     Exchange::GatewayContext ctx = DefaultContext();
 
     const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "TEXTTOSPEECH.SPEAK", R"({"text":"Hello"})", result);
-    ExpectEqU32(tr, rc, ERROR_UNAVAILABLE, "TEXTTOSPEECH.SPEAK (uppercase) routes same as texttospeech.speak");
+    ExpectEqU32(tr, rc, ERROR_GENERAL, "TEXTTOSPEECH.SPEAK (uppercase) routes same focus-state gate as texttospeech.speak");
+    ExpectTrue(tr, result.find("\"code\":-50110") != std::string::npos, "TEXTTOSPEECH.SPEAK deny result includes code -50110");
+    ExpectTrue(tr, result.find("App state invalid") != std::string::npos, "TEXTTOSPEECH.SPEAK deny result includes App state invalid");
+    return tr.failures;
+}
+
+uint32_t Test_HandleRequest_TextToSpeechResume_DeniedWhenUnfocused()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "texttospeech.resume", R"({"utteranceId":1})", result);
+    ExpectEqU32(tr, rc, ERROR_GENERAL, "texttospeech.resume denies unfocused/non-active caller");
+    ExpectTrue(tr, result.find("\"code\":-50110") != std::string::npos, "texttospeech.resume deny result includes code -50110");
+    ExpectTrue(tr, result.find("App state invalid") != std::string::npos, "texttospeech.resume deny result includes App state invalid");
+    return tr.failures;
+}
+
+uint32_t Test_HandleRequest_SpeechSynthesisSpeak_DeniedWhenUnfocused()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "speechsynthesis.speak", R"({"text":"hello"})", result);
+    ExpectEqU32(tr, rc, ERROR_GENERAL, "speechsynthesis.speak denies unfocused/non-active caller");
+    ExpectTrue(tr, result.find("\"code\":-50110") != std::string::npos, "speechsynthesis.speak deny result includes code -50110");
+    ExpectTrue(tr, result.find("App state invalid") != std::string::npos, "speechsynthesis.speak deny result includes App state invalid");
+    return tr.failures;
+}
+
+uint32_t Test_HandleRequest_SpeechSynthesisResume_DeniedWhenUnfocused()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "speechsynthesis.resume", R"({"utteranceId":1})", result);
+    ExpectEqU32(tr, rc, ERROR_GENERAL, "speechsynthesis.resume denies unfocused/non-active caller");
+    ExpectTrue(tr, result.find("\"code\":-50110") != std::string::npos, "speechsynthesis.resume deny result includes code -50110");
+    ExpectTrue(tr, result.find("App state invalid") != std::string::npos, "speechsynthesis.resume deny result includes App state invalid");
+    return tr.failures;
+}
+
+uint32_t Test_HandleRequest_DeviceTimeInActiveState_DeniedWhenUnfocused()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "device.timeinactivestate", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_GENERAL, "device.timeinactivestate denies unfocused/non-active caller");
+    ExpectTrue(tr, result.find("\"code\":-50110") != std::string::npos, "device.timeinactivestate deny result includes code -50110");
+    ExpectTrue(tr, result.find("App state invalid") != std::string::npos, "device.timeinactivestate deny result includes App state invalid");
     return tr.failures;
 }

@@ -132,6 +132,10 @@ extern uint32_t Test_HandleRequest_TextToSpeechSpeak_InvalidJSON();
 extern uint32_t Test_HandleRequest_TextToSpeechSpeak_EmptyText();
 extern uint32_t Test_HandleRequest_TextToSpeechSpeak_EmptyCallsign();
 extern uint32_t Test_HandleRequest_TextToSpeechSpeak_CaseInsensitive();
+extern uint32_t Test_HandleRequest_TextToSpeechResume_DeniedWhenUnfocused();
+extern uint32_t Test_HandleRequest_SpeechSynthesisSpeak_DeniedWhenUnfocused();
+extern uint32_t Test_HandleRequest_SpeechSynthesisResume_DeniedWhenUnfocused();
+extern uint32_t Test_HandleRequest_DeviceTimeInActiveState_DeniedWhenUnfocused();
 
 // AppGatewayCommon_routing_test.cpp (ParentalControl getters — AGC_L0_101–AGC_L0_103)
 extern uint32_t Test_HandleRequest_ParentalControl_PinControl();
@@ -279,6 +283,10 @@ int main()
         { "HandleRequest_TextToSpeechSpeak_EmptyText",          Test_HandleRequest_TextToSpeechSpeak_EmptyText },
         { "HandleRequest_TextToSpeechSpeak_EmptyCallsign",       Test_HandleRequest_TextToSpeechSpeak_EmptyCallsign },
         { "HandleRequest_TextToSpeechSpeak_CaseInsensitive",     Test_HandleRequest_TextToSpeechSpeak_CaseInsensitive },
+        { "HandleRequest_TextToSpeechResume_DeniedWhenUnfocused", Test_HandleRequest_TextToSpeechResume_DeniedWhenUnfocused },
+        { "HandleRequest_SpeechSynthesisSpeak_DeniedWhenUnfocused", Test_HandleRequest_SpeechSynthesisSpeak_DeniedWhenUnfocused },
+        { "HandleRequest_SpeechSynthesisResume_DeniedWhenUnfocused", Test_HandleRequest_SpeechSynthesisResume_DeniedWhenUnfocused },
+        { "HandleRequest_DeviceTimeInActiveState_DeniedWhenUnfocused", Test_HandleRequest_DeviceTimeInActiveState_DeniedWhenUnfocused },
         // --- ParentalControl getter tests (AGC_L0_101–AGC_L0_103) ---
         { "HandleRequest_ParentalControl_PinControl",             Test_HandleRequest_ParentalControl_PinControl },
         { "HandleRequest_ParentalControl_BlockNotRatedContent",   Test_HandleRequest_ParentalControl_BlockNotRatedContent },

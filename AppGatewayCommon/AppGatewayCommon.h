@@ -237,7 +237,10 @@ namespace WPEFramework {
             Core::hresult GetDisplayColorimetry(string &result /* @out */);
             Core::hresult GetDisplayVideoResolutions(string &result /* @out */);
             Core::hresult TextToSpeechSpeak(const Exchange::GatewayContext& ctx, const string& payload, string& result /* @out */);
+            Core::hresult TextToSpeechResume(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result /* @out */);
         private:
+            static void SetAppStateInvalidResponse(string& result);
+            Core::hresult ValidateFocusedActiveState(const Exchange::GatewayContext& ctx, string& result) const;
             PluginHost::IShell* mShell;
             uint32_t mConnectionId;
             std::shared_ptr<SettingsDelegate> mDelegate;

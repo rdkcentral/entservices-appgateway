@@ -1000,6 +1000,96 @@ TEST_F(LifecycleDelegateTest, AGC_L1_199_OnBlur_DispatchesFocusedChanged_And_Bac
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
+TEST_F(LifecycleDelegateTest, AGC_L1_199A_FocusGatedApis_DenyWhenUnfocusedOrUnknown)
+{
+    const Exchange::GatewayContext unknownCtx = MakeContext("unknown.app");
+    const std::vector<std::pair<std::string, std::string>> calls = {
+        {"texttospeech.speak", R"({"text":"hello"})"},
+        {"texttospeech.resume", R"({"utteranceId":1})"},
+        {"speechsynthesis.speak", R"({"text":"hello"})"},
+        {"speechsynthesis.resume", R"({"utteranceId":1})"},
+        {"device.timeinactivestate", "{}"}
+    };
+
+    for (const auto& call : calls) {
+        string result;
+        const auto rc = plugin.HandleAppGatewayRequest(unknownCtx, call.first, call.second, result);
+        EXPECT_EQ(Core::ERROR_GENERAL, rc) << call.first;
+        EXPECT_NE(result.find("\"code\":-50110"), string::npos) << call.first;
+        EXPECT_NE(result.find("App state invalid"), string::npos) << call.first;
+    }
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_199B_FocusGatedApis_ForwardWhenFocusedAndActive)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+    ASSERT_NE(capturedWMNotification, nullptr);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-gated-001",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-gated-001",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+    capturedWMNotification->OnFocus("instance-gated-001");
+
+    const auto ctx = MakeContext("test.app");
+    const std::vector<std::pair<std::string, std::string>> calls = {
+        {"texttospeech.speak", R"({"text":"hello"})"},
+        {"texttospeech.resume", R"({"utteranceId":1})"},
+        {"speechsynthesis.speak", R"({"text":"hello"})"},
+        {"speechsynthesis.resume", R"({"utteranceId":1})"},
+        {"device.timeinactivestate", "{}"}
+    };
+
+    for (const auto& call : calls) {
+        string result;
+        const auto rc = plugin.HandleAppGatewayRequest(ctx, call.first, call.second, result);
+        EXPECT_EQ(Core::ERROR_UNAVAILABLE, rc) << call.first;
+        EXPECT_EQ(result.find("App state invalid"), string::npos) << call.first;
+    }
+}
+
+TEST_F(LifecycleDelegateTest, AGC_L1_199C_FocusGatedApis_DenyForTransitionAdjacentStates)
+{
+    ASSERT_NE(capturedNotification, nullptr);
+    ASSERT_NE(capturedWMNotification, nullptr);
+
+    const auto ctx = MakeContext("test.app");
+    string result;
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-transition-001",
+        Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+    capturedWMNotification->OnFocus("instance-transition-001");
+
+    auto rc = plugin.HandleAppGatewayRequest(ctx, "speechsynthesis.speak", R"({"text":"hello"})", result);
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_NE(result.find("\"code\":-50110"), string::npos);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-transition-001",
+        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::ACTIVE,
+        ""
+    );
+    capturedWMNotification->OnBlur("instance-transition-001");
+
+    result.clear();
+    rc = plugin.HandleAppGatewayRequest(ctx, "speechsynthesis.resume", R"({"utteranceId":1})", result);
+    EXPECT_EQ(Core::ERROR_GENERAL, rc);
+    EXPECT_NE(result.find("\"code\":-50110"), string::npos);
+}
+
 /* ================================================================
  * Gap 2 – TERMINATING → Lifecycle.onUnloading dispatch
  *
