@@ -817,8 +817,9 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         if (focusRc != Core::ERROR_NONE) {
             return focusRc;
         }
-        if (!mDelegate) return Core::ERROR_UNAVAILABLE;
-        auto ttsDelegate = mDelegate->getTTSDelegate();
+        auto delegate = mDelegate;
+        if (!delegate) return Core::ERROR_UNAVAILABLE;
+        auto ttsDelegate = delegate->getTTSDelegate();
         if (!ttsDelegate) return Core::ERROR_UNAVAILABLE;
         return ttsDelegate->SpeechSynthesisResume(payload, result);
     }
