@@ -476,7 +476,7 @@ class LifecycleDelegate : public BaseEventDelegate
                 // also add to lifecycle state registry
                 mParent.mLifecycleStateRegistry.AddLifecycleState(appInstanceId, oldLifecycleState, newLifecycleState);
 
-                // On the AppManagers path, the navigationIntent from the INITIALIZING event
+                // On the AppManagers path, the navigationIntent from the LOADING event
                 // is the authoritative source of truth. Always discard any identity-mapped
                 // intent stored by SetIntent/HandleNewSession — never migrate it.
                 // The intent stored above (if navigationIntent was non-empty) under
