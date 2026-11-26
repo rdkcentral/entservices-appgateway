@@ -919,6 +919,15 @@ TEST_F(LifecycleDelegateTest, AGC_L1_198_OnFocus_DispatchesFocusedChanged_And_Fo
     capturedNotification->OnAppLifecycleStateChanged(
         "test.app", "instance-focus-001",
         Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::LOADING,
+        ""
+    );
+    string sessionId;
+    EXPECT_EQ(Core::ERROR_NONE, plugin.GetSessionId("test.app", sessionId));
+    EXPECT_EQ("instance-focus-001", sessionId);
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-focus-001",
+        Exchange::ILifecycleManager::LOADING,
         Exchange::ILifecycleManager::INITIALIZING,
         ""
     );
@@ -963,6 +972,12 @@ TEST_F(LifecycleDelegateTest, AGC_L1_199_OnBlur_DispatchesFocusedChanged_And_Bac
     capturedNotification->OnAppLifecycleStateChanged(
         "test.app", "instance-blur-001",
         Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::LOADING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-blur-001",
+        Exchange::ILifecycleManager::LOADING,
         Exchange::ILifecycleManager::INITIALIZING,
         ""
     );
@@ -1015,6 +1030,12 @@ TEST_F(LifecycleDelegateTest, AGC_L1_200_Terminating_DispatchesOnUnloading)
     capturedNotification->OnAppLifecycleStateChanged(
         "test.app", "instance-term-001",
         Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::LOADING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-term-001",
+        Exchange::ILifecycleManager::LOADING,
         Exchange::ILifecycleManager::INITIALIZING,
         ""
     );
@@ -1447,6 +1468,12 @@ TEST_F(LifecycleDelegateTest, AGC_L1_210_INITIALIZING_CallsResumeTraffic_StaleCl
     capturedNotification->OnAppLifecycleStateChanged(
         "test.app", "instance-hib-210",
         Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::LOADING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-210",
+        Exchange::ILifecycleManager::LOADING,
         Exchange::ILifecycleManager::INITIALIZING,
         ""
     );
@@ -1474,6 +1501,12 @@ TEST_F(LifecycleDelegateTest, AGC_L1_211_HibernatedToActive_ResumeTrafficBeforeD
     capturedNotification->OnAppLifecycleStateChanged(
         "test.app", "instance-hib-211",
         Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::LOADING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-211",
+        Exchange::ILifecycleManager::LOADING,
         Exchange::ILifecycleManager::INITIALIZING,
         ""
     );
@@ -1536,6 +1569,12 @@ TEST_F(LifecycleDelegateTest, AGC_L1_212_ActiveToHibernated_SuspendTrafficAfterD
     capturedNotification->OnAppLifecycleStateChanged(
         "test.app", "instance-hib-212",
         Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::LOADING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-212",
+        Exchange::ILifecycleManager::LOADING,
         Exchange::ILifecycleManager::INITIALIZING,
         ""
     );
@@ -1589,6 +1628,12 @@ TEST_F(LifecycleDelegateTest, AGC_L1_213_NoGuardSet_HibernationTransition_NoCras
     capturedNotification->OnAppLifecycleStateChanged(
         "test.app", "instance-hib-213",
         Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::LOADING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-213",
+        Exchange::ILifecycleManager::LOADING,
         Exchange::ILifecycleManager::INITIALIZING,
         ""
     );
@@ -1635,6 +1680,12 @@ TEST_F(LifecycleDelegateTest, AGC_L1_214_SetSessionGuard_Nullptr_ClearsGuard_NoC
     capturedNotification->OnAppLifecycleStateChanged(
         "test.app", "instance-hib-214",
         Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::LOADING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-214",
+        Exchange::ILifecycleManager::LOADING,
         Exchange::ILifecycleManager::INITIALIZING,
         ""
     );
@@ -1691,6 +1742,12 @@ TEST_F(LifecycleDelegateTest, AGC_L1_215_MultipleHibernationCycles_CorrectGuardC
     capturedNotification->OnAppLifecycleStateChanged(
         "test.app", "instance-hib-215",
         Exchange::ILifecycleManager::UNLOADED,
+        Exchange::ILifecycleManager::LOADING,
+        ""
+    );
+    capturedNotification->OnAppLifecycleStateChanged(
+        "test.app", "instance-hib-215",
+        Exchange::ILifecycleManager::LOADING,
         Exchange::ILifecycleManager::INITIALIZING,
         ""
     );
