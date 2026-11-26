@@ -367,18 +367,33 @@ TEST_F(LifecycleDelegateTest, AGC_L1_176_GetLastIntent_NoIntent)
 
 TEST_F(LifecycleDelegateTest, AGC_L1_177_Authenticate_Success_AfterLifecycleEvent)
 {
-    // Fire OnAppLifecycleStateChanged with INITIALIZING to populate the map
+    // The session mapping is created when the app enters LOADING and must
+    // remain available through INITIALIZING.
     ASSERT_NE(capturedNotification, nullptr);
     capturedNotification->OnAppLifecycleStateChanged(
         "com.example.myapp",              // appId
         "instance-abc-123",                // appInstanceId
         Exchange::ILifecycleManager::UNLOADED,      // oldState
-        Exchange::ILifecycleManager::INITIALIZING,   // newState (triggers map insertion)
+        Exchange::ILifecycleManager::LOADING,        // newState (populates map)
         ""                                 // navigationIntent
     );
 
     string appId;
-    const auto rc = plugin.Authenticate("instance-abc-123", appId);
+    auto rc = plugin.Authenticate("instance-abc-123", appId);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("com.example.myapp", appId);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "com.example.myapp",
+        "instance-abc-123",
+        Exchange::ILifecycleManager::LOADING,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+
+    appId.clear();
+    rc = plugin.Authenticate("instance-abc-123", appId);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_EQ("com.example.myapp", appId);
@@ -391,12 +406,26 @@ TEST_F(LifecycleDelegateTest, AGC_L1_178_GetSessionId_Success_AfterLifecycleEven
         "com.example.myapp",
         "instance-abc-123",
         Exchange::ILifecycleManager::UNLOADED,
-        Exchange::ILifecycleManager::INITIALIZING,
+        Exchange::ILifecycleManager::LOADING,
         ""
     );
 
     string sessionId;
-    const auto rc = plugin.GetSessionId("com.example.myapp", sessionId);
+    auto rc = plugin.GetSessionId("com.example.myapp", sessionId);
+
+    EXPECT_EQ(Core::ERROR_NONE, rc);
+    EXPECT_EQ("instance-abc-123", sessionId);
+
+    capturedNotification->OnAppLifecycleStateChanged(
+        "com.example.myapp",
+        "instance-abc-123",
+        Exchange::ILifecycleManager::LOADING,
+        Exchange::ILifecycleManager::INITIALIZING,
+        ""
+    );
+
+    sessionId.clear();
+    rc = plugin.GetSessionId("com.example.myapp", sessionId);
 
     EXPECT_EQ(Core::ERROR_NONE, rc);
     EXPECT_EQ("instance-abc-123", sessionId);

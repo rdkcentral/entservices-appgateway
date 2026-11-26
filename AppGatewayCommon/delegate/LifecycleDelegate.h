@@ -470,13 +470,13 @@ class LifecycleDelegate : public BaseEventDelegate
                 bIntentUpdated = true;
             }
 
-            // if new Lifecycle state is INITIALIZING then add to app instance map
-            if (Exchange::ILifecycleManager::INITIALIZING == newLifecycleState) {
+            // if new Lifecycle state is LOADING then add to app instance map
+            if (Exchange::ILifecycleManager::LOADING == newLifecycleState) {
                 mParent.mAppIdInstanceIdMap.AddAppInstanceId(appId, appInstanceId);
                 // also add to lifecycle state registry
                 mParent.mLifecycleStateRegistry.AddLifecycleState(appInstanceId, oldLifecycleState, newLifecycleState);
 
-                // On the AppManagers path, the navigationIntent from the INITIALIZING event
+                // On the AppManagers path, the navigationIntent from the LOADING event
                 // is the authoritative source of truth. Always discard any identity-mapped
                 // intent stored by SetIntent/HandleNewSession — never migrate it.
                 // The intent stored above (if navigationIntent was non-empty) under
