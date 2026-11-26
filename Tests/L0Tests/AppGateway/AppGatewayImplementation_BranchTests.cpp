@@ -1263,6 +1263,47 @@ uint32_t Test_AppGatewayImplementation_EventHook_ScheduledOnSubscribe()
 }
 
 // PUBLIC_INTERFACE
+uint32_t Test_AppGatewayImplementation_EventHookFailureIsReported()
+{
+    TestResult tr;
+    const auto path = TempOverridePath("eventhook_failure.override.json");
+    ExpectTrue(tr, WriteTextFile(path, R"({"resolutions":{"lifecycle2.onstatechanged":{"alias":"org.rdk.AppGatewayCommon","event":"Lifecycle2.onStateChanged","eventHook":"missing.hook"}}})"), "write failing hook configuration");
+    L0Test::ServiceMock::Config cfg;
+    cfg.provideAppNotifications = true;
+    cfg.provideResponder = true;
+    auto* service = new L0Test::ServiceMock(cfg, true);
+    auto* impl = WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ConfigureImplOrFail(tr, impl, service, {path});
+    FILE* log = std::tmpfile();
+    const int saved = ::dup(STDERR_FILENO);
+    ExpectTrue(tr, log != nullptr && saved >= 0, "capture hook failure logging");
+    if (log && saved >= 0) {
+        std::fflush(stderr);
+        ::dup2(::fileno(log), STDERR_FILENO);
+        std::string resolution;
+        const auto result = impl->Resolve(MakeContext(), "org.rdk.AppGateway", "lifecycle2.onstatechanged", "{\"listen\":true}", resolution);
+        DrainAsyncRespondJobs();
+        std::fflush(stderr);
+        ::dup2(saved, STDERR_FILENO);
+        ::close(saved);
+        std::rewind(log);
+        std::string output;
+        char buffer[1024];
+        size_t count;
+        while ((count = std::fread(buffer, 1, sizeof(buffer), log)) != 0) output.append(buffer, count);
+        ExpectEqU32(tr, result, ERROR_NONE, "hook failure preserves successful subscription result");
+        ExpectTrue(tr, resolution.find("\"listening\":true") != std::string::npos, "hook failure preserves primary response");
+        ExpectTrue(tr, output.find("EventHookJob failed: hook=missing.hook") != std::string::npos, "failed hook is reported with its identity");
+    } else if (saved >= 0) {
+        ::close(saved);
+    }
+    if (log) std::fclose(log);
+    impl->Release();
+    service->Release();
+    ::unlink(path.c_str());
+    return tr.failures;
+}
+
 uint32_t Test_AppGatewayImplementation_EventHook_NotScheduledWhenAbsent()
 {
     /** Negative case: when an event has no eventHook configured, subscribing

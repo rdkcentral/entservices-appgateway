@@ -170,8 +170,8 @@ protected:
                 return static_cast<Exchange::IDeviceInfo*>(mockDi);
             }));
 
-        EXPECT_CALL(service, AddRef()).Times(1);
-        EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+        EXPECT_CALL(service, AddRef()).Times(9);
+        EXPECT_CALL(service, Release()).Times(9).WillRepeatedly(Return(Core::ERROR_NONE));
 
         plugin.Initialize(&service);
     }
@@ -297,8 +297,8 @@ TEST(BrandingApiUnavailableTest, AGC_L1_240_GetOsName_DeviceInfoUnavailable)
     Core::Sink<AppGatewayCommon> plugin;
 
     ON_CALL(service, QueryInterfaceByCallsign(_, _)).WillByDefault(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(1);
-    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, AddRef()).Times(9);
+    EXPECT_CALL(service, Release()).Times(9).WillRepeatedly(Return(Core::ERROR_NONE));
     plugin.Initialize(&service);
 
     const auto ctx = MakeCtx();
@@ -435,8 +435,8 @@ TEST(BrandingApiUnavailableTest, AGC_L1_249_GetOsVersion_DeviceInfoUnavailable)
     Core::Sink<AppGatewayCommon> plugin;
 
     ON_CALL(service, QueryInterfaceByCallsign(_, _)).WillByDefault(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(1);
-    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, AddRef()).Times(9);
+    EXPECT_CALL(service, Release()).Times(9).WillRepeatedly(Return(Core::ERROR_NONE));
     plugin.Initialize(&service);
 
     const auto ctx = MakeCtx();
@@ -519,8 +519,8 @@ TEST(BrandingApiUnavailableTest, AGC_L1_254_GetFirmware_DeviceInfoUnavailable)
     Core::Sink<AppGatewayCommon> plugin;
 
     ON_CALL(service, QueryInterfaceByCallsign(_, _)).WillByDefault(Return(nullptr));
-    EXPECT_CALL(service, AddRef()).Times(1);
-    EXPECT_CALL(service, Release()).Times(1).WillOnce(Return(Core::ERROR_NONE));
+    EXPECT_CALL(service, AddRef()).Times(9);
+    EXPECT_CALL(service, Release()).Times(9).WillRepeatedly(Return(Core::ERROR_NONE));
     plugin.Initialize(&service);
 
     const auto ctx = MakeCtx();

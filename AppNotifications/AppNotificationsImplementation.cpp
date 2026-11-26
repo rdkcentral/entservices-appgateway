@@ -16,6 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include "AppNotificationsImplementation.h"
+#include "RetainedJobQueue.h"
 #include "UtilsLogging.h"
 #include "StringUtils.h"
 
@@ -37,20 +38,22 @@ namespace WPEFramework
 
         AppNotificationsImplementation::AppNotificationsImplementation() : 
         mShell(nullptr),
-        mSubMap(*this),
+        mSubscribers(std::make_shared<SubscriberMap>(*this)),
+        mSubMap(*mSubscribers),
         mThunderManager(*this),
-        mEmitter(*this)
+        mEmitterOwner(Core::Service<Emitter>::Create<Exchange::IAppNotificationHandler::IEmitter>(mSubscribers)),
+        mEmitter(*mEmitterOwner)
         {
         }
 
         AppNotificationsImplementation::~AppNotificationsImplementation()
         {
             // Cleanup resources if needed
-            if (mShell != nullptr)
-            {
-                mShell->Release();
-                mShell = nullptr;
-            }
+            mSubMap.Close();
+            mThunderManager.Cleanup();
+            mEmitterOwner->Release();
+            mEmitterOwner = nullptr;
+            mShell = nullptr;
         }
 
         Core::hresult AppNotificationsImplementation::Subscribe(const Exchange::IAppNotifications::AppNotificationContext &context /* @in */,
@@ -63,7 +66,11 @@ namespace WPEFramework
             if (listen) {
                 if (!mSubMap.Exists(event)) {
                     // Thunder subscription
-                    Core::IWorkerPool::Instance().Submit(SubscriberJob::Create(this, module, event, listen));
+                    RetainedJobQueue<AppNotificationsImplementation>::SubmitTimed(
+                        this, "SubscriberJob[sub:" + event + "]", 0, 0, "",
+                        [module, event](AppNotificationsImplementation& owner) {
+                            owner.mThunderManager.Subscribe(module, event);
+                        });
                 }
                 mSubMap.Add(event, context);
             } else {
@@ -72,7 +79,11 @@ namespace WPEFramework
                 // This can be used to measure unsubscribe
                 if (!mSubMap.Exists(event)) {
                     // Thunder unsubscription
-                    Core::IWorkerPool::Instance().Submit(SubscriberJob::Create(this, module, event, listen));
+                    RetainedJobQueue<AppNotificationsImplementation>::SubmitTimed(
+                        this, "SubscriberJob[unsub:" + event + "]", 0, 0, "",
+                        [module, event](AppNotificationsImplementation& owner) {
+                            owner.mThunderManager.Unsubscribe(module, event);
+                        });
                 }
             }
             return Core::ERROR_NONE;
@@ -83,7 +94,11 @@ namespace WPEFramework
                                     const string &appId /* @in */) {
             LOGTRACE("Emit [event= %s payload=%s appId=%s]",
                     event.c_str(), payload.c_str(), appId.c_str());
-            Core::IWorkerPool::Instance().Submit(EmitJob::Create(this, event, payload, appId));
+            RetainedJobQueue<AppNotificationsImplementation>::SubmitTimed(
+                this, "NotifEmitJob[" + event + "]", 0, 0, appId,
+                [event, payload, appId](AppNotificationsImplementation& owner) {
+                    owner.mSubMap.EventUpdate(event, payload, appId);
+                });
             return Core::ERROR_NONE;
         }
 
@@ -114,8 +129,8 @@ namespace WPEFramework
             LOGINFO("Configuring AppNotifications");
             uint32_t result = Core::ERROR_NONE;
             ASSERT(shell != nullptr);
+            mSubMap.SetShell(shell);
             mShell = shell;
-            mShell->AddRef();
             return result;
         }
 
@@ -155,7 +170,8 @@ namespace WPEFramework
             return it != mSubscribers.end();
         }
 
-        void AppNotificationsImplementation::SubscriberMap::EventUpdate(const string& key, const string& payloadStr, const string& appId ) {                
+        void AppNotificationsImplementation::SubscriberMap::EventUpdate(const string& key, const string& payloadStr, const string& appId ) {
+            if (Closed()) return;
 
             std::lock_guard<std::mutex> lock(mSubscriberMutex);
             string lowerKey = StringUtils::toLower(key);
@@ -194,7 +210,7 @@ namespace WPEFramework
         void AppNotificationsImplementation::SubscriberMap::DispatchToGateway(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload) {
             Core::SafeSyncType<Core::CriticalSection> lock(mAppGatewayLock);
             if (nullptr == mAppGateway) {
-                mAppGateway = mParent.mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(APP_GATEWAY_CALLSIGN);
+                mAppGateway = mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(APP_GATEWAY_CALLSIGN);
                 if (nullptr == mAppGateway) {
                     LOGERR("Failed to get AppGateway Responder interface");
                     return;
@@ -209,7 +225,7 @@ namespace WPEFramework
         void AppNotificationsImplementation::SubscriberMap::DispatchToLaunchDelegate(const string& key, const Exchange::IAppNotifications::AppNotificationContext& context, const string& payload) {
             Core::SafeSyncType<Core::CriticalSection> lock(mInternalGatewayNotifierLock);
             if (nullptr == mInternalGatewayNotifier) {
-                mInternalGatewayNotifier = mParent.mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
+                mInternalGatewayNotifier = mShell->QueryInterfaceByCallsign<Exchange::IAppGatewayResponder>(INTERNAL_GATEWAY_CALLSIGN);
                 if (nullptr == mInternalGatewayNotifier) {
                     LOGERR("Failed to get InternalGatewayNotifier interface");
                     return;
@@ -222,6 +238,10 @@ namespace WPEFramework
         }
 
         AppNotificationsImplementation::ThunderSubscriptionManager::~ThunderSubscriptionManager() {
+            Cleanup();
+        }
+
+        void AppNotificationsImplementation::ThunderSubscriptionManager::Cleanup() {
             // Copy notifications to avoid holding the lock during external calls
             std::vector<NotificationKey> notificationsCopy;
             {

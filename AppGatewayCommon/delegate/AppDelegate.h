@@ -38,7 +38,9 @@ using namespace WPEFramework;
 
 class AppDelegate {
     public:
-        AppDelegate(PluginHost::IShell *shell) : mShell(shell), mSharedStorage(nullptr) {}
+        AppDelegate(PluginHost::IShell *shell) : mShell(shell), mSharedStorage(nullptr) {
+            if (mShell) mShell->AddRef();
+        }
         virtual ~AppDelegate() {
             {
                 std::lock_guard<std::mutex> lock(mSharedStorageMutex);
@@ -47,6 +49,7 @@ class AppDelegate {
                     mSharedStorage = nullptr;
                 }
             }
+            if (mShell) mShell->Release();
         };
 
         Core::hresult GetDeviceUID(const std::string &appId, string &result /* @out */) {
