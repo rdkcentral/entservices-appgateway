@@ -730,6 +730,12 @@ Core::hresult AppGatewayCommon::ValidateFocusedActiveState(const Exchange::Gatew
         return Core::ERROR_GENERAL;
     }
 
+    auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
+    if (!lifecycleDelegate) {
+        SetAppStateInvalidResponse(result);
+        return Core::ERROR_GENERAL;
+    }
+
     Core::hresult AppGatewayCommon::CheckFocusPolicy(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
     {
         JsonObject payloadObj;
@@ -747,12 +753,6 @@ Core::hresult AppGatewayCommon::ValidateFocusedActiveState(const Exchange::Gatew
         }
 
         return ValidateFocusedActiveState(ctx, result);
-    }
-
-    auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
-    if (!lifecycleDelegate) {
-        SetAppStateInvalidResponse(result);
-        return Core::ERROR_GENERAL;
     }
 
     string focusedResult;
