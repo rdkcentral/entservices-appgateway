@@ -719,6 +719,132 @@ uint32_t Test_AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAdditionalC
 }
 
 // PUBLIC_INTERFACE
+uint32_t Test_AppGatewayImplementation_FocusPolicy_Deny_BlocksComRpcForward()
+{
+    TestResult tr;
+
+    EnvVarGuard guard("APPGATEWAY_L0_DISABLE_COMRPC", "0");
+
+    auto* impl = WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ExpectTrue(tr, impl != nullptr, "Create AppGatewayImplementation instance");
+
+    if (impl != nullptr) {
+        L0Test::ServiceMock::Config cfg;
+        cfg.provideResponder = true;
+        cfg.provideRequestHandler = true;
+        cfg.requestHandlerCallsign = "org.rdk.AppGatewayCommon";
+
+        auto* service = new L0Test::ServiceMock(cfg, true);
+        ConfigureImplOrFail(tr, impl, service, { BaseResolutionsPath() });
+
+        std::string warmup;
+        const auto ctx = MakeContext();
+        impl->Resolve(ctx, "org.rdk.AppGateway", "speechsynthesis.resume", R"({"utteranceId":1})", warmup);
+
+        auto* handler = service->GetRequestHandlerFake();
+        ExpectTrue(tr, handler != nullptr, "RequestHandlerFake created");
+        if (handler != nullptr) {
+            handler->SetFocusAllowed(false);
+        }
+
+        std::string resolution;
+        const uint32_t rc = impl->Resolve(ctx, "org.rdk.AppGateway", "speechsynthesis.resume", R"({"utteranceId":1})", resolution);
+
+        ExpectEqU32(tr, rc, ERROR_GENERAL, "Focus policy deny returns ERROR_GENERAL");
+        ExpectTrue(tr, resolution.find("\"code\":-50110") != std::string::npos, "Denied COM-RPC call returns code -50110");
+        ExpectTrue(tr, resolution.find("App state invalid") != std::string::npos, "Denied COM-RPC call returns app-state-invalid message");
+        if (handler != nullptr) {
+            ExpectEqU32(tr, handler->handleCount, 1, "Denied COM-RPC call stops at policy check and does not forward");
+            ExpectTrue(tr, handler->lastMethod == "commoninternal.checkfocuspolicy", "Last handled method is policy check");
+        }
+
+        DrainAsyncRespondJobs();
+        impl->Release();
+        service->Release();
+    }
+
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
+uint32_t Test_AppGatewayImplementation_FocusPolicy_Deny_BlocksDirectForward()
+{
+    TestResult tr;
+
+    auto* impl = WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ExpectTrue(tr, impl != nullptr, "Create AppGatewayImplementation instance");
+
+    if (impl != nullptr) {
+        L0Test::ServiceMock::Config cfg;
+        cfg.provideResponder = true;
+        cfg.provideRequestHandler = true;
+        cfg.requestHandlerCallsign = "org.rdk.AppGatewayCommon";
+
+        auto* service = new L0Test::ServiceMock(cfg, true);
+        ConfigureImplOrFail(tr, impl, service, { BaseResolutionsPath() });
+
+        std::string warmup;
+        const auto ctx = MakeContext();
+        impl->Resolve(ctx, "org.rdk.AppGateway", "texttospeech.resume", R"({"utteranceId":1})", warmup);
+
+        auto* handler = service->GetRequestHandlerFake();
+        ExpectTrue(tr, handler != nullptr, "RequestHandlerFake created");
+        if (handler != nullptr) {
+            handler->SetFocusAllowed(false);
+        }
+
+        std::string resolution;
+        const uint32_t rc = impl->Resolve(ctx, "org.rdk.AppGateway", "texttospeech.resume", R"({"utteranceId":1})", resolution);
+
+        ExpectEqU32(tr, rc, ERROR_GENERAL, "Focus policy deny returns ERROR_GENERAL for direct route");
+        ExpectTrue(tr, resolution.find("\"code\":-50110") != std::string::npos, "Denied direct call returns code -50110");
+        ExpectTrue(tr, resolution.find("App state invalid") != std::string::npos, "Denied direct call returns app-state-invalid message");
+        if (handler != nullptr) {
+            ExpectEqU32(tr, handler->handleCount, 1, "Denied direct call only triggers policy check");
+            ExpectTrue(tr, handler->lastMethod == "commoninternal.checkfocuspolicy", "Last handled method is policy check");
+        }
+
+        DrainAsyncRespondJobs();
+        impl->Release();
+        service->Release();
+    }
+
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
+uint32_t Test_AppGatewayImplementation_FocusPolicy_Unavailable_FailClosed()
+{
+    TestResult tr;
+
+    auto* impl = WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ExpectTrue(tr, impl != nullptr, "Create AppGatewayImplementation instance");
+
+    if (impl != nullptr) {
+        L0Test::ServiceMock::Config cfg;
+        cfg.provideResponder = true;
+        cfg.provideRequestHandler = false; // no policy service
+
+        auto* service = new L0Test::ServiceMock(cfg, true);
+        ConfigureImplOrFail(tr, impl, service, { BaseResolutionsPath() });
+
+        std::string resolution;
+        const auto ctx = MakeContext();
+        const uint32_t rc = impl->Resolve(ctx, "org.rdk.AppGateway", "texttospeech.resume", R"({"utteranceId":1})", resolution);
+
+        ExpectEqU32(tr, rc, ERROR_GENERAL, "Missing policy service fails closed");
+        ExpectTrue(tr, resolution.find("\"code\":-50110") != std::string::npos, "Fail-closed returns code -50110");
+        ExpectTrue(tr, resolution.find("App state invalid") != std::string::npos, "Fail-closed returns app-state-invalid message");
+
+        DrainAsyncRespondJobs();
+        impl->Release();
+        service->Release();
+    }
+
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
 uint32_t Test_AppGatewayImplementation_Event_MissingListenParam()
 {
     /** Exercise PreProcessEvent when params parse OK but lack "listen" boolean.

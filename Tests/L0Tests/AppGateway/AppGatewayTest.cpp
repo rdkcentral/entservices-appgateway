@@ -70,6 +70,9 @@ extern uint32_t Test_AppGatewayImplementation_Configure_NullPaths_ReturnsBadRequ
 extern uint32_t Test_AppGatewayImplementation_Configure_EmptyPaths_ReturnsBadRequest();
 extern uint32_t Test_AppGatewayImplementation_Authenticator_CheckPermission_Fails();
 extern uint32_t Test_AppGatewayImplementation_ComRpc_HandleRequestFails();
+extern uint32_t Test_AppGatewayImplementation_FocusPolicy_Deny_BlocksComRpcForward();
+extern uint32_t Test_AppGatewayImplementation_FocusPolicy_Deny_BlocksDirectForward();
+extern uint32_t Test_AppGatewayImplementation_FocusPolicy_Unavailable_FailClosed();
 
 // Targeted AppGatewayResponderImplementation coverage tests
 extern uint32_t Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery();
@@ -502,6 +505,9 @@ int main()
         { "AppGatewayImplementation_Configure_EmptyPaths_ReturnsBadRequest", Test_AppGatewayImplementation_Configure_EmptyPaths_ReturnsBadRequest },
         { "AppGatewayImplementation_Authenticator_CheckPermission_Fails", Test_AppGatewayImplementation_Authenticator_CheckPermission_Fails },
         { "AppGatewayImplementation_ComRpc_HandleRequestFails", Test_AppGatewayImplementation_ComRpc_HandleRequestFails },
+        { "AppGatewayImplementation_FocusPolicy_Deny_BlocksComRpcForward", Test_AppGatewayImplementation_FocusPolicy_Deny_BlocksComRpcForward },
+        { "AppGatewayImplementation_FocusPolicy_Deny_BlocksDirectForward", Test_AppGatewayImplementation_FocusPolicy_Deny_BlocksDirectForward },
+        { "AppGatewayImplementation_FocusPolicy_Unavailable_FailClosed", Test_AppGatewayImplementation_FocusPolicy_Unavailable_FailClosed },
 
         // Targeted AppGatewayResponderImplementation coverage tests
         { "AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery", Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery },

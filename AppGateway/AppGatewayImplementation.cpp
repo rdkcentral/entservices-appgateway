@@ -31,6 +31,7 @@
 #include "UtilsCallsign.h"
 #include "UtilsFirebolt.h"
 #include "StringUtils.h"
+#include <unordered_set>
 
 #define DEFAULT_CONFIG_PATH "/etc/app-gateway/resolution.base.json"
 
@@ -52,6 +53,24 @@ namespace WPEFramework
 {
     namespace Plugin
     {
+        namespace {
+            const std::unordered_set<std::string> kFocusSensitiveMethods = {
+                "texttospeech.speak",
+                "texttospeech.resume",
+                "speechsynthesis.speak",
+                "speechsynthesis.resume",
+                "device.timeinactivestate"
+            };
+
+            void SetAppStateInvalidResponse(string& result)
+            {
+                Core::JSONRPC::Message::Info info;
+                info.Code = -50110;
+                info.Text = "App state invalid";
+                info.ToString(result);
+            }
+        }
+
         SERVICE_REGISTRATION(AppGatewayImplementation, 1, 0, 0);
 
         class RegionalResolutionConfig : public Core::JSON::Container
@@ -434,6 +453,12 @@ LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_
                     return Core::ERROR_GENERAL;
                 }
             }
+
+            const auto focusPolicyRc = EnforceFocusPolicy(context, method, resolution);
+            if (focusPolicyRc != Core::ERROR_NONE) {
+                return focusPolicyRc;
+            }
+
             LOGTRACE("Resolved method '%s' to alias '%s'", method.c_str(), alias.c_str());            
             // Check if the given method is an event
             if (mResolverPtr->HasEvent(method)) {
@@ -456,6 +481,41 @@ LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_
                 }
             }
             return result;
+        }
+
+        Core::hresult AppGatewayImplementation::EnforceFocusPolicy(const Context& context, const string& method, string& resolution)
+        {
+            const auto normalizedMethod = StringUtils::toLower(method);
+            if (kFocusSensitiveMethods.find(normalizedMethod) == kFocusSensitiveMethods.end()) {
+                return Core::ERROR_NONE;
+            }
+
+            Exchange::IAppGatewayRequestHandler* requestHandler =
+                mService->QueryInterfaceByCallsign<Exchange::IAppGatewayRequestHandler>(COMMON_GATEWAY_AUTHENTICATOR_CALLSIGN);
+            if (requestHandler == nullptr) {
+                SetAppStateInvalidResponse(resolution);
+                return Core::ERROR_GENERAL;
+            }
+
+            JsonObject policyPayload;
+            policyPayload["method"] = normalizedMethod;
+            std::string serializedPayload;
+            policyPayload.ToString(serializedPayload);
+
+            std::string policyResult;
+            const auto rc = requestHandler->HandleAppGatewayRequest(context, "commoninternal.checkfocuspolicy", serializedPayload, policyResult);
+            requestHandler->Release();
+
+            if (rc != Core::ERROR_NONE) {
+                if (policyResult.empty()) {
+                    SetAppStateInvalidResponse(resolution);
+                } else {
+                    resolution = policyResult;
+                }
+                return Core::ERROR_GENERAL;
+            }
+
+            return Core::ERROR_NONE;
         }
 
         string AppGatewayImplementation::UpdateContext(const Context &context, const string& method, const string& params, const string& origin, const bool& onlyAdditionalContext) {

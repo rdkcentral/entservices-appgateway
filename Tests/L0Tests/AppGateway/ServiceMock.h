@@ -22,6 +22,7 @@
 #include <vector>
 #include <list>
 #include <unordered_map>
+#include <unordered_set>
 #include <mutex>
 #include <algorithm>
 
@@ -542,6 +543,40 @@ namespace L0Test {
             lastPayload = payload;
             handleCount++;
 
+            if (method == "commoninternal.checkfocuspolicy") {
+                if (!_policyCheckAvailable) {
+                    result = "{\"code\":-50110,\"message\":\"App state invalid\"}";
+                    return WPEFramework::Core::ERROR_GENERAL;
+                }
+
+                std::string requestedMethod;
+                const auto keyPos = payload.find("\"method\"");
+                if (keyPos != std::string::npos) {
+                    const auto firstQuote = payload.find('"', keyPos + 8);
+                    if (firstQuote != std::string::npos) {
+                        const auto secondQuote = payload.find('"', firstQuote + 1);
+                        if (secondQuote != std::string::npos) {
+                            requestedMethod = payload.substr(firstQuote + 1, secondQuote - firstQuote - 1);
+                        }
+                    }
+                }
+
+                static const std::unordered_set<std::string> kFocusMethods = {
+                    "texttospeech.speak",
+                    "texttospeech.resume",
+                    "speechsynthesis.speak",
+                    "speechsynthesis.resume",
+                    "device.timeinactivestate"
+                };
+                const bool mapped = (kFocusMethods.find(requestedMethod) != kFocusMethods.end());
+                if (mapped && !_focusAllowed) {
+                    result = "{\"code\":-50110,\"message\":\"App state invalid\"}";
+                    return WPEFramework::Core::ERROR_GENERAL;
+                }
+                result = "null";
+                return WPEFramework::Core::ERROR_NONE;
+            }
+
             if (_rc == WPEFramework::Core::ERROR_NONE) {
                 // A deterministic, simple response.
                 result = "null";
@@ -550,6 +585,8 @@ namespace L0Test {
         }
 
         void SetReturnCode(uint32_t rc) { _rc = rc; }
+        void SetFocusAllowed(bool allowed) { _focusAllowed = allowed; }
+        void SetPolicyCheckAvailable(bool available) { _policyCheckAvailable = available; }
 
         uint32_t handleCount { 0 };
         string lastMethod;
@@ -558,6 +595,8 @@ namespace L0Test {
     private:
         mutable std::atomic<uint32_t> _refCount;
         uint32_t _rc;
+        bool _focusAllowed { true };
+        bool _policyCheckAvailable { true };
     };
 
     class ServiceMock final : public WPEFramework::PluginHost::IShell,

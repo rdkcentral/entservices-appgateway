@@ -23,6 +23,9 @@
 #include "UtilsAppGatewayTelemetry.h"
 #include "UtilsJsonValidation.h"
 #include "ContextUtils.h"
+#include <cmath>
+#include <limits>
+#include <unordered_set>
 
 
 #define API_VERSION_NUMBER_MAJOR    APPGATEWAYCOMMON_MAJOR_VERSION
@@ -49,6 +52,130 @@ namespace {
 namespace Plugin {
 
     SERVICE_REGISTRATION(AppGatewayCommon, API_VERSION_NUMBER_MAJOR, API_VERSION_NUMBER_MINOR, API_VERSION_NUMBER_PATCH);
+
+    namespace {
+        const std::unordered_set<std::string> kFocusSensitiveMethods = {
+            "texttospeech.speak",
+            "texttospeech.resume",
+            "speechsynthesis.speak",
+            "speechsynthesis.resume",
+            "device.timeinactivestate"
+        };
+
+        Core::hresult ValidateTextToSpeechSpeakRequest(const Exchange::GatewayContext& ctx, const string& payload, string& result)
+        {
+            JsonObject paramsObj;
+            string callsign = ctx.appId;
+            string text;
+
+            if (payload.empty() || (payload == "null")) {
+                ErrorUtils::CustomBadRequest("Payload is required", result);
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            if (!paramsObj.FromString(payload)) {
+                ErrorUtils::CustomBadRequest("Invalid JSON payload", result);
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            if (paramsObj.HasLabel("callsign") && (Core::JSON::Variant::type::STRING == paramsObj["callsign"].Content())) {
+                callsign = paramsObj.Get("callsign").String();
+            }
+            if (paramsObj.HasLabel("text") && (Core::JSON::Variant::type::STRING == paramsObj["text"].Content())) {
+                text = paramsObj.Get("text").String();
+            }
+
+            if (text.empty() || callsign.empty()) {
+                return Core::ERROR_INVALID_INPUT_LENGTH;
+            }
+
+            return Core::ERROR_NONE;
+        }
+
+        bool TryGetStringField(const Core::JSON::VariantContainer& container, const char* fieldName, std::string& value)
+        {
+            if (!container.HasLabel(fieldName)) {
+                return false;
+            }
+            const auto& field = container.Get(fieldName);
+            if (field.Content() != Core::JSON::Variant::type::STRING) {
+                return false;
+            }
+            value = field.String();
+            return true;
+        }
+
+        bool TryGetUInt32Field(const Core::JSON::VariantContainer& container, const char* fieldName, uint32_t& value)
+        {
+            if (!container.HasLabel(fieldName)) {
+                return false;
+            }
+            const auto& field = container.Get(fieldName);
+            if (field.Content() == Core::JSON::Variant::type::NUMBER) {
+                const double numericValue = field.Number();
+                if (!std::isfinite(numericValue) || (numericValue < 0.0) ||
+                    (numericValue > static_cast<double>(std::numeric_limits<uint32_t>::max()))) {
+                    return false;
+                }
+                const uint32_t convertedValue = static_cast<uint32_t>(numericValue);
+                if (numericValue != static_cast<double>(convertedValue)) {
+                    return false;
+                }
+                value = convertedValue;
+                return true;
+            }
+            if (field.Content() == Core::JSON::Variant::type::STRING) {
+                try {
+                    size_t processed = 0;
+                    const auto parsed = std::stoull(field.String(), &processed, 10);
+                    if ((processed != field.String().size()) || (parsed > std::numeric_limits<uint32_t>::max())) {
+                        return false;
+                    }
+                    value = static_cast<uint32_t>(parsed);
+                    return true;
+                } catch (...) {
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        Core::hresult ValidateSpeechSynthesisSpeakRequest(const std::string& payload, std::string& result)
+        {
+            Core::JSON::VariantContainer params;
+            if (!params.FromString(payload)) {
+                ErrorUtils::CustomBadRequest("SpeechSynthesis.speak requires a valid JSON object payload", result);
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            std::string text;
+            if (!TryGetStringField(params, "text", text) || text.empty()) {
+                ErrorUtils::CustomBadRequest("SpeechSynthesis.speak requires a non-empty 'text' field", result);
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            return Core::ERROR_NONE;
+        }
+
+        Core::hresult ValidateSpeechSynthesisResumeRequest(const std::string& payload, std::string& result)
+        {
+            Core::JSON::VariantContainer params;
+            if (!params.FromString(payload)) {
+                ErrorUtils::CustomBadRequest("SpeechSynthesis.resume requires a valid JSON object payload", result);
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            uint32_t utteranceId = 0;
+            if (!(TryGetUInt32Field(params, "utteranceId", utteranceId) ||
+                  TryGetUInt32Field(params, "speechId", utteranceId) ||
+                  TryGetUInt32Field(params, "value", utteranceId))) {
+                ErrorUtils::CustomBadRequest("SpeechSynthesis.resume requires a numeric 'utteranceId' field", result);
+                return Core::ERROR_BAD_REQUEST;
+            }
+
+            return Core::ERROR_NONE;
+        }
+    }
 
     AppGatewayCommon::AppGatewayCommon(): mShell(nullptr), mConnectionId(0)
     {
@@ -318,6 +445,9 @@ namespace Plugin {
         }},
         { "commoninternal.setintent", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->SetIntent(ctx, payload, result);
+        }},
+        { "commoninternal.checkfocuspolicy", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->CheckFocusPolicy(ctx, payload, result);
         }},
         {"advertising.advertisingid", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->HandleAppDelegateRequest(ctx, "advertising.advertisingid", payload, result);
@@ -592,6 +722,25 @@ Core::hresult AppGatewayCommon::ValidateFocusedActiveState(const Exchange::Gatew
         return Core::ERROR_GENERAL;
     }
 
+    Core::hresult AppGatewayCommon::CheckFocusPolicy(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+    {
+        JsonObject payloadObj;
+        if (!payloadObj.FromString(payload) ||
+            !payloadObj.HasLabel("method") ||
+            (payloadObj["method"].Content() != Core::JSON::Variant::type::STRING)) {
+            SetAppStateInvalidResponse(result);
+            return Core::ERROR_GENERAL;
+        }
+
+        const auto method = StringUtils::toLower(payloadObj.Get("method").String());
+        if (kFocusSensitiveMethods.find(method) == kFocusSensitiveMethods.end()) {
+            result = "null";
+            return Core::ERROR_NONE;
+        }
+
+        return ValidateFocusedActiveState(ctx, result);
+    }
+
     auto lifecycleDelegate = mDelegate->getLifecycleDelegate();
     if (!lifecycleDelegate) {
         SetAppStateInvalidResponse(result);
@@ -626,6 +775,11 @@ Core::hresult AppGatewayCommon::SpeechSynthesisVoices(const Exchange::GatewayCon
 
 Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
 {
+    const auto validationRc = ValidateSpeechSynthesisSpeakRequest(payload, result);
+    if (validationRc != Core::ERROR_NONE) {
+        return validationRc;
+    }
+
     const auto focusRc = ValidateFocusedActiveState(ctx, result);
     if (focusRc != Core::ERROR_NONE) {
         return focusRc;
@@ -654,6 +808,11 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
     Core::hresult AppGatewayCommon::SpeechSynthesisResume(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
     {
+        const auto validationRc = ValidateSpeechSynthesisResumeRequest(payload, result);
+        if (validationRc != Core::ERROR_NONE) {
+            return validationRc;
+        }
+
         const auto focusRc = ValidateFocusedActiveState(ctx, result);
         if (focusRc != Core::ERROR_NONE) {
             return focusRc;
@@ -1772,6 +1931,11 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::TextToSpeechSpeak(const Exchange::GatewayContext& ctx, const string& payload, string& result)
         {
+            const auto validationRc = ValidateTextToSpeechSpeakRequest(ctx, payload, result);
+            if (validationRc != Core::ERROR_NONE) {
+                return validationRc;
+            }
+
             const auto focusRc = ValidateFocusedActiveState(ctx, result);
             if (focusRc != Core::ERROR_NONE) {
                 return focusRc;

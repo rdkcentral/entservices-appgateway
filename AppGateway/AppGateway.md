@@ -89,7 +89,7 @@ Singleton implementation of `IAppGatewayTelemetry`. It records events and metric
 ## 6. Internal Workflows & Execution Flow
 
 - **Startup:** `AppGateway::Initialize()` stores the shell, starts telemetry, roots resolver/responder implementations, configures them, registers JSON-RPC, and records bootstrap duration.
-- **Read/request:** JSON-RPC reaches resolver `Resolve()`, which parses resolution metadata, checks context/permissions/event behavior, and either invokes a COM-RPC handler or schedules a response through the responder.
+- **Read/request:** JSON-RPC reaches resolver `Resolve()`, which parses resolution metadata, checks context/permissions, enforces focus policy for gated methods by calling `AppGatewayCommon` (`commoninternal.checkfocuspolicy`), then continues event/comrpc/direct route dispatch.
 - **Write/response:** responder jobs call `ReturnMessageInSocket`; `Emit` sends event payloads to a connection; `Request` sends a gateway request to an application.
 - **Event flow:** resolution metadata can trigger `AppNotifications` subscription and an event hook routed back to a handler.
 - **Flush:** telemetry aggregates metrics and flushes immediately for selected events or by reporting interval/cache threshold.

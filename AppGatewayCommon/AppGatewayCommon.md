@@ -82,7 +82,7 @@ Runtime dependencies are acquired through `IShell` and delegate classes. `RDKAPP
 
 - **Initialization:** retain shell; initialize telemetry; create and shell-configure `SettingsDelegate`.
 - **Read/write request:** `HandleAppGatewayRequest` logs the method, looks it up in `handlers`, validates payload where needed, and calls the matching delegate method. Read methods fill `result`; write methods commonly convert successful operations to a JSON null response.
-- **Focus-sensitive request gating:** before forwarding `TextToSpeech.speak`, `TextToSpeech.resume`, `SpeechSynthesis.speak`, `SpeechSynthesis.resume`, and `device.timeinactivestate`, `AppGatewayCommon` validates caller focus and active lifecycle state through `LifecycleDelegate`. Non-qualified callers are denied without forwarding and receive Firebolt error `code: -50110`, `message: "App state invalid"`.
+- **Focus policy ownership:** `AppGatewayCommon` owns the canonical focus-sensitive method list and exposes `commoninternal.checkfocuspolicy` via `HandleAppGatewayRequest`. The resolver calls this policy check before route dispatch; when denied, request forwarding is blocked and the caller receives Firebolt error `code: -50110`, `message: "App state invalid"`.
 - **Authentication:** `Authenticate` maps a session to an app ID; `GetSessionId` performs the reverse mapping; `CheckPermissionGroup` evaluates authorization through the configured platform services.
 - **Event registration:** `HandleAppEventNotifier` submits `EventRegistrationJob`; the job asks the delegate to subscribe/unsubscribe without blocking the caller.
 - **Shutdown:** wait until `mActiveJobs` reaches zero, clean/reset the delegate, release the shell, and deinitialize telemetry.
