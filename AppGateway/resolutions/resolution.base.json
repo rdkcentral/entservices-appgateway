@@ -603,6 +603,10 @@
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true
         },
+        "device.brandName": {
+            "alias": "org.rdk.AppGatewayCommon",
+            "useComRpc": true
+        },
         "stats.memoryUsage": {
             "alias": "org.rdk.AppGatewayCommon",
             "useComRpc": true

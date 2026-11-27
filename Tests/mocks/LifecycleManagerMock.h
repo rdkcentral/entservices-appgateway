@@ -34,7 +34,7 @@ public:
     MOCK_METHOD(WPEFramework::Core::hresult, Unregister, (INotification *notification), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, GetLoadedApps, (const bool verbose, std::string &apps), (override));
     MOCK_METHOD(WPEFramework::Core::hresult, IsAppLoaded, (const std::string &appId, bool &loaded), (const, override));
-    MOCK_METHOD(WPEFramework::Core::hresult, SpawnApp, (const string& appId, const string& launchIntent, const LifecycleState targetLifecycleState, const WPEFramework::Exchange::RuntimeConfig& runtimeConfigObject, const string& launchArgs, string& appInstanceId, string& errorReason, bool& success), (override));
+    MOCK_METHOD(WPEFramework::Core::hresult, SpawnApp, (const string& appId, const string& launchIntent, const LifecycleState targetLifecycleState, const int& runtimeConfigObject, const string& launchArgs, string& appInstanceId, string& errorReason, bool& success), (override));
     MOCK_METHOD(uint32_t, SetTargetAppState, (const string& appInstanceId , const LifecycleState targetLifecycleState , const string& launchIntent),(override));
     MOCK_METHOD(WPEFramework::Core::hresult, UnloadApp,(const string& appInstanceId , string& errorReason , bool& success) , (override));
     MOCK_METHOD(WPEFramework::Core::hresult, KillApp,(const string& appInstanceId , string& errorReason , bool& success) , (override));

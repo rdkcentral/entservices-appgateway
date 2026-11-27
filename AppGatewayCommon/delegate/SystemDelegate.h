@@ -1261,6 +1261,35 @@ public:
     }
 
     // PUBLIC_INTERFACE
+    // Device.brandName - reads display brand name from DeviceInfo.displaybrandname
+    Core::hresult GetDeviceBrandName(std::string &result)
+    {
+        result.clear();
+        if (nullptr == _shell) return Core::ERROR_UNAVAILABLE;
+
+        auto* di = _shell->QueryInterfaceByCallsign<Exchange::IDeviceInfo>(DEVICEINFO_CALLSIGN);
+        if (nullptr == di)
+        {
+            LOGWARN("SystemDelegate: IDeviceInfo unavailable for DisplayBrandName");
+            return Core::ERROR_UNAVAILABLE;
+        }
+
+        Exchange::IDeviceInfo::DeviceDisplayBrandName info{};
+        const Core::hresult rc = di->DisplayBrandName(info);
+        di->Release();
+
+        if (rc != Core::ERROR_NONE)
+        {
+            LOGERR("SystemDelegate: IDeviceInfo::DisplayBrandName(get) failed rc=%u", rc);
+            return Core::ERROR_GENERAL;
+        }
+        Core::JSON::String jsonStr;
+        jsonStr = info.displayBrandName;
+        jsonStr.ToString(result);
+        return Core::ERROR_NONE;
+    }
+
+    // PUBLIC_INTERFACE
     bool EmitOnTimezoneChanged(const WPEFramework::Core::JSON::VariantContainer& params)
     {
         if (!params.HasLabel(_T("newTimeZone"))) {
