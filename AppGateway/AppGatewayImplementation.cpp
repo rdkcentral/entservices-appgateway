@@ -57,6 +57,7 @@ namespace WPEFramework
     {
         namespace {
             constexpr int32_t APP_STATE_INVALID_ERROR_CODE = -50110;
+            constexpr const char* APP_GATEWAY_COMMON_CALLSIGN_LOCAL = "org.rdk.AppGatewayCommon";
             constexpr const char* FOCUS_POLICY_METHOD = "commoninternal.focusstate";
             const std::array<std::string, 4> kFocusSensitiveMethods = {
                 "texttospeech.resume",
@@ -64,6 +65,14 @@ namespace WPEFramework
                 "speechsynthesis.resume",
                 "device.timeinactivestate"
             };
+
+            void SetAppStateInvalid(string& resolution)
+            {
+                Core::JSONRPC::Message::Info info;
+                info.Code = APP_STATE_INVALID_ERROR_CODE;
+                info.Text = "App state invalid";
+                info.ToString(resolution);
+            }
         }
 
         SERVICE_REGISTRATION(AppGatewayImplementation, 1, 0, 0);
@@ -411,13 +420,13 @@ LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_
         {
             ScopedInterface<Exchange::IAppGatewayRequestHandler> requestHandler(
                 mService,
-                APP_GATEWAY_COMMON_CALLSIGN);
+                APP_GATEWAY_COMMON_CALLSIGN_LOCAL);
 
             if (!requestHandler) {
                 LOGERR("Focus policy check unavailable: request handler '%s' not available for method '%s'",
-                       APP_GATEWAY_COMMON_CALLSIGN,
+                       APP_GATEWAY_COMMON_CALLSIGN_LOCAL,
                        method.c_str());
-                ErrorUtils::CustomFrameworkError(APP_STATE_INVALID_ERROR_CODE, "App state invalid", resolution);
+                SetAppStateInvalid(resolution);
                 return Core::ERROR_GENERAL;
             }
 
@@ -425,7 +434,7 @@ LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_
             const Core::hresult checkResult = requestHandler->HandleAppGatewayRequest(context, FOCUS_POLICY_METHOD, "{}", policyResult);
             if (checkResult != Core::ERROR_NONE) {
                 LOGERR("Focus policy check failed for method '%s': rc=%u", method.c_str(), static_cast<uint32_t>(checkResult));
-                ErrorUtils::CustomFrameworkError(APP_STATE_INVALID_ERROR_CODE, "App state invalid", resolution);
+                SetAppStateInvalid(resolution);
                 return Core::ERROR_GENERAL;
             }
 
@@ -440,7 +449,7 @@ LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_
                        policyResult.c_str(),
                        method.c_str());
             }
-            ErrorUtils::CustomFrameworkError(APP_STATE_INVALID_ERROR_CODE, "App state invalid", resolution);
+            SetAppStateInvalid(resolution);
             return Core::ERROR_GENERAL;
         }
 
