@@ -123,6 +123,9 @@ extern uint32_t Test_HandleRequest_SetPrefAudioLangs_ValidArray();
 extern uint32_t Test_HandleRequest_PresentationFocused_Routed();
 extern uint32_t Test_HandleRequest_PresentationFocused_ResultIsBooleanString();
 extern uint32_t Test_HandleRequest_PresentationFocused_CaseInsensitive();
+extern uint32_t Test_HandleRequest_CommonInternalFocusState_Routed();
+extern uint32_t Test_HandleRequest_CommonInternalFocusState_ResultIsBooleanString();
+extern uint32_t Test_HandleRequest_CommonInternalFocusState_CaseInsensitive();
 
 // AppGatewayCommon_routing_test.cpp (texttospeech.speak tests)
 extern uint32_t Test_HandleRequest_TextToSpeechSpeak_ValidPayload();
@@ -283,6 +286,9 @@ int main()
         { "HandleRequest_PresentationFocused_Routed",             Test_HandleRequest_PresentationFocused_Routed },
         { "HandleRequest_PresentationFocused_ResultIsBooleanStr", Test_HandleRequest_PresentationFocused_ResultIsBooleanString },
         { "HandleRequest_PresentationFocused_CaseInsensitive",    Test_HandleRequest_PresentationFocused_CaseInsensitive },
+        { "HandleRequest_CommonInternalFocusState_Routed",             Test_HandleRequest_CommonInternalFocusState_Routed },
+        { "HandleRequest_CommonInternalFocusState_ResultIsBooleanStr", Test_HandleRequest_CommonInternalFocusState_ResultIsBooleanString },
+        { "HandleRequest_CommonInternalFocusState_CaseInsensitive",    Test_HandleRequest_CommonInternalFocusState_CaseInsensitive },
         // --- texttospeech.speak tests ---
         { "HandleRequest_TextToSpeechSpeak_ValidPayload",        Test_HandleRequest_TextToSpeechSpeak_ValidPayload },
         { "HandleRequest_TextToSpeechSpeak_EmptyPayload",        Test_HandleRequest_TextToSpeechSpeak_EmptyPayload },

@@ -719,6 +719,221 @@ uint32_t Test_AppGatewayImplementation_ComRpc_RequestHandler_ReceivesAdditionalC
 }
 
 // PUBLIC_INTERFACE
+uint32_t Test_AppGatewayImplementation_FocusGate_Denied_NoForward()
+{
+    TestResult tr;
+
+    const std::string overridePath = TempOverridePath("focus_gate_denied.override.json");
+    const std::string overrideJson = R"JSON(
+{
+  "resolutions": {
+    "speechsynthesis.speak": {
+      "alias": "org.rdk.AppGatewayCommon",
+      "useComRpc": true
+    }
+  }
+}
+)JSON";
+    ExpectTrue(tr, WriteTextFile(overridePath, overrideJson), "Write focus-gate denied override JSON");
+
+    auto* impl = WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ExpectTrue(tr, impl != nullptr, "Create AppGatewayImplementation instance");
+
+    if (impl != nullptr) {
+        L0Test::ServiceMock::Config cfg;
+        cfg.provideResponder = true;
+        cfg.provideRequestHandler = true;
+        cfg.requestHandlerCallsign = "org.rdk.AppGatewayCommon";
+
+        auto* service = new L0Test::ServiceMock(cfg, true);
+        ConfigureImplOrFail(tr, impl, service, { BaseResolutionsPath(), overridePath });
+
+        auto* handler = service->GetRequestHandlerFake();
+        ExpectTrue(tr, handler != nullptr, "RequestHandlerFake created");
+        if (handler != nullptr) {
+            handler->SetFocusStateResponse("false");
+        }
+
+        std::string resolution;
+        const auto ctx = MakeContext();
+        const uint32_t rc = impl->Resolve(ctx, "org.rdk.AppGateway", "speechsynthesis.speak", "{\"text\":\"hello\"}", resolution);
+        ExpectEqU32(tr, rc, ERROR_GENERAL, "Denied focus policy returns ERROR_GENERAL");
+        ExpectTrue(tr, resolution.find("-50110") != std::string::npos, "Denied focus policy returns app-state-invalid code");
+        ExpectTrue(tr, resolution.find("App state invalid") != std::string::npos, "Denied focus policy returns app-state-invalid message");
+
+        if (handler != nullptr) {
+            ExpectEqU32(tr, handler->focusStateHandleCount, 1u, "Focus policy endpoint called once");
+            ExpectEqU32(tr, handler->handleCount, 1u, "No downstream COM-RPC forward when denied");
+            ExpectTrue(tr, handler->lastMethod == "commoninternal.focusstate", "Only focus policy method invoked");
+        }
+
+        DrainAsyncRespondJobs();
+        impl->Release();
+        service->Release();
+    }
+
+    ::unlink(overridePath.c_str());
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
+uint32_t Test_AppGatewayImplementation_FocusGate_Unavailable_FailClosed()
+{
+    TestResult tr;
+
+    const std::string overridePath = TempOverridePath("focus_gate_unavailable.override.json");
+    const std::string overrideJson = R"JSON(
+{
+  "resolutions": {
+    "speechsynthesis.resume": {
+      "alias": "org.rdk.AppGatewayCommon",
+      "useComRpc": true
+    }
+  }
+}
+)JSON";
+    ExpectTrue(tr, WriteTextFile(overridePath, overrideJson), "Write focus-gate unavailable override JSON");
+
+    auto* impl = WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ExpectTrue(tr, impl != nullptr, "Create AppGatewayImplementation instance");
+
+    if (impl != nullptr) {
+        L0Test::ServiceMock::Config cfg;
+        cfg.provideResponder = true;
+        cfg.provideRequestHandler = true;
+        cfg.requestHandlerCallsign = "org.rdk.AppGatewayCommon";
+
+        auto* service = new L0Test::ServiceMock(cfg, true);
+        ConfigureImplOrFail(tr, impl, service, { BaseResolutionsPath(), overridePath });
+
+        auto* handler = service->GetRequestHandlerFake();
+        ExpectTrue(tr, handler != nullptr, "RequestHandlerFake created");
+        if (handler != nullptr) {
+            handler->SetFocusStateReturnCode(ERROR_GENERAL);
+        }
+
+        std::string resolution;
+        const auto ctx = MakeContext();
+        const uint32_t rc = impl->Resolve(ctx, "org.rdk.AppGateway", "speechsynthesis.resume", "{\"utteranceId\":1}", resolution);
+        ExpectEqU32(tr, rc, ERROR_GENERAL, "Unavailable focus policy fails closed");
+        ExpectTrue(tr, resolution.find("-50110") != std::string::npos, "Unavailable focus policy returns app-state-invalid code");
+
+        if (handler != nullptr) {
+            ExpectEqU32(tr, handler->focusStateHandleCount, 1u, "Focus policy endpoint called once");
+            ExpectEqU32(tr, handler->handleCount, 1u, "No downstream COM-RPC forward when policy unavailable");
+            ExpectTrue(tr, handler->lastMethod == "commoninternal.focusstate", "Only focus policy method invoked");
+        }
+
+        DrainAsyncRespondJobs();
+        impl->Release();
+        service->Release();
+    }
+
+    ::unlink(overridePath.c_str());
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
+uint32_t Test_AppGatewayImplementation_FocusGate_FocusFirst_Precedence()
+{
+    TestResult tr;
+
+    const std::string overridePath = TempOverridePath("focus_gate_focus_first.override.json");
+    const std::string overrideJson = R"JSON(
+{
+  "resolutions": {
+    "speechsynthesis.speak": {
+      "alias": "org.rdk.AppGatewayCommon",
+      "useComRpc": true
+    }
+  }
+}
+)JSON";
+    ExpectTrue(tr, WriteTextFile(overridePath, overrideJson), "Write focus-gate focus-first override JSON");
+
+    auto* impl = WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ExpectTrue(tr, impl != nullptr, "Create AppGatewayImplementation instance");
+
+    if (impl != nullptr) {
+        L0Test::ServiceMock::Config cfg;
+        cfg.provideResponder = true;
+        cfg.provideRequestHandler = true;
+        cfg.requestHandlerCallsign = "org.rdk.AppGatewayCommon";
+
+        auto* service = new L0Test::ServiceMock(cfg, true);
+        ConfigureImplOrFail(tr, impl, service, { BaseResolutionsPath(), overridePath });
+
+        auto* handler = service->GetRequestHandlerFake();
+        ExpectTrue(tr, handler != nullptr, "RequestHandlerFake created");
+        if (handler != nullptr) {
+            handler->SetFocusStateResponse("false");
+        }
+
+        std::string resolution;
+        const auto ctx = MakeContext();
+        const uint32_t rc = impl->Resolve(ctx, "org.rdk.AppGateway", "speechsynthesis.speak", "{}", resolution);
+        ExpectEqU32(tr, rc, ERROR_GENERAL, "Focus-first gate returns app-state-invalid before payload validation");
+        ExpectTrue(tr, resolution.find("-50110") != std::string::npos, "Focus-first gate returns app-state-invalid code");
+
+        if (handler != nullptr) {
+            ExpectEqU32(tr, handler->focusStateHandleCount, 1u, "Focus policy checked before payload validation");
+            ExpectEqU32(tr, handler->handleCount, 1u, "No downstream forward when policy denies");
+            ExpectTrue(tr, handler->lastMethod == "commoninternal.focusstate", "Only focus policy method invoked");
+        }
+
+        DrainAsyncRespondJobs();
+        impl->Release();
+        service->Release();
+    }
+
+    ::unlink(overridePath.c_str());
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
+uint32_t Test_AppGatewayImplementation_FocusGate_CaseInsensitive_And_DirectAlias()
+{
+    TestResult tr;
+
+    auto* impl = WPEFramework::Core::Service<WPEFramework::Plugin::AppGatewayImplementation>::Create<WPEFramework::Exchange::IAppGatewayResolver>();
+    ExpectTrue(tr, impl != nullptr, "Create AppGatewayImplementation instance");
+
+    if (impl != nullptr) {
+        L0Test::ServiceMock::Config cfg;
+        cfg.provideResponder = true;
+        cfg.provideRequestHandler = true;
+        cfg.requestHandlerCallsign = "org.rdk.AppGatewayCommon";
+
+        auto* service = new L0Test::ServiceMock(cfg, true);
+        ConfigureImplOrFail(tr, impl, service, { BaseResolutionsPath() });
+
+        auto* handler = service->GetRequestHandlerFake();
+        ExpectTrue(tr, handler != nullptr, "RequestHandlerFake created");
+        if (handler != nullptr) {
+            handler->SetFocusStateResponse("false");
+        }
+
+        std::string resolution;
+        const auto ctx = MakeContext();
+        const uint32_t rc = impl->Resolve(ctx, "org.rdk.AppGateway", "TEXTTOSPEECH.RESUME", "{}", resolution);
+        ExpectEqU32(tr, rc, ERROR_GENERAL, "Case-insensitive direct-alias gated method denied");
+        ExpectTrue(tr, resolution.find("-50110") != std::string::npos, "Direct-alias deny returns app-state-invalid code");
+
+        if (handler != nullptr) {
+            ExpectEqU32(tr, handler->focusStateHandleCount, 1u, "Focus policy called for direct-alias gated method");
+            ExpectEqU32(tr, handler->handleCount, 1u, "Only focus policy handler invoked for denied direct alias");
+            ExpectTrue(tr, handler->lastMethod == "commoninternal.focusstate", "Focus policy method invoked");
+        }
+
+        DrainAsyncRespondJobs();
+        impl->Release();
+        service->Release();
+    }
+
+    return tr.failures;
+}
+
+// PUBLIC_INTERFACE
 uint32_t Test_AppGatewayImplementation_Event_MissingListenParam()
 {
     /** Exercise PreProcessEvent when params parse OK but lack "listen" boolean.

@@ -32,6 +32,8 @@
 #include "UtilsCallsign.h"
 #include "UtilsFirebolt.h"
 #include "StringUtils.h"
+#include <algorithm>
+#include <array>
 
 #define DEFAULT_CONFIG_PATH "/etc/app-gateway/resolution.base.json"
 
@@ -53,6 +55,26 @@ namespace WPEFramework
 {
     namespace Plugin
     {
+        namespace {
+            constexpr int32_t APP_STATE_INVALID_ERROR_CODE = -50110;
+            constexpr const char* APP_GATEWAY_COMMON_CALLSIGN_LOCAL = "org.rdk.AppGatewayCommon";
+            constexpr const char* FOCUS_POLICY_METHOD = "commoninternal.focusstate";
+            const std::array<std::string, 4> kFocusSensitiveMethods = {
+                "texttospeech.resume",
+                "speechsynthesis.speak",
+                "speechsynthesis.resume",
+                "device.timeinactivestate"
+            };
+
+            void SetAppStateInvalid(string& resolution)
+            {
+                Core::JSONRPC::Message::Info info;
+                info.Code = APP_STATE_INVALID_ERROR_CODE;
+                info.Text = "App state invalid";
+                info.ToString(resolution);
+            }
+        }
+
         SERVICE_REGISTRATION(AppGatewayImplementation, 1, 0, 0);
 
         class RegionalResolutionConfig : public Core::JSON::Container
@@ -388,6 +410,49 @@ LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_
             return result;
         }
 
+        bool AppGatewayImplementation::IsFocusSensitiveMethod(const string& method) const
+        {
+            const std::string lowerMethod = StringUtils::toLower(method);
+            return std::find(kFocusSensitiveMethods.begin(), kFocusSensitiveMethods.end(), lowerMethod) != kFocusSensitiveMethods.end();
+        }
+
+        Core::hresult AppGatewayImplementation::CheckFocusPolicy(const Context& context, const string& method, string& resolution)
+        {
+            ScopedInterface<Exchange::IAppGatewayRequestHandler> requestHandler(
+                mService,
+                APP_GATEWAY_COMMON_CALLSIGN_LOCAL);
+
+            if (!requestHandler) {
+                LOGERR("Focus policy check unavailable: request handler '%s' not available for method '%s'",
+                       APP_GATEWAY_COMMON_CALLSIGN_LOCAL,
+                       method.c_str());
+                SetAppStateInvalid(resolution);
+                return Core::ERROR_GENERAL;
+            }
+
+            std::string policyResult;
+            const Core::hresult checkResult = requestHandler->HandleAppGatewayRequest(context, FOCUS_POLICY_METHOD, "{}", policyResult);
+if (Core::ERROR_NONE != checkResult) {
+                LOGERR("Focus policy check failed for method '%s': rc=%u", method.c_str(), static_cast<uint32_t>(checkResult));
+                SetAppStateInvalid(resolution);
+                return Core::ERROR_GENERAL;
+            }
+
+            if (policyResult == "true") {
+                return Core::ERROR_NONE;
+            }
+
+            if (policyResult == "false") {
+                LOGINFO("Focus policy denied method '%s' for appId '%s'", method.c_str(), context.appId.c_str());
+            } else {
+                LOGERR("Focus policy check returned malformed result '%s' for method '%s'",
+                       policyResult.c_str(),
+                       method.c_str());
+            }
+            SetAppStateInvalid(resolution);
+            return Core::ERROR_GENERAL;
+        }
+
         Core::hresult AppGatewayImplementation::FetchResolvedData(const Context &context, const string &method, const string &params, const string &origin, string& resolution) {
             JsonObject params_obj;
             Core::hresult result = Core::ERROR_NONE;
@@ -443,6 +508,14 @@ LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_
                     return Core::ERROR_GENERAL;
                 }
             }
+
+            if (IsFocusSensitiveMethod(method)) {
+                const Core::hresult policyResult = CheckFocusPolicy(context, method, resolution);
+                if (policyResult != Core::ERROR_NONE) {
+                    return policyResult;
+                }
+            }
+
             LOGTRACE("Resolved method '%s' to alias '%s'", method.c_str(), alias.c_str());            
             // Check if the given method is an event
             if (mResolverPtr->HasEvent(method)) {

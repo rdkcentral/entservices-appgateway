@@ -7,6 +7,7 @@
 Responsibilities:
 - Implement `IAppGatewayRequestHandler`, `IAppNotificationHandler`, and `IAppGatewayAuthenticator`.
 - Route method strings through a static handler table.
+- Provide LifecycleDelegate-backed focus/active state evaluation for resolver policy checks without owning the resolver's gated-method inventory.
 - Authenticate sessions, map app IDs, check permission groups, and handle event registration.
 - Delegate platform operations to `SettingsDelegate` and its subsystem delegates.
 - Manage worker-pool event registration safely during shutdown.

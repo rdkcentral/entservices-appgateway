@@ -7,6 +7,7 @@
 Responsibilities:
 - Own the `org.rdk.AppGateway` Thunder lifecycle and JSON-RPC dispatcher.
 - Load resolution aliases and route requests to COM-RPC handlers or Thunder JSON-RPC paths.
+- Enforce resolver-owned focus-policy gating for selected focus-sensitive methods before downstream dispatch.
 - Manage WebSocket request/response and event delivery through the responder implementation.
 - Aggregate App Gateway telemetry and expose `Exchange::IAppGatewayTelemetry`.
 - Preserve gateway context such as application, connection, request, origin, and version information.

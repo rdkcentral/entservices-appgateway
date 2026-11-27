@@ -664,6 +664,49 @@ uint32_t Test_HandleRequest_PresentationFocused_CaseInsensitive()
     return tr.failures;
 }
 
+// TEST_ID: AGC_L0_110
+// Handler-map getter: commoninternal.focusstate is routed and returns ERROR_NONE.
+uint32_t Test_HandleRequest_CommonInternalFocusState_Routed()
+{
+    return DelegateGetterTest("commoninternal.focusstate");
+}
+
+// TEST_ID: AGC_L0_111
+// commoninternal.focusstate returns literal "true" or "false".
+uint32_t Test_HandleRequest_CommonInternalFocusState_ResultIsBooleanString()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "commoninternal.focusstate", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "commoninternal.focusstate returns ERROR_NONE");
+    const bool isBoolStr = (result == "true" || result == "false");
+    ExpectTrue(tr, isBoolStr, "commoninternal.focusstate result is 'true' or 'false'");
+
+    return tr.failures;
+}
+
+// TEST_ID: AGC_L0_112
+// commoninternal.focusstate is case-insensitive.
+uint32_t Test_HandleRequest_CommonInternalFocusState_CaseInsensitive()
+{
+    TestResult tr;
+    PluginAndService& ps = SharedFixture::instance().ps();
+
+    QIGuard<Exchange::IAppGatewayRequestHandler> handler(ps.plugin);
+    std::string result;
+    Exchange::GatewayContext ctx = DefaultContext();
+
+    const uint32_t rc = handler->HandleAppGatewayRequest(ctx, "COMMONINTERNAL.FOCUSSTATE", "{}", result);
+    ExpectEqU32(tr, rc, ERROR_NONE, "COMMONINTERNAL.FOCUSSTATE routes same as commoninternal.focusstate");
+
+    return tr.failures;
+}
+
 // ============================================================================
 // Tests AGC_L0_101 – AGC_L0_103 — ParentalControl handler-map getters
 // ============================================================================

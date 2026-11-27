@@ -169,6 +169,7 @@ namespace WPEFramework {
             Core::hresult ActionsStart(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult ActionsIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             Core::hresult GetPresentationFocused(const Exchange::GatewayContext& ctx, const std::string& payload, std::string &result /* @out */);
+            Core::hresult GetFocusPolicyState(const Exchange::GatewayContext& ctx, const std::string& payload, std::string &result /* @out */);
             Core::hresult SetIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result);
             
             bool SubmitEventRegistration(Exchange::IAppNotificationHandler::IEmitter* cb,
