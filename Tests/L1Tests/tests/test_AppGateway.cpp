@@ -2104,16 +2104,26 @@ public:
     END_INTERFACE_MAP
 
     Core::hresult HandleAppGatewayRequest(const Exchange::GatewayContext& /*context*/,
-                                          const string& /*method*/,
+                                          const string& method,
                                           const string& /*params*/,
                                           string& resolution) override
     {
+        callCount++;
+        lastMethod = method;
+        if (method == "commoninternal.focusstate") {
+            resolution = focusResolution;
+            return focusReturnCode;
+        }
         resolution = mResolution;
         return mReturnCode;
     }
 
     Core::hresult mReturnCode{Core::ERROR_NONE};
     std::string mResolution;
+    Core::hresult focusReturnCode{Core::ERROR_NONE};
+    std::string focusResolution{"true"};
+    uint32_t callCount{0};
+    std::string lastMethod;
 };
 
 // Mock IAppGatewayAuthenticator for permission group tests
@@ -2222,6 +2232,84 @@ TEST(AppGatewayPluginTest, AppGatewayImplementation_ProcessComRpcRequest_Handler
     EXPECT_EQ(Core::ERROR_GENERAL,
               impl.ProcessComRpcRequest(ctx, "org.rdk.DeviceInfo", "device.name", "{}", "org.rdk.AppGateway", resolution));
     EXPECT_FALSE(resolution.empty());
+
+    std::remove(path.c_str());
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_FocusGateDenied_NoForward)
+{
+    NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
+    MockRequestHandler handler;
+    handler.focusResolution = "false";
+    handler.mReturnCode = Core::ERROR_NONE;
+    handler.mResolution = "null";
+
+    impl.mService = &service;
+    impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    ON_CALL(service, QueryInterfaceByCallsign(_, _)).WillByDefault(Return(nullptr));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(Exchange::IAppGatewayRequestHandler::ID, StrEq("org.rdk.AppGatewayCommon")))
+        .Times(::testing::AnyNumber())
+        .WillRepeatedly(Return(static_cast<void*>(static_cast<Exchange::IAppGatewayRequestHandler*>(&handler))));
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "speechsynthesis.speak": {
+                "alias": "org.rdk.AppGatewayCommon",
+                "useComRpc": true
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_focus_gate_denied.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    const auto ctx = MakeImplementationContext();
+    std::string resolution;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              impl.FetchResolvedData(ctx, "speechsynthesis.speak", R"({"text":"hello"})", "org.rdk.AppGateway", resolution));
+    EXPECT_NE(std::string::npos, resolution.find("-50110"));
+    EXPECT_EQ(1u, handler.callCount);
+    EXPECT_EQ("commoninternal.focusstate", handler.lastMethod);
+
+    std::remove(path.c_str());
+}
+
+TEST(AppGatewayPluginTest, AppGatewayImplementation_FetchResolvedData_FocusGateFocusFirst)
+{
+    NiceMock<ServiceMock> service;
+    TestAppGatewayImplementation impl;
+    MockRequestHandler handler;
+    handler.focusResolution = "false";
+
+    impl.mService = &service;
+    impl.mResolverPtr = std::make_shared<Resolver>(nullptr);
+
+    EXPECT_CALL(service, Release()).Times(::testing::AnyNumber()).WillRepeatedly(Return(Core::ERROR_NONE));
+    ON_CALL(service, QueryInterfaceByCallsign(_, _)).WillByDefault(Return(nullptr));
+    EXPECT_CALL(service, QueryInterfaceByCallsign(Exchange::IAppGatewayRequestHandler::ID, StrEq("org.rdk.AppGatewayCommon")))
+        .Times(::testing::AnyNumber())
+        .WillRepeatedly(Return(static_cast<void*>(static_cast<Exchange::IAppGatewayRequestHandler*>(&handler))));
+
+    const std::string cfg = R"({
+        "resolutions": {
+            "speechsynthesis.speak": {
+                "alias": "org.rdk.AppGatewayCommon",
+                "useComRpc": true
+            }
+        }
+    })";
+    const std::string path = WriteResolverTempConfig("agw_focus_gate_payload_first.json", cfg);
+    ASSERT_TRUE(impl.mResolverPtr->LoadConfig(path));
+
+    const auto ctx = MakeImplementationContext();
+    std::string resolution;
+    EXPECT_EQ(Core::ERROR_GENERAL,
+              impl.FetchResolvedData(ctx, "speechsynthesis.speak", "{}", "org.rdk.AppGateway", resolution));
+    EXPECT_NE(std::string::npos, resolution.find("-50110"));
+    EXPECT_EQ(1u, handler.callCount);
+    EXPECT_EQ("commoninternal.focusstate", handler.lastMethod);
 
     std::remove(path.c_str());
 }

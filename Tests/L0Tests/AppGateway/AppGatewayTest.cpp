@@ -70,6 +70,10 @@ extern uint32_t Test_AppGatewayImplementation_Configure_NullPaths_ReturnsBadRequ
 extern uint32_t Test_AppGatewayImplementation_Configure_EmptyPaths_ReturnsBadRequest();
 extern uint32_t Test_AppGatewayImplementation_Authenticator_CheckPermission_Fails();
 extern uint32_t Test_AppGatewayImplementation_ComRpc_HandleRequestFails();
+extern uint32_t Test_AppGatewayImplementation_FocusGate_Denied_NoForward();
+extern uint32_t Test_AppGatewayImplementation_FocusGate_Unavailable_FailClosed();
+extern uint32_t Test_AppGatewayImplementation_FocusGate_FocusFirst_Precedence();
+extern uint32_t Test_AppGatewayImplementation_FocusGate_CaseInsensitive_And_DirectAlias();
 
 // Targeted AppGatewayResponderImplementation coverage tests
 extern uint32_t Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery();
@@ -505,6 +509,10 @@ int main()
         { "AppGatewayImplementation_Configure_EmptyPaths_ReturnsBadRequest", Test_AppGatewayImplementation_Configure_EmptyPaths_ReturnsBadRequest },
         { "AppGatewayImplementation_Authenticator_CheckPermission_Fails", Test_AppGatewayImplementation_Authenticator_CheckPermission_Fails },
         { "AppGatewayImplementation_ComRpc_HandleRequestFails", Test_AppGatewayImplementation_ComRpc_HandleRequestFails },
+        { "AppGatewayImplementation_FocusGate_Denied_NoForward", Test_AppGatewayImplementation_FocusGate_Denied_NoForward },
+        { "AppGatewayImplementation_FocusGate_Unavailable_FailClosed", Test_AppGatewayImplementation_FocusGate_Unavailable_FailClosed },
+        { "AppGatewayImplementation_FocusGate_FocusFirst_Precedence", Test_AppGatewayImplementation_FocusGate_FocusFirst_Precedence },
+        { "AppGatewayImplementation_FocusGate_CaseInsensitive_And_DirectAlias", Test_AppGatewayImplementation_FocusGate_CaseInsensitive_And_DirectAlias },
 
         // Targeted AppGatewayResponderImplementation coverage tests
         { "AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery", Test_AppGatewayResponderImplementation_Register_Unregister_And_CallbackDelivery },

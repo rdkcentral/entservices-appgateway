@@ -415,6 +415,9 @@ namespace Plugin {
         {"presentation.focused", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
             return self->GetPresentationFocused(ctx, payload, result);
         }},
+        {"commoninternal.focusstate", [](AppGatewayCommon* self, const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result) {
+            return self->GetFocusPolicyState(ctx, payload, result);
+        }},
         { "parentalcontrol.pincontrol", [](AppGatewayCommon* self, const Exchange::GatewayContext&, const std::string&, std::string& result) {
             return self->GetPinControl(result);
         }},
@@ -1586,6 +1589,11 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
         Core::hresult AppGatewayCommon::GetPresentationFocused(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
             return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetPresentationFocused, ctx, payload, result);
+        }
+
+        Core::hresult AppGatewayCommon::GetFocusPolicyState(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
+        {
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetFocusPolicyState, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::SetIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)

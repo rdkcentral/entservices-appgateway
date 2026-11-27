@@ -542,6 +542,14 @@ namespace L0Test {
             lastPayload = payload;
             handleCount++;
 
+            if (method == "commoninternal.focusstate") {
+                focusStateHandleCount++;
+                if (focusStateReturnCode == WPEFramework::Core::ERROR_NONE) {
+                    result = focusStateResponse;
+                }
+                return focusStateReturnCode;
+            }
+
             if (_rc == WPEFramework::Core::ERROR_NONE) {
                 // A deterministic, simple response.
                 result = "null";
@@ -550,10 +558,15 @@ namespace L0Test {
         }
 
         void SetReturnCode(uint32_t rc) { _rc = rc; }
+        void SetFocusStateResponse(const string& response) { focusStateResponse = response; }
+        void SetFocusStateReturnCode(uint32_t rc) { focusStateReturnCode = rc; }
 
         uint32_t handleCount { 0 };
+        uint32_t focusStateHandleCount { 0 };
         string lastMethod;
         string lastPayload;
+        string focusStateResponse { "true" };
+        uint32_t focusStateReturnCode { WPEFramework::Core::ERROR_NONE };
 
     private:
         mutable std::atomic<uint32_t> _refCount;

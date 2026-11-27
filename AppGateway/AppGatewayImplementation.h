@@ -92,6 +92,8 @@ namespace Plugin {
         string UpdateContext(const Context &context, const string& method, const string& params, const string& origin, const bool& onlyAdditionalContext = false);
         Core::hresult InternalResolve(const Context &context, const string &method, const string &params, const string &origin, string& resolution);
         Core::hresult FetchResolvedData(const Context &context, const string &method, const string &params, const string &origin, string& resolution);
+        bool IsFocusSensitiveMethod(const string& method) const;
+        Core::hresult CheckFocusPolicy(const Context& context, const string& method, string& resolution);
         Core::hresult InternalResolutionConfigure(std::vector<std::string>&& configPaths);
         void SendToLaunchDelegate(const Context& context, const string& payload);
         std::string ReadCountryFromConfigFile();
