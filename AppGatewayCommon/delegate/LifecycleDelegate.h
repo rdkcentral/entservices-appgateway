@@ -447,6 +447,20 @@ class LifecycleDelegate : public BaseEventDelegate
         return Core::ERROR_NONE;
     }
 
+    Core::hresult GetFocusPolicyState(const Exchange::GatewayContext& context, const string& payload /*@opaque */, string& result /*@out @opaque */){
+        string appInstanceId = mAppIdInstanceIdMap.GetAppInstanceId(context.appId);
+        if (appInstanceId.empty()) {
+            LOGWARN("GetFocusPolicyState called for unknown or unmapped appId=%s", context.appId.c_str());
+            result = "false";
+            return Core::ERROR_NONE;
+        }
+
+        const bool isFocused = mFocusedAppRegistry.IsAppInstanceIdFocused(appInstanceId);
+        const bool isActive = mLifecycleStateRegistry.IsAppLifecycleActive(appInstanceId);
+        result = (isFocused && isActive) ? "true" : "false";
+        return Core::ERROR_NONE;
+    }
+
     private:
     class LifecycleNotificationHandler : public Exchange::ILifecycleManagerState::INotification
     {
