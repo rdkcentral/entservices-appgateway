@@ -432,7 +432,7 @@ LOGTRACE("Asynchronous request; response will be sent separately: %s", method.c_
 
             std::string policyResult;
             const Core::hresult checkResult = requestHandler->HandleAppGatewayRequest(context, FOCUS_POLICY_METHOD, "{}", policyResult);
-            if (checkResult != Core::ERROR_NONE) {
+if (Core::ERROR_NONE != checkResult) {
                 LOGERR("Focus policy check failed for method '%s': rc=%u", method.c_str(), static_cast<uint32_t>(checkResult));
                 SetAppStateInvalid(resolution);
                 return Core::ERROR_GENERAL;
