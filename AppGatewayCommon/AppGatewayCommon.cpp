@@ -1593,34 +1593,7 @@ Core::hresult AppGatewayCommon::SpeechSynthesisSpeak(const Exchange::GatewayCont
 
         Core::hresult AppGatewayCommon::GetFocusPolicyState(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
         {
-            std::string focusedResult;
-            Core::hresult hr = InvokeLifecycleDelegate(
-                GetDelegateSafe(),
-                &SettingsDelegate::getLifecycleDelegate,
-                &LifecycleDelegate::GetPresentationFocused,
-                ctx,
-                payload,
-                focusedResult);
-            if (hr != Core::ERROR_NONE) {
-                return hr;
-            }
-
-            std::string lifecycle2State;
-            hr = InvokeLifecycleDelegate(
-                GetDelegateSafe(),
-                &SettingsDelegate::getLifecycleDelegate,
-                &LifecycleDelegate::Lifecycle2State,
-                ctx,
-                payload,
-                lifecycle2State);
-            if (hr != Core::ERROR_NONE) {
-                return hr;
-            }
-
-            const bool isFocused = (focusedResult == "true");
-            const bool isActive = (lifecycle2State == "\"active\"" || lifecycle2State == "active");
-            result = (isFocused && isActive) ? "true" : "false";
-            return Core::ERROR_NONE;
+            return InvokeLifecycleDelegate(GetDelegateSafe(), &SettingsDelegate::getLifecycleDelegate, &LifecycleDelegate::GetFocusPolicyState, ctx, payload, result);
         }
 
         Core::hresult AppGatewayCommon::SetIntent(const Exchange::GatewayContext& ctx, const std::string& payload, std::string& result)
